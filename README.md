@@ -138,7 +138,7 @@ Il repo include una **GitHub Action** [.github/workflows/refresh-and-deploy.yml]
 
 2. **Push del repo locale** (da PowerShell, nella cartella `Mygotham/`):
    ```powershell
-   git remote add origin https://github.com/leandronesi/mygotham.git
+   git remote add origin https://github.com/leandronesi/chess_coach.git
    git branch -M main
    git push -u origin main
    ```
@@ -146,7 +146,7 @@ Il repo include una **GitHub Action** [.github/workflows/refresh-and-deploy.yml]
 3. **Abilita GitHub Pages**: in repo → Settings → Pages → Source = "GitHub Actions".
 
 4. Il workflow parte da solo al primo push. URL finale:
-   <https://leandronesi.github.io/mygotham/>
+   <https://leandronesi.github.io/chess_coach/>
 
 ### Manutenzione
 
