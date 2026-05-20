@@ -1,6 +1,7 @@
 import type { BlunderRow } from "../types";
 import { BoardView } from "./BoardView";
-import { squaresOfSan, fmtEval, turnFromFen } from "../chess-utils";
+import { squaresOfSan, turnFromFen } from "../chess-utils";
+import { cpToHuman, cpToPawns } from "../glossary";
 
 interface Props {
   blunder: BlunderRow;
@@ -75,29 +76,34 @@ export function BlunderCard({ blunder, size = 280 }: Props) {
         <BoardView fen={fen} size={size} orientation={orientation} highlights={highlights} arrows={arrows} />
       </div>
 
-      <div className="mt-3 text-sm">
-        <div className="flex items-baseline gap-2 flex-wrap">
-          <span className="text-slate-400">Mossa {blunder.move_number}</span>
-          <span className="text-red-300 font-mono font-semibold">{blunder.san}</span>
-          <span className="text-slate-500 text-xs">
-            ({fmtEval(blunder.cp_before)} → {fmtEval(blunder.cp_after)}, perdita {blunder.cp_loss}cp)
-          </span>
+      <div className="mt-3 text-sm space-y-2">
+        <div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-slate-400 text-xs">Mossa {blunder.move_number} · hai giocato</span>
+            <span className="text-red-300 font-mono font-semibold">{blunder.san}</span>
+          </div>
+          <div className="text-xs text-slate-500 mt-0.5 tabular-nums">
+            valutazione {cpToPawns(blunder.cp_before)} → {cpToPawns(blunder.cp_after)} ·
+            <span className="text-red-300 ml-1">perdi {cpToPawns(blunder.cp_loss).replace("+", "")} ({cpToHuman(blunder.cp_loss)})</span>
+          </div>
         </div>
         {blunder.best_san && (
-          <div className="flex items-baseline gap-2 flex-wrap mt-1.5">
-            <span className="text-slate-400">Meglio:</span>
-            <span className="text-green-300 font-mono font-semibold">{blunder.best_san}</span>
+          <div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-slate-400 text-xs">Meglio era</span>
+              <span className="text-green-300 font-mono font-semibold">{blunder.best_san}</span>
+            </div>
             {blunder.pv_san.length > 1 && (
-              <span className="text-slate-500 text-xs font-mono">
-                {blunder.pv_san.slice(0, 5).join(" ")}
-              </span>
+              <div className="text-[11px] text-slate-500 font-mono mt-0.5 leading-relaxed">
+                seguito: {blunder.pv_san.slice(0, 5).join(" ")}
+              </div>
             )}
           </div>
         )}
       </div>
 
       <div className="mt-auto pt-3 flex items-center justify-between text-xs">
-        <span className="text-slate-500">{blunder.phase}</span>
+        <span className="text-slate-500 capitalize">{blunder.phase}</span>
         {blunder.url && (
           <a
             href={blunder.url}

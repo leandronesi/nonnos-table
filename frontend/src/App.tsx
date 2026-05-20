@@ -20,6 +20,7 @@ import { TacticsMotifs } from "./components/TacticsMotifs";
 import { WorstGames } from "./components/WorstGames";
 import { BlunderReview } from "./components/BlunderReview";
 import { GameDetail } from "./components/GameDetail";
+import { Glossary } from "./components/Glossary";
 
 export function App() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
@@ -82,7 +83,7 @@ export function App() {
         </div>
       ) : (
         <>
-          <KpiRow kpi={d.kpi} byColor={d.byColor} performance={agg.performance} />
+          <KpiRow kpi={d.kpi} byColor={d.byColor} performance={agg.performance} goal={agg.goal} />
 
           <DailyReview picks={metrics.top.daily_picks} />
 
@@ -116,6 +117,8 @@ export function App() {
           <div className="mt-5">
             <OpeningsTable rows={d.byOpening} />
           </div>
+
+          <Glossary />
 
           <footer className="text-center text-xs text-slate-500 mt-10 mb-4">
             Generato da Chess Coach · Stockfish 17 · {d.games.length} partite filtrate su{" "}
