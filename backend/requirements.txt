@@ -1,0 +1,7 @@
+python-chess>=1.11
+requests>=2.32
+PyYAML>=6.0
+python-dotenv>=1.0
+tqdm>=4.66
+fastapi>=0.115
+uvicorn[standard]>=0.32

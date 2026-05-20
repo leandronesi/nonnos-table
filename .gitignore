@@ -1,0 +1,35 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Env
+.env
+
+# Data (PGN/analisi grezzi possono pesare; metrics.json lo lasciamo tracciabile)
+data/raw/
+data/analysis/
+data/index.json
+data/analyze.log
+# data/metrics.json   → lo committiamo: serve per il primo deploy
+
+# Le analisi singole per il drill-down su gh-pages le rigenera la GH Action.
+# 8 MB di JSON: meglio non averli nel repo principale.
+frontend/public/analysis/
+
+# Stockfish binario locale
+engine/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.tsbuildinfo
+*.tsbuildinfo
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

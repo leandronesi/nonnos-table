@@ -1,0 +1,121 @@
+name: Refresh & Deploy · GitHub Pages
+
+# Stesso pattern di the_pulp (build + deploy separati). Tre trigger:
+#   - schedule giornaliero alle 04:00 UTC
+#   - push su main
+#   - manuale (workflow_dispatch) con opzione --deep
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      deep:
+        description: "Profilo 'deep' (profondità 22, più lento ma più accurato)"
+        required: false
+        default: 'false'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Stockfish
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y stockfish
+          which stockfish
+
+      - name: Restore data cache (PGN + analisi Stockfish)
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/raw
+            data/analysis
+            data/index.json
+          # La key cambia ad ogni run (per garantire save), ma restore-keys
+          # cattura sempre la più recente: cosi la cache è incrementale.
+          key: chess-data-${{ github.run_id }}
+          restore-keys: |
+            chess-data-
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Fetch new games
+        env:
+          STOCKFISH_PATH: /usr/games/stockfish
+        run: python backend/ingest.py
+
+      - name: Analyze games (cached: skips already-analyzed)
+        env:
+          STOCKFISH_PATH: /usr/games/stockfish
+        run: |
+          if [ "${{ github.event.inputs.deep }}" = "true" ]; then
+            python backend/analyze.py --deep
+          else
+            python backend/analyze.py
+          fi
+
+      - name: Build metrics.json
+        run: python backend/metrics.py
+
+      - name: Export per-game analyses (for static drill-down)
+        run: python backend/export_analysis.py
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build static site
+        working-directory: frontend
+        env:
+          VITE_BASE: /${{ github.event.repository.name }}/
+        run: npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
