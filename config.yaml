@@ -1,29 +1,58 @@
+# Chess Coach — config principale.
+# Tutto ciò che è "facile da ritoccare" sta qui.
+
 chess_com:
   username: breaking_plays2
-  user_agent: 'chess-coach/0.1 (contact: lndrns@gmail.com)'
+  # User-Agent richiesto da Chess.com (altrimenti rischio 403). Tienilo descrittivo.
+  user_agent: "chess-coach/0.1 (personal use)"
+  # Se vuoi limitare lo storico scaricato. null = tutti gli archivi disponibili.
   last_n_months: null
+  # Quanto aspettare tra una richiesta e l'altra (rate-limit cortesia).
   request_sleep_seconds: 0.4
+  # Backoff su 429/5xx.
   max_retries: 5
   initial_backoff_seconds: 2.0
+
 stockfish:
+  # Path al binario. Se vuoto, lo cerco in PATH, poi in ./engine/, poi in cartelle winget.
+  # Override esplicito via env var STOCKFISH_PATH (vedi .env.example).
   path: null
+  # Threads per istanza engine (ricorda che ogni worker apre la sua istanza).
   threads: 1
+  # Hash table per istanza. Tieni basso se hai molti worker (RAM = workers × hash_mb).
   hash_mb: 64
+
 analysis:
+  # Profilo "fast" — usato di default per iterare.
   fast:
     depth: 15
+    # Se preferisci tempo per mossa invece della profondità, metti movetime_ms (override depth).
     movetime_ms: null
+  # Profilo "deep" — abilitato con `make analyze DEEP=1` o `.\run.ps1 analyze -Deep`.
   deep:
     depth: 22
     movetime_ms: null
+
+  # Worker paralleli. 0 = auto (capped a 4 per evitare OOM su Windows con molte
+  # istanze Stockfish — ognuna alloca hash_mb). Su macchine forti, override a mano.
   parallel_workers: 0
+
+  # Soglie centipawn loss per categorizzare ogni MIA mossa.
+  # (Confronta valutazione prima/dopo la mossa, dal mio punto di vista.)
   thresholds:
-    inaccuracy: 50
-    mistake: 100
-    blunder: 250
+    inaccuracy: 50   # >= 50 cp loss
+    mistake:    100  # >= 100 cp loss
+    blunder:    250  # >= 250 cp loss
+
+  # Definizione delle fasi di gioco. Vedi backend/analyze.py per la logica esatta.
   phases:
+    # Apertura: prime N mosse (full-move number, non ply).
     opening_until_move: 12
+    # Finale: quando il "phase score" (somma valori pezzi non-pedoni non-re) scende sotto questa soglia.
+    # Riferimento materiale iniziale (per colore): 2R+2N+2B+Q = 31 (~62 totale).
+    # Sotto ~24 totale siamo tipicamente in finale.
     endgame_material_threshold: 24
+
 paths:
   raw_dir: data/raw
   analysis_dir: data/analysis
