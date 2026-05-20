@@ -1,0 +1,32 @@
+chess_com:
+  username: breaking_plays2
+  user_agent: 'chess-coach/0.1 (contact: lndrns@gmail.com)'
+  last_n_months: null
+  request_sleep_seconds: 0.4
+  max_retries: 5
+  initial_backoff_seconds: 2.0
+stockfish:
+  path: null
+  threads: 1
+  hash_mb: 64
+analysis:
+  fast:
+    depth: 15
+    movetime_ms: null
+  deep:
+    depth: 22
+    movetime_ms: null
+  parallel_workers: 0
+  thresholds:
+    inaccuracy: 50
+    mistake: 100
+    blunder: 250
+  phases:
+    opening_until_move: 12
+    endgame_material_threshold: 24
+paths:
+  raw_dir: data/raw
+  analysis_dir: data/analysis
+  index_file: data/index.json
+  metrics_file: data/metrics.json
+  metrics_parquet: data/metrics.parquet
