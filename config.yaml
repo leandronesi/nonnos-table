@@ -59,3 +59,5 @@ paths:
   index_file: data/index.json
   metrics_file: data/metrics.json
   metrics_parquet: data/metrics.parquet
+  # SPRINT 1 v2 — il "cuore queryabile" della v2.
+  positions_db: data/positions.db
