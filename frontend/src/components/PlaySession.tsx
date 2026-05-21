@@ -46,6 +46,7 @@ export function PlaySession({ startFen, startSan, myColor, context, onClose }: P
   const [status, setStatus] = useState<"playing" | "ended">("playing");
   const [result, setResult] = useState<string | null>(null);
   const [evalCp, setEvalCp] = useState<number | null>(null);
+  const [lastMove, setLastMove] = useState<{ from: string; to: string; by: "me" | "engine" } | null>(null);
 
   const sideToMove = useMemo(() => (fen.split(" ")[1] === "b" ? "black" : "white"), [fen]);
   const myTurn = sideToMove === myColor;
@@ -74,6 +75,7 @@ export function PlaySession({ startFen, startSan, myColor, context, onClose }: P
             ...h,
             { ply: h.length + 1, san: move.san, byMe: false, cpAfter: ev.scoreCp ?? null },
           ]);
+          setLastMove({ from: move.from, to: move.to, by: "engine" });
           checkGameEnd();
         }
       } finally {
@@ -125,6 +127,7 @@ export function PlaySession({ startFen, startSan, myColor, context, onClose }: P
     const newFen = gameRef.current.fen();
     setFen(newFen);
     setHistory((h) => [...h, { ply: h.length + 1, san: move.san, byMe: true, cpAfter: null }]);
+    setLastMove({ from: move.from, to: move.to, by: "me" });
     checkGameEnd();
     return true;
   }
@@ -135,6 +138,7 @@ export function PlaySession({ startFen, startSan, myColor, context, onClose }: P
     setHistory([]);
     setStatus("playing");
     setResult(null);
+    setLastMove(null);
   }
 
   const evalBar = useMemo(() => {
@@ -162,14 +166,25 @@ export function PlaySession({ startFen, startSan, myColor, context, onClose }: P
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[auto_16px_1fr] gap-6 items-start">
-        <div className="flex justify-center">
+        <div className="flex flex-col items-center gap-2">
+          <TurnBanner status={status} myTurn={myTurn} thinking={thinking} skill={skill} />
           <BoardView
             fen={fen}
+            resetKey={startFen}
             orientation={myColor}
             size={440}
             draggable={status === "playing" && myTurn && !thinking}
             onPieceDrop={onDrop}
+            highlights={lastMove ? buildLastMoveHighlights(lastMove) : []}
+            arrows={lastMove ? buildLastMoveArrows(lastMove) : []}
           />
+          {lastMove && (
+            <div className="text-[10px] font-mono text-[color:var(--color-muted)] tracking-wide uppercase">
+              Ultima mossa · <span style={{ color: lastMove.by === "me" ? "#a18bff" : "#fde047" }}>
+                {lastMove.by === "me" ? "tua" : "Stockfish"}
+              </span> · {lastMove.from} → {lastMove.to}
+            </div>
+          )}
         </div>
 
         {/* Eval bar verticale */}
@@ -251,4 +266,54 @@ export function PlaySession({ startFen, startSan, myColor, context, onClose }: P
       </div>
     </div>
   );
+}
+
+function TurnBanner({
+  status,
+  myTurn,
+  thinking,
+  skill,
+}: {
+  status: "playing" | "ended";
+  myTurn: boolean;
+  thinking: boolean;
+  skill: number;
+}) {
+  if (status === "ended") return null;
+  if (thinking) {
+    return (
+      <div className="pill pill-warn pulse-glow">
+        <span className="dot" style={{ background: "#fde047" }} />
+        Stockfish (skill {skill}) sta pensando…
+      </div>
+    );
+  }
+  if (myTurn) {
+    return (
+      <div className="pill pill-brand">
+        <span className="dot" style={{ background: "#a18bff" }} />
+        Tocca a te
+      </div>
+    );
+  }
+  return (
+    <div className="pill">
+      <span className="dot" style={{ background: "#fde047" }} />
+      Attendi mossa engine
+    </div>
+  );
+}
+
+// Highlight ultima mossa: porpora se mia, giallo (alla Chess.com) se engine.
+function buildLastMoveHighlights(lm: { from: string; to: string; by: "me" | "engine" }) {
+  const color = lm.by === "me" ? "#a18bff" : "#fde047";
+  return [
+    { square: lm.from, color: `${color}55` },
+    { square: lm.to, color: `${color}aa` },
+  ];
+}
+
+function buildLastMoveArrows(lm: { from: string; to: string; by: "me" | "engine" }) {
+  const color = lm.by === "me" ? "#a18bff" : "#fde047";
+  return [{ from: lm.from, to: lm.to, color }];
 }

@@ -35,7 +35,6 @@ concurrency:
 
 env:
   LC0_VERSION: v0.31.2
-  LC0_FILE: lc0-v0.31.2-linux-cpu-openblas.tar.gz
 
 jobs:
   build:
@@ -71,17 +70,24 @@ jobs:
             engine/maia
           key: engines-lc0-${{ env.LC0_VERSION }}-maia-1200-1600
 
-      - name: Download lc0 + Maia weights
+      # Lc0 NON distribuisce binari Linux nei release ufficiali. Compiliamo da
+      # sorgenti la prima volta (~5-8 min) e cachiamo il binario.
+      - name: Build lc0 from source + download Maia weights
         if: steps.cache-engines.outputs.cache-hit != 'true'
         run: |
+          sudo apt-get install -y meson ninja-build libopenblas-dev libgflags-dev libeigen3-dev libprotobuf-dev protobuf-compiler libgtest-dev zlib1g-dev
           mkdir -p engine/lc0 engine/maia
-          curl -L -o engine/lc0.tar.gz "https://github.com/LeelaChessZero/lc0/releases/download/${LC0_VERSION}/${LC0_FILE}"
-          tar -xzf engine/lc0.tar.gz -C engine/lc0 --strip-components=1
-          rm engine/lc0.tar.gz
-          chmod +x engine/lc0/lc0
-          curl -L -o engine/maia/maia-1200.pb.gz https://raw.githubusercontent.com/CSSLab/maia-chess/master/maia_weights/maia-1200.pb.gz
-          curl -L -o engine/maia/maia-1600.pb.gz https://raw.githubusercontent.com/CSSLab/maia-chess/master/maia_weights/maia-1600.pb.gz
-          ls -la engine/lc0 engine/maia
+          git clone --depth 1 --branch ${LC0_VERSION} https://github.com/LeelaChessZero/lc0 /tmp/lc0src
+          cd /tmp/lc0src
+          git submodule update --init --recursive
+          meson setup build --buildtype=release -Dgtest=false -Dpopcnt=false
+          ninja -C build lc0
+          cp build/lc0 $GITHUB_WORKSPACE/engine/lc0/lc0
+          chmod +x $GITHUB_WORKSPACE/engine/lc0/lc0
+          $GITHUB_WORKSPACE/engine/lc0/lc0 --version | head -3
+          curl -L -o $GITHUB_WORKSPACE/engine/maia/maia-1200.pb.gz https://raw.githubusercontent.com/CSSLab/maia-chess/master/maia_weights/maia-1200.pb.gz
+          curl -L -o $GITHUB_WORKSPACE/engine/maia/maia-1600.pb.gz https://raw.githubusercontent.com/CSSLab/maia-chess/master/maia_weights/maia-1600.pb.gz
+          ls -la $GITHUB_WORKSPACE/engine/lc0 $GITHUB_WORKSPACE/engine/maia
 
       # Cache dei dati di analisi (raw PGN + Stockfish per-game + DB).
       # Cresce solo con partite nuove → run successivi richiedono ~2 min.
@@ -120,12 +126,16 @@ jobs:
       - name: Step 3 · Build positions.db
         run: python backend/build_positions_db.py
 
-      - name: Step 4 · Maia inference on critical positions
+      - name: Step 4 · Maia inference on critical positions (opzionale, skip se lc0 manca)
+        continue-on-error: true
         env:
           STOCKFISH_PATH: /usr/games/stockfish
         run: |
-          # lc0 path lo passiamo via config (engine/lc0/lc0 in Linux)
-          python backend/maia_features.py
+          if [ -x engine/lc0/lc0 ]; then
+            python backend/maia_features.py
+          else
+            echo "::warning::lc0 non disponibile, skip Maia inference. Le colonne best_san_maia_* resteranno NULL."
+          fi
 
       - name: Step 5 · Derive flags + enrich decisions
         run: |
