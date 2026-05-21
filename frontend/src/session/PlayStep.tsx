@@ -28,7 +28,7 @@ export function PlayStep({ startFen, myColor: myColorProp, skillLevel = 8, onDon
   const [history, setHistory] = useState<string[]>([]);     // SAN moves
   const [engineThinking, setEngineThinking] = useState(false);
   const [outcome, setOutcome] = useState<PlayResult["outcome"] | null>(null);
-  const [lastMove, setLastMove] = useState<{ from: string; to: string } | null>(null);
+  const [lastMove, setLastMove] = useState<{ from: string; to: string; by: "me" | "engine" } | null>(null);
 
   // Se è il turno dell'engine all'apertura, fai muovere lui
   useEffect(() => {
@@ -52,7 +52,7 @@ export function PlayStep({ startFen, myColor: myColorProp, skillLevel = 8, onDon
       if (!mv) return;
       setFen(boardRef.current.fen());
       setHistory((h) => [...h, mv.san]);
-      setLastMove({ from: mv.from, to: mv.to });
+      setLastMove({ from: mv.from, to: mv.to, by: "engine" });
       checkGameOver();
     } finally {
       setEngineThinking(false);
@@ -83,7 +83,7 @@ export function PlayStep({ startFen, myColor: myColorProp, skillLevel = 8, onDon
     if (!mv) return false;
     setFen(boardRef.current.fen());
     setHistory((h) => [...h, mv.san]);
-    setLastMove({ from: mv.from, to: mv.to });
+    setLastMove({ from: mv.from, to: mv.to, by: "me" });
     if (!checkGameOver()) {
       // delay simbolico per evitare reazione istantanea
       setTimeout(() => engineMove(), 250);
@@ -99,13 +99,15 @@ export function PlayStep({ startFen, myColor: myColorProp, skillLevel = 8, onDon
     });
   }
 
+  // Highlight ultima mossa: porpora se mia, giallo (alla Chess.com) se engine.
+  const lastMoveColor = lastMove?.by === "me" ? "#a18bff" : "#fde047";
   const highlights = lastMove
     ? [
-        { square: lastMove.from, color: "#fde04755" },
-        { square: lastMove.to, color: "#fde04788" },
+        { square: lastMove.from, color: `${lastMoveColor}55` },
+        { square: lastMove.to, color: `${lastMoveColor}aa` },
       ]
     : [];
-  const arrows = lastMove ? [{ from: lastMove.from, to: lastMove.to, color: "#fde047" }] : [];
+  const arrows = lastMove ? [{ from: lastMove.from, to: lastMove.to, color: lastMoveColor }] : [];
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-10 items-start">
