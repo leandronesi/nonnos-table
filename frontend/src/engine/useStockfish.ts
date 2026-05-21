@@ -43,6 +43,12 @@ export function useStockfish(): StockfishApi {
   const workerRef = useRef<Worker | null>(null);
   const readyPromiseRef = useRef<Promise<void> | null>(null);
   const pendingResolveRef = useRef<((res: EvalResult) => void) | null>(null);
+  // Coda: serializza le chiamate evaluate(). Stockfish gestisce UNA search alla volta;
+  // chiamate concorrenti si sovrascriverebbero la pendingResolveRef e bloccherebbero
+  // tutto (la prima promise non si risolve mai). La queue garantisce ordine FIFO.
+  const evalQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  // Ref live di isReady, per evitare closure stale dentro promise di lunga vita.
+  const isReadyRef = useRef(false);
   const currentEvalRef = useRef<EvalResult>({
     scoreCp: null,
     mate: null,
@@ -67,6 +73,7 @@ export function useStockfish(): StockfishApi {
         return;
       }
       if (line === "readyok") {
+        isReadyRef.current = true;
         setIsReady(true);
         return;
       }
@@ -92,21 +99,24 @@ export function useStockfish(): StockfishApi {
     w.postMessage("uci");
   }, []);
 
-  // ready() ritorna una promessa che si risolve quando l'engine è pronto
+  // ready() ritorna una promessa che si risolve quando l'engine è pronto.
+  // Importante: il setInterval deve leggere isReadyRef.current (live), non il
+  // closure `isReady` (stale) — altrimenti la promise non si risolve mai se
+  // l'engine diventa ready DOPO la creazione della promise.
   const ready = useCallback((): Promise<void> => {
-    if (isReady) return Promise.resolve();
+    if (isReadyRef.current) return Promise.resolve();
     if (readyPromiseRef.current) return readyPromiseRef.current;
     initWorker();
     readyPromiseRef.current = new Promise<void>((resolve) => {
       const check = setInterval(() => {
-        if (isReady) {
+        if (isReadyRef.current) {
           clearInterval(check);
           resolve();
         }
       }, 50);
     });
     return readyPromiseRef.current;
-  }, [isReady, initWorker]);
+  }, [initWorker]);
 
   // Init worker subito al mount (asincrono, è leggero)
   useEffect(() => {
@@ -124,37 +134,45 @@ export function useStockfish(): StockfishApi {
   }, []);
 
   const evaluate = useCallback(
-    async (fen: string, opts: EvalOpts = {}): Promise<EvalResult> => {
-      await ready();
-      const w = workerRef.current;
-      if (!w) throw new Error("Stockfish non disponibile");
+    (fen: string, opts: EvalOpts = {}): Promise<EvalResult> => {
+      // Accodiamo: la prossima evaluate parte solo quando la precedente è finita.
+      // Stockfish gestisce UNA search alla volta: chiamate concorrenti
+      // sovrascrivono pendingResolveRef e bloccano tutto.
+      const prev = evalQueueRef.current;
+      const next = (async () => {
+        await prev.catch(() => undefined);
+        await ready();
+        const w = workerRef.current;
+        if (!w) throw new Error("Stockfish non disponibile");
 
-      const depth = opts.depth ?? 14;
-      const movetime = opts.movetimeMs;
-      const multiPV = opts.multiPV ?? 1;
-      const skill = opts.skillLevel ?? 20;
+        const depth = opts.depth ?? 14;
+        const movetime = opts.movetimeMs;
+        const multiPV = opts.multiPV ?? 1;
+        const skill = opts.skillLevel ?? 20;
 
-      // reset eval corrente
-      currentEvalRef.current = {
-        scoreCp: null,
-        mate: null,
-        bestMoveUci: null,
-        pvUci: [],
-        depth: 0,
-      };
+        currentEvalRef.current = {
+          scoreCp: null,
+          mate: null,
+          bestMoveUci: null,
+          pvUci: [],
+          depth: 0,
+        };
 
-      return new Promise<EvalResult>((resolve) => {
-        pendingResolveRef.current = resolve;
-        w.postMessage("ucinewgame");
-        w.postMessage(`setoption name MultiPV value ${multiPV}`);
-        w.postMessage(`setoption name Skill Level value ${skill}`);
-        w.postMessage(`position fen ${fen}`);
-        if (movetime) {
-          w.postMessage(`go movetime ${movetime}`);
-        } else {
-          w.postMessage(`go depth ${depth}`);
-        }
-      });
+        return new Promise<EvalResult>((resolve) => {
+          pendingResolveRef.current = resolve;
+          w.postMessage("ucinewgame");
+          w.postMessage(`setoption name MultiPV value ${multiPV}`);
+          w.postMessage(`setoption name Skill Level value ${skill}`);
+          w.postMessage(`position fen ${fen}`);
+          if (movetime) {
+            w.postMessage(`go movetime ${movetime}`);
+          } else {
+            w.postMessage(`go depth ${depth}`);
+          }
+        });
+      })();
+      evalQueueRef.current = next;
+      return next;
     },
     [ready],
   );
