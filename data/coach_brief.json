@@ -1,0 +1,12 @@
+{
+  "headline": "Blind spot: Pezzo lasciato",
+  "diagnosis_narrative": "284 blunder critici classificati come «Pezzo lasciato» (90 evitabili alla tua forza).",
+  "this_week": [
+    "📌 Blind spot: Pezzo lasciato — tactic trainer Lichess su tema hangingPiece",
+    "🎯 Rivedi mossa 54 (2026-05-20, vs 1160): giocata Kg3, meglio Kg4",
+    "🎯 Rivedi mossa 21 (2026-05-19, vs 1143): giocata Nf5, meglio Rh1"
+  ],
+  "avoid": "Bullet quando vuoi migliorare in blitz",
+  "generated_at": "2026-05-21T12:41:03+00:00",
+  "model": "fallback-rules"
+}

@@ -1,80 +1,579 @@
 @import "tailwindcss";
 
-/* Palette del prodotto (non quella di default di Recharts). */
+/* ============================================================================
+ * Chess Coach v2 — Design System.
+ *
+ * Riferimenti visivi (mimati con intenzione):
+ *  - Linear.app           → densità tipografica, label-eyebrow monospace, palette ridotta
+ *  - Vercel Dashboard     → gradient sottili, geometric shapes, accenti puliti
+ *  - Aimchess             → cards data-dense, badges colorate
+ *  - Apple Fitness        → ring di progresso per il goal (focal point)
+ *  - Stripe Dashboard     → grid 8pt rigorosa, gerarchia chiara
+ *  - Chessable / Lichess  → tipografia scacchistica seria
+ *
+ * Principi:
+ *  - Una palette stretta: 1 brand (porpora) + 1 gold accent + 3 semantici.
+ *  - Tipografia: Inter Tight (display) + Inter (testo) + JetBrains Mono (dati).
+ *  - Spaziatura 8pt. Spazi tra sezioni ampi (gerarchia).
+ *  - Surface = sfondo sottilmente più chiaro + shadow stratificata, niente bordi visivi.
+ *  - Motion: fade-up brevi, easing "out", solo dove serve.
+ * ========================================================================== */
+
 @theme {
-  --color-bg: #07090f;
-  --color-panel: #0f1320;
-  --color-panel-2: #141a2c;
-  --color-line: #1f2740;
-  --color-muted: #6b7393;
-  --color-text: #e6e9f5;
+  /* Background scale */
+  --color-bg: #060814;
+  --color-bg-2: #0a0d1c;
+  --color-surface: #0f1325;
+  --color-surface-2: #161a30;
+  --color-surface-3: #1c2138;
+  --color-line: #1e2440;
+  --color-line-strong: #2a3158;
 
-  --color-brand: #7c5cff;      /* viola */
+  /* Text scale */
+  --color-text: #eef0fa;
+  --color-text-soft: #b6bcd6;
+  --color-muted: #717892;
+  --color-faint: #4a5070;
+
+  /* Brand + accents */
+  --color-brand: #7c5cff;
   --color-brand-soft: #a18bff;
-  --color-accent: #2dd4bf;     /* teal */
-  --color-warn: #f59e0b;       /* ambra */
-  --color-danger: #ef4444;     /* rosso */
-  --color-ok: #22c55e;         /* verde */
+  --color-brand-glow: rgba(124, 92, 255, 0.45);
+  --color-gold: #f6c64a;
+  --color-gold-soft: #ffd877;
 
-  --color-opening: #60a5fa;    /* blu chiaro */
-  --color-middle: #f59e0b;     /* ambra */
-  --color-endgame: #f472b6;    /* rosa */
+  /* Semantic */
+  --color-ok: #34d399;
+  --color-warn: #f5a524;
+  --color-danger: #f43f5e;
+  --color-info: #60a5fa;
 
+  /* Chess-specific */
+  --color-opening: #60a5fa;
+  --color-middle: #f5a524;
+  --color-endgame: #ec4899;
   --color-inaccuracy: #facc15;
   --color-mistake: #fb923c;
-  --color-blunder: #ef4444;
+  --color-blunder: #f43f5e;
 
-  --font-sans: "Inter", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
+  /* Typography */
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-display: "Inter Tight", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+
+  /* Spacing scale 8pt (per riferimento mentale) */
+  /* 4 8 12 16 24 32 48 64 96 128 */
 }
 
 html, body, #root { height: 100%; }
+* { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
 body {
   background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(124,92,255,0.10), transparent 60%),
-    radial-gradient(900px 500px at 100% 0%, rgba(45,212,191,0.08), transparent 60%),
+    radial-gradient(1400px 800px at 5% -5%, rgba(124,92,255,0.10), transparent 55%),
+    radial-gradient(900px 600px at 100% 5%, rgba(45,212,191,0.05), transparent 60%),
+    radial-gradient(800px 500px at 70% 110%, rgba(246,198,74,0.04), transparent 65%),
     var(--color-bg);
   font-family: var(--font-sans);
   letter-spacing: -0.005em;
+  color: var(--color-text);
+  font-feature-settings: "ss01", "cv11";
 }
 
-/* Card pattern condiviso. */
-.card {
-  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)) , var(--color-panel);
-  border: 1px solid var(--color-line);
-  border-radius: 16px;
-  padding: 1.25rem 1.5rem;
-  position: relative;
+::selection { background: rgba(124,92,255,0.35); color: white; }
+
+/* ============================================================================
+ * APP LAYOUT (sidebar + main)
+ * ========================================================================== */
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 248px 1fr;
+  min-height: 100vh;
 }
-.card-title {
-  font-size: 0.75rem;
+@media (max-width: 1023px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Sidebar ---- */
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding: 1.5rem 1rem 1.25rem 1.25rem;
+  border-right: 1px solid var(--color-line);
+  background: linear-gradient(180deg, rgba(255,255,255,0.015) 0%, transparent 100%), var(--color-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  overflow-y: auto;
+}
+@media (max-width: 1023px) {
+  .sidebar {
+    position: static;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--color-line);
+  }
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.25rem 0.5rem;
+}
+.brand-mark {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 0.625rem;
+  background: linear-gradient(135deg, var(--color-brand) 0%, var(--color-brand-soft) 100%);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.875rem;
+  color: white;
+  box-shadow: 0 8px 20px -6px var(--color-brand-glow);
+}
+.brand-name {
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.brand-sub {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--color-muted);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--color-muted);
-  font-weight: 600;
+  margin-top: 1px;
 }
 
-.kpi-value { font-family: var(--font-display); font-weight: 700; font-size: 2rem; letter-spacing: -0.02em; }
-.kpi-sub   { font-size: 0.8rem; color: var(--color-muted); }
+.nav { display: flex; flex-direction: column; gap: 1px; }
+.nav-section-label {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+  padding: 0.75rem 0.625rem 0.375rem;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text-soft);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 120ms ease;
+  border: 1px solid transparent;
+}
+.nav-item:hover {
+  background: rgba(255,255,255,0.03);
+  color: var(--color-text);
+}
+.nav-item.active {
+  background: rgba(124,92,255,0.10);
+  color: white;
+  border-color: rgba(124,92,255,0.30);
+}
+.nav-item-num {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+  width: 1.25rem;
+}
+.nav-item.active .nav-item-num { color: var(--color-brand-soft); }
 
-.trend-up   { color: var(--color-danger); }   /* ACPL ↑ è peggio */
-.trend-down { color: var(--color-ok); }       /* ACPL ↓ è meglio */
-.trend-flat { color: var(--color-muted); }
+.sidebar-footer {
+  margin-top: auto;
+  padding: 0.75rem 0.625rem;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--color-faint);
+  letter-spacing: 0.06em;
+  line-height: 1.6;
+}
 
-/* Recharts overrides per non sembrare un boilerplate */
-.recharts-cartesian-axis-tick text { fill: var(--color-muted); font-size: 11px; }
+/* ---- Main area ---- */
+.main {
+  padding: 2.5rem 3rem;
+  max-width: 1280px;
+  width: 100%;
+}
+@media (max-width: 1023px) {
+  .main { padding: 1.5rem; }
+}
+
+/* ============================================================================
+ * Surfaces (no visible borders, separation via shadow + bg)
+ * ========================================================================== */
+.surface {
+  background: linear-gradient(180deg, rgba(255,255,255,0.025) 0%, rgba(255,255,255,0) 100%), var(--color-surface);
+  border-radius: 16px;
+  position: relative;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.04) inset,
+    0 24px 48px -28px rgba(0,0,0,0.55),
+    0 8px 22px -12px rgba(0,0,0,0.4);
+}
+.surface-padded { padding: 1.5rem 1.75rem; }
+.surface-compact { padding: 1.125rem 1.25rem; }
+
+/* Hero — extra-large card */
+.hero {
+  background:
+    radial-gradient(800px 400px at 90% 20%, rgba(124,92,255,0.18), transparent 60%),
+    radial-gradient(600px 400px at 10% 100%, rgba(246,198,74,0.08), transparent 65%),
+    linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 100%),
+    var(--color-surface);
+  border-radius: 20px;
+  padding: 2rem 2.25rem;
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.06) inset,
+    0 40px 80px -30px rgba(0,0,0,0.7),
+    0 16px 40px -15px rgba(0,0,0,0.5);
+}
+
+/* ============================================================================
+ * Typography
+ * ========================================================================== */
+.display-rating {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(4rem, 8vw, 6.25rem);
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  background: linear-gradient(180deg, #ffffff 0%, #b6b9d0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 4px 30px rgba(124,92,255,0.2);
+  font-feature-settings: "tnum";
+}
+.display-medium {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2rem, 3.5vw, 2.75rem);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.display-small {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.display-tiny {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.125rem;
+  letter-spacing: -0.01em;
+}
+
+.label-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 2.2vw, 1.875rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  line-height: 1.15;
+}
+.section-sub {
+  color: var(--color-text-soft);
+  font-size: 0.875rem;
+  max-width: 64ch;
+  margin-top: 0.5rem;
+  line-height: 1.55;
+}
+
+.mono { font-family: var(--font-mono); font-feature-settings: "tnum"; }
+
+/* ============================================================================
+ * Sections (numbered editorial)
+ * ========================================================================== */
+.section { margin-top: 4rem; }
+.section-eyebrow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.875rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+.section-number {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.25em;
+  color: var(--color-gold-soft);
+  opacity: 0.7;
+}
+
+/* ============================================================================
+ * Pills / badges
+ * ========================================================================== */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3125rem 0.75rem;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  border: 1px solid var(--color-line-strong);
+  background: rgba(255,255,255,0.02);
+  white-space: nowrap;
+}
+.pill-good { color: #6ee7b7; border-color: rgba(52,211,153,0.35); background: rgba(52,211,153,0.07); }
+.pill-bad  { color: #fda4af; border-color: rgba(244,63,94,0.35); background: rgba(244,63,94,0.07); }
+.pill-warn { color: #fcd34d; border-color: rgba(245,165,36,0.35); background: rgba(245,165,36,0.07); }
+.pill-brand { color: var(--color-brand-soft); border-color: rgba(124,92,255,0.4); background: rgba(124,92,255,0.10); }
+
+.dot { display: inline-block; width: 0.4375rem; height: 0.4375rem; border-radius: 999px; flex-shrink: 0; }
+
+/* ============================================================================
+ * Buttons
+ * ========================================================================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5625rem 1rem;
+  border-radius: 0.625rem;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  transition: all 150ms ease;
+  cursor: pointer;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.btn-primary {
+  background: linear-gradient(180deg, #8b6dff 0%, #6b4dee 100%);
+  color: white;
+  box-shadow: 0 8px 18px -8px var(--color-brand-glow), 0 1px 0 rgba(255,255,255,0.2) inset;
+}
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 14px 28px -8px var(--color-brand-glow), 0 1px 0 rgba(255,255,255,0.25) inset; }
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.btn-ghost {
+  background: rgba(255,255,255,0.03);
+  color: var(--color-text-soft);
+  border-color: var(--color-line);
+}
+.btn-ghost:hover { background: rgba(255,255,255,0.06); color: var(--color-text); border-color: var(--color-line-strong); }
+
+.btn-gold {
+  background: linear-gradient(180deg, var(--color-gold-soft) 0%, var(--color-gold) 100%);
+  color: #1a1500;
+  box-shadow: 0 8px 20px -8px rgba(246,198,74,0.5);
+}
+.btn-gold:hover { transform: translateY(-1px); }
+
+.btn-lg { padding: 0.75rem 1.25rem; font-size: 0.9375rem; border-radius: 0.75rem; }
+.btn-sm { padding: 0.375rem 0.75rem; font-size: 0.75rem; }
+
+/* ============================================================================
+ * Achievement Ring (Apple Fitness-style)
+ * ========================================================================== */
+.ring-wrap { position: relative; display: inline-grid; place-items: center; }
+.ring-bg { stroke: rgba(255,255,255,0.05); fill: none; }
+.ring-fg {
+  fill: none;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 12px var(--color-brand-glow));
+  transition: stroke-dashoffset 800ms cubic-bezier(0.22,1,0.36,1);
+}
+
+/* ============================================================================
+ * Stat cards
+ * ========================================================================== */
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 1.125rem;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  transition: all 200ms ease;
+}
+.stat:hover { border-color: var(--color-line-strong); background: rgba(255,255,255,0.035); }
+.stat-label {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.stat-value {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  font-feature-settings: "tnum";
+}
+.stat-sub {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--color-text-soft);
+}
+
+/* ============================================================================
+ * Numbered list (editorial diagnoses)
+ * ========================================================================== */
+.numbered-item {
+  display: flex;
+  gap: 1.25rem;
+  padding: 1.5rem 0;
+  border-top: 1px solid var(--color-line);
+  transition: all 180ms ease;
+}
+.numbered-item:first-child { border-top: none; padding-top: 0; }
+.numbered-item:hover { padding-left: 0.25rem; }
+.numbered-ord {
+  font-family: var(--font-display);
+  font-size: 2.25rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-muted);
+  flex-shrink: 0;
+  width: 2.75rem;
+  font-feature-settings: "tnum";
+  opacity: 0.5;
+  transition: opacity 200ms ease, color 200ms ease;
+}
+.numbered-item:hover .numbered-ord { opacity: 1; color: var(--color-brand-soft); }
+
+/* ============================================================================
+ * Data bar
+ * ========================================================================== */
+.databar-track {
+  height: 0.375rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  overflow: hidden;
+}
+.databar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--color-brand) 0%, var(--color-brand-soft) 100%);
+}
+
+/* ============================================================================
+ * Tab / Segmented control
+ * ========================================================================== */
+.segment {
+  display: inline-flex;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--color-line);
+  border-radius: 0.625rem;
+  padding: 3px;
+}
+.segment-item {
+  padding: 0.4rem 0.875rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--color-text-soft);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+.segment-item.active {
+  background: rgba(124,92,255,0.18);
+  color: white;
+  box-shadow: 0 4px 12px -6px var(--color-brand-glow);
+}
+
+/* ============================================================================
+ * Recharts customization
+ * ========================================================================== */
+.recharts-cartesian-axis-tick text { fill: var(--color-muted); font-size: 11px; font-family: var(--font-mono); }
 .recharts-tooltip-wrapper { outline: none; }
 .recharts-default-tooltip {
-  background: var(--color-panel-2) !important;
-  border: 1px solid var(--color-line) !important;
+  background: var(--color-surface-2) !important;
+  border: 1px solid var(--color-line-strong) !important;
   border-radius: 10px !important;
   color: var(--color-text) !important;
+  box-shadow: 0 18px 40px -20px rgba(0,0,0,0.6) !important;
+  padding: 0.625rem 0.875rem !important;
 }
-.recharts-legend-item-text { color: var(--color-text) !important; font-size: 12px; }
+.recharts-legend-item-text { color: var(--color-text-soft) !important; font-size: 12px; }
+.recharts-cartesian-grid line { stroke: var(--color-line); }
 
-/* Scrollbar sottile */
+/* ============================================================================
+ * Scrollbar
+ * ========================================================================== */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--color-line); border-radius: 8px; }
-::-webkit-scrollbar-thumb:hover { background: #2a3358; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-line-strong); }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ============================================================================
+ * Animation
+ * ========================================================================== */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeUp 500ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.fade-in-delay-1 { animation-delay: 60ms; }
+.fade-in-delay-2 { animation-delay: 120ms; }
+.fade-in-delay-3 { animation-delay: 180ms; }
+.fade-in-delay-4 { animation-delay: 240ms; }
+.fade-in-delay-5 { animation-delay: 300ms; }
+.fade-in-delay-6 { animation-delay: 360ms; }
+.fade-in-delay-7 { animation-delay: 420ms; }
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--color-brand-glow); }
+  50% { box-shadow: 0 0 0 8px transparent; }
+}
+.pulse-glow { animation: pulseGlow 2s ease-in-out infinite; }
+
+/* ============================================================================
+ * Utility shadows + dividers
+ * ========================================================================== */
+.glow-brand { box-shadow: 0 0 40px -10px var(--color-brand-glow); }
+.glow-gold  { box-shadow: 0 0 40px -10px rgba(246,198,74,0.4); }
+.glow-ok    { box-shadow: 0 0 40px -10px rgba(52,211,153,0.4); }
+.glow-bad   { box-shadow: 0 0 40px -10px rgba(244,63,94,0.4); }
+
+.hairline {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-line-strong) 50%, transparent);
+}
+.divider-y {
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--color-line-strong) 50%, transparent);
+}

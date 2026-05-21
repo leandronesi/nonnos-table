@@ -18,8 +18,8 @@ data/analyze.log
 # 8 MB di JSON: meglio non averli nel repo principale.
 frontend/public/analysis/
 
-# Stockfish binario locale
-engine/
+# Stockfish + lc0 binari locali (root engine/, NON frontend/src/engine o frontend/public/engine)
+/engine/
 
 # Frontend
 frontend/node_modules/
