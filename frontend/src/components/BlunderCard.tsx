@@ -1,70 +1,77 @@
-import type { BlunderRow } from "../types";
 import { BoardView } from "./BoardView";
 import { squaresOfSan, turnFromFen } from "../chess-utils";
 import { cpToHuman, cpToPawns } from "../glossary";
+import type { Color, Phase, Result } from "../types";
 
-interface Props {
-  blunder: BlunderRow;
-  size?: number;
+export interface BlunderRow {
+  game_id: string;
+  url: string | null;
+  date: string | null;
+  end_time_epoch?: number | null;
+  time_class?: string | null;
+  my_color: Color | null;
+  my_rating?: number | null;
+  opp_rating: number | null;
+  result?: Result | null;
+  eco: string | null;
+  opening: string | null;
+  ply: number;
+  move_number: number;
+  san: string;
+  phase: Phase;
+  cp_before: number;
+  cp_after: number;
+  cp_loss: number;
+  best_san: string | null;
+  pv_san: string[];
+  fen_before: string | null;
+  motif: string | null;
+  motif_label: string;
 }
 
 const MOTIF_COLOR: Record<string, string> = {
-  allowed_mate: "#ef4444",
+  allowed_mate: "#f43f5e",
   material_loss: "#fb923c",
-  winning_to_lost: "#f59e0b",
+  winning_to_lost: "#f5a524",
   winning_advantage_thrown: "#facc15",
   positional_blunder: "#a18bff",
 };
 
-export function BlunderCard({ blunder, size = 280 }: Props) {
+export function BlunderCard({ blunder, size = 240 }: { blunder: BlunderRow; size?: number }) {
   const fen = blunder.fen_before || "";
   const played = fen && blunder.san ? squaresOfSan(fen, blunder.san) : null;
   const best = fen && blunder.best_san ? squaresOfSan(fen, blunder.best_san) : null;
   const orientation = blunder.my_color || turnFromFen(fen);
 
   const highlights = [
-    ...(played
-      ? [
-          { square: played.from, color: "#ef444466" },
-          { square: played.to, color: "#ef4444" },
-        ]
-      : []),
-    ...(best
-      ? [
-          { square: best.from, color: "#22c55e66" },
-          { square: best.to, color: "#22c55e" },
-        ]
-      : []),
+    ...(played ? [{ square: played.from, color: "#f43f5e66" }, { square: played.to, color: "#f43f5e" }] : []),
+    ...(best ? [{ square: best.from, color: "#34d39966" }, { square: best.to, color: "#34d399" }] : []),
   ];
-
   const arrows = [
-    ...(played
-      ? [{ from: played.from, to: played.to, color: "#ef4444" }]
-      : []),
-    ...(best && best.from !== played?.from
-      ? [{ from: best.from, to: best.to, color: "#22c55e" }]
-      : []),
+    ...(played ? [{ from: played.from, to: played.to, color: "#f43f5e" }] : []),
+    ...(best && best.from !== played?.from ? [{ from: best.from, to: best.to, color: "#34d399" }] : []),
   ];
 
   return (
-    <div className="card !p-4 flex flex-col h-full">
+    <div className="surface p-4 flex flex-col h-full">
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className="min-w-0">
-          <div className="text-[10px] uppercase tracking-widest text-slate-500">
-            {blunder.date} · {blunder.time_class} · {blunder.my_color}
+          <div className="label-eyebrow text-[10px]">
+            {blunder.date} · {blunder.my_color}
           </div>
-          <div className="text-sm text-slate-300 truncate mt-0.5">
-            vs <span className="text-slate-100 font-medium">{blunder.opp_rating ?? "?"}</span>
-            {blunder.opening ? <> · <span className="text-slate-400">{blunder.opening}</span></> : null}
+          <div className="text-sm text-[color:var(--color-text)] truncate mt-1 font-medium">
+            vs <span className="font-semibold tabular-nums">{blunder.opp_rating ?? "?"}</span>
           </div>
+          {blunder.opening && (
+            <div className="text-xs text-[color:var(--color-text-soft)] truncate mt-0.5">{blunder.opening}</div>
+          )}
         </div>
         {blunder.motif && (
           <span
-            className="text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-md whitespace-nowrap"
+            className="text-[10px] font-semibold uppercase tracking-widest px-2 py-1 rounded-md whitespace-nowrap"
             style={{
               background: `${MOTIF_COLOR[blunder.motif] || "#a18bff"}22`,
               color: MOTIF_COLOR[blunder.motif] || "#a18bff",
-              border: `1px solid ${MOTIF_COLOR[blunder.motif] || "#a18bff"}55`,
             }}
           >
             {blunder.motif_label || blunder.motif}
@@ -76,34 +83,29 @@ export function BlunderCard({ blunder, size = 280 }: Props) {
         <BoardView fen={fen} size={size} orientation={orientation} highlights={highlights} arrows={arrows} />
       </div>
 
-      <div className="mt-3 text-sm space-y-2">
-        <div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-slate-400 text-xs">Mossa {blunder.move_number} · hai giocato</span>
-            <span className="text-red-300 font-mono font-semibold">{blunder.san}</span>
-          </div>
-          <div className="text-xs text-slate-500 mt-0.5 tabular-nums">
-            valutazione {cpToPawns(blunder.cp_before)} → {cpToPawns(blunder.cp_after)} ·
-            <span className="text-red-300 ml-1">perdi {cpToPawns(blunder.cp_loss).replace("+", "")} ({cpToHuman(blunder.cp_loss)})</span>
-          </div>
+      <div className="mt-4 text-sm space-y-1.5">
+        <div className="flex items-baseline gap-2">
+          <span className="label-eyebrow text-[10px]">m.{blunder.move_number}</span>
+          <span className="text-rose-300 font-mono font-semibold">{blunder.san}</span>
+          <span className="text-xs text-[color:var(--color-muted)] font-mono">
+            {cpToPawns(blunder.cp_before)} → {cpToPawns(blunder.cp_after)}
+          </span>
         </div>
         {blunder.best_san && (
-          <div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-slate-400 text-xs">Meglio era</span>
-              <span className="text-green-300 font-mono font-semibold">{blunder.best_san}</span>
-            </div>
-            {blunder.pv_san.length > 1 && (
-              <div className="text-[11px] text-slate-500 font-mono mt-0.5 leading-relaxed">
-                seguito: {blunder.pv_san.slice(0, 5).join(" ")}
-              </div>
-            )}
+          <div className="flex items-baseline gap-2">
+            <span className="label-eyebrow text-[10px]">best</span>
+            <span className="text-emerald-300 font-mono font-semibold">{blunder.best_san}</span>
           </div>
         )}
+        <div className="text-xs text-rose-300 font-mono">
+          −{cpToPawns(blunder.cp_loss).replace("+", "")} ({cpToHuman(blunder.cp_loss)})
+        </div>
       </div>
 
-      <div className="mt-auto pt-3 flex items-center justify-between text-xs">
-        <span className="text-slate-500 capitalize">{blunder.phase}</span>
+      <div className="mt-auto pt-3 flex items-center justify-between text-xs hairline mt-3">
+        <span className="font-mono text-[color:var(--color-muted)] uppercase tracking-widest text-[10px]">
+          {blunder.phase}
+        </span>
         {blunder.url && (
           <a
             href={blunder.url}
@@ -111,7 +113,7 @@ export function BlunderCard({ blunder, size = 280 }: Props) {
             rel="noreferrer"
             className="text-[color:var(--color-brand-soft)] hover:underline"
           >
-            Apri su Chess.com →
+            Chess.com →
           </a>
         )}
       </div>

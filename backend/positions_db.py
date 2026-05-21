@@ -99,6 +99,11 @@ CREATE TABLE IF NOT EXISTS positions (
     is_book            INTEGER NOT NULL DEFAULT 0, -- mossa di apertura (semplificato: ply <= 16)
     is_decided         INTEGER NOT NULL DEFAULT 0, -- posizione già decisa (|cp_before| > 600)
 
+    -- ULTIMA MOSSA AVVERSARIO (per renderizzare la freccia di contesto a stile Chess.com/Lichess)
+    last_opp_from      TEXT,                       -- es. "e7"
+    last_opp_to        TEXT,                       -- es. "e5"
+    last_opp_san       TEXT,                       -- es. "e5"
+
     PRIMARY KEY (game_id, ply)
 );
 
@@ -186,6 +191,7 @@ POSITION_COLS: tuple[str, ...] = (
     "motif", "motif_label_it",
     "clock_seconds", "seconds_spent", "instant_move", "zeitnot",
     "is_critical", "is_book", "is_decided",
+    "last_opp_from", "last_opp_to", "last_opp_san",
 )
 
 GAME_COLS: tuple[str, ...] = (

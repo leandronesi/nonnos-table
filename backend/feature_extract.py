@@ -230,6 +230,22 @@ def extract_positions_for_game(
         cp_before = int(m.get("cp_before", 0))
         flags = critical_flags(cp_before, ply_1based)
 
+        # Ultima mossa avversario = nodes[i-1] (esiste solo se i >= 1)
+        last_opp_from: str | None = None
+        last_opp_to: str | None = None
+        last_opp_san: str | None = None
+        if i >= 1:
+            prev_node = nodes[i - 1]
+            prev_move = prev_node.move
+            last_opp_from = chess.square_name(prev_move.from_square)
+            last_opp_to = chess.square_name(prev_move.to_square)
+            # Per ottenere il SAN della mossa avversaria devo ricostruire la posizione
+            # PRIMA di quella mossa = boards_before[i-1]
+            try:
+                last_opp_san = boards_before[i - 1].san(prev_move)
+            except Exception:  # noqa: BLE001
+                last_opp_san = None
+
         rows.append(
             {
                 # identità
@@ -280,6 +296,10 @@ def extract_positions_for_game(
                 "zeitnot": 1 if (clock_now is not None and clock_now < ZEITNOT_SECONDS) else 0,
                 # flag
                 **flags,
+                # ultima mossa avversario (per renderizzare la freccia di contesto)
+                "last_opp_from": last_opp_from,
+                "last_opp_to": last_opp_to,
+                "last_opp_san": last_opp_san,
             }
         )
     return rows

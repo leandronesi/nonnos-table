@@ -1,0 +1,228 @@
+/**
+ * Sessione giornaliera — stato + persistenza localStorage.
+ *
+ * Modello mentale: la sessione è un OBIETTIVO QUOTIDIANO. Ne fai una al giorno,
+ * non scegli tu quanto. Apri l'app → ti dico "5 puzzle + 2 bivi + 1 partita".
+ * Quando finisci, vedi punti e streak. Il giorno dopo se ne fai un'altra +1.
+ * Se torni nello stesso giorno, vedi il riassunto della sessione già fatta.
+ */
+
+export type StepKey = "warmup" | "bivio" | "play" | "recap";
+export type DrillVerdict = "perfect" | "ok" | "wrong";
+
+export interface DrillResult {
+  drillId: string;       // "<game_id>:<ply>"
+  verdict: DrillVerdict;
+  cp_loss: number;
+  played_san: string | null;
+  attempts: number;
+}
+
+export interface BivioResult {
+  tpId: string;          // "<game_id>:<ply>"
+  revealed: boolean;
+}
+
+export interface PlayResult {
+  outcome: "win" | "draw" | "loss" | "abandoned";
+  moves_played: number;
+  finished_at: number;   // epoch ms
+}
+
+export const SESSION_SCHEMA = 2;
+
+export interface SessionState {
+  schema?: number;       // versione schema; serve per invalidare le session vecchie
+  date: string;          // "YYYY-MM-DD" UTC — la chiave del giorno
+  startedAt: number;     // epoch ms
+  finishedAt?: number;   // epoch ms
+  step: StepKey;
+  // Inputs (gli ID che la sessione di oggi userà — fissati all'avvio)
+  drillIds: string[];
+  bivioIds: string[];
+  playFen?: string;
+  playMyColor?: "white" | "black";   // colore del giocatore nella posizione di partenza
+  // Risultati
+  drills: DrillResult[];
+  bivi: BivioResult[];
+  play?: PlayResult;
+  // Score derivato
+  points: number;
+}
+
+const STORAGE_KEY = "mygotham_session";
+const STREAK_KEY = "mygotham_daily_streak";
+
+export interface DailyStreak {
+  current: number;       // giorni consecutivi
+  best: number;
+  lastDate: string;      // "YYYY-MM-DD" UTC, ultima sessione completata
+  totalSessions: number; // lifetime
+  totalPoints: number;   // lifetime
+}
+
+// ---------------------------------------------------------------------------
+// Utility data
+// ---------------------------------------------------------------------------
+
+export function todayUTC(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export function yesterdayUTC(): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// ---------------------------------------------------------------------------
+// Read / write
+// ---------------------------------------------------------------------------
+
+export function loadSession(): SessionState | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as SessionState;
+    // Invalida session vecchie (schema cambiato)
+    if ((parsed.schema ?? 1) < SESSION_SCHEMA) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function saveSession(s: SessionState): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+  } catch {
+    // localStorage pieno o disabilitato → silent
+  }
+}
+
+export function clearSession(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch { /* ignore */ }
+}
+
+export function loadStreak(): DailyStreak {
+  try {
+    const raw = localStorage.getItem(STREAK_KEY);
+    if (raw) return { current: 0, best: 0, lastDate: "", totalSessions: 0, totalPoints: 0, ...JSON.parse(raw) };
+  } catch { /* ignore */ }
+  return { current: 0, best: 0, lastDate: "", totalSessions: 0, totalPoints: 0 };
+}
+
+function saveStreak(s: DailyStreak): void {
+  try {
+    localStorage.setItem(STREAK_KEY, JSON.stringify(s));
+  } catch { /* ignore */ }
+}
+
+// ---------------------------------------------------------------------------
+// Score
+// ---------------------------------------------------------------------------
+
+const POINTS = {
+  drill_perfect: 10,
+  drill_ok: 5,
+  drill_wrong: 0,
+  bivio_revealed: 5,
+  play_win: 20,
+  play_draw: 8,
+  play_loss: 3,
+  play_abandoned: 0,
+};
+
+export function computePoints(s: SessionState): number {
+  let p = 0;
+  for (const d of s.drills) {
+    if (d.verdict === "perfect") p += POINTS.drill_perfect;
+    else if (d.verdict === "ok") p += POINTS.drill_ok;
+  }
+  p += s.bivi.filter((b) => b.revealed).length * POINTS.bivio_revealed;
+  if (s.play) {
+    p += POINTS[`play_${s.play.outcome}`];
+  }
+  return p;
+}
+
+// ---------------------------------------------------------------------------
+// Logic
+// ---------------------------------------------------------------------------
+
+export interface SessionInputs {
+  drillIds: string[];      // primi N drill da pm.drills
+  bivioIds: string[];      // primi M turning points
+  playFen?: string;        // FEN per la partita finale (es. da un turning point)
+  playMyColor?: "white" | "black";
+}
+
+export function startNewSession(inputs: SessionInputs): SessionState {
+  const s: SessionState = {
+    schema: SESSION_SCHEMA,
+    date: todayUTC(),
+    startedAt: Date.now(),
+    step: "warmup",
+    drillIds: inputs.drillIds,
+    bivioIds: inputs.bivioIds,
+    playFen: inputs.playFen,
+    playMyColor: inputs.playMyColor,
+    drills: [],
+    bivi: [],
+    points: 0,
+  };
+  saveSession(s);
+  return s;
+}
+
+export function completeSession(s: SessionState): { session: SessionState; streak: DailyStreak } {
+  const finished: SessionState = {
+    ...s,
+    finishedAt: Date.now(),
+    step: "recap",
+    points: computePoints(s),
+  };
+  saveSession(finished);
+
+  // streak update
+  const prev = loadStreak();
+  const today = todayUTC();
+  let current = prev.current;
+  if (prev.lastDate === today) {
+    // ricarica della stessa sessione, niente bump
+  } else if (prev.lastDate === yesterdayUTC()) {
+    current = prev.current + 1;
+  } else {
+    current = 1;
+  }
+  const next: DailyStreak = {
+    current,
+    best: Math.max(prev.best, current),
+    lastDate: today,
+    totalSessions: prev.totalSessions + (prev.lastDate === today ? 0 : 1),
+    totalPoints: prev.totalPoints + finished.points,
+  };
+  saveStreak(next);
+  return { session: finished, streak: next };
+}
+
+// ---------------------------------------------------------------------------
+// Selectors
+// ---------------------------------------------------------------------------
+
+export function sessionIsTodayAndDone(s: SessionState | null): boolean {
+  if (!s) return false;
+  if (s.date !== todayUTC()) return false;
+  return !!s.finishedAt;
+}
+
+export function sessionIsTodayAndInProgress(s: SessionState | null): boolean {
+  if (!s) return false;
+  if (s.date !== todayUTC()) return false;
+  return !s.finishedAt;
+}

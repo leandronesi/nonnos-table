@@ -1,9 +1,14 @@
 name: Refresh & Deploy · GitHub Pages
 
-# Stesso pattern di the_pulp (build + deploy separati). Tre trigger:
-#   - schedule giornaliero alle 04:00 UTC
-#   - push su main
-#   - manuale (workflow_dispatch) con opzione --deep
+# Pipeline v2:
+#   ingest → analyze (Stockfish apt) → build_positions_db → maia_features (lc0+pesi)
+#   → derive_features → enrich_decisions → player_model → coach (OpenAI opzionale)
+#   → vite build → gh-pages
+#
+# Triggers:
+#   - schedule giornaliero 04:00 UTC
+#   - push su main (esclusi .md)
+#   - manuale (workflow_dispatch) con flag --deep
 on:
   schedule:
     - cron: '0 4 * * *'
@@ -15,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       deep:
-        description: "Profilo 'deep' (profondità 22, più lento ma più accurato)"
+        description: "Profilo Stockfish 'deep' (depth 22, lento ma più accurato)"
         required: false
         default: 'false'
 
@@ -28,10 +33,14 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+env:
+  LC0_VERSION: v0.31.2
+  LC0_FILE: lc0-v0.31.2-linux-cpu-openblas.tar.gz
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
 
@@ -46,21 +55,44 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install Stockfish
+      - name: Install Stockfish (Linux)
         run: |
           sudo apt-get update
           sudo apt-get install -y stockfish
           which stockfish
 
-      - name: Restore data cache (PGN + analisi Stockfish)
+      # Cache engines (lc0 + Maia weights) — riusabile tra run, raramente cambia.
+      - name: Cache lc0 + Maia weights
+        id: cache-engines
+        uses: actions/cache@v4
+        with:
+          path: |
+            engine/lc0
+            engine/maia
+          key: engines-lc0-${{ env.LC0_VERSION }}-maia-1200-1600
+
+      - name: Download lc0 + Maia weights
+        if: steps.cache-engines.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p engine/lc0 engine/maia
+          curl -L -o engine/lc0.tar.gz "https://github.com/LeelaChessZero/lc0/releases/download/${LC0_VERSION}/${LC0_FILE}"
+          tar -xzf engine/lc0.tar.gz -C engine/lc0 --strip-components=1
+          rm engine/lc0.tar.gz
+          chmod +x engine/lc0/lc0
+          curl -L -o engine/maia/maia-1200.pb.gz https://raw.githubusercontent.com/CSSLab/maia-chess/master/maia_weights/maia-1200.pb.gz
+          curl -L -o engine/maia/maia-1600.pb.gz https://raw.githubusercontent.com/CSSLab/maia-chess/master/maia_weights/maia-1600.pb.gz
+          ls -la engine/lc0 engine/maia
+
+      # Cache dei dati di analisi (raw PGN + Stockfish per-game + DB).
+      # Cresce solo con partite nuove → run successivi richiedono ~2 min.
+      - name: Cache analysis data
         uses: actions/cache@v4
         with:
           path: |
             data/raw
             data/analysis
             data/index.json
-          # La key cambia ad ogni run (per garantire save), ma restore-keys
-          # cattura sempre la più recente: cosi la cache è incrementale.
+            data/positions.db
           key: chess-data-${{ github.run_id }}
           restore-keys: |
             chess-data-
@@ -70,12 +102,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
 
-      - name: Fetch new games
+      - name: Step 1 · Fetch new games
         env:
           STOCKFISH_PATH: /usr/games/stockfish
         run: python backend/ingest.py
 
-      - name: "Analyze games (cached - skips already-analyzed)"
+      - name: "Step 2 · Stockfish analyze (cache aware)"
         env:
           STOCKFISH_PATH: /usr/games/stockfish
         run: |
@@ -85,10 +117,30 @@ jobs:
             python backend/analyze.py
           fi
 
-      - name: Build metrics.json
-        run: python backend/metrics.py
+      - name: Step 3 · Build positions.db
+        run: python backend/build_positions_db.py
 
-      - name: Export per-game analyses (for static drill-down)
+      - name: Step 4 · Maia inference on critical positions
+        env:
+          STOCKFISH_PATH: /usr/games/stockfish
+        run: |
+          # lc0 path lo passiamo via config (engine/lc0/lc0 in Linux)
+          python backend/maia_features.py
+
+      - name: Step 5 · Derive flags + enrich decisions
+        run: |
+          python backend/derive_features.py
+          python backend/enrich_decisions.py
+
+      - name: Step 6 · Player model
+        run: python backend/player_model.py
+
+      - name: Step 7 · Coach brief (OpenAI gpt-5.4-mini, fallback regole se manca secret)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python backend/coach.py
+
+      - name: Export per-game analyses (for drill-down statico)
         run: python backend/export_analysis.py
 
       - name: Install frontend deps
