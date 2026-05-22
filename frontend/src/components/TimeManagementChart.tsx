@@ -117,13 +117,28 @@ export function TimeManagementChart({
               ))}
               <LabelList
                 dataKey="blunder_pct"
-                position="insideTop"
-                formatter={(v: number) => `${v}%`}
-                fill="#0a0c18"
-                fontSize={11}
-                fontWeight={700}
-                style={{ fontFamily: "var(--font-mono)" }}
-                offset={6}
+                position="top"
+                content={(props: { x?: number; y?: number; width?: number; value?: number }) => {
+                  const { x = 0, y = 0, width = 0, value } = props;
+                  if (value == null) return null;
+                  return (
+                    <text
+                      x={x + width / 2}
+                      y={y - 6}
+                      textAnchor="middle"
+                      fontSize={11}
+                      fontFamily="var(--font-mono)"
+                      fontWeight={700}
+                      fill="#ffffff"
+                      stroke="#0a0c18"
+                      strokeWidth={3}
+                      paintOrder="stroke"
+                      strokeLinejoin="round"
+                    >
+                      {value}%
+                    </text>
+                  );
+                }}
               />
             </Bar>
             <Line
@@ -138,10 +153,27 @@ export function TimeManagementChart({
               <LabelList
                 dataKey="avg_cp_loss"
                 position="top"
-                fill="var(--color-brand-soft)"
-                fontSize={11}
-                style={{ fontFamily: "var(--font-mono)" }}
-                offset={12}
+                content={(props: { x?: number; y?: number; value?: number }) => {
+                  const { x = 0, y = 0, value } = props;
+                  if (value == null) return null;
+                  return (
+                    <text
+                      x={x}
+                      y={y - 10}
+                      textAnchor="middle"
+                      fontSize={11}
+                      fontFamily="var(--font-mono)"
+                      fontWeight={600}
+                      fill="#cfc6ff"
+                      stroke="#0a0c18"
+                      strokeWidth={3}
+                      paintOrder="stroke"
+                      strokeLinejoin="round"
+                    >
+                      {value}
+                    </text>
+                  );
+                }}
               />
             </Line>
           </ComposedChart>
