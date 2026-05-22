@@ -32,7 +32,7 @@ import math
 import sys
 import time as time_mod
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -105,7 +105,7 @@ def _date_str(epoch: int | None) -> str | None:
 # ----------------------------------------------------------------------------
 
 
-def _identity(conn, username: str) -> dict[str, Any]:
+def _identity(conn, username: str, plan_started_at: str | None = None) -> dict[str, Any]:
     last = _qs(conn, """
         SELECT g.my_rating, g.time_class, g.end_time_epoch
         FROM games g
@@ -146,8 +146,25 @@ def _identity(conn, username: str) -> dict[str, Any]:
         if r["time_class"] not in rating_by_tc:
             rating_by_tc[r["time_class"]] = r["my_rating"]
 
+    # ── Plan start: il punto in cui l'utente ha definito il piano. ──
+    # Se non c'e` ancora un onboarding (e non ce l'abbiamo per leandro), default a
+    # ~60 giorni fa cosi` lo sparkline mostra subito storico/post-piano separati.
+    # Quando arriva l'onboarding SaaS, prendiamo la data dal DB user.
+    if plan_started_at is None:
+        plan_started_at = (datetime.now(tz=timezone.utc) - timedelta(days=60)).date().isoformat()
+
+    try:
+        plan_epoch = int(datetime.fromisoformat(plan_started_at).replace(tzinfo=timezone.utc).timestamp())
+    except ValueError:
+        plan_epoch = None
+
+    # Stats pre/post piano (sul time_class target).
+    plan_summary = _plan_summary(conn, GOAL_TIME_CLASS, plan_epoch) if plan_epoch else None
+
     return {
         "username": username,
+        "plan_started_at": plan_started_at,
+        "plan_summary": plan_summary,
         "goal": {
             "target": GOAL_TARGET,
             "time_class": GOAL_TIME_CLASS,
@@ -165,6 +182,47 @@ def _identity(conn, username: str) -> dict[str, Any]:
         },
         "rating_by_time_class": rating_by_tc,
         "last_game_date": _date_str(last_epoch),
+    }
+
+
+def _plan_summary(conn, time_class: str, plan_epoch: int) -> dict[str, Any]:
+    """Pre/post piano: quanti giochi e che delta rating si e` mosso.
+
+    Snapshot prodotto: nasce per dire all'utente sulla home
+    "il tuo piano e` partito X giorni fa. Da allora hai giocato Y partite
+    e sei salito/sceso di Z punti".
+    """
+    pre = _qs(conn, """
+        SELECT COUNT(*) AS n, MAX(end_time_epoch) AS last_epoch,
+               (SELECT my_rating FROM games WHERE time_class = ? AND end_time_epoch <= ? AND my_rating IS NOT NULL
+                ORDER BY end_time_epoch DESC LIMIT 1) AS rating_at_plan
+        FROM games
+        WHERE time_class = ? AND end_time_epoch <= ?
+    """, time_class, plan_epoch, time_class, plan_epoch)
+
+    post = _qs(conn, """
+        SELECT COUNT(*) AS n, MAX(end_time_epoch) AS last_epoch,
+               (SELECT my_rating FROM games WHERE time_class = ? AND my_rating IS NOT NULL
+                ORDER BY end_time_epoch DESC LIMIT 1) AS rating_current
+        FROM games
+        WHERE time_class = ? AND end_time_epoch > ?
+    """, time_class, time_class, plan_epoch)
+
+    rating_at_plan = pre["rating_at_plan"] if pre else None
+    rating_now = post["rating_current"] if post else None
+    delta = (rating_now - rating_at_plan) if (rating_at_plan is not None and rating_now is not None) else None
+
+    now = int(datetime.now(tz=timezone.utc).timestamp())
+    days_since_plan = max(0, (now - plan_epoch) // 86400)
+
+    return {
+        "plan_epoch": plan_epoch,
+        "days_since_plan": int(days_since_plan),
+        "games_before": pre["n"] if pre else 0,
+        "games_after": post["n"] if post else 0,
+        "rating_at_plan": rating_at_plan,
+        "rating_now": rating_now,
+        "delta_since_plan": delta,
     }
 
 
@@ -1136,7 +1194,8 @@ def build(cfg: dict[str, Any]) -> dict[str, Any]:
     conn = connect(db_path)
 
     username = cfg["chess_com"]["username"]
-    identity = _identity(conn, username)
+    plan_started_at = cfg.get("plan", {}).get("started_at")  # ISO date opzionale
+    identity = _identity(conn, username, plan_started_at=plan_started_at)
     kpi = _kpi(conn)
     decisions = _decisions(conn)
     by_phase = _by_phase(conn)

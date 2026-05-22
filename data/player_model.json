@@ -1,8 +1,18 @@
 {
-  "generated_at_epoch": 1779444721.1528225,
+  "generated_at_epoch": 1779447541.8483856,
   "schema_version": 3,
   "identity": {
     "username": "breaking_plays2",
+    "plan_started_at": "2026-03-23",
+    "plan_summary": {
+      "plan_epoch": 1774224000,
+      "days_since_plan": 60,
+      "games_before": 237,
+      "games_after": 193,
+      "rating_at_plan": 934,
+      "rating_now": 1166,
+      "delta_since_plan": 232
+    },
     "goal": {
       "target": 1600,
       "time_class": "blitz",
@@ -6213,29 +6223,29 @@
   ],
   "trend_weekly": {
     "last_7d": {
-      "n_games": 25,
-      "wins": 15,
-      "win_rate": 0.6,
-      "n_critical": 245,
-      "avg_cp_loss": 61.8,
+      "n_games": 24,
+      "wins": 14,
+      "win_rate": 0.5833,
+      "n_critical": 222,
+      "avg_cp_loss": 64.5,
       "n_blunders": 15,
-      "blunder_rate": 0.0612
+      "blunder_rate": 0.0676
     },
     "prev_7d": {
-      "n_games": 26,
-      "wins": 12,
-      "win_rate": 0.4615,
-      "n_critical": 251,
-      "avg_cp_loss": 61.4,
+      "n_games": 27,
+      "wins": 13,
+      "win_rate": 0.4815,
+      "n_critical": 274,
+      "avg_cp_loss": 59.3,
       "n_blunders": 19,
-      "blunder_rate": 0.0757
+      "blunder_rate": 0.0693
     },
     "delta": {
-      "n_games": -1,
-      "win_rate": 0.138,
-      "avg_cp_loss": 0.4,
+      "n_games": -3,
+      "win_rate": 0.102,
+      "avg_cp_loss": 5.2,
       "n_blunders": -4,
-      "blunder_rate": -0.015
+      "blunder_rate": -0.002
     }
   },
   "goal_projection": {

@@ -22,11 +22,25 @@ export interface Goal {
   on_track: boolean;
 }
 
+export interface PlanSummary {
+  plan_epoch: number;
+  days_since_plan: number;
+  games_before: number;
+  games_after: number;
+  rating_at_plan: number | null;
+  rating_now: number | null;
+  delta_since_plan: number | null;
+}
+
 export interface Identity {
   username: string;
   goal: Goal;
   rating_by_time_class: Record<string, number>;
   last_game_date: string | null;
+  /** Data ISO YYYY-MM-DD in cui l'utente ha definito il piano (= onboarding). */
+  plan_started_at?: string;
+  /** Snapshot prima/dopo il plan_started_at: games_before/after + delta rating. */
+  plan_summary?: PlanSummary | null;
 }
 
 export interface Kpi {
