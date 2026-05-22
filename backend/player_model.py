@@ -535,6 +535,58 @@ def _blind_spots(conn) -> list[dict[str, Any]]:
     ]
 
 
+_TACTICAL_PATTERNS = (
+    ("motif_hanging_piece",     "Pezzo appeso"),
+    ("motif_fork",              "Forchetta"),
+    ("motif_removed_defender",  "Rimozione difensore"),
+    ("motif_discovered_attack", "Attacco scoperto"),
+    ("motif_back_rank",         "Ottava traversa"),
+)
+
+
+def _tactical_breakdown(conn) -> list[dict[str, Any]]:
+    """Distribuzione dei pattern tattici tra i miei mistake/blunder critici.
+
+    Per ogni pattern dico: quante volte mi e` capitato, su quanti totali, con
+    che drill_value medio (cioe` quanto "money" e` il pattern per me). Output
+    ordinato per frequenza decrescente — il top dovrebbe alimentare la
+    diagnosi "fai troppe forchette" / "ti perdi i pezzi appesi" / ecc.
+    """
+    cols = ", ".join(f"SUM({k}) AS {k}" for k, _ in _TACTICAL_PATTERNS)
+    totals_row = conn.execute(
+        f"SELECT COUNT(*) AS n_total, {cols} "
+        f"FROM positions "
+        f"WHERE is_critical=1 AND category IN ('mistake','blunder') AND best_san_sf IS NOT NULL"
+    ).fetchone()
+    if not totals_row:
+        return []
+
+    n_total = totals_row["n_total"] or 0
+    out: list[dict[str, Any]] = []
+    for key, label in _TACTICAL_PATTERNS:
+        n = totals_row[key] or 0
+        if n == 0:
+            continue
+        # drill_value medio per questo pattern (solo dove Maia ha girato)
+        gap_row = conn.execute(
+            f"SELECT AVG(p_target_plays_best_sf - COALESCE(p_mine_plays_best_sf, 0)) AS gap, "
+            f"       AVG(cp_loss) AS cp_loss "
+            f"FROM positions WHERE {key}=1 AND p_target_plays_best_sf IS NOT NULL"
+        ).fetchone()
+        out.append({
+            "key": key,
+            "label_it": label,
+            "n": n,
+            "n_total": n_total,
+            "share_pct": round(100 * n / n_total, 1) if n_total else 0,
+            "avg_gap_pct": round(100 * (gap_row["gap"] or 0), 1),
+            "avg_cp_loss": round(gap_row["cp_loss"] or 0, 1),
+            "confidence": _confidence(n),
+        })
+    out.sort(key=lambda x: (-x["n"], -x["avg_gap_pct"]))
+    return out
+
+
 def _turning_points(conn, k: int = 12) -> list[dict[str, Any]]:
     rows = _q(conn, """
         SELECT p.game_id, p.ply, p.move_number, p.san, p.best_san_sf,
@@ -574,7 +626,10 @@ def _drills(conn, k: int = 12) -> list[dict[str, Any]]:
                p.move_difficulty,
                p.p_mine_plays_best_sf, p.p_target_plays_best_sf,
                p.cp_before, p.cp_after, p.cp_loss, p.phase, p.fen_before,
-               p.motif, p.motif_label_it, p.url, p.date,
+               p.motif, p.motif_label_it,
+               p.motif_hanging_piece, p.motif_fork, p.motif_removed_defender,
+               p.motif_back_rank, p.motif_discovered_attack,
+               p.url, p.date,
                p.my_color, p.opp_rating, p.result, p.opening, p.eco,
                p.pv_san_sf,
                p.last_opp_from, p.last_opp_to, p.last_opp_san,
@@ -797,6 +852,7 @@ def build(cfg: dict[str, Any]) -> dict[str, Any]:
     rating_curve = _rating_curve(conn)
     tilt = _tilt(conn)
     blind_spots = _blind_spots(conn)
+    tactical_breakdown = _tactical_breakdown(conn)
     turning_points = _turning_points(conn)
     drills = _drills(conn)
     diagnoses = _diagnoses(kpi, decisions, by_phase, by_color, openings, time_mgmt, tilt, blind_spots)
@@ -806,7 +862,7 @@ def build(cfg: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "generated_at_epoch": time_mod.time(),
-        "schema_version": 2,
+        "schema_version": 3,
         "identity": identity,
         "kpi": kpi,
         "decisions": decisions,
@@ -817,6 +873,7 @@ def build(cfg: dict[str, Any]) -> dict[str, Any]:
         "rating_curve": rating_curve,
         "tilt": tilt,
         "blind_spots": blind_spots,
+        "tactical_breakdown": tactical_breakdown,
         "turning_points": turning_points,
         "drills": drills,
         "diagnoses": diagnoses,

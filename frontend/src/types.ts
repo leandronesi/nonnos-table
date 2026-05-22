@@ -140,6 +140,17 @@ export interface BlindSpot {
   confidence: Confidence;
 }
 
+export interface TacticalBreakdown {
+  key: string;          // es. "motif_fork"
+  label_it: string;
+  n: number;
+  n_total: number;
+  share_pct: number;
+  avg_gap_pct: number;
+  avg_cp_loss: number;
+  confidence: Confidence;
+}
+
 // Posizione di interesse (turning point o drill)
 export interface PositionRow {
   game_id: string;
@@ -180,6 +191,12 @@ export interface PositionRow {
   drill_value?: number | null;
   /** 3=money / 2=avoidable / 1=blunder critico raw / 0=skip */
   priority_score?: number;
+  /** Tactical pattern detection (sprint 3 v2). Una posizione puo` averne piu` di uno. */
+  motif_hanging_piece?: number;
+  motif_fork?: number;
+  motif_removed_defender?: number;
+  motif_back_rank?: number;
+  motif_discovered_attack?: number;
   /** Ultima mossa dell'avversario (per renderizzare la freccia di contesto a stile Chess.com/Lichess) */
   last_opp_from?: string | null;
   last_opp_to?: string | null;
@@ -216,6 +233,7 @@ export interface PlayerModel {
   rating_curve: Record<string, RatingPoint[]>;
   tilt: Tilt;
   blind_spots: BlindSpot[];
+  tactical_breakdown?: TacticalBreakdown[];
   turning_points: PositionRow[];
   drills: PositionRow[];
   diagnoses: Diagnosis[];
