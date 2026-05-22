@@ -46,34 +46,59 @@ export function SpeedVsErrorsChart({ data }: { data: SpentBucket[] }) {
     error_pct: Math.round(d.error_rate * 100),
   }));
 
-  // Stat veloce: confronto < 1s vs > 30s
+  // Confronto: quanto è ACPL sulle mosse istantanee vs le mosse lunghe.
+  // Se fast < slow (cioè la riga "rapide" ha ACPL minore) significa che NON
+  // sbagli di più quando muovi in fretta — semplicemente passi più tempo
+  // sulle posizioni difficili, ed è lì che sbagli.
   const fast = data.find((d) => d.key === "lt_1s");
   const slow = data.find((d) => d.key === "gt_30s");
-  const acplDelta = fast && slow ? Math.round(fast.avg_cp_loss - slow.avg_cp_loss) : null;
+  let interpretation: { label: string; tone: "good" | "bad" | "mute"; sub: string } | null = null;
+  if (fast && slow) {
+    if (fast.avg_cp_loss > slow.avg_cp_loss + 20) {
+      interpretation = {
+        label: "Sì, muovi troppo veloce",
+        tone: "bad",
+        sub: `Le mosse <1s costano +${Math.round(fast.avg_cp_loss - slow.avg_cp_loss)} ACPL rispetto a quelle riflessive.`,
+      };
+    } else if (slow.avg_cp_loss > fast.avg_cp_loss + 20) {
+      interpretation = {
+        label: "No, pensi solo nelle posizioni difficili",
+        tone: "mute",
+        sub: `Le mosse rapide hanno ACPL ${Math.round(fast.avg_cp_loss)} (basso). Quelle lunghe ${Math.round(slow.avg_cp_loss)} (alto). Vuol dire che spendi tempo sulle posizioni complesse — è lì che sbagli, non perché muovi veloce.`,
+      };
+    } else {
+      interpretation = {
+        label: "Precisione costante",
+        tone: "mute",
+        sub: "ACPL simile a tutte le velocità.",
+      };
+    }
+  }
 
   return (
     <div className="surface surface-padded">
       <div className="flex items-baseline justify-between gap-3 mb-2 flex-wrap">
         <div>
           <div className="label-eyebrow">Velocità della mossa</div>
-          <h3 className="section-title mt-1">
-            Quanto sbagli quando muovi in fretta
-          </h3>
+          <h3 className="section-title mt-1">Sbagli perché muovi in fretta?</h3>
         </div>
-        {acplDelta != null && (
-          <div className="text-right">
-            <div className="label-eyebrow text-[10px]">∆ ACPL fretta vs riflessione</div>
-            <div className={`display-small mt-1 ${acplDelta > 30 ? "text-rose-300" : "text-slate-200"}`}>
-              {acplDelta > 0 ? "+" : ""}{acplDelta}
+        {interpretation && (
+          <div className="text-right max-w-md">
+            <div className="label-eyebrow text-[10px]">Verdetto</div>
+            <div className={`display-small mt-1 ${interpretation.tone === "bad" ? "text-rose-300" : interpretation.tone === "good" ? "text-emerald-300" : "text-slate-200"}`}>
+              {interpretation.label}
             </div>
           </div>
         )}
       </div>
-      <p className="section-sub mb-5">
-        Tempo SPESO sulla singola mossa (≠ tempo rimasto sull'orologio). Le barre rosse a
-        sinistra sono mosse "istantanee". Le verdi a destra sono mosse riflessive.
-        ACPL alto + barra alta = pilota automatico che ti costa partite.
+      <p className="section-sub mb-2">
+        Tempo SPESO sulla singola mossa (≠ tempo rimasto sull'orologio). Asse Y: <b>ACPL alto = mossa peggiore</b>.
       </p>
+      {interpretation && (
+        <p className="text-sm text-[color:var(--color-text-soft)] mb-5 leading-relaxed max-w-3xl">
+          {interpretation.sub}
+        </p>
+      )}
 
       <div className="h-[300px]">
         <ResponsiveContainer width="100%" height="100%">

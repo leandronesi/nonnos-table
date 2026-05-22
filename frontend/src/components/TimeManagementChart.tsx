@@ -70,54 +70,62 @@ export function TimeManagementChart({
         </ResponsiveContainer>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6 pt-6 hairline">
-        <MetricRow
-          label="Mosse istantanee"
-          sub="< 2 secondi, in posizione critica"
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6">
+        <StatCard
+          label="Mosse istantanee in critica"
+          sub="< 2 secondi su posizione critica"
           value={time_management.instant_moves_in_critical.n}
           danger={time_management.instant_moves_in_critical.avg_cp_loss > 100}
-          detail={`ACPL ${time_management.instant_moves_in_critical.avg_cp_loss} · ${time_management.instant_moves_in_critical.blunders} blunder`}
+          metric={`ACPL ${time_management.instant_moves_in_critical.avg_cp_loss}`}
+          extra={`${time_management.instant_moves_in_critical.blunders} blunder`}
         />
-        <MetricRow
-          label="In zeitnot"
-          sub="< 30 secondi rimasti"
+        <StatCard
+          label="Mosse in zeitnot"
+          sub="< 30s rimasti sull'orologio"
           value={time_management.zeitnot.n}
           danger={time_management.zeitnot.avg_cp_loss > 100}
-          detail={`ACPL ${time_management.zeitnot.avg_cp_loss} · ${time_management.zeitnot.blunders} blunder`}
+          metric={`ACPL ${time_management.zeitnot.avg_cp_loss}`}
+          extra={`${time_management.zeitnot.blunders} blunder`}
         />
-        <MetricRow
+        <StatCard
           label="Tilt factor"
-          sub="ACPL post-blunder ÷ baseline"
+          sub="quanto peggiori dopo un tuo blunder"
           value={`${tilt.tilt_factor}×`}
           danger={tilt.tilt_factor > 1.3}
-          detail={`${tilt.after_blunder_avg_cp_loss} vs ${tilt.baseline_avg_cp_loss}`}
+          metric={`ACPL ${tilt.after_blunder_avg_cp_loss} · baseline ${tilt.baseline_avg_cp_loss}`}
+          extra=""
         />
       </div>
     </div>
   );
 }
 
-function MetricRow({
+function StatCard({
   label,
   sub,
   value,
-  detail,
+  metric,
+  extra,
   danger,
 }: {
   label: string;
   sub: string;
   value: string | number;
-  detail: string;
+  metric: string;
+  extra: string;
   danger?: boolean;
 }) {
   return (
-    <div>
-      <div className="label-eyebrow">{label}</div>
-      <div className="text-xs text-[color:var(--color-muted)] mt-1">{sub}</div>
-      <div className={`display-small tabular-nums mt-3 ${danger ? "text-rose-300" : "text-[color:var(--color-text)]"}`}>
-        {value}
+    <div className="stat">
+      <div className="stat-label">{label}</div>
+      <div className={`stat-value tabular-nums ${danger ? "text-rose-300" : ""}`}>{value}</div>
+      <div className="stat-sub">{sub}</div>
+      <div
+        className="text-[11px] font-mono mt-2 pt-2 border-t border-[color:var(--color-line)] text-[color:var(--color-text-soft)] flex items-baseline justify-between"
+      >
+        <span>{metric}</span>
+        {extra && <span className="text-[color:var(--color-muted)]">{extra}</span>}
       </div>
-      <div className="text-xs font-mono text-[color:var(--color-text-soft)] mt-1">{detail}</div>
     </div>
   );
 }
