@@ -19,8 +19,51 @@
  *  - Motion: fade-up brevi, easing "out", solo dove serve.
  * ========================================================================== */
 
+/* ============================================================================
+ * THEMING — dark / light via data-theme attribute on <html>.
+ *
+ * Tutti i token sono in :root (dark di default) e overridati in
+ * :root[data-theme="light"]. Tailwind v4 @theme block espone i token a
+ * livello sistema; per il theming runtime usiamo :root vanilla.
+ * ========================================================================== */
+
 @theme {
-  /* Background scale */
+  /* Typography (theme-invariant) */
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Inter Tight", "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+
+  /* Default dark palette (i selettori sotto possono overridare) */
+  --color-bg: #060814;
+  --color-bg-2: #0a0d1c;
+  --color-surface: #0f1325;
+  --color-surface-2: #161a30;
+  --color-surface-3: #1c2138;
+  --color-line: #1e2440;
+  --color-line-strong: #2a3158;
+  --color-text: #eef0fa;
+  --color-text-soft: #b6bcd6;
+  --color-muted: #717892;
+  --color-faint: #4a5070;
+  --color-brand: #7c5cff;
+  --color-brand-soft: #a18bff;
+  --color-brand-glow: rgba(124, 92, 255, 0.45);
+  --color-gold: #f6c64a;
+  --color-gold-soft: #ffd877;
+  --color-ok: #34d399;
+  --color-warn: #f5a524;
+  --color-danger: #f43f5e;
+  --color-info: #60a5fa;
+  --color-opening: #60a5fa;
+  --color-middle: #f5a524;
+  --color-endgame: #ec4899;
+  --color-inaccuracy: #facc15;
+  --color-mistake: #fb923c;
+  --color-blunder: #f43f5e;
+}
+
+/* === DARK (default, ridichiarato esplicito per coerenza) === */
+:root, :root[data-theme="dark"] {
   --color-bg: #060814;
   --color-bg-2: #0a0d1c;
   --color-surface: #0f1325;
@@ -29,40 +72,86 @@
   --color-line: #1e2440;
   --color-line-strong: #2a3158;
 
-  /* Text scale */
   --color-text: #eef0fa;
   --color-text-soft: #b6bcd6;
   --color-muted: #717892;
   --color-faint: #4a5070;
 
-  /* Brand + accents */
   --color-brand: #7c5cff;
   --color-brand-soft: #a18bff;
   --color-brand-glow: rgba(124, 92, 255, 0.45);
   --color-gold: #f6c64a;
   --color-gold-soft: #ffd877;
 
-  /* Semantic */
   --color-ok: #34d399;
   --color-warn: #f5a524;
   --color-danger: #f43f5e;
   --color-info: #60a5fa;
 
-  /* Chess-specific */
-  --color-opening: #60a5fa;
-  --color-middle: #f5a524;
-  --color-endgame: #ec4899;
-  --color-inaccuracy: #facc15;
-  --color-mistake: #fb923c;
-  --color-blunder: #f43f5e;
+  /* Semantici Bento (per cell tones) */
+  --bento-default-bg:   rgba(255, 255, 255, 0.025);
+  --bento-default-border: rgba(255, 255, 255, 0.06);
+  --bento-elevated-bg:  rgba(124, 92, 255, 0.06);
+  --bento-elevated-border: rgba(124, 92, 255, 0.22);
+  --bento-hero-bg:      linear-gradient(180deg, rgba(124, 92, 255, 0.18), rgba(124, 92, 255, 0.06));
+  --bento-hero-border:  rgba(124, 92, 255, 0.40);
+  --bento-flat-bg:      transparent;
+  --bento-flat-border:  rgba(255, 255, 255, 0.04);
+  --bento-stat-bg:      rgba(255, 255, 255, 0.02);
+  --bento-stat-border:  rgba(255, 255, 255, 0.05);
 
-  /* Typography */
-  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-display: "Inter Tight", "Inter", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+  /* Hero CTA gradient (il pulsantone della missione) */
+  --cta-gradient: linear-gradient(180deg, #a18bff, #6c5cff);
+  --cta-shadow: 0 8px 30px -8px rgba(124, 92, 255, 0.55);
 
-  /* Spacing scale 8pt (per riferimento mentale) */
-  /* 4 8 12 16 24 32 48 64 96 128 */
+  /* Header backdrop (sticky bar) */
+  --header-bg: rgba(10, 12, 24, 0.85);
+}
+
+/* === LIGHT === */
+:root[data-theme="light"] {
+  --color-bg: #f7f7fb;
+  --color-bg-2: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f3f8;
+  --color-surface-3: #e7eaf2;
+  --color-line: #dfe3ec;
+  --color-line-strong: #c4cbd9;
+
+  --color-text: #11142a;
+  --color-text-soft: #3e425a;
+  --color-muted: #6b7080;
+  --color-faint: #9aa0ae;
+
+  /* Brand uguale per coerenza marchio */
+  --color-brand: #5b3fff;
+  --color-brand-soft: #7c5cff;
+  --color-brand-glow: rgba(91, 63, 255, 0.30);
+  --color-gold: #c08a00;
+  --color-gold-soft: #e0a615;
+
+  /* Semantici - leggermente più scuri per contrastare sul fondo chiaro */
+  --color-ok: #058350;
+  --color-warn: #c87404;
+  --color-danger: #c81b3b;
+  --color-info: #1e57c4;
+
+  /* Semantici Bento */
+  --bento-default-bg:   rgba(15, 19, 37, 0.025);
+  --bento-default-border: rgba(15, 19, 37, 0.10);
+  --bento-elevated-bg:  rgba(91, 63, 255, 0.06);
+  --bento-elevated-border: rgba(91, 63, 255, 0.28);
+  --bento-hero-bg:      linear-gradient(180deg, rgba(91, 63, 255, 0.10), rgba(91, 63, 255, 0.04));
+  --bento-hero-border:  rgba(91, 63, 255, 0.40);
+  --bento-flat-bg:      transparent;
+  --bento-flat-border:  rgba(15, 19, 37, 0.08);
+  --bento-stat-bg:      rgba(15, 19, 37, 0.025);
+  --bento-stat-border:  rgba(15, 19, 37, 0.08);
+
+  --cta-gradient: linear-gradient(180deg, #6c5cff, #4f37e0);
+  --cta-shadow: 0 6px 20px -6px rgba(91, 63, 255, 0.35);
+
+  --header-bg: rgba(255, 255, 255, 0.88);
 }
 
 html, body, #root { height: 100%; }
@@ -70,14 +159,22 @@ html, body, #root { height: 100%; }
 
 body {
   background:
-    radial-gradient(1400px 800px at 5% -5%, rgba(124,92,255,0.10), transparent 55%),
-    radial-gradient(900px 600px at 100% 5%, rgba(45,212,191,0.05), transparent 60%),
-    radial-gradient(800px 500px at 70% 110%, rgba(246,198,74,0.04), transparent 65%),
+    radial-gradient(1400px 800px at 5% -5%, var(--bg-glow-1, rgba(124,92,255,0.10)), transparent 55%),
+    radial-gradient(900px 600px at 100% 5%, var(--bg-glow-2, rgba(45,212,191,0.05)), transparent 60%),
+    radial-gradient(800px 500px at 70% 110%, var(--bg-glow-3, rgba(246,198,74,0.04)), transparent 65%),
     var(--color-bg);
   font-family: var(--font-sans);
   letter-spacing: -0.005em;
   color: var(--color-text);
   font-feature-settings: "ss01", "cv11";
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+/* I glow del body sono leggermente diversi in light mode (meno saturi). */
+:root[data-theme="light"] {
+  --bg-glow-1: rgba(124,92,255,0.06);
+  --bg-glow-2: rgba(45,212,191,0.04);
+  --bg-glow-3: rgba(246,198,74,0.03);
 }
 
 ::selection { background: rgba(124,92,255,0.35); color: white; }

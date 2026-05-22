@@ -17,6 +17,7 @@ import {
 import type { PlayerModel } from "../types";
 import { GuidedSession } from "../session/GuidedSession";
 import { loadSession, sessionIsTodayAndDone, loadStreak } from "../session/store";
+import { ThemeToggle } from "../components/ThemeToggle";
 
 /**
  * Home Bento — UNA SOLA viewport. Niente scroll.
@@ -65,7 +66,7 @@ export function Home({ pm }: { pm: PlayerModel }) {
   return (
     <div
       className="min-h-screen flex flex-col"
-      style={{ background: "var(--color-bg, #0a0c18)" }}
+      style={{ background: "var(--color-bg)" }}
     >
       {/* ============ TOP BAR ============ */}
       <header className="flex items-center justify-between px-6 lg:px-10 py-4 border-b border-[color:var(--color-line)]">
@@ -74,10 +75,11 @@ export function Home({ pm }: { pm: PlayerModel }) {
           <span className="font-semibold tracking-tight">chesspath</span>
         </div>
         <div className="flex items-center gap-4 text-sm tabular-nums">
-          <span className="text-[color:var(--color-text-soft)]">{identity.username}</span>
+          <span className="hidden sm:inline text-[color:var(--color-text-soft)]">{identity.username}</span>
           <span className="font-semibold">{goal.current_rating ?? "—"}</span>
           <span className="text-[color:var(--color-faint)]">→</span>
           <span className="text-[color:var(--color-brand-soft)] font-semibold">{goal.target}</span>
+          <ThemeToggle compact />
         </div>
       </header>
 
@@ -141,10 +143,10 @@ function BentoCell({
   children: React.ReactNode;
 }) {
   const styleByTone: Record<string, React.CSSProperties> = {
-    default:  { background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" },
-    elevated: { background: "rgba(124, 92, 255, 0.06)", border: "1px solid rgba(124, 92, 255, 0.22)" },
-    hero:     { background: "linear-gradient(180deg, rgba(124, 92, 255, 0.18), rgba(124, 92, 255, 0.06))", border: "1px solid rgba(124, 92, 255, 0.40)" },
-    flat:     { background: "transparent", border: "1px solid rgba(255,255,255,0.04)" },
+    default:  { background: "var(--bento-default-bg)",  border: "1px solid var(--bento-default-border)" },
+    elevated: { background: "var(--bento-elevated-bg)", border: "1px solid var(--bento-elevated-border)" },
+    hero:     { background: "var(--bento-hero-bg)",     border: "1px solid var(--bento-hero-border)" },
+    flat:     { background: "var(--bento-flat-bg)",     border: "1px solid var(--bento-flat-border)" },
   };
   return (
     <section
@@ -315,12 +317,14 @@ function MissionBlock({
         className="group flex items-center justify-center gap-3 w-full rounded-xl py-5 px-6 font-semibold tracking-tight transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-brand-soft)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-bg)] motion-safe:hover:scale-[1.01] active:scale-[0.99]"
         style={{
           background: done
-            ? "rgba(52, 211, 153, 0.15)"
-            : "linear-gradient(180deg, #a18bff, #6c5cff)",
-          border: done ? "1px solid rgba(52,211,153,0.45)" : "1px solid rgba(255,255,255,0.18)",
-          color: done ? "#86efac" : "#ffffff",
+            ? "color-mix(in srgb, var(--color-ok) 20%, transparent)"
+            : "var(--cta-gradient)",
+          border: done
+            ? "1px solid color-mix(in srgb, var(--color-ok) 50%, transparent)"
+            : "1px solid color-mix(in srgb, var(--color-text) 18%, transparent)",
+          color: done ? "var(--color-ok)" : "#ffffff",
           minHeight: 64,
-          boxShadow: done ? "none" : "0 8px 30px -8px rgba(124, 92, 255, 0.55)",
+          boxShadow: done ? "none" : "var(--cta-shadow)",
         }}
         aria-label={done ? "Sessione di oggi gia` completata. Riapri la sessione." : "Inizia la sessione di oggi"}
       >
@@ -368,8 +372,8 @@ function StatsStrip({
               key={s.label}
               className="rounded-lg px-4 py-3"
               style={{
-                background: "rgba(255,255,255,0.02)",
-                border: "1px solid rgba(255,255,255,0.05)",
+                background: "var(--bento-stat-bg)",
+                border: "1px solid var(--bento-stat-border)",
               }}
             >
               <div className="text-[10px] tracking-wider uppercase text-[color:var(--color-muted)]">
@@ -434,10 +438,10 @@ function DestinationsRow() {
           <Link
             key={it.to}
             to={it.to}
-            className="rounded-lg px-4 py-3 transition-all flex items-start gap-3 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-brand-soft)]"
+            className="rounded-lg px-4 py-3 transition-all flex items-start gap-3 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-brand-soft)] motion-safe:hover:brightness-110"
             style={{
-              background: "rgba(255,255,255,0.025)",
-              border: "1px solid rgba(255,255,255,0.06)",
+              background: "var(--bento-default-bg)",
+              border: "1px solid var(--bento-default-border)",
               minHeight: 44,
             }}
           >
