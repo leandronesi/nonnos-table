@@ -148,7 +148,7 @@ export function GuidedSession({ pm, onClose }: Props) {
           <PlayStepFallback onSkip={() => handlePlayDone({ outcome: "abandoned", moves_played: 0, finished_at: Date.now() })} />
         )}
         {session.step === "recap" && (
-          <RecapStep session={session} streak={streak} onClose={onClose} />
+          <RecapStep session={session} streak={streak} trendWeekly={pm.trend_weekly} onClose={onClose} />
         )}
       </div>
     </div>

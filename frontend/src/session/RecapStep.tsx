@@ -1,12 +1,15 @@
 import type { SessionState, DailyStreak } from "./store";
+import type { WeeklyTrend } from "../types";
+import { WeeklyTrendCard } from "../components/WeeklyTrendCard";
 
 interface Props {
   session: SessionState;
   streak: DailyStreak;
+  trendWeekly?: WeeklyTrend;
   onClose: () => void;
 }
 
-export function RecapStep({ session, streak, onClose }: Props) {
+export function RecapStep({ session, streak, trendWeekly, onClose }: Props) {
   const drillsTotal = session.drills.length;
   const perfect = session.drills.filter((d) => d.verdict === "perfect").length;
   const ok = session.drills.filter((d) => d.verdict === "ok").length;
@@ -77,6 +80,13 @@ export function RecapStep({ session, streak, onClose }: Props) {
               {session.play.moves_played} mosse
             </div>
           )}
+        </div>
+      )}
+
+      {/* Trend weekly: dove sei nella settimana */}
+      {trendWeekly && (
+        <div className="mt-8">
+          <WeeklyTrendCard trend={trendWeekly} title="Ultimi 7gg vs precedenti" />
         </div>
       )}
 

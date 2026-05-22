@@ -587,6 +587,75 @@ def _tactical_breakdown(conn) -> list[dict[str, Any]]:
     return out
 
 
+def _trend_weekly(conn) -> dict[str, Any]:
+    """Trend a 7 giorni: confronta ultimi 7gg con i 7gg precedenti.
+
+    Restituisce gli aggregati piu` parlanti per la chiusura di una sessione:
+      - ACPL medio in posizioni critiche
+      - numero di blunder critici
+      - conversion_rate (partite vinte da posizione +2/+3)
+      - blow_rate    (partite vincenti poi pari/perse)
+      - games_played
+    + delta tra le due settimane (positivo = meglio per ACPL/blow, peggio per
+    games/conv → leggiamo i delta come "differenza grezza", li interpreta la UI).
+
+    Window: usa end_time_epoch. Definiamo "settimana" come 7 giorni rolling
+    da ora indietro.
+    """
+    now = int(time_mod.time())
+    week = 7 * 86400
+    last_start = now - week
+    prev_start = now - 2 * week
+
+    def _agg(epoch_from: int, epoch_to: int) -> dict[str, Any]:
+        # KPI lato posizioni critiche
+        pos = conn.execute("""
+            SELECT
+              COUNT(*) AS n_critical,
+              AVG(cp_loss) AS avg_cp_loss,
+              SUM(CASE WHEN category='blunder' THEN 1 ELSE 0 END) AS n_blunders
+            FROM positions
+            WHERE is_critical=1 AND end_time_epoch BETWEEN ? AND ?
+        """, (epoch_from, epoch_to)).fetchone()
+        # decisions lato partite
+        dec = conn.execute("""
+            SELECT
+              COUNT(*) AS n_games,
+              SUM(CASE WHEN result='win' THEN 1 ELSE 0 END) AS wins
+            FROM games
+            WHERE end_time_epoch BETWEEN ? AND ?
+        """, (epoch_from, epoch_to)).fetchone()
+        return {
+            "n_games": dec["n_games"] or 0,
+            "wins": dec["wins"] or 0,
+            "win_rate": _ratio(dec["wins"], dec["n_games"]),
+            "n_critical": pos["n_critical"] or 0,
+            "avg_cp_loss": round(pos["avg_cp_loss"] or 0, 1),
+            "n_blunders": pos["n_blunders"] or 0,
+            "blunder_rate": _ratio(pos["n_blunders"], pos["n_critical"]),
+        }
+
+    last = _agg(last_start, now)
+    prev = _agg(prev_start, last_start)
+
+    def _delta(a: float | None, b: float | None) -> float | None:
+        if a is None or b is None:
+            return None
+        return round(a - b, 3)
+
+    return {
+        "last_7d": last,
+        "prev_7d": prev,
+        "delta": {
+            "n_games":       (last["n_games"] - prev["n_games"]),
+            "win_rate":      _delta(last["win_rate"], prev["win_rate"]),
+            "avg_cp_loss":   round(last["avg_cp_loss"] - prev["avg_cp_loss"], 1),
+            "n_blunders":    (last["n_blunders"] - prev["n_blunders"]),
+            "blunder_rate":  _delta(last["blunder_rate"], prev["blunder_rate"]),
+        },
+    }
+
+
 def _repertoire_by_color(conn, color: str, k: int = 5, min_games: int = 3) -> list[dict[str, Any]]:
     """Repertorio peggiore di un colore.
 
@@ -913,6 +982,7 @@ def build(cfg: dict[str, Any]) -> dict[str, Any]:
     tactical_breakdown = _tactical_breakdown(conn)
     repertoire_black = _repertoire_by_color(conn, "black")
     repertoire_white = _repertoire_by_color(conn, "white")
+    trend_weekly = _trend_weekly(conn)
     turning_points = _turning_points(conn)
     drills = _drills(conn)
     diagnoses = _diagnoses(kpi, decisions, by_phase, by_color, openings, time_mgmt, tilt, blind_spots)
@@ -936,6 +1006,7 @@ def build(cfg: dict[str, Any]) -> dict[str, Any]:
         "tactical_breakdown": tactical_breakdown,
         "repertoire_black": repertoire_black,
         "repertoire_white": repertoire_white,
+        "trend_weekly": trend_weekly,
         "turning_points": turning_points,
         "drills": drills,
         "diagnoses": diagnoses,

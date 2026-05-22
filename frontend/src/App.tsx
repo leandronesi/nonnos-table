@@ -15,6 +15,7 @@ import { RatingCurveChart } from "./components/RatingCurveChart";
 import { BlindSpotsList } from "./components/BlindSpotsList";
 import { TacticalBreakdownCard } from "./components/TacticalBreakdownCard";
 import { RepertoireCard } from "./components/RepertoireCard";
+import { WeeklyTrendCard } from "./components/WeeklyTrendCard";
 import { TurningPointsList } from "./components/TurningPointsList";
 import { Glossary } from "./components/Glossary";
 import { CoachNarrative } from "./components/CoachNarrative";
@@ -95,6 +96,13 @@ export function App() {
         <div className="mt-6">
           <PlayerCard identity={pm.identity} kpi={pm.kpi} />
         </div>
+
+        {/* ============ TREND SETTIMANALE: momento immediato ============ */}
+        {pm.trend_weekly && (
+          <div className="mt-6">
+            <WeeklyTrendCard trend={pm.trend_weekly} />
+          </div>
+        )}
 
         {/* ============ STORYTELLING DEL COACH (story / progress / roadmap) ============ */}
         {pm.coach_artifacts && (
