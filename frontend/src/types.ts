@@ -95,10 +95,32 @@ export interface ClockBucket {
   blunders: number;
 }
 
+export interface SpentBucket {
+  bucket: string;
+  key: string;
+  positions: number;
+  avg_cp_loss: number;
+  blunders: number;
+  errors: number;
+  error_rate: number;
+}
+
 export interface TimeManagement {
   clock_vs_accuracy: ClockBucket[];
+  spent_vs_accuracy: SpentBucket[];
   instant_moves_in_critical: { n: number; avg_cp_loss: number; blunders: number };
   zeitnot: { n: number; avg_cp_loss: number; blunders: number };
+}
+
+export interface RatingPoint {
+  epoch: number;
+  date: string | null;
+  rating: number | null;
+  perf_5: number | null;
+  perf_20: number | null;
+  opp_rating: number | null;
+  result: Result | null;
+  game_id: string;
 }
 
 export interface Tilt {
@@ -177,6 +199,7 @@ export interface PlayerModel {
   by_color: Record<Color, ColorStat>;
   openings: OpeningStat[];
   time_management: TimeManagement;
+  rating_curve: Record<string, RatingPoint[]>;
   tilt: Tilt;
   blind_spots: BlindSpot[];
   turning_points: PositionRow[];
@@ -184,6 +207,11 @@ export interface PlayerModel {
   diagnoses: Diagnosis[];
   weekly_focus: WeeklyFocus;
   coach_brief?: CoachBrief;
+  coach_artifacts?: {
+    story?: string;
+    progress?: string;
+    roadmap?: string;
+  };
 }
 
 // Output OpenAI gpt-5.4-mini in coach.py (opzionale, può non esistere)

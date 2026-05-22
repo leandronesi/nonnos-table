@@ -1,15 +1,22 @@
-"""SPRINT 6 v2 — Agente coach via OpenAI SDK (gpt-5.4-mini).
+"""Coach LLM — produce 3 artifact narrativi (story / progress / roadmap).
 
-Legge `data/player_model.json` e produce `data/coach_brief.json` con:
-  - headline             : 1 frase punchy (cosa devi fare questa settimana)
-  - diagnosis_narrative  : 2-3 frasi che spiegano il "perché", grounded sui dati
-  - this_week            : 3 azioni concrete per i prossimi 7 giorni
-  - avoid                : 1 cosa specifica da NON fare
+Pattern SIO-lite (single-shot per artifact, brain navigabile come dossier).
 
-L'LLM NON inventa scacchi: legge i fatti aggregati dal player_model.
-Tutto in italiano. Costo: ~5 cent/giorno con gpt-5.4-mini.
+Modalità di esecuzione:
+  - FULL: `backend/coach_brain/` esiste (clonato da repo privato in CI con PAT,
+    o presente in locale). Carica system prompt da COACH.md, template dai file
+    in 02-output/, e wiki pertinente. 3 call OpenAI gpt-5.4-mini, una per
+    artifact, ciascuna grounded sui dati + sul template + sulla wiki.
+  - FALLBACK: brain mancante o OPENAI_API_KEY assente. Genera 3 artifact
+    minimal dalle regole deterministiche del player_model.weekly_focus +
+    diagnoses.
 
-Skippa graceful se OPENAI_API_KEY non è settato (CI senza secret → fallback regole).
+Output:
+  - data/coach_brief.json       (back-compat)
+  - data/coach_story.md         player story narrativa
+  - data/coach_progress.md      check progressi narrato
+  - data/coach_roadmap.md       roadmap 90 giorni
+  - player_model.json arricchito con `coach_brief` + `coach_artifacts`
 """
 
 from __future__ import annotations
@@ -20,36 +27,64 @@ import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 log = logging.getLogger("coach")
 
 MODEL = "gpt-5.4-mini"
-SYSTEM_PROMPT = """Sei un coach di scacchi italiano serio. Lavori con un giocatore amatoriale
-che ha un obiettivo numerico esplicito e i suoi dati di gioco analizzati con
-Stockfish + Maia.
-
-Tu NON inventi scacchi. Tu LEGGI i fatti aggregati dal player model e li
-trasformi in un coaching narrativo + plan d'azione per i prossimi 7 giorni.
-
-Stile:
-  - Italiano, diretto, NO fronzoli, NO buzzword.
-  - Non scrivere "sei sulla buona strada!". Scrivi i numeri.
-  - Usa il "tu" (sei, devi, evita).
-  - Sii specifico: cita motivo, fase, apertura, numero quando li hai.
-  - Niente emoji.
-  - Output rigorosamente JSON valido senza markdown wrapper.
-
-Format JSON:
-{
-  "headline": "1 frase, max 100 caratteri, l'una cosa da fissare questa settimana",
-  "diagnosis_narrative": "2-3 frasi che spiegano i fatti dai dati. Usa numeri.",
-  "this_week": ["azione 1 (max 80 char)", "azione 2", "azione 3"],
-  "avoid": "1 frase, max 80 char, una cosa da NON fare per 7 giorni"
-}"""
+REPO_ROOT = Path(__file__).resolve().parent.parent
+BRAIN_DIR = REPO_ROOT / "backend" / "coach_brain"
 
 
-def build_user_prompt(pm: dict) -> str:
-    """Estrai i fatti chiave dal player_model in un brief leggibile dall'LLM."""
+# ---------------------------------------------------------------------------
+# Brain loader (filesystem-as-orchestration, SIO-lite)
+# ---------------------------------------------------------------------------
+
+
+def load_brain_system_prompt() -> str | None:
+    """Legge il system prompt dal brain (COACH.md + PLAN.md + identity)."""
+    coach_md = BRAIN_DIR / "00-coach" / "COACH.md"
+    plan_md = BRAIN_DIR / "01-pianificatore" / "PLAN.md"
+    if not coach_md.exists():
+        return None
+    chunks = [coach_md.read_text(encoding="utf-8")]
+    if plan_md.exists():
+        chunks.append("---\n\n" + plan_md.read_text(encoding="utf-8"))
+    # carica identity se presente
+    identity_dir = BRAIN_DIR / "wiki" / "identity"
+    if identity_dir.exists():
+        for f in identity_dir.glob("*.md"):
+            chunks.append(f"---\n\n# wiki/identity/{f.name}\n\n" + f.read_text(encoding="utf-8"))
+    return "\n\n".join(chunks)
+
+
+def load_template(name: str) -> str | None:
+    p = BRAIN_DIR / "02-output" / f"{name}.md"
+    return p.read_text(encoding="utf-8") if p.exists() else None
+
+
+def load_wiki_for(area: str) -> str:
+    """Carica by-area + concepts citati, come "dossier" da iniettare."""
+    out = []
+    by_area = BRAIN_DIR / "wiki" / "by-area" / f"{area}.md"
+    if by_area.exists():
+        out.append(f"## wiki/by-area/{area}.md\n\n" + by_area.read_text(encoding="utf-8"))
+    # Carica TUTTI i concepts e patterns disponibili (sono piccoli e mirati,
+    # in modo che il modello possa scegliere)
+    for sub in ("concepts", "patterns"):
+        sub_dir = BRAIN_DIR / "wiki" / sub
+        if sub_dir.exists():
+            for f in sorted(sub_dir.glob("*.md")):
+                out.append(f"\n\n## wiki/{sub}/{f.name}\n\n" + f.read_text(encoding="utf-8"))
+    return "\n".join(out)
+
+
+# ---------------------------------------------------------------------------
+# Player model summary per prompt
+# ---------------------------------------------------------------------------
+
+
+def player_brief(pm: dict) -> str:
     identity = pm["identity"]
     goal = identity["goal"]
     kpi = pm["kpi"]
@@ -59,6 +94,7 @@ def build_user_prompt(pm: dict) -> str:
     motifs = pm["blind_spots"][:3]
     diags = pm["diagnoses"][:3]
     openings = pm["openings"][:3]
+    by_color = pm.get("by_color", {})
 
     motif_lines = "\n".join(
         f"  - {m['label_it']}: {m['n']} blunder ({m['avoidable_count']} evitabili alla tua forza)"
@@ -70,14 +106,14 @@ def build_user_prompt(pm: dict) -> str:
     )
     diag_lines = "\n".join(f"  {i+1}. {d['title']} — {d['evidence']}" for i, d in enumerate(diags))
 
-    clock = tm["clock_vs_accuracy"]
-    under_30 = next((b for b in clock if b["key"] in ("under_10s", "10_30s")), None)
-    over_120 = next((b for b in clock if b["key"] == "over_120s"), None)
-    clock_line = ""
-    if under_30 and over_120:
-        clock_line = (
-            f"Sotto i 30s: ACPL {under_30['avg_cp_loss']}, {under_30['blunders']} blunder. "
-            f"Sopra i 120s: ACPL {over_120['avg_cp_loss']}."
+    spent = tm.get("spent_vs_accuracy") or []
+    fast = next((b for b in spent if b["key"] == "lt_1s"), None)
+    slow = next((b for b in spent if b["key"] == "gt_30s"), None)
+    spent_line = ""
+    if fast and slow:
+        spent_line = (
+            f"Mosse <1s in posizione critica: ACPL {fast['avg_cp_loss']} ({fast['blunders']} blunder). "
+            f"Mosse >30s: ACPL {slow['avg_cp_loss']}."
         )
 
     return f"""PLAYER: {identity['username']}
@@ -91,42 +127,214 @@ GOAL:
   - proiezione fine anno: {goal['projection_at_deadline']}
   - on track: {goal['on_track']}
 
-PRECISIONE (sulle 3937 posizioni CRITICHE — equilibrio entro ±150cp, non book, non già decise):
+PRECISIONE (su {kpi['critical_positions']} posizioni CRITICHE):
   - ACPL medio: {kpi['avg_cp_loss_on_critical']}
   - blunder critici: {kpi['blunders_critical']} ({kpi['avoidable_blunders']} evitabili alla tua forza)
-  - agreement con Maia@1200 (il tuo livello): {int((kpi['agreement_maia_mine_pct'] or 0)*100)}%
-  - agreement con Maia@1600 (target): {int((kpi['agreement_maia_target_pct'] or 0)*100)}%
-  - ACPL ultime 30 partite: {kpi['acpl_recent_30']} (precedenti 30: {kpi['acpl_previous_30']})
+  - agreement Maia@tuo_livello: {int((kpi['agreement_maia_mine_pct'] or 0)*100)}%
+  - agreement Maia@target: {int((kpi['agreement_maia_target_pct'] or 0)*100)}%
+  - ACPL ultime 30: {kpi['acpl_recent_30']} (prec: {kpi['acpl_previous_30']})
 
-DECISIONI vs RISULTATO:
+DECISIONI:
   - conversion rate (partite arrivate a +2 → vinte): {int((dec['conversion_rate'] or 0)*100)}% ({dec['converted_winning']}/{dec['reached_winning']})
-  - vittorie buttate (blow rate): {int((dec['blow_rate'] or 0)*100)}% — {dec['blew_winning']} partite
-  - save rate (partite a -2 → salvate): {int((dec['save_rate'] or 0)*100)}% ({dec['saved_losing']}/{dec['reached_losing']})
+  - blow rate: {int((dec['blow_rate'] or 0)*100)}% — {dec['blew_winning']} vittorie buttate
+  - save rate (da -2): {int((dec['save_rate'] or 0)*100)}% ({dec['saved_losing']}/{dec['reached_losing']})
 
-TILT:
-  - ACPL dopo un tuo blunder (3 mosse seguenti): {tilt['after_blunder_avg_cp_loss']}
-  - baseline: {tilt['baseline_avg_cp_loss']}
-  - tilt factor: {tilt['tilt_factor']}×
+COLORE:
+  - bianco win rate: {int((by_color.get('white',{}).get('win_rate') or 0)*100)}% su {by_color.get('white',{}).get('games',0)}
+  - nero win rate: {int((by_color.get('black',{}).get('win_rate') or 0)*100)}% su {by_color.get('black',{}).get('games',0)}
 
-TIME MANAGEMENT:
-  {clock_line}
-  - mosse istantanee (<2s) in critica: {tm['instant_moves_in_critical']['n']}, ACPL {tm['instant_moves_in_critical']['avg_cp_loss']}
+TIME / TILT:
+  {spent_line}
+  - tilt factor: {tilt['tilt_factor']}× (ACPL post-blunder {tilt['after_blunder_avg_cp_loss']} vs baseline {tilt['baseline_avg_cp_loss']})
 
-BLIND SPOTS TATTICI (top 3, sui blunder critici):
+BLIND SPOTS top 3 (sui blunder critici):
 {motif_lines or '  (nessun pattern dominante)'}
 
 APERTURE PEGGIORI:
 {open_lines or '  (nessuna chiara)'}
 
 DIAGNOSI già prioritizzate dal sistema (le top 3):
-{diag_lines}
+{diag_lines}"""
 
-Genera ORA il JSON coach brief con headline + narrative + this_week + avoid."""
+
+# ---------------------------------------------------------------------------
+# OpenAI call
+# ---------------------------------------------------------------------------
+
+
+def call_openai_md(system: str, user: str) -> str:
+    """Una call testuale, ritorna markdown (no JSON wrapping)."""
+    from openai import OpenAI
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY non settato")
+    client = OpenAI(api_key=api_key)
+    resp = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        temperature=0.6,
+    )
+    text = resp.choices[0].message.content
+    if not text:
+        raise RuntimeError("LLM ha risposto vuoto")
+    return text.strip()
+
+
+def call_openai_json(system: str, user: str) -> dict:
+    """Call che ritorna JSON valido (per il coach_brief retro-compat)."""
+    from openai import OpenAI
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY non settato")
+    client = OpenAI(api_key=api_key)
+    resp = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        response_format={"type": "json_object"},
+        temperature=0.6,
+    )
+    content = resp.choices[0].message.content
+    if not content:
+        raise RuntimeError("LLM ha risposto vuoto")
+    return json.loads(content)
+
+
+# ---------------------------------------------------------------------------
+# Artifact generators
+# ---------------------------------------------------------------------------
+
+
+def generate_story(pm: dict, brain_sys: str | None) -> str:
+    template = load_template("STORY")
+    wiki = load_wiki_for("profilazione") + "\n\n" + load_wiki_for("zavorre")
+    system = brain_sys or "Sei un coach di scacchi italiano serio, diretto, senza fronzoli."
+    user = f"""Scrivi `artifacts/story.md`.
+
+TEMPLATE (segui spirito + tono, non struttura rigida):
+{template or '(template assente, scrivi una player story narrativa 200 parole)'}
+
+DOSSIER WIKI (NON ricopiare, è briefing):
+{wiki}
+
+DATI:
+{player_brief(pm)}
+
+Output: solo markdown con sezioni `## Titolo`, prosa narrativa, 200-350 parole.
+Niente bullet points. Niente jargon di sistema. Niente "Continua così".
+"""
+    return call_openai_md(system, user)
+
+
+def generate_progress(pm: dict, brain_sys: str | None) -> str:
+    template = load_template("PROGRESS")
+    wiki = load_wiki_for("progressione")
+    system = brain_sys or "Sei un coach di scacchi italiano serio, diretto, senza fronzoli."
+    user = f"""Scrivi `artifacts/progress.md`.
+
+TEMPLATE:
+{template or '(template assente)'}
+
+DOSSIER WIKI:
+{wiki}
+
+DATI:
+{player_brief(pm)}
+
+Output: markdown, 200-350 parole, sezioni `## Titolo`, prosa.
+Inizia con un VERDETTO CHIARO: "Stai migliorando", "Stai stagnando", "Stai peggiorando",
+o "Non abbastanza dati". Onesto, anche se è "stai peggiorando".
+"""
+    return call_openai_md(system, user)
+
+
+def generate_roadmap(pm: dict, brain_sys: str | None) -> str:
+    template = load_template("ROADMAP")
+    wiki = load_wiki_for("piano-allenamento") + "\n\n" + load_wiki_for("zavorre")
+    system = brain_sys or "Sei un coach di scacchi italiano serio, diretto, senza fronzoli."
+    user = f"""Scrivi `artifacts/roadmap.md`.
+
+TEMPLATE:
+{template or '(template assente)'}
+
+DOSSIER WIKI:
+{wiki}
+
+DATI:
+{player_brief(pm)}
+
+Output: markdown, 3 capitoli (settimane 1-4, 5-8, 9-12), prosa narrativa,
+ogni capitolo con 2-3 azioni operative + 1 milestone misurabile.
+"""
+    return call_openai_md(system, user)
+
+
+def generate_brief(pm: dict, brain_sys: str | None) -> dict:
+    """Vecchio coach_brief JSON, per retro-compatibilità WeeklyFocusCard."""
+    system = (brain_sys or "Sei un coach di scacchi italiano serio.") + """
+
+Output rigorosamente JSON valido senza markdown wrapper:
+{
+  "headline": "1 frase, max 100 caratteri",
+  "diagnosis_narrative": "2-3 frasi che spiegano i fatti dai dati. Usa numeri.",
+  "this_week": ["azione 1 (max 80 char)", "azione 2", "azione 3"],
+  "avoid": "1 frase, max 80 char"
+}"""
+    user = f"""Genera il coach brief settimanale.
+
+DATI:
+{player_brief(pm)}
+
+Output: JSON."""
+    return call_openai_json(system, user)
+
+
+# ---------------------------------------------------------------------------
+# Fallback (no brain / no API)
+# ---------------------------------------------------------------------------
+
+
+def fallback_artifacts(pm: dict) -> dict[str, str]:
+    wf = pm.get("weekly_focus") or {}
+    diag = (pm.get("diagnoses") or [{}])[0]
+    goal = pm["identity"]["goal"]
+    kpi = pm["kpi"]
+    dec = pm["decisions"]
+    story = f"""## Stato attuale
+
+Rating blitz {goal['current_rating']}, obiettivo {goal['target']} entro {goal['deadline']}. Ti mancano {goal['points_needed']} punti in {goal['days_left']} giorni.
+
+Su {kpi['critical_positions']} posizioni critiche, hai {kpi['blunders_critical']} blunder ({kpi['avoidable_blunders']} evitabili alla tua forza). Conversion rate {int((dec['conversion_rate'] or 0)*100)}%, save rate {int((dec['save_rate'] or 0)*100)}%.
+
+(Coach LLM non disponibile in questo run — sto generando il minimo dai dati grezzi.)
+"""
+    progress = f"""## Verdetto
+
+{('On track' if goal['on_track'] else 'Dietro il piano')}: proiezione fine anno {goal['projection_at_deadline']}.
+
+ACPL ultime 30 partite: {kpi['acpl_recent_30']}, precedenti 30: {kpi['acpl_previous_30']}. {('Stai migliorando' if (kpi.get('acpl_delta') or 0) < -2 else 'Stai stagnando' if abs(kpi.get('acpl_delta') or 0) <= 2 else 'Stai peggiorando')}.
+"""
+    roadmap = f"""## Capitolo 1 · Settimane 1-4 · {diag.get('title','Sistema il problema #1')}
+
+{diag.get('evidence','')}
+
+**Cosa fai**: {diag.get('trainable','tactic trainer Lichess')}.
+"""
+    return {
+        "story": story,
+        "progress": progress,
+        "roadmap": roadmap,
+    }
 
 
 def fallback_brief(pm: dict) -> dict:
-    """Se OPENAI_API_KEY manca o la chiamata fallisce, usiamo regole deterministiche
-    già presenti nel player_model (weekly_focus)."""
     wf = pm.get("weekly_focus") or {}
     diag = (pm.get("diagnoses") or [{}])[0]
     return {
@@ -139,33 +347,9 @@ def fallback_brief(pm: dict) -> dict:
     }
 
 
-def call_openai(prompt: str) -> dict:
-    try:
-        from openai import OpenAI
-    except ImportError:
-        raise SystemExit("Manca `openai`. `pip install openai`.")
-
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY non settato")
-
-    client = OpenAI(api_key=api_key)
-    resp = client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
-        response_format={"type": "json_object"},
-        temperature=0.6,
-    )
-    content = resp.choices[0].message.content
-    if not content:
-        raise RuntimeError("LLM ha risposto vuoto")
-    data = json.loads(content)
-    data["generated_at"] = datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
-    data["model"] = MODEL
-    return data
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 
 def main() -> None:
@@ -174,32 +358,55 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s | %(message)s",
         stream=sys.stdout,
     )
-    repo_root = Path(__file__).resolve().parent.parent
-    pm_path = repo_root / "data" / "player_model.json"
+    pm_path = REPO_ROOT / "data" / "player_model.json"
     if not pm_path.exists():
         log.error("Player model non trovato: %s", pm_path)
-        log.error("Lancia prima: python backend/player_model.py")
         sys.exit(1)
 
     pm = json.loads(pm_path.read_text(encoding="utf-8"))
-    prompt = build_user_prompt(pm)
+    brain_sys = load_brain_system_prompt()
+    have_api = bool(os.environ.get("OPENAI_API_KEY"))
 
-    try:
-        brief = call_openai(prompt)
-        log.info("Coach brief generato con %s", MODEL)
-    except Exception as e:  # noqa: BLE001
-        log.warning("OpenAI non disponibile (%s). Uso fallback regole.", e)
+    artifacts: dict[str, str] = {}
+    brief: dict[str, Any]
+
+    if brain_sys and have_api:
+        log.info("Modalità FULL (brain + OpenAI %s)", MODEL)
+        try:
+            artifacts["story"] = generate_story(pm, brain_sys)
+            artifacts["progress"] = generate_progress(pm, brain_sys)
+            artifacts["roadmap"] = generate_roadmap(pm, brain_sys)
+            brief = generate_brief(pm, brain_sys)
+            brief["generated_at"] = datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
+            brief["model"] = MODEL
+        except Exception as e:  # noqa: BLE001
+            log.warning("LLM fallito (%s). Uso fallback regole.", e)
+            artifacts = fallback_artifacts(pm)
+            brief = fallback_brief(pm)
+    else:
+        if not brain_sys:
+            log.warning("backend/coach_brain/ mancante. Fallback regole.")
+        if not have_api:
+            log.warning("OPENAI_API_KEY non settato. Fallback regole.")
+        artifacts = fallback_artifacts(pm)
         brief = fallback_brief(pm)
 
-    # Salva il brief separato
-    out_path = repo_root / "data" / "coach_brief.json"
-    out_path.write_text(json.dumps(brief, ensure_ascii=False, indent=2), encoding="utf-8")
-    log.info("Scritto %s", out_path)
+    # Scrivi gli artifact su disco
+    out_dir = REPO_ROOT / "data"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for name, content in artifacts.items():
+        (out_dir / f"coach_{name}.md").write_text(content, encoding="utf-8")
+        log.info("Scritto data/coach_%s.md (%d caratteri)", name, len(content))
 
-    # Inietta dentro player_model.json (e copia in frontend/public)
+    (out_dir / "coach_brief.json").write_text(
+        json.dumps(brief, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+    # Inietta tutto nel player_model.json
     pm["coach_brief"] = brief
+    pm["coach_artifacts"] = artifacts
     pm_path.write_text(json.dumps(pm, ensure_ascii=False, indent=2), encoding="utf-8")
-    fe = repo_root / "frontend" / "public" / "player_model.json"
+    fe = REPO_ROOT / "frontend" / "public" / "player_model.json"
     if fe.parent.exists():
         fe.write_text(json.dumps(pm, ensure_ascii=False), encoding="utf-8")
         log.info("Player model aggiornato in %s", fe)

@@ -64,6 +64,10 @@ def _qs(conn, sql: str, *params):
     return dict(row) if row else None
 
 
+def _score(result: str | None) -> float | None:
+    return {"win": 1.0, "draw": 0.5, "loss": 0.0}.get(result or "")
+
+
 def _ratio(num: int, den: int) -> float | None:
     if not den:
         return None
@@ -354,6 +358,48 @@ def _time_management(conn) -> dict[str, Any]:
         }
         for b in bucket_order
     ]
+    # Buckets di tempo SPESO per mossa (≠ tempo rimasto sull'orologio).
+    # Risponde alla domanda: "quanti errori faccio quando muovo troppo veloce?"
+    spent_rows = _q(conn, """
+        SELECT
+          CASE WHEN seconds_spent < 1 THEN 'lt_1s'
+               WHEN seconds_spent < 3 THEN '1_3s'
+               WHEN seconds_spent < 10 THEN '3_10s'
+               WHEN seconds_spent < 30 THEN '10_30s'
+               ELSE 'gt_30s' END AS bucket,
+          COUNT(*) AS positions,
+          AVG(cp_loss) AS avg_cp_loss,
+          SUM(CASE WHEN category='blunder' THEN 1 ELSE 0 END) AS blunders,
+          SUM(CASE WHEN category IN ('blunder','mistake') THEN 1 ELSE 0 END) AS errors
+        FROM positions
+        WHERE is_critical = 1 AND seconds_spent IS NOT NULL
+        GROUP BY bucket
+    """)
+    spent_order = ["lt_1s", "1_3s", "3_10s", "10_30s", "gt_30s"]
+    spent_label = {
+        "lt_1s": "< 1s",
+        "1_3s": "1-3s",
+        "3_10s": "3-10s",
+        "10_30s": "10-30s",
+        "gt_30s": "> 30s",
+    }
+    by_spent = {r["bucket"]: r for r in spent_rows}
+    spent_vs_accuracy = [
+        {
+            "bucket": spent_label[b],
+            "key": b,
+            "positions": by_spent.get(b, {}).get("positions", 0),
+            "avg_cp_loss": round(by_spent.get(b, {}).get("avg_cp_loss") or 0, 1),
+            "blunders": by_spent.get(b, {}).get("blunders", 0),
+            "errors": by_spent.get(b, {}).get("errors", 0),
+            "error_rate": round(
+                (by_spent.get(b, {}).get("errors", 0) / max(1, by_spent.get(b, {}).get("positions", 1))),
+                3,
+            ),
+        }
+        for b in spent_order
+    ]
+
     # Mosse istantanee in posizione critica
     instant = _qs(conn, """
         SELECT COUNT(*) AS n,
@@ -369,6 +415,7 @@ def _time_management(conn) -> dict[str, Any]:
     """)
     return {
         "clock_vs_accuracy": clock_vs_accuracy,
+        "spent_vs_accuracy": spent_vs_accuracy,
         "instant_moves_in_critical": {
             "n": instant["n"], "avg_cp_loss": round(instant["avg_loss"] or 0, 1), "blunders": instant["blunders"],
         },
@@ -376,6 +423,57 @@ def _time_management(conn) -> dict[str, Any]:
             "n": zeitnot["n"], "avg_cp_loss": round(zeitnot["avg_loss"] or 0, 1), "blunders": zeitnot["blunders"],
         },
     }
+
+
+def _rating_curve(conn) -> dict[str, list[dict[str, Any]]]:
+    """Per ogni cadenza, lista cronologica con rating ufficiale + perf rolling 5 + perf rolling 20.
+
+    Performance rating con formula log10 di Elo sulla finestra mobile.
+    Rispondi alla domanda 'sto migliorando?' confrontando rolling 5 (volatile)
+    e rolling 20 (trend) col rating ufficiale (laggy).
+    """
+    out: dict[str, list[dict[str, Any]]] = {}
+    games_by_tc = _q(
+        conn,
+        """
+        SELECT time_class, game_id, end_time_epoch, date, my_rating, opp_rating, result
+        FROM games
+        WHERE my_rating IS NOT NULL AND opp_rating IS NOT NULL
+        ORDER BY time_class, end_time_epoch
+        """,
+    )
+    # raggruppo per time_class
+    by_tc: dict[str, list[dict[str, Any]]] = {}
+    for g in games_by_tc:
+        by_tc.setdefault(g["time_class"], []).append(g)
+
+    for tc, gs in by_tc.items():
+        series: list[dict[str, Any]] = []
+        for i, g in enumerate(gs):
+            def window_perf(window: list[dict[str, Any]]) -> int | None:
+                opps = [w["opp_rating"] for w in window]
+                scores_list = [_score(w["result"]) for w in window]
+                scores_list = [s for s in scores_list if s is not None]
+                if not scores_list:
+                    return None
+                return _perf_rating(opps, sum(scores_list), len(scores_list))
+
+            win5 = gs[max(0, i - 4) : i + 1]
+            win20 = gs[max(0, i - 19) : i + 1]
+            series.append(
+                {
+                    "epoch": g["end_time_epoch"],
+                    "date": g["date"],
+                    "rating": g["my_rating"],
+                    "perf_5": window_perf(win5),
+                    "perf_20": window_perf(win20),
+                    "opp_rating": g["opp_rating"],
+                    "result": g["result"],
+                    "game_id": g["game_id"],
+                }
+            )
+        out[tc] = series
+    return out
 
 
 def _tilt(conn) -> dict[str, Any]:
@@ -656,6 +754,7 @@ def build(cfg: dict[str, Any]) -> dict[str, Any]:
     by_color = _by_color(conn)
     openings = _openings(conn)
     time_mgmt = _time_management(conn)
+    rating_curve = _rating_curve(conn)
     tilt = _tilt(conn)
     blind_spots = _blind_spots(conn)
     turning_points = _turning_points(conn)
@@ -675,6 +774,7 @@ def build(cfg: dict[str, Any]) -> dict[str, Any]:
         "by_color": by_color,
         "openings": openings,
         "time_management": time_mgmt,
+        "rating_curve": rating_curve,
         "tilt": tilt,
         "blind_spots": blind_spots,
         "turning_points": turning_points,
