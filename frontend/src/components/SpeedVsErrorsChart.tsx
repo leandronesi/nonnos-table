@@ -125,7 +125,16 @@ export function SpeedVsErrorsChart({ data }: { data: SpentBucket[] }) {
               {enriched.map((d) => (
                 <Cell key={d.key} fill={colorForAcpl(d.avg_cp_loss)} />
               ))}
-              <LabelList dataKey="positions" position="top" fill="var(--color-muted)" fontSize={10} formatter={(v: number) => `n=${v}`} />
+              <LabelList
+                dataKey="error_pct"
+                position="insideTop"
+                formatter={(v: number) => `${v}%`}
+                fill="#0a0c18"
+                fontSize={11}
+                fontWeight={700}
+                style={{ fontFamily: "var(--font-mono)" }}
+                offset={6}
+              />
             </Bar>
             <Line
               yAxisId="left"
