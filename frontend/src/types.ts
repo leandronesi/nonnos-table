@@ -147,6 +147,20 @@ export interface BlindSpot {
   confidence: Confidence;
 }
 
+export interface GoalProjection {
+  available: boolean;
+  reason?: string;
+  current_perf_20?: number;
+  target?: number;
+  slope_elo_per_day?: number;
+  projected_at?: string | null;          // "YYYY-MM-DD"
+  slack_days?: number | null;
+  risk_pct?: number;
+  verdict?: "on_track" | "in_ritardo" | "stagnante" | "regressione" | "raggiunto";
+  projected_at_with_daily_session?: string;
+  delta_with_daily_session_days?: number;
+}
+
 export interface WeeklyTrendBucket {
   n_games: number;
   wins: number;
@@ -277,6 +291,7 @@ export interface PlayerModel {
   repertoire_black?: RepertoireOpening[];
   repertoire_white?: RepertoireOpening[];
   trend_weekly?: WeeklyTrend;
+  goal_projection?: GoalProjection;
   turning_points: PositionRow[];
   drills: PositionRow[];
   diagnoses: Diagnosis[];
