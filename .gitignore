@@ -21,6 +21,11 @@ frontend/public/analysis/
 # Stockfish + lc0 binari locali (root engine/, NON frontend/src/engine o frontend/public/engine)
 /engine/
 
+# COACH PRIVATO: i prompt + wiki del coach LLM stanno in repo privato separato.
+# In CI vengono clonati con un PAT secret (vedi workflow refresh-and-deploy.yml).
+# Per dev locale: il coach_brain vive qui ma è gitignored.
+backend/coach_brain/
+
 # Frontend
 frontend/node_modules/
 frontend/dist/

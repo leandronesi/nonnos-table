@@ -145,7 +145,24 @@ jobs:
       - name: Step 6 · Player model
         run: python backend/player_model.py
 
-      - name: Step 7 · Coach brief (OpenAI gpt-5.4-mini, fallback regole se manca secret)
+      - name: "Step 7a · Check coach_brain PAT"
+        id: brain_pat_check
+        env:
+          PAT: ${{ secrets.COACH_BRAIN_REPO_PAT }}
+        run: |
+          if [ -n "$PAT" ]; then echo "has_pat=true" >> $GITHUB_OUTPUT; else echo "has_pat=false" >> $GITHUB_OUTPUT; fi
+
+      - name: "Step 7b · Clona coach_brain privato"
+        if: steps.brain_pat_check.outputs.has_pat == 'true'
+        env:
+          PAT: ${{ secrets.COACH_BRAIN_REPO_PAT }}
+        run: |
+          # Repo privato con persona/wiki/templates del coach LLM
+          # (Crea su GitHub: leandronesi/chess_coach_brain privato, poi PAT con scope `repo`)
+          git clone --depth 1 "https://x-access-token:${PAT}@github.com/leandronesi/chess_coach_brain.git" backend/coach_brain
+          ls -la backend/coach_brain/ || echo "brain clone failed, coach girerà in fallback regole"
+
+      - name: Step 7c · Coach brief (OpenAI gpt-5.4-mini, fallback regole se manca secret/brain)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python backend/coach.py

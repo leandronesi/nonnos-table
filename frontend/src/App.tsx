@@ -10,9 +10,12 @@ import { DecisionsCard } from "./components/DecisionsCard";
 import { DiagnosisList } from "./components/DiagnosisList";
 import { DrillPlan } from "./components/DrillPlan";
 import { TimeManagementChart } from "./components/TimeManagementChart";
+import { SpeedVsErrorsChart } from "./components/SpeedVsErrorsChart";
+import { RatingCurveChart } from "./components/RatingCurveChart";
 import { BlindSpotsList } from "./components/BlindSpotsList";
 import { TurningPointsList } from "./components/TurningPointsList";
 import { Glossary } from "./components/Glossary";
+import { CoachNarrative } from "./components/CoachNarrative";
 import { Section } from "./components/Section";
 import { PlaySession } from "./components/PlaySession";
 import { GuidedSession } from "./session/GuidedSession";
@@ -91,6 +94,13 @@ export function App() {
           <PlayerCard identity={pm.identity} kpi={pm.kpi} />
         </div>
 
+        {/* ============ STORYTELLING DEL COACH (story / progress / roadmap) ============ */}
+        {pm.coach_artifacts && (
+          <div className="mt-6">
+            <CoachNarrative {...pm.coach_artifacts} />
+          </div>
+        )}
+
         {/* ============ TRAINER (IL prodotto interattivo) ============ */}
         <div id="trainer" ref={trainerRef} className="scroll-mt-8">
           <Section
@@ -157,14 +167,29 @@ export function App() {
           <DecisionsCard decisions={pm.decisions} />
         </Section>
 
-        {/* ============ TIME MANAGEMENT ============ */}
+        {/* ============ GRAFICI: progressione + velocità ============ */}
+        <Section
+          id="grafici"
+          index="06"
+          eyebrow="Grafici"
+          title="Stai migliorando? Sbagli quando muovi veloce?"
+          sub="Due risposte visive. La curva Elo (rolling 5 + 20 vs ufficiale) ti dice se il rating sta inseguendo le tue prestazioni reali. Il grafico velocità ti dice quanto ti costano le mosse fatte senza pensare."
+          delay={6}
+        >
+          <div className="space-y-5">
+            <RatingCurveChart ratingCurve={pm.rating_curve} goal={pm.identity.goal} />
+            <SpeedVsErrorsChart data={pm.time_management.spent_vs_accuracy} />
+          </div>
+        </Section>
+
+        {/* ============ TIME MANAGEMENT (residuo orologio + tilt) ============ */}
         <Section
           id="time"
-          index="06"
+          index="07"
           eyebrow="Time management & tilt"
-          title="Come crolla la tua precisione col tempo"
-          sub="ACPL medio per fascia di orologio. Tilt = quanto peggiori subito dopo un blunder. Entrambi allenabili con disciplina."
-          delay={6}
+          title="Cosa succede quando l'orologio scende"
+          sub="ACPL per fascia di tempo RIMASTO sull'orologio (≠ velocità della singola mossa). Tilt = quanto peggiori subito dopo un blunder."
+          delay={7}
         >
           <TimeManagementChart time_management={pm.time_management} tilt={pm.tilt} />
         </Section>
@@ -172,11 +197,10 @@ export function App() {
         {/* ============ BLIND SPOTS ============ */}
         <Section
           id="blindspots"
-          index="07"
+          index="08"
           eyebrow="Blind spots tattici"
           title="Cosa non vedi"
           sub="I motivi tattici dei tuoi blunder in posizione critica. Solo i blunder veri, niente rumore."
-          delay={7}
         >
           <BlindSpotsList blind_spots={pm.blind_spots} />
         </Section>
@@ -184,7 +208,7 @@ export function App() {
         {/* ============ TURNING POINTS ============ */}
         <Section
           id="turning"
-          index="08"
+          index="09"
           eyebrow="Turning points"
           title="I bivi che hanno deciso le tue partite"
           sub="Le posizioni con il maggior swing di valutazione. Clicca per rigiocarle contro Stockfish."

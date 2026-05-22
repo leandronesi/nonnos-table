@@ -19,9 +19,10 @@ const NAV_DIAGNOSE: NavItem[] = [
 ];
 
 const NAV_DEEP: NavItem[] = [
-  { id: "time", num: "06", label: "Time management" },
-  { id: "blindspots", num: "07", label: "Blind spots" },
-  { id: "turning", num: "08", label: "Turning points" },
+  { id: "grafici", num: "06", label: "Grafici" },
+  { id: "time", num: "07", label: "Time management" },
+  { id: "blindspots", num: "08", label: "Blind spots" },
+  { id: "turning", num: "09", label: "Turning points" },
   { id: "glossary", num: "·", label: "Glossario" },
 ];
 
