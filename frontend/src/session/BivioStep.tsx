@@ -21,6 +21,8 @@ type Verdict = "perfect" | "ok" | "wrong" | null;
  * Stessa UX del warmup (drag&drop + Stockfish judge), ma con il messaging diverso:
  * "Cosa avresti dovuto giocare?".
  */
+type PremortemAnswer = "piece_threat" | "mate_check" | "positional" | "nothing";
+
 export function BivioStep({ tps, results, onBivioDone, onAllDone }: Props) {
   const sf = useStockfish();
   const [idx, setIdx] = useState(results.length);
@@ -30,6 +32,10 @@ export function BivioStep({ tps, results, onBivioDone, onAllDone }: Props) {
   const [displayFen, setDisplayFen] = useState<string | null>(null);
   const [evaluating, setEvaluating] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  // Pre-mortem: prima di muovere, ti chiedo cosa sta facendo l'avversario.
+  // Forza la scansione delle minacce, non gioca cieco. La risposta NON gating
+  // il merit (puoi sbagliarla), ma DEVE essere data per sbloccare il drag.
+  const [premortem, setPremortem] = useState<PremortemAnswer | null>(null);
 
   useEffect(() => {
     setVerdict(null);
@@ -37,6 +43,7 @@ export function BivioStep({ tps, results, onBivioDone, onAllDone }: Props) {
     setPlayedSan(null);
     setDisplayFen(null);
     setRevealed(false);
+    setPremortem(null);
   }, [idx]);
 
   if (idx >= tps.length) {
@@ -56,6 +63,7 @@ export function BivioStep({ tps, results, onBivioDone, onAllDone }: Props) {
   const bivioKey = `${d.game_id}:${d.ply}`;
 
   async function onDrop(from: string, to: string): Promise<boolean> {
+    if (premortem === null) return false;  // pre-mortem obbligatorio
     if (verdict !== null || revealed) return false;
     if (evaluating) return false;
     const b = new Chess(baseFen);
@@ -133,7 +141,7 @@ export function BivioStep({ tps, results, onBivioDone, onAllDone }: Props) {
           resetKey={bivioKey}
           orientation={orientation}
           size={460}
-          draggable={verdict === null && !revealed && !evaluating}
+          draggable={premortem !== null && verdict === null && !revealed && !evaluating}
           onPieceDrop={onDrop}
           highlights={highlights}
           arrows={arrows}
@@ -155,15 +163,22 @@ export function BivioStep({ tps, results, onBivioDone, onAllDone }: Props) {
 
         {!sf.isReady && <div className="pill pill-warn">Carico Stockfish…</div>}
 
-        {verdict === null && !revealed && !evaluating && (
-          <div className="rounded-xl p-4 border" style={{ background: "rgba(124,92,255,0.06)", borderColor: "rgba(124,92,255,0.25)" }}>
+        {/* PRE-MORTEM: forza la scansione delle minacce avversarie prima di muovere */}
+        {premortem === null && verdict === null && !revealed && (
+          <PremortemPanel
+            lastOppSan={d.last_opp_san || null}
+            onAnswer={setPremortem}
+            onSkip={revealSkip}
+          />
+        )}
+
+        {/* DRAG SBLOCCATO: una volta risposto al pre-mortem */}
+        {premortem !== null && verdict === null && !revealed && !evaluating && (
+          <div className="rounded-xl p-4 border" style={{ background: "rgba(52,211,153,0.06)", borderColor: "rgba(52,211,153,0.25)" }}>
             <div className="text-sm leading-relaxed">
-              <b>Tocca a te.</b> Trascina il pezzo che giocheresti. La freccia gialla è
-              l'ultima mossa dell'avversario.
+              <b>Bene.</b> Hai detto: <PremortemLabel a={premortem} />.
+              Adesso trascina la mossa che giocheresti.
             </div>
-            <button onClick={revealSkip} className="btn btn-ghost btn-sm mt-3">
-              Non lo so · mostra soluzione
-            </button>
           </div>
         )}
 
@@ -181,6 +196,7 @@ export function BivioStep({ tps, results, onBivioDone, onAllDone }: Props) {
             bestSan={d.best_san_sf}
             pvSan={d.pv_san_sf}
             motif={d.motif_label_it}
+            premortem={premortem}
             onNext={commitAndNext}
             isLast={idx + 1 >= tps.length}
           />
@@ -197,6 +213,7 @@ function VerdictPanel({
   bestSan,
   pvSan,
   motif,
+  premortem,
   onNext,
   isLast,
 }: {
@@ -206,6 +223,7 @@ function VerdictPanel({
   bestSan: string | null;
   pvSan: string | null;
   motif: string | null;
+  premortem: PremortemAnswer | null;
   onNext: () => void;
   isLast: boolean;
 }) {
@@ -251,6 +269,12 @@ function VerdictPanel({
             <span className="font-mono text-xs">{motif}</span>
           </div>
         )}
+        {premortem && (
+          <div className="flex items-baseline gap-2">
+            <span className="label-eyebrow w-32">Avevi detto</span>
+            <PremortemLabel a={premortem} />
+          </div>
+        )}
       </div>
 
       <button onClick={onNext} className="btn btn-primary mt-4 w-full justify-center">
@@ -258,6 +282,76 @@ function VerdictPanel({
       </button>
     </div>
   );
+}
+
+/**
+ * Pre-mortem step: prima di muovere, l'utente deve dichiarare cosa sta
+ * facendo l'avversario. Quattro opzioni ortogonali, non valutate (no
+ * "giusto/sbagliato"): il valore e` la PAUSA + la scansione forzata, non
+ * la precisione della risposta.
+ *
+ * Razionale: a 1100-1600 il 60% dei blunder e` "non ho visto cosa fa lui".
+ * Una micro-disciplina ripetuta 50 volte/sett. impatta piu` di mille puzzle.
+ */
+function PremortemPanel({
+  lastOppSan,
+  onAnswer,
+  onSkip,
+}: {
+  lastOppSan: string | null;
+  onAnswer: (a: PremortemAnswer) => void;
+  onSkip: () => void;
+}) {
+  const opts: { key: PremortemAnswer; label: string; sub: string }[] = [
+    { key: "piece_threat", label: "Minaccia un mio pezzo", sub: "cattura, doppio, vincere materiale" },
+    { key: "mate_check",   label: "Scacco / matto",         sub: "attacco al re forte, matto in vista" },
+    { key: "positional",   label: "Pressione posizionale",  sub: "no minaccia diretta ma migliora la sua posizione" },
+    { key: "nothing",      label: "Niente di concreto",     sub: "mossa neutra / di sviluppo / pawn move" },
+  ];
+  return (
+    <div className="rounded-xl p-4 border" style={{ background: "rgba(124,92,255,0.06)", borderColor: "rgba(124,92,255,0.25)" }}>
+      <div className="label-eyebrow text-[color:var(--color-brand-soft)] mb-2">Pre-mortem · 5 secondi</div>
+      <div className="text-sm leading-relaxed">
+        Prima di muovere: <b>cosa sta facendo l'avversario?</b>
+        {lastOppSan && (
+          <span className="text-[color:var(--color-text-soft)]">
+            {" "}(ha appena giocato <span className="font-mono">{lastOppSan}</span>, freccia gialla).
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+        {opts.map((o) => (
+          <button
+            key={o.key}
+            onClick={() => onAnswer(o.key)}
+            className="text-left rounded-lg px-3 py-2 transition"
+            style={{
+              border: "1px solid rgba(124,92,255,0.22)",
+              background: "rgba(124,92,255,0.04)",
+            }}
+          >
+            <div className="text-sm font-semibold text-[color:var(--color-text)]">{o.label}</div>
+            <div className="text-[10px] text-[color:var(--color-muted)] mt-0.5 uppercase tracking-wider">
+              {o.sub}
+            </div>
+          </button>
+        ))}
+      </div>
+      <button onClick={onSkip} className="btn btn-ghost btn-sm mt-3">
+        Non lo so · mostra soluzione
+      </button>
+    </div>
+  );
+}
+
+function PremortemLabel({ a }: { a: PremortemAnswer }) {
+  const map: Record<PremortemAnswer, string> = {
+    piece_threat: "minaccia su un mio pezzo",
+    mate_check:   "scacco / matto",
+    positional:   "pressione posizionale",
+    nothing:      "niente di concreto",
+  };
+  return <span className="font-semibold">{map[a]}</span>;
 }
 
 function sanToSquares(fen: string, san: string): { from: string; to: string } | null {
