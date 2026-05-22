@@ -554,7 +554,16 @@ def _turning_points(conn, k: int = 12) -> list[dict[str, Any]]:
 
 
 def _drills(conn, k: int = 12) -> list[dict[str, Any]]:
-    """Drill = blunder AVOIDABLE alla mia forza (i miei target di allenamento)."""
+    """Drill = posizioni di errore allenabili.
+
+    Prima scelta: blunder evitabili alla MIA forza (Maia@mio_livello trovava
+    la mossa giusta). Richiede che Maia abbia girato (`best_san_maia_mine`
+    NOT NULL) e che `avoidable_at_my_level=1`.
+
+    Fallback: se Maia non ha girato in questo run (es. CI senza lc0), uso
+    tutti i blunder in posizione critica con cp_loss alto. Così il trainer
+    funziona comunque anche senza Maia, solo con meno selettività.
+    """
     rows = _q(conn, """
         SELECT p.game_id, p.ply, p.move_number, p.san, p.best_san_sf,
                p.best_san_maia_mine, p.best_san_maia_target,
@@ -562,10 +571,16 @@ def _drills(conn, k: int = 12) -> list[dict[str, Any]]:
                p.motif, p.motif_label_it, p.url, p.date,
                p.my_color, p.opp_rating, p.result, p.opening, p.eco,
                p.pv_san_sf,
-               p.last_opp_from, p.last_opp_to, p.last_opp_san
+               p.last_opp_from, p.last_opp_to, p.last_opp_san,
+               -- Score combinato: prima i veri "avoidable" (Maia confirmed),
+               -- poi i blunder critici grezzi, in ordine di cp_loss.
+               CASE WHEN p.avoidable_at_my_level=1 THEN 2
+                    WHEN p.category='blunder' AND p.is_critical=1 THEN 1
+                    ELSE 0 END AS priority_score
         FROM positions p
         WHERE p.avoidable_at_my_level=1
-        ORDER BY p.end_time_epoch DESC, p.cp_loss DESC
+           OR (p.category='blunder' AND p.is_critical=1 AND p.best_san_sf IS NOT NULL)
+        ORDER BY priority_score DESC, p.cp_loss DESC, p.end_time_epoch DESC
         LIMIT ?
     """, k)
     return rows
