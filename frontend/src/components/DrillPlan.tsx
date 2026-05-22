@@ -210,6 +210,8 @@ export function DrillPlan({ drills }: Props) {
             </div>
           </div>
 
+          <DifficultyMoney d={d} revealed={verdict !== null || showSolution} />
+
           {/* Stato */}
           {!sf.isReady && (
             <div className="pill pill-warn">Carico Stockfish (prima volta, ~5s)…</div>
@@ -279,6 +281,73 @@ export function DrillPlan({ drills }: Props) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Difficulty-as-money — il cuore del prodotto.
+ *
+ * Mostra il gap quantificato tra "quanto spesso il target gioca la mossa
+ * giusta" vs "quanto spesso il mio livello la gioca". Prima del verdict
+ * mostra solo i due numeri, NON la mossa (sennò spoileri la soluzione).
+ */
+function DifficultyMoney({ d, revealed }: { d: PositionRow; revealed: boolean }) {
+  const pTarget = d.p_target_plays_best_sf;
+  const pMine = d.p_mine_plays_best_sf;
+  if (pTarget == null || pMine == null) return null;
+
+  const target = Math.round(pTarget * 100);
+  const mine = Math.round(pMine * 100);
+  const gap = target - mine;
+
+  // tono in base al gap
+  const tone =
+    gap >= 30 ? { bg: "rgba(244, 63, 94, 0.10)", border: "rgba(244, 63, 94, 0.45)", label: "#fda4af" }
+    : gap >= 15 ? { bg: "rgba(251, 191, 36, 0.10)", border: "rgba(251, 191, 36, 0.45)", label: "#fcd34d" }
+    : { bg: "rgba(148, 163, 184, 0.08)", border: "rgba(148, 163, 184, 0.30)", label: "#cbd5e1" };
+
+  return (
+    <div
+      className="rounded-xl p-4"
+      style={{ background: tone.bg, border: `1px solid ${tone.border}` }}
+    >
+      <div className="label-eyebrow" style={{ color: tone.label, marginBottom: "0.5rem" }}>
+        Gap target · mio livello
+      </div>
+      <div className="grid grid-cols-3 gap-3 text-center">
+        <div>
+          <div className="text-[10px] tracking-wider uppercase text-[color:var(--color-muted)]">
+            1600 trova
+          </div>
+          <div className="text-2xl font-bold tabular-nums" style={{ color: "#fff" }}>
+            {target}%
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] tracking-wider uppercase text-[color:var(--color-muted)]">
+            tuo livello
+          </div>
+          <div className="text-2xl font-bold tabular-nums" style={{ color: "#fff" }}>
+            {mine}%
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] tracking-wider uppercase text-[color:var(--color-muted)]">
+            gap
+          </div>
+          <div className="text-2xl font-bold tabular-nums" style={{ color: tone.label }}>
+            +{gap}
+          </div>
+        </div>
+      </div>
+      {revealed && d.best_san_sf && (
+        <div className="text-xs mt-3 leading-relaxed text-[color:var(--color-text-soft)]">
+          Il {target}% dei 1600 gioca{" "}
+          <span className="font-mono text-emerald-300">{d.best_san_sf}</span> qui.
+          Al tuo livello la trova solo il {mine}%.
+        </div>
+      )}
     </div>
   );
 }

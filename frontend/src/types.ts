@@ -166,6 +166,20 @@ export interface PositionRow {
   pv_san_sf: string | null;
   avoidable_at_my_level?: number;
   unavoidable_at_target?: number;
+  /** Probabilita` che Maia@mio livello giochi la mossa Stockfish-best in [0,1] */
+  p_mine_plays_best_sf?: number | null;
+  /** Probabilita` che Maia@target giochi la mossa Stockfish-best in [0,1] */
+  p_target_plays_best_sf?: number | null;
+  /** Top-policy del mio livello (quanto "ovvia" e` la posizione per me) */
+  p_maia_mine_top?: number | null;
+  /** Top-policy del target (quanto "ovvia" e` per chi voglio diventare) */
+  p_maia_target_top?: number | null;
+  /** 1 - p_maia_target_top — quanto e` ambigua la posizione anche per il target */
+  move_difficulty?: number | null;
+  /** Differenza p_target_plays_best - p_mine_plays_best in [0,1]. Vero "drill money". */
+  drill_value?: number | null;
+  /** 3=money / 2=avoidable / 1=blunder critico raw / 0=skip */
+  priority_score?: number;
   /** Ultima mossa dell'avversario (per renderizzare la freccia di contesto a stile Chess.com/Lichess) */
   last_opp_from?: string | null;
   last_opp_to?: string | null;

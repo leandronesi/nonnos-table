@@ -26,7 +26,7 @@ from typing import Any
 # time_class, end_time_epoch. Per la chat l'LLM farà SELECT con WHERE composti
 # su questi.
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # v2 = aggiunte p_mine_plays_best_sf / p_target_plays_best_sf
 
 CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS positions (
@@ -78,7 +78,12 @@ CREATE TABLE IF NOT EXISTS positions (
     best_san_maia_target   TEXT,
     p_maia_mine_top        REAL,                   -- P(top move) secondo Maia@mio rating
     p_maia_target_top      REAL,
-    move_difficulty        REAL,                   -- 1 - P(top_move | Maia@mio) ∈ [0,1]
+    move_difficulty        REAL,                   -- 1 - P(top_move | Maia@target) ∈ [0,1]
+    -- difficulty-as-money (sprint 3 v2): probabilità che la mossa GIUSTA (Stockfish)
+    -- venga giocata dai due livelli. La punchline del drill:
+    -- "il p_target_plays_best% dei 1600 la trova, al tuo livello p_mine_plays_best%"
+    p_mine_plays_best_sf    REAL,
+    p_target_plays_best_sf  REAL,
 
     -- finali (sprint 3) — null finché Syzygy non risponde
     tablebase_verdict      TEXT,                   -- win / draw / loss / unknown
@@ -169,9 +174,26 @@ def connect(db_path: str | Path) -> sqlite3.Connection:
 
 def init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(CREATE_SQL)
+    _migrate(conn)
     conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES('schema_version', ?)",
                  (str(SCHEMA_VERSION),))
     conn.commit()
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Migrazioni idempotenti per DB esistenti.
+
+    SQLite non supporta `ADD COLUMN IF NOT EXISTS`, quindi controllo via
+    PRAGMA table_info prima di tentare l'ALTER.
+    """
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(positions)")}
+    additions = [
+        ("p_mine_plays_best_sf", "REAL"),
+        ("p_target_plays_best_sf", "REAL"),
+    ]
+    for col, ctype in additions:
+        if col not in existing:
+            conn.execute(f"ALTER TABLE positions ADD COLUMN {col} {ctype}")
 
 
 # Le colonne nello stesso ordine dell'INSERT (lo riusiamo da build_positions_db.py)
@@ -187,6 +209,7 @@ POSITION_COLS: tuple[str, ...] = (
     "best_san_sf", "pv_san_sf",
     "best_san_maia_mine", "best_san_maia_target",
     "p_maia_mine_top", "p_maia_target_top", "move_difficulty",
+    "p_mine_plays_best_sf", "p_target_plays_best_sf",
     "tablebase_verdict", "tablebase_dtz",
     "motif", "motif_label_it",
     "clock_seconds", "seconds_spent", "instant_move", "zeitnot",
