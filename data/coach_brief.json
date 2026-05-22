@@ -1,12 +1,12 @@
 {
-  "headline": "Blind spot: Pezzo lasciato",
-  "diagnosis_narrative": "284 blunder critici classificati come «Pezzo lasciato» (90 evitabili alla tua forza).",
+  "headline": "Taglia i pezzi lasciati e smetti di crollare sotto i 30s",
+  "diagnosis_narrative": "Sei a 1166 e il target è 1600: mancano 434 punti in 224 giorni, cioè 1.94 al giorno; oggi sei a -0.16 e la proiezione è 1130. Su 3937 posizioni critiche hai ACPL 73.5, 312 blunder critici e 284 sono pezzi lasciati: è il buco principale. In più perdi 109 vittorie da +2 (blow rate 35%) e sotto i 30s l'ACPL sale a 131.5, contro 64.5 sopra i 120s.",
   "this_week": [
-    "📌 Blind spot: Pezzo lasciato — tactic trainer Lichess su tema hangingPiece",
-    "🎯 Rivedi mossa 54 (2026-05-20, vs 1160): giocata Kg3, meglio Kg4",
-    "🎯 Rivedi mossa 21 (2026-05-19, vs 1143): giocata Nf5, meglio Rh1"
+    "Prima di ogni mossa: controlla pezzi in presa e minacce forzate",
+    "Gioca 3 blocchi da 20' di tattica su pezzi lasciati e matti",
+    "In ogni partita: se restano <30s, semplifica e cerca scambi"
   ],
-  "avoid": "Bullet quando vuoi migliorare in blitz",
-  "generated_at": "2026-05-22T06:11:47+00:00",
-  "model": "fallback-rules"
+  "avoid": "Non fare mosse istintive sotto i 30s",
+  "generated_at": "2026-05-22T06:52:51+00:00",
+  "model": "gpt-5.4-mini"
 }
