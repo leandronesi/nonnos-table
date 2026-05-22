@@ -31,14 +31,16 @@ export function SpeedVsErrorsChart({ data }: { data: SpentBucket[] }) {
       </div>
     );
   }
-  // Colore barra in base al tempo: rosso intenso quando muovi in fretta, verde quando rifletti
-  const colors: Record<string, string> = {
-    lt_1s: "#f43f5e",
-    "1_3s": "#fb923c",
-    "3_10s": "#facc15",
-    "10_30s": "#86efac",
-    gt_30s: "#34d399",
-  };
+  // Colore barra in base all'ACPL del bucket: alto=rosso (problema), basso=verde (ok).
+  // NON in base al tempo, per evitare il bias visivo del racconto canonico
+  // "veloce=cattivo" quando i dati del singolo giocatore possono dire l'opposto.
+  function colorForAcpl(acpl: number): string {
+    if (acpl >= 130) return "#f43f5e";  // rosso
+    if (acpl >= 100) return "#fb923c";  // arancio
+    if (acpl >= 80) return "#f5a524";   // ambra
+    if (acpl >= 65) return "#facc15";   // giallo
+    return "#34d399";                   // verde (ACPL < 65 = sweet spot)
+  }
 
   // Tabella dati con percentuali per LabelList
   const enriched = data.map((d) => ({
@@ -121,7 +123,7 @@ export function SpeedVsErrorsChart({ data }: { data: SpentBucket[] }) {
             />
             <Bar yAxisId="right" dataKey="error_pct" name="error_pct" radius={[6, 6, 0, 0]}>
               {enriched.map((d) => (
-                <Cell key={d.key} fill={colors[d.key]} />
+                <Cell key={d.key} fill={colorForAcpl(d.avg_cp_loss)} />
               ))}
               <LabelList dataKey="positions" position="top" fill="var(--color-muted)" fontSize={10} formatter={(v: number) => `n=${v}`} />
             </Bar>

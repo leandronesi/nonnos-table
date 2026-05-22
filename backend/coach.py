@@ -29,6 +29,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+# Carica .env (locale) se presente. In CI le var arrivano dai secrets, .env non esiste.
+try:
+    from dotenv import load_dotenv
+    _here = Path(__file__).resolve().parent.parent
+    load_dotenv(_here / ".env", override=False)
+except ImportError:
+    pass
+
 log = logging.getLogger("coach")
 
 MODEL = "gpt-5.4-mini"
@@ -162,30 +170,68 @@ DIAGNOSI già prioritizzate dal sistema (le top 3):
 # ---------------------------------------------------------------------------
 
 
-def call_openai_md(system: str, user: str) -> str:
-    """Una call testuale, ritorna markdown (no JSON wrapping)."""
+def call_openai_md(system: str, user: str, min_chars: int = 200) -> str:
+    """Call testuale, ritorna markdown.
+
+    - Strip preamboli stile "Leggo i dati, poi scrivo..." se compaiono prima del primo `##`.
+    - Retry una volta se l'output è troppo corto (sintomo di taglio).
+    """
     from openai import OpenAI
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY non settato")
     client = OpenAI(api_key=api_key)
-    resp = client.chat.completions.create(
-        model=MODEL,
-        messages=[
+
+    def do_call(extra_kick: str = "") -> str:
+        msgs = [
             {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
-        temperature=0.6,
-    )
-    text = resp.choices[0].message.content
-    if not text:
-        raise RuntimeError("LLM ha risposto vuoto")
-    return text.strip()
+            {"role": "user", "content": user + extra_kick},
+        ]
+        resp = client.chat.completions.create(
+            model=MODEL,
+            messages=msgs,
+            temperature=0.6,
+            max_completion_tokens=2000,
+        )
+        text = resp.choices[0].message.content
+        if not text:
+            raise RuntimeError("LLM ha risposto vuoto")
+        return text.strip()
+
+    text = do_call()
+    text = strip_preamble(text)
+    if len(text) < min_chars:
+        # Retry una volta con un "kick" più diretto
+        text2 = do_call("\n\nIMPORTANTE: rispondi con TUTTO il file completo (200+ parole), iniziando DIRETTAMENTE con `## Titolo`. Niente preamboli.")
+        text2 = strip_preamble(text2)
+        if len(text2) > len(text):
+            text = text2
+    return text
+
+
+def strip_preamble(text: str) -> str:
+    """Rimuove eventuali frasi di preambolo prima del primo `## Titolo`."""
+    lines = text.splitlines()
+    out = []
+    started = False
+    for line in lines:
+        if not started and line.lstrip().startswith("#"):
+            started = True
+        if started:
+            out.append(line)
+    if not started:
+        # nessun heading: ritorna originale strippato
+        return text.strip()
+    return "\n".join(out).strip()
 
 
 def call_openai_json(system: str, user: str) -> dict:
-    """Call che ritorna JSON valido (per il coach_brief retro-compat)."""
+    """Call che ritorna JSON valido (per il coach_brief retro-compat).
+
+    Robusto al fatto che gpt-5.4-mini a volte aggiunge testo prima/dopo il
+    JSON o lo wrappa in ```json``` fences, nonostante response_format.
+    """
     from openai import OpenAI
 
     api_key = os.environ.get("OPENAI_API_KEY")
@@ -204,7 +250,30 @@ def call_openai_json(system: str, user: str) -> dict:
     content = resp.choices[0].message.content
     if not content:
         raise RuntimeError("LLM ha risposto vuoto")
-    return json.loads(content)
+    # tentiamo parse diretto, se fallisce estraiamo il primo {...} bilanciato
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        pass
+    # strip ```json fence
+    cleaned = content.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.strip("`")
+        if cleaned.lower().startswith("json"):
+            cleaned = cleaned[4:]
+        cleaned = cleaned.strip()
+    # estraggo il primo blocco JSON bilanciato { ... }
+    start = cleaned.find("{")
+    if start >= 0:
+        depth = 0
+        for i in range(start, len(cleaned)):
+            if cleaned[i] == "{":
+                depth += 1
+            elif cleaned[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    return json.loads(cleaned[start : i + 1])
+    raise RuntimeError(f"JSON non parsabile: {content[:200]}")
 
 
 # ---------------------------------------------------------------------------
@@ -277,22 +346,36 @@ ogni capitolo con 2-3 azioni operative + 1 milestone misurabile.
 
 
 def generate_brief(pm: dict, brain_sys: str | None) -> dict:
-    """Vecchio coach_brief JSON, per retro-compatibilità WeeklyFocusCard."""
-    system = (brain_sys or "Sei un coach di scacchi italiano serio.") + """
+    """Vecchio coach_brief JSON, per retro-compatibilità WeeklyFocusCard.
 
-Output rigorosamente JSON valido senza markdown wrapper:
+    NB: per questo NON usiamo il brain SIO (che spinge il modello verso
+    write_file tool-use). Serve un system prompt dedicato + diretto.
+    """
+    _ = brain_sys  # esplicitamente non usato
+    system = """Sei un coach di scacchi italiano serio, diretto, senza fronzoli.
+Ti chiedo un brief settimanale strutturato in JSON.
+
+Stile delle stringhe:
+- italiano, no buzzword
+- diretto, no addolcimenti
+- numeri concreti dove servono
+- niente emoji
+- niente jargon di sistema
+
+Output rigorosamente JSON valido (NO markdown wrapper, NO testo extra fuori dal JSON).
+Struttura ESATTA:
 {
-  "headline": "1 frase, max 100 caratteri",
-  "diagnosis_narrative": "2-3 frasi che spiegano i fatti dai dati. Usa numeri.",
+  "headline": "1 frase, max 100 caratteri, cosa fissare questa settimana",
+  "diagnosis_narrative": "2-3 frasi con i fatti dai dati. Cita numeri.",
   "this_week": ["azione 1 (max 80 char)", "azione 2", "azione 3"],
-  "avoid": "1 frase, max 80 char"
+  "avoid": "1 cosa specifica da NON fare per 7 giorni, max 80 char"
 }"""
-    user = f"""Genera il coach brief settimanale.
+    user = f"""Genera il coach brief settimanale per il giocatore qui sotto.
 
 DATI:
 {player_brief(pm)}
 
-Output: JSON."""
+Rispondi SOLO col JSON. Non scrivere altro fuori dalle graffe."""
     return call_openai_json(system, user)
 
 
@@ -372,16 +455,26 @@ def main() -> None:
 
     if brain_sys and have_api:
         log.info("Modalità FULL (brain + OpenAI %s)", MODEL)
+        # try/except SEPARATI per ogni artifact: se uno fallisce, gli altri
+        # già ottenuti dal LLM restano (prima il bug era che il fallback
+        # del brief sovrascriveva anche story/progress/roadmap già pronti).
+        fb = fallback_artifacts(pm)
+        for name, gen in (
+            ("story", generate_story),
+            ("progress", generate_progress),
+            ("roadmap", generate_roadmap),
+        ):
+            try:
+                artifacts[name] = gen(pm, brain_sys)
+            except Exception as e:  # noqa: BLE001
+                log.warning("LLM artifact %s fallito (%s). Fallback per questo solo.", name, e)
+                artifacts[name] = fb[name]
         try:
-            artifacts["story"] = generate_story(pm, brain_sys)
-            artifacts["progress"] = generate_progress(pm, brain_sys)
-            artifacts["roadmap"] = generate_roadmap(pm, brain_sys)
             brief = generate_brief(pm, brain_sys)
             brief["generated_at"] = datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
             brief["model"] = MODEL
         except Exception as e:  # noqa: BLE001
-            log.warning("LLM fallito (%s). Uso fallback regole.", e)
-            artifacts = fallback_artifacts(pm)
+            log.warning("LLM brief fallito (%s). Fallback brief.", e)
             brief = fallback_brief(pm)
     else:
         if not brain_sys:
