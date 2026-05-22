@@ -25,7 +25,7 @@ export function App() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-8" style={{ background: "var(--color-bg, #0a0c18)" }}>
+      <div className="min-h-screen flex items-center justify-center p-8" style={{ background: "var(--color-bg)" }}>
         <div className="surface surface-padded max-w-xl">
           <div className="label-eyebrow text-rose-300 mb-2">Dati non disponibili</div>
           <p className="text-[color:var(--color-text-soft)] leading-relaxed">{error}</p>
@@ -36,7 +36,7 @@ export function App() {
 
   if (!pm) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-[color:var(--color-muted)]" style={{ background: "var(--color-bg, #0a0c18)" }}>
+      <div className="min-h-screen flex items-center justify-center text-[color:var(--color-muted)]" style={{ background: "var(--color-bg)" }}>
         <div className="text-center">
           <div className="label-eyebrow text-[color:var(--color-brand-soft)]">chesspath</div>
           <div className="text-sm mt-2">Carico il player model…</div>
