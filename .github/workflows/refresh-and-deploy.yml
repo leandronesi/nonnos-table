@@ -126,15 +126,25 @@ jobs:
       - name: Step 3 · Build positions.db
         run: python backend/build_positions_db.py
 
-      - name: Step 4 · Maia inference on critical positions (opzionale, skip se lc0 manca)
+      - name: Step 4 · Maia inference on critical positions (opzionale)
         continue-on-error: true
         env:
           STOCKFISH_PATH: /usr/games/stockfish
         run: |
+          echo "=== Diagnostica engine/lc0/ ==="
+          ls -la engine/ || true
+          ls -la engine/lc0/ || true
+          ls -la engine/maia/ || true
+          if [ -f engine/lc0/lc0 ]; then
+            chmod +x engine/lc0/lc0 || true
+            echo "=== lc0 trovato, verifica esecuzione ==="
+            engine/lc0/lc0 --version 2>&1 | head -5 || echo "lc0 fallisce all'esecuzione"
+          fi
           if [ -x engine/lc0/lc0 ]; then
+            echo "=== Lancio maia_features.py ==="
             python backend/maia_features.py
           else
-            echo "::warning::lc0 non disponibile, skip Maia inference. Le colonne best_san_maia_* resteranno NULL."
+            echo "::warning::lc0 non eseguibile (path engine/lc0/lc0). Maia inference skippato. Drills funzionano in fallback."
           fi
 
       - name: Step 5 · Derive flags + enrich decisions
