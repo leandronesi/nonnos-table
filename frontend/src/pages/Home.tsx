@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   Activity,
@@ -11,30 +11,14 @@ import {
   PlayCircle,
   Sparkles,
   Target,
-  TrendingDown,
   TrendingUp,
 } from "lucide-react";
-import type { PlayerModel } from "../types";
+import type { PlayerModel, PositionRow } from "../types";
 import { GuidedSession } from "../session/GuidedSession";
 import { loadSession, sessionIsTodayAndDone, loadStreak } from "../session/store";
+import { BoardView } from "../components/BoardView";
 import { ThemeToggle } from "../components/ThemeToggle";
 
-/**
- * Home Bento — UNA SOLA viewport. Niente scroll.
- *
- * Pattern: SaaS daily-ritual (Headspace / Strava / Apple Fitness). Una sola
- * decisione obbligata (la missione di oggi), tutto il resto come segnali
- * AMBIENT che provano che dietro c'e` profondita`. Le 3 destinazioni in
- * fondo (cruscotto/storia/repertorio) sono la promessa di iceberg.
- *
- * Accessibility:
- *  - focus ring esplicito su tutti gli interactive (vedi index.css *:focus-visible)
- *  - transizioni 180ms (entro 150-300 raccomandato)
- *  - prefers-reduced-motion rispettato (nessuna animazione decorativa)
- *  - contrasto testo >= 4.5:1 verificato sui colori usati
- *  - target hit area >= 44x44px (Apple HIG)
- *  - responsive: 375/640/1024/1440 testati
- */
 export function Home({ pm }: { pm: PlayerModel }) {
   const [sessionOpen, setSessionOpen] = useState(false);
   const [sessionDoneToday, setSessionDoneToday] = useState(false);
@@ -51,677 +35,452 @@ export function Home({ pm }: { pm: PlayerModel }) {
     setStreakDays(loadStreak().current);
   }
 
-  const identity = pm.identity;
-  const goal = identity.goal;
-  const proj = pm.goal_projection;
-  const trend = pm.trend_weekly;
-
-  // "Voce" del coach: estraggo la prima frase forte dal coach narrative se c'e`,
-  // altrimenti compongo una frase dal top diagnosis. Mai vuoto.
-  const coachVoice = pickCoachVoice(pm);
-
-  // 4 micro-stat per Bento: trend winrate / blunder / SRS box max / money drill count
-  const stats = buildStats(pm, streakDays);
+  const featured = useMemo(() => pickFeaturedPosition(pm), [pm]);
+  const focusName = normalizeFocusName(pm.weekly_focus?.headline || pm.diagnoses?.[0]?.title);
+  const coachVoice = pickCoachVoice(pm, focusName);
+  const goal = pm.identity.goal;
+  const plan = pm.identity.plan_summary;
+  const projection = pm.goal_projection;
+  const proofCards = buildProofCards(pm, streakDays);
+  const sessionSpec = buildSessionSpec(pm);
 
   return (
-    <div
-      className="min-h-screen flex flex-col"
-      style={{ background: "var(--color-bg)" }}
-    >
-      {/* ============ TOP BAR ============ */}
-      <header className="flex items-center justify-between px-6 lg:px-10 py-4 border-b border-[color:var(--color-line)]">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">♚</span>
-          <span className="font-semibold tracking-tight">chesspath</span>
+    <div className="home-page">
+      <header className="home-topbar">
+        <div className="home-brand">
+          <div className="home-brand-mark" aria-hidden="true">♚</div>
+          <div>
+            <div className="home-brand-name">ChessPath</div>
+            <div className="home-brand-sub">AI coach per {pm.identity.username}</div>
+          </div>
         </div>
-        <div className="flex items-center gap-4 text-sm tabular-nums">
-          <span className="hidden sm:inline text-[color:var(--color-text-soft)]">{identity.username}</span>
-          <span className="font-semibold">{goal.current_rating ?? "—"}</span>
-          <span className="text-[color:var(--color-faint)]">→</span>
-          <span className="text-[color:var(--color-brand-soft)] font-semibold">{goal.target}</span>
+
+        <div className="home-top-actions">
+          <div className="home-target-strip" aria-label={`Obiettivo ${goal.current_rating ?? "-"} verso ${goal.target}`}>
+            <span>{goal.current_rating ?? "-"}</span>
+            <ChevronRight size={14} aria-hidden="true" />
+            <strong>{goal.target}</strong>
+          </div>
           <ThemeToggle compact />
         </div>
       </header>
 
-      {/* ============ BENTO GRID ============ */}
-      <main className="flex-1 flex items-center justify-center p-4 lg:p-6">
-        <div className="w-full max-w-[1200px] grid gap-3 md:gap-4 grid-cols-1 md:grid-cols-12 md:grid-rows-[auto_auto_auto] auto-rows-min">
-          {/* PLAN  (col 1-7) — header missione + sparkline progressione */}
-          <BentoCell className="md:col-span-7 md:row-span-1">
-            <PlanBlock pm={pm} />
-          </BentoCell>
+      <main className="home-cockpit">
+        <Panel className="home-hero-panel" tone="hero">
+          <div className="home-status-line">
+            <StatusPill projection={projection} goal={goal} />
+            <span>{plan ? `+${plan.delta_since_plan ?? 0} Elo dal piano` : `${goal.points_needed} punti mancanti`}</span>
+          </div>
 
-          {/* PROJECTION  (col 8-12) — proiezione + risk */}
-          <BentoCell className="md:col-span-5 md:row-span-1" tone="elevated">
-            <ProjectionBlock proj={proj} goal={goal} />
-          </BentoCell>
+          <h1 className="home-title">
+            Il tuo gioco, misurato contro il giocatore che vuoi diventare.
+          </h1>
 
-          {/* MISSION CTA (col 1-7, riga 2) — il cuore */}
-          <BentoCell className="md:col-span-7 md:row-span-1" tone="hero">
-            <MissionBlock
-              pm={pm}
-              done={sessionDoneToday}
-              streakDays={streakDays}
-              onStart={() => setSessionOpen(true)}
-            />
-          </BentoCell>
+          <p className="home-lede">{coachVoice}</p>
 
-          {/* COACH VOICE (col 8-12, riga 2) */}
-          <BentoCell className="md:col-span-5 md:row-span-1">
-            <CoachBlock voice={coachVoice} />
-          </BentoCell>
+          <div className="home-action-row">
+            <button
+              type="button"
+              onClick={() => setSessionOpen(true)}
+              className="home-session-button"
+              aria-label={sessionDoneToday ? "Riapri la sessione di oggi" : "Inizia la sessione di oggi"}
+            >
+              <PlayCircle size={22} aria-hidden="true" />
+              <span>{sessionDoneToday ? "Sessione completata" : "Inizia sessione di oggi"}</span>
+              <ChevronRight size={18} aria-hidden="true" />
+            </button>
 
-          {/* STATS STRIP (12 col, riga 3) — 4 micro-numeri */}
-          <BentoCell className="md:col-span-12 md:row-span-1" tone="flat">
-            <StatsStrip stats={stats} trend={trend} />
-          </BentoCell>
+            <div className="home-session-meta">
+              <strong>{sessionSpec}</strong>
+              <span>{streakDays > 0 ? `${streakDays} giorni di streak` : "primo giro del piano"}</span>
+            </div>
+          </div>
 
-          {/* DESTINATIONS (12 col, riga 4) — l'iceberg promesso */}
-          <BentoCell className="md:col-span-12 md:row-span-1" tone="flat">
-            <DestinationsRow />
-          </BentoCell>
-        </div>
+          <div className="home-proof-grid" aria-label="Prove numeriche del coach">
+            {proofCards.map((card) => (
+              <ProofCard key={card.label} {...card} />
+            ))}
+          </div>
+        </Panel>
+
+        <PositionPanel position={featured} />
+
+        <GoalPanel pm={pm} />
+
+        <CoachPanel focusName={focusName} pm={pm} />
+
+        <NavigationPanel />
       </main>
 
-      {/* ============ GUIDED SESSION OVERLAY ============ */}
       {sessionOpen && <GuidedSession pm={pm} onClose={closeSession} />}
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Bento atom
-// ---------------------------------------------------------------------------
-
-function BentoCell({
+function Panel({
+  children,
   className = "",
   tone = "default",
-  children,
 }: {
+  children: ReactNode;
   className?: string;
-  tone?: "default" | "hero" | "elevated" | "flat";
-  children: React.ReactNode;
+  tone?: "default" | "hero" | "quiet";
 }) {
-  const styleByTone: Record<string, React.CSSProperties> = {
-    default:  { background: "var(--bento-default-bg)",  border: "1px solid var(--bento-default-border)" },
-    elevated: { background: "var(--bento-elevated-bg)", border: "1px solid var(--bento-elevated-border)" },
-    hero:     { background: "var(--bento-hero-bg)",     border: "1px solid var(--bento-hero-border)" },
-    flat:     { background: "var(--bento-flat-bg)",     border: "1px solid var(--bento-flat-border)" },
-  };
   return (
-    <section
-      className={`rounded-2xl p-5 lg:p-6 transition-colors ${className}`}
-      style={styleByTone[tone]}
-    >
+    <section className={`home-panel home-panel-${tone} ${className}`}>
       {children}
     </section>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Blocks
-// ---------------------------------------------------------------------------
-
-function PlanBlock({ pm }: { pm: PlayerModel }) {
-  const goal = pm.identity.goal;
-  const ps = pm.identity.plan_summary;
-  const planStarted = pm.identity.plan_started_at;
-
-  // Day "del piano" se abbiamo il riferimento, altrimenti days_since_start grezzo.
-  const dayOfPlan = ps ? ps.days_since_plan : goal.days_since_start;
-  const series = pm.rating_curve?.[goal.time_class] ?? [];
-
-  // Per la sparkline, voglio TUTTE le epoch + rating (anche null sostituito col precedente).
-  const points = series
-    .map((p) => ({ epoch: p.epoch, rating: p.rating }))
-    .filter((p): p is { epoch: number; rating: number } => p.rating != null && p.epoch != null);
-
-  // delta rating dal piano: per il sub-label
-  const deltaPlan = ps?.delta_since_plan ?? null;
-  const deltaTone = deltaPlan == null ? "var(--color-text-soft)" : deltaPlan >= 0 ? "var(--color-ok)" : "var(--color-danger)";
-
-  return (
-    <div className="flex flex-col h-full justify-between gap-3">
-      <div>
-        <div className="label-eyebrow text-[11px] tracking-[0.18em]">
-          Piano · giorno {dayOfPlan} {ps ? "dal kick-off" : `di ${goal.days_since_start + goal.days_left}`}
-        </div>
-        <h1
-          className="mt-3 font-semibold tracking-tight leading-none"
-          style={{ fontSize: "clamp(2rem, 3.4vw, 2.6rem)" }}
-        >
-          {goal.current_rating ?? "—"}
-          <span className="text-[color:var(--color-faint)] mx-3">→</span>
-          <span className="text-[color:var(--color-brand-soft)]">{goal.target}</span>
-        </h1>
-        <p className="text-sm text-[color:var(--color-text-soft)] mt-2">
-          {goal.days_left} giorni alla deadline ({goal.deadline}) · {goal.time_class}
-        </p>
-        {ps && deltaPlan != null && (
-          <p className="text-xs mt-1.5">
-            Dal piano:{" "}
-            <span style={{ color: deltaTone }} className="font-semibold tabular-nums">
-              {deltaPlan >= 0 ? "+" : ""}
-              {deltaPlan}pt
-            </span>{" "}
-            <span className="text-[color:var(--color-faint)]">
-              · {ps.games_after} partite ({ps.games_before} prima del piano)
-            </span>
-          </p>
-        )}
-      </div>
-      <SegmentedSparkline
-        points={points}
-        planEpoch={ps?.plan_epoch}
-        height={64}
-        planLabelDate={planStarted}
-      />
-    </div>
-  );
-}
-
-function ProjectionBlock({
-  proj,
+function StatusPill({
+  projection,
+  goal,
 }: {
-  proj: PlayerModel["goal_projection"];
+  projection?: PlayerModel["goal_projection"];
   goal: PlayerModel["identity"]["goal"];
 }) {
-  if (!proj || !proj.available) {
+  if (goal.on_track) {
     return (
-      <div className="flex flex-col h-full justify-between">
-        <div className="label-eyebrow text-[11px] flex items-center gap-2">
-          <Target size={12} aria-hidden="true" /> Proiezione
-        </div>
-        <p className="text-sm text-[color:var(--color-text-soft)] mt-3">
-          Servono almeno 30 partite con perf_20 popolato per calcolare la
-          proiezione del goal.
-        </p>
-      </div>
+      <span className="home-pill home-pill-good">
+        <Target size={13} aria-hidden="true" />
+        in traiettoria
+      </span>
     );
   }
 
-  const riskColor =
-    (proj.risk_pct ?? 0) >= 70 ? "#fda4af" : (proj.risk_pct ?? 0) >= 40 ? "#fcd34d" : "#86efac";
-
-  const slack = proj.slack_days ?? 0;
-  const verdict = proj.verdict;
-  const verdictLabel: Record<NonNullable<typeof verdict>, string> = {
-    on_track: "in carreggiata",
-    in_ritardo: "in ritardo",
-    stagnante: "stagnante",
-    regressione: "in regressione",
-    raggiunto: "raggiunto",
-  };
-
+  const label = projection?.verdict ? projection.verdict.replaceAll("_", " ") : "goal da recuperare";
   return (
-    <div className="flex flex-col h-full justify-between gap-3">
-      <div className="label-eyebrow text-[11px] flex items-center gap-2">
-        <Target size={12} aria-hidden="true" /> Proiezione · {verdict ? verdictLabel[verdict] : ""}
-      </div>
-
-      <div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-3xl font-semibold tabular-nums">
-            {proj.projected_at ? formatItalianDate(proj.projected_at) : "—"}
-          </span>
-          <span
-            className="text-xs px-1.5 py-0.5 rounded tabular-nums"
-            style={{
-              color: riskColor,
-              border: `1px solid ${riskColor}55`,
-              background: `${riskColor}10`,
-            }}
-          >
-            rischio {proj.risk_pct ?? "?"}%
-          </span>
-        </div>
-        <p className="text-xs text-[color:var(--color-text-soft)] mt-1 leading-relaxed">
-          Al ritmo attuale (+{proj.slope_elo_per_day?.toFixed(2)} Elo/g).
-          {slack !== 0 && slack !== null && (
-            <>
-              {" "}
-              Slack:{" "}
-              <span style={{ color: slack >= 0 ? "#86efac" : "#fda4af" }}>
-                {slack > 0 ? "+" : ""}
-                {slack}gg
-              </span>{" "}
-              vs deadline.
-            </>
-          )}
-        </p>
-      </div>
-
-      {proj.projected_at_with_daily_session && proj.delta_with_daily_session_days && (
-        <div className="text-[11px] text-[color:var(--color-text-soft)] border-t border-[color:var(--color-line)] pt-2 leading-relaxed">
-          Con una sessione/giorno: <span className="text-[color:var(--color-brand-soft)] font-semibold">{formatItalianDate(proj.projected_at_with_daily_session)}</span> (−{proj.delta_with_daily_session_days} giorni).
-        </div>
-      )}
-    </div>
+    <span className="home-pill home-pill-risk">
+      <Target size={13} aria-hidden="true" />
+      {label}
+    </span>
   );
 }
 
-function MissionBlock({
-  pm,
-  done,
-  streakDays,
-  onStart,
-}: {
-  pm: PlayerModel;
-  done: boolean;
-  streakDays: number;
-  onStart: () => void;
-}) {
-  const goal = pm.identity.goal;
-  const dayNum = goal.days_since_start;
-  const focusLabel = pm.weekly_focus?.headline?.replace(/^"|"$/g, "") || "training tattico";
-  const nDrills = Math.min(5, pm.drills?.length || 0);
-  const nBivi = Math.min(2, pm.turning_points?.length || 0);
+function PositionPanel({ position }: { position: PositionRow | null }) {
+  if (!position) {
+    return (
+      <Panel className="home-position-panel">
+        <div className="home-panel-heading">
+          <span><Database size={14} aria-hidden="true" /> Posizione reale</span>
+          <strong>in arrivo</strong>
+        </div>
+        <p className="home-muted">Nessun drill disponibile nel player model corrente.</p>
+      </Panel>
+    );
+  }
+
+  const pMine = position.p_mine_plays_best_sf;
+  const pTarget = position.p_target_plays_best_sf;
+  const targetPct = pTarget == null ? null : Math.round(pTarget * 100);
+  const minePct = pMine == null ? null : Math.round(pMine * 100);
+  const gapPct = targetPct != null && minePct != null ? targetPct - minePct : null;
+  const orientation = position.my_color || "white";
 
   return (
-    <div className="flex flex-col h-full justify-between gap-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="label-eyebrow text-[11px] flex items-center gap-2">
-            <Flame size={12} aria-hidden="true" /> Missione {dayNum}
-          </div>
-          <p className="text-sm text-[color:var(--color-text-soft)] mt-2">
-            {nDrills} drill · {nBivi} bivi · 1 partita · ~22 min
-          </p>
-          <p className="text-xs text-[color:var(--color-faint)] mt-1">
-            focus: {focusLabel.toLowerCase()}
-          </p>
+    <Panel className="home-position-panel">
+      <div className="home-panel-heading">
+        <span><Database size={14} aria-hidden="true" /> Caso reale</span>
+        <strong>{position.eco ?? position.phase}</strong>
+      </div>
+
+      <div className="home-board-frame">
+        <div className="home-board-scale">
+          <BoardView
+            fen={position.fen_before}
+            orientation={orientation}
+            size={304}
+            resetKey={`${position.game_id}:${position.ply}:home`}
+            arrows={buildPreviewArrows(position)}
+            highlights={buildPreviewHighlights(position)}
+          />
         </div>
-        {streakDays > 0 && (
-          <div className="text-right">
-            <div className="text-2xl font-semibold tabular-nums leading-none">{streakDays}</div>
-            <div className="text-[10px] text-[color:var(--color-faint)] tracking-wider uppercase">streak</div>
+      </div>
+
+      <div className="home-position-copy">
+        <div>
+          <span className="home-mini-label">mossa giocata</span>
+          <strong>{position.san}</strong>
+        </div>
+        <div>
+          <span className="home-mini-label">mossa target</span>
+          <strong>{position.best_san_sf ?? position.best_san_maia_target ?? "-"}</strong>
+        </div>
+      </div>
+
+      {gapPct != null && targetPct != null && minePct != null && (
+        <div className="home-gap-box">
+          <div className="home-gap-title">Gap target sulla mossa</div>
+          <div className="home-gap-grid">
+            <Metric label="target 1600" value={`${targetPct}%`} />
+            <Metric label="tuo livello" value={`${minePct}%`} />
+            <Metric label="gap allenabile" value={`+${gapPct}pp`} tone="hot" />
+          </div>
+        </div>
+      )}
+
+      <p className="home-position-insight">
+        Non è una review generica: è il confronto fra la tua scelta reale e la probabilità
+        che un giocatore target trovi la mossa giusta nella stessa posizione.
+      </p>
+    </Panel>
+  );
+}
+
+function GoalPanel({ pm }: { pm: PlayerModel }) {
+  const goal = pm.identity.goal;
+  const plan = pm.identity.plan_summary;
+  const start = plan?.rating_at_plan ?? goal.start_rating ?? goal.current_rating ?? goal.target;
+  const current = goal.current_rating ?? start;
+  const total = Math.max(1, goal.target - start);
+  const gained = current - start;
+  const progressPct = clamp((gained / total) * 100, 0, 100);
+  const projection = pm.goal_projection;
+
+  return (
+    <Panel className="home-goal-panel" tone="quiet">
+      <div className="home-panel-heading">
+        <span><TrendingUp size={14} aria-hidden="true" /> Piano 1600</span>
+        <strong>{goal.days_left} giorni</strong>
+      </div>
+
+      <div className="home-goal-numbers">
+        <span>{start}</span>
+        <ChevronRight size={16} aria-hidden="true" />
+        <strong>{current}</strong>
+        <ChevronRight size={16} aria-hidden="true" />
+        <span>{goal.target}</span>
+      </div>
+
+      <div className="home-progress-track" aria-label={`Progresso ${Math.round(progressPct)}%`}>
+        <div className="home-progress-fill" style={{ width: `${progressPct}%` }} />
+      </div>
+
+      <div className="home-goal-detail">
+        <Metric label="mancano" value={`${goal.points_needed}`} sub="punti Elo" />
+        <Metric
+          label="ritmo richiesto"
+          value={goal.rate_per_day_needed == null ? "-" : `${goal.rate_per_day_needed.toFixed(1)}/g`}
+          sub="fino alla deadline"
+        />
+        <Metric
+          label="proiezione"
+          value={projection?.projected_at ? formatItalianDate(projection.projected_at) : "-"}
+          sub={projection?.risk_pct != null ? `rischio ${projection.risk_pct}%` : undefined}
+          tone={projection?.risk_pct != null && projection.risk_pct >= 70 ? "hot" : "default"}
+        />
+      </div>
+    </Panel>
+  );
+}
+
+function CoachPanel({ focusName, pm }: { focusName: string; pm: PlayerModel }) {
+  const focus = pm.weekly_focus;
+  const firstAction = focus?.actions?.[0]?.replace(/^[^\wÀ-ÿ]+/u, "") || pm.diagnoses?.[0]?.trainable;
+  const topTactic = pm.tactical_breakdown?.[0];
+
+  return (
+    <Panel className="home-coach-panel" tone="quiet">
+      <div className="home-panel-heading">
+        <span><Brain size={14} aria-hidden="true" /> Coach verdict</span>
+        <strong>{focus?.confidence ?? "medium"}</strong>
+      </div>
+
+      <div className="home-coach-main">
+        <span className="home-mini-label">focus della settimana</span>
+        <strong>{focusName}</strong>
+        {focus?.evidence && <p>{focus.evidence}</p>}
+      </div>
+
+      <div className="home-coach-bottom">
+        <div>
+          <span className="home-mini-label">azione</span>
+          <p>{firstAction}</p>
+        </div>
+        {topTactic && (
+          <div>
+            <span className="home-mini-label">pattern</span>
+            <p>{topTactic.label_it}: {topTactic.n} casi, cp loss medio {Math.round(topTactic.avg_cp_loss)}</p>
           </div>
         )}
       </div>
-
-      <button
-        onClick={onStart}
-        className="group flex items-center justify-center gap-3 w-full rounded-xl py-5 px-6 font-semibold tracking-tight transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-brand-soft)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--color-bg)] motion-safe:hover:scale-[1.01] active:scale-[0.99]"
-        style={{
-          background: done
-            ? "color-mix(in srgb, var(--color-ok) 20%, transparent)"
-            : "var(--cta-gradient)",
-          border: done
-            ? "1px solid color-mix(in srgb, var(--color-ok) 50%, transparent)"
-            : "1px solid color-mix(in srgb, var(--color-text) 18%, transparent)",
-          color: done ? "var(--color-ok)" : "#ffffff",
-          minHeight: 64,
-          boxShadow: done ? "none" : "var(--cta-shadow)",
-        }}
-        aria-label={done ? "Sessione di oggi gia` completata. Riapri la sessione." : "Inizia la sessione di oggi"}
-      >
-        <PlayCircle size={22} aria-hidden="true" />
-        <span className="text-lg">
-          {done ? "Sessione completata · rivedi" : "Inizia sessione di oggi"}
-        </span>
-        <ChevronRight size={18} className="opacity-70 motion-safe:group-hover:translate-x-0.5 transition-transform" aria-hidden="true" />
-      </button>
-    </div>
+    </Panel>
   );
 }
 
-function CoachBlock({ voice }: { voice: string }) {
-  return (
-    <div className="flex flex-col h-full gap-3">
-      <div className="label-eyebrow text-[11px] flex items-center gap-2">
-        <Brain size={12} aria-hidden="true" /> Coach
-      </div>
-      <p className="text-sm leading-relaxed text-[color:var(--color-text-soft)] italic">
-        «{voice}»
-      </p>
-    </div>
-  );
-}
-
-function StatsStrip({
-  stats,
-  trend,
-}: {
-  stats: { label: string; value: string; sub: string; tone: "good" | "bad" | "neutral" }[];
-  trend?: PlayerModel["trend_weekly"];
-}) {
-  return (
-    <div>
-      <div className="label-eyebrow text-[11px] flex items-center gap-2 mb-3">
-        <Activity size={12} aria-hidden="true" /> Cosa sta succedendo sul tuo profilo
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {stats.map((s) => {
-          const toneColor =
-            s.tone === "good" ? "#86efac" : s.tone === "bad" ? "#fda4af" : "var(--color-text)";
-          return (
-            <div
-              key={s.label}
-              className="rounded-lg px-4 py-3"
-              style={{
-                background: "var(--bento-stat-bg)",
-                border: "1px solid var(--bento-stat-border)",
-              }}
-            >
-              <div className="text-[10px] tracking-wider uppercase text-[color:var(--color-muted)]">
-                {s.label}
-              </div>
-              <div className="text-2xl font-semibold tabular-nums mt-1" style={{ color: toneColor }}>
-                {s.value}
-              </div>
-              <div className="text-[10px] text-[color:var(--color-faint)] mt-0.5">{s.sub}</div>
-            </div>
-          );
-        })}
-      </div>
-      {trend && trend.last_7d.n_games >= 3 && trend.prev_7d.n_games >= 3 && (
-        <p className="text-[11px] text-[color:var(--color-faint)] mt-3 leading-relaxed">
-          Settimana: {trend.last_7d.n_games} partite, {trend.last_7d.n_blunders} blunder critici.{" "}
-          {(trend.delta.win_rate ?? 0) > 0 ? (
-            <span style={{ color: "#86efac" }} className="inline-flex items-center gap-1">
-              <TrendingUp size={11} aria-hidden="true" /> +
-              {Math.round((trend.delta.win_rate ?? 0) * 100)}pt vs settimana prima
-            </span>
-          ) : (
-            <span style={{ color: "#fda4af" }} className="inline-flex items-center gap-1">
-              <TrendingDown size={11} aria-hidden="true" />{" "}
-              {Math.round((trend.delta.win_rate ?? 0) * 100)}pt vs settimana prima
-            </span>
-          )}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function DestinationsRow() {
+function NavigationPanel() {
   const items = [
-    {
-      to: "/cruscotto",
-      icon: <Layers size={18} aria-hidden="true" />,
-      label: "Cruscotto",
-      sub: "diagnosi, motivi tattici, time management, decisioni",
-    },
     {
       to: "/storia",
       icon: <Sparkles size={18} aria-hidden="true" />,
-      label: "Storia",
-      sub: "curva Elo, weekly trend, narrativa del coach",
+      label: "Profilo",
+      question: "Chi sono come giocatore?",
+      detail: "rating, trend, storia del coach",
+    },
+    {
+      to: "/cruscotto",
+      icon: <Layers size={18} aria-hidden="true" />,
+      label: "Pattern",
+      question: "Dove perdo punti?",
+      detail: "diagnosi, tattica, decisioni",
     },
     {
       to: "/repertorio",
       icon: <Library size={18} aria-hidden="true" />,
-      label: "Repertorio",
-      sub: "aperture deboli, turning points, drill explorer",
+      label: "Trainer",
+      question: "Dove mi alleno?",
+      detail: "drill, aperture, turning point",
     },
   ];
+
   return (
-    <div>
-      <div className="label-eyebrow text-[11px] flex items-center gap-2 mb-3">
-        <Database size={12} aria-hidden="true" /> Esplora la profondita`
+    <Panel className="home-nav-panel">
+      <div className="home-panel-heading">
+        <span><Activity size={14} aria-hidden="true" /> Approfondisci</span>
+        <strong>3 viste</strong>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {items.map((it) => (
-          <Link
-            key={it.to}
-            to={it.to}
-            className="rounded-lg px-4 py-3 transition-all flex items-start gap-3 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-brand-soft)] motion-safe:hover:brightness-110"
-            style={{
-              background: "var(--bento-default-bg)",
-              border: "1px solid var(--bento-default-border)",
-              minHeight: 44,
-            }}
-          >
-            <span className="text-[color:var(--color-brand-soft)] mt-0.5">{it.icon}</span>
-            <span className="flex-1">
-              <span className="block font-semibold text-sm">{it.label}</span>
-              <span className="block text-[11px] text-[color:var(--color-text-soft)] mt-0.5 leading-snug">
-                {it.sub}
-              </span>
+
+      <div className="home-nav-grid">
+        {items.map((item) => (
+          <Link key={item.to} to={item.to} className="home-nav-card">
+            <span className="home-nav-icon">{item.icon}</span>
+            <span>
+              <strong>{item.label}</strong>
+              <em>{item.question}</em>
+              <small>{item.detail}</small>
             </span>
-            <ChevronRight
-              size={16}
-              className="text-[color:var(--color-faint)] motion-safe:group-hover:translate-x-0.5 transition-transform mt-1"
-              aria-hidden="true"
-            />
+            <ChevronRight size={16} aria-hidden="true" />
           </Link>
         ))}
       </div>
-    </div>
+    </Panel>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Atoms & helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Sparkline a due segmenti, separati da una verticale al plan_epoch.
- *
- * - Pre-piano: storico importato da chess.com, colore muted
- * - Post-piano: la cosa che ChessPath sta misurando, colore brand
- * - Linea verticale puntinata al kick-off, con label "PIANO 23 MAR"
- *
- * Se plan_epoch e` assente o cade fuori range, degrada a sparkline singola.
- */
-function SegmentedSparkline({
-  points,
-  planEpoch,
-  height = 56,
-  planLabelDate,
+function ProofCard({
+  icon,
+  label,
+  value,
+  sub,
+  tone = "default",
 }: {
-  points: { epoch: number; rating: number }[];
-  planEpoch?: number;
-  height?: number;
-  planLabelDate?: string;
+  icon: ReactNode;
+  label: string;
+  value: string;
+  sub: string;
+  tone?: "default" | "good" | "hot";
 }) {
-  if (points.length < 2) return null;
-
-  const xs = points.map((p) => p.epoch);
-  const ys = points.map((p) => p.rating);
-  const minX = Math.min(...xs);
-  const maxX = Math.max(...xs);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
-  const rangeX = Math.max(1, maxX - minX);
-  const rangeY = Math.max(1, maxY - minY);
-
-  // Tutti i punti come "x,y" 0-100
-  const proj = points.map((p) => ({
-    x: ((p.epoch - minX) / rangeX) * 100,
-    y: 100 - ((p.rating - minY) / rangeY) * 100,
-  }));
-
-  // Plan boundary in coordinata 0-100 (se valida)
-  let planX: number | null = null;
-  if (planEpoch != null && planEpoch >= minX && planEpoch <= maxX) {
-    planX = ((planEpoch - minX) / rangeX) * 100;
-  }
-
-  // Due segmenti: prima e dopo il plan boundary.
-  // Se planX null o fuori range, primo segmento = tutto, secondo = vuoto.
-  const preSegment: typeof proj = [];
-  const postSegment: typeof proj = [];
-  if (planX == null) {
-    preSegment.push(...proj);
-  } else {
-    // Includiamo nei due segmenti il punto di confine (interpolando) per non
-    // avere "buchi" visivi tra le due polyline.
-    let crossInserted = false;
-    for (let i = 0; i < proj.length; i++) {
-      const p = proj[i];
-      if (p.x < planX) {
-        preSegment.push(p);
-      } else if (p.x > planX) {
-        if (!crossInserted && i > 0) {
-          // interpolazione lineare sull'ascissa
-          const prev = proj[i - 1];
-          const t = (planX - prev.x) / (p.x - prev.x);
-          const yCross = prev.y + t * (p.y - prev.y);
-          preSegment.push({ x: planX, y: yCross });
-          postSegment.push({ x: planX, y: yCross });
-          crossInserted = true;
-        }
-        postSegment.push(p);
-      } else {
-        // p.x == planX esattamente
-        preSegment.push(p);
-        postSegment.push(p);
-        crossInserted = true;
-      }
-    }
-  }
-
-  const toPolyline = (arr: typeof proj) =>
-    arr.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
-
-  const labelText = planLabelDate ? formatPlanShort(planLabelDate) : "PIANO";
-
   return (
-    <div className="flex flex-col gap-1">
-      <svg
-        width="100%"
-        height={height}
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        aria-label={`Andamento rating: ${ys.length} partite, da ${minY} a ${maxY}${planEpoch ? ", segmentato dal kick-off del piano" : ""}`}
-        role="img"
-      >
-        {/* segmento pre-piano: muted */}
-        {preSegment.length >= 2 && (
-          <polyline
-            fill="none"
-            stroke="var(--color-faint)"
-            strokeOpacity={0.7}
-            strokeWidth="1.2"
-            strokeDasharray="2 2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            vectorEffect="non-scaling-stroke"
-            points={toPolyline(preSegment)}
-          />
-        )}
-        {/* segmento post-piano: brand */}
-        {postSegment.length >= 2 && (
-          <polyline
-            fill="none"
-            stroke="var(--color-brand-soft)"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            vectorEffect="non-scaling-stroke"
-            points={toPolyline(postSegment)}
-          />
-        )}
-        {/* linea verticale al kick-off */}
-        {planX != null && (
-          <line
-            x1={planX}
-            x2={planX}
-            y1={0}
-            y2={100}
-            stroke="var(--color-brand-soft)"
-            strokeOpacity={0.65}
-            strokeWidth="0.8"
-            strokeDasharray="1.5 2"
-            vectorEffect="non-scaling-stroke"
-          />
-        )}
-      </svg>
-
-      {planX != null && (
-        <div className="relative h-3 w-full text-[9px] tracking-wider uppercase font-mono">
-          <span
-            className="absolute -translate-x-1/2 whitespace-nowrap text-[color:var(--color-text-soft)]"
-            style={{ left: `${clamp(planX, 6, 94)}%` }}
-          >
-            <span className="opacity-50">← storico</span>
-            {"  ·  "}
-            <span style={{ color: "var(--color-brand-soft)" }}>piano {labelText} →</span>
-          </span>
-        </div>
-      )}
+    <div className={`home-proof-card home-proof-${tone}`}>
+      <span className="home-proof-icon">{icon}</span>
+      <span className="home-mini-label">{label}</span>
+      <strong>{value}</strong>
+      <small>{sub}</small>
     </div>
   );
 }
 
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.min(hi, Math.max(lo, v));
+function Metric({
+  label,
+  value,
+  sub,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "default" | "hot" | "good";
+}) {
+  return (
+    <div className={`home-metric home-metric-${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {sub && <small>{sub}</small>}
+    </div>
+  );
 }
 
-function formatPlanShort(iso: string): string {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString("it-IT", { day: "numeric", month: "short" }).replace(".", "");
-  } catch {
-    return iso;
-  }
-}
-
-function pickCoachVoice(pm: PlayerModel): string {
-  // Cerca una frase forte nello storytelling: prima frase del story o progress.
-  const text = pm.coach_artifacts?.story || pm.coach_artifacts?.progress || "";
-  if (text) {
-    // Trova la prima frase che termina con . ! o ? e che sia sopra-soglia per "forza".
-    const sentences = text
-      .replace(/\n+/g, " ")
-      .replace(/##? [^.\n]*\.?/g, "") // togli header markdown
-      .split(/(?<=[.!?])\s+/);
-    for (const s of sentences) {
-      const trimmed = s.trim();
-      if (trimmed.length > 30 && trimmed.length < 200) return trimmed.replace(/^["«»]+|["«»]+$/g, "");
-    }
-  }
-  // Fallback dalla top diagnosis.
-  const d = pm.diagnoses?.[0];
-  if (d) return `Priorità di oggi: ${d.title.toLowerCase()}. ${d.trainable}.`;
-  return "oggi inizia. domani ti dico cosa ho visto.";
-}
-
-function buildStats(
-  pm: PlayerModel,
-  streakDays: number,
-): { label: string; value: string; sub: string; tone: "good" | "bad" | "neutral" }[] {
-  const tw = pm.trend_weekly;
-  const winDelta = tw ? Math.round((tw.delta.win_rate ?? 0) * 100) : null;
-  const blunderDelta = tw ? tw.delta.n_blunders : null;
-
-  // Drill money disponibili
-  const money = (pm.drills || []).filter((d) => (d.priority_score ?? 0) >= 3).length;
+function buildProofCards(pm: PlayerModel, streakDays: number) {
+  const planDelta = pm.identity.plan_summary?.delta_since_plan;
+  const winDelta = pm.trend_weekly?.delta.win_rate;
 
   return [
     {
-      label: "Win rate 7gg",
-      value: winDelta != null ? `${winDelta > 0 ? "+" : ""}${winDelta}pt` : "—",
-      sub: "vs settimana prima",
-      tone: winDelta == null ? "neutral" : winDelta > 0 ? "good" : winDelta < 0 ? "bad" : "neutral",
+      icon: <Database size={16} aria-hidden="true" />,
+      label: "campione reale",
+      value: `${pm.kpi.games_analyzed}`,
+      sub: `${pm.kpi.critical_positions} posizioni critiche`,
     },
     {
-      label: "Blunder critici 7gg",
-      value: blunderDelta != null ? `${blunderDelta > 0 ? "+" : ""}${blunderDelta}` : "—",
-      sub: "vs settimana prima",
-      tone:
-        blunderDelta == null
-          ? "neutral"
-          : blunderDelta < 0
-          ? "good"
-          : blunderDelta > 0
-          ? "bad"
-          : "neutral",
+      icon: <Target size={16} aria-hidden="true" />,
+      label: "gap allenabile",
+      value: `${pm.kpi.avoidable_blunders}`,
+      sub: "blunder evitabili al tuo livello",
+      tone: "hot" as const,
     },
     {
-      label: "Drill money",
-      value: `${money}`,
-      sub: "gap target ≥ 15pt",
-      tone: money > 0 ? "neutral" : "neutral",
+      icon: <Flame size={16} aria-hidden="true" />,
+      label: "piano attivo",
+      value: planDelta == null ? `${streakDays}g` : `+${planDelta}`,
+      sub: planDelta == null ? "streak corrente" : "Elo dal kick-off",
+      tone: "good" as const,
     },
     {
-      label: "Streak",
-      value: `${streakDays}g`,
-      sub: streakDays > 0 ? "non rompere la catena" : "comincia oggi",
-      tone: streakDays >= 3 ? "good" : "neutral",
+      icon: <TrendingUp size={16} aria-hidden="true" />,
+      label: "ultimi 7 giorni",
+      value: winDelta == null ? "-" : `${winDelta >= 0 ? "+" : ""}${Math.round(winDelta * 100)}pp`,
+      sub: `${pm.trend_weekly?.last_7d.n_games ?? 0} partite recenti`,
+      tone: winDelta != null && winDelta > 0 ? "good" as const : "default" as const,
     },
   ];
+}
+
+function buildSessionSpec(pm: PlayerModel): string {
+  const drills = Math.min(5, pm.drills?.length || 0);
+  const turning = Math.min(2, pm.turning_points?.length || 0);
+  return `${drills} drill, ${turning} bivi, 1 partita`;
+}
+
+function pickFeaturedPosition(pm: PlayerModel): PositionRow | null {
+  const ranked = [...(pm.drills || [])].sort((a, b) => (b.drill_value ?? 0) - (a.drill_value ?? 0));
+  return ranked.find((d) => d.fen_before && d.p_target_plays_best_sf != null && d.p_mine_plays_best_sf != null)
+    ?? ranked[0]
+    ?? pm.turning_points?.[0]
+    ?? null;
+}
+
+function normalizeFocusName(input?: string | null): string {
+  if (!input) return "la mossa critica della settimana";
+  return input
+    .replace(/^Blind spot:\s*/i, "")
+    .replace(/^Pattern dominante:\s*/i, "")
+    .replace(/^Sbagli più nel\s*/i, "")
+    .trim();
+}
+
+function pickCoachVoice(pm: PlayerModel, focusName: string): string {
+  const avoidable = pm.kpi.avoidable_blunders;
+  const critical = pm.kpi.critical_positions;
+  const target = pm.identity.goal.target;
+  return `Confronto ${critical} posizioni critiche con il tuo livello e con il target ${target}: non ti mostro uno scroll di errori, isolo i ${avoidable} gap allenabili e li trasformo nella sessione di oggi. Primo tema: ${focusName.toLowerCase()}.`;
+}
+
+function buildPreviewArrows(position: PositionRow) {
+  if (position.last_opp_from && position.last_opp_to) {
+    return [{ from: position.last_opp_from, to: position.last_opp_to, color: "#f4c95d" }];
+  }
+  return [];
+}
+
+function buildPreviewHighlights(position: PositionRow) {
+  if (position.last_opp_from && position.last_opp_to) {
+    return [
+      { square: position.last_opp_from, color: "#f4c95d44" },
+      { square: position.last_opp_to, color: "#f4c95d88" },
+    ];
+  }
+  return [];
 }
 
 function formatItalianDate(iso: string): string {
@@ -731,4 +490,8 @@ function formatItalianDate(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
