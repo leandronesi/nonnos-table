@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Chess } from "chess.js";
 import type { PositionRow } from "../types";
 import { BoardView } from "./BoardView";
 import { useStockfish, type EvalResult } from "../engine/useStockfish";
 import { cpToHuman, cpToPawns } from "../glossary";
 import { turnFromFen } from "../chess-utils";
+import { rankDrills, recordVerdict, srsLabel } from "../srs";
 
 /**
  * PUZZLE MODE INTERATTIVO.
@@ -53,6 +54,9 @@ function saveStreak(s: StreakState): void {
 
 export function DrillPlan({ drills }: Props) {
   const sf = useStockfish();
+  // SRS: riordina i drill mettendo prima i "da ripassare" e i "nuovi".
+  // Memo per drills.length per stabilita` (no shuffle a ogni render).
+  const orderedDrills = useMemo(() => rankDrills(drills), [drills]);
   const [idx, setIdx] = useState(0);
   const [verdict, setVerdict] = useState<Verdict>(null);
   const [cpLoss, setCpLoss] = useState<number | null>(null);
@@ -71,7 +75,7 @@ export function DrillPlan({ drills }: Props) {
     setShowSolution(false);
   }, [idx]);
 
-  if (!drills || drills.length === 0) {
+  if (!orderedDrills || orderedDrills.length === 0) {
     return (
       <div className="surface surface-padded">
         <p className="text-[color:var(--color-text-soft)]">Nessun puzzle disponibile.</p>
@@ -79,8 +83,8 @@ export function DrillPlan({ drills }: Props) {
     );
   }
 
-  const safeIdx = ((idx % drills.length) + drills.length) % drills.length;
-  const d = drills[safeIdx];
+  const safeIdx = ((idx % orderedDrills.length) + orderedDrills.length) % orderedDrills.length;
+  const d = orderedDrills[safeIdx];
   const orientation = d.my_color || turnFromFen(d.fen_before);
   const baseFen = d.fen_before;
   const drillKey = `${d.game_id}:${d.ply}`;
@@ -115,6 +119,9 @@ export function DrillPlan({ drills }: Props) {
       else if (loss < 100) v = "ok";
       else v = "wrong";
       setVerdict(v);
+
+      // SRS: registra il verdict (sempre, anche su gia` risolto)
+      recordVerdict(drillKey, v);
 
       // streak: success solo se perfect/ok E non già risolto
       const alreadySolved = streak.solvedIds.includes(drillKey);
@@ -167,7 +174,8 @@ export function DrillPlan({ drills }: Props) {
           </div>
           <div className="text-right">
             <div className="label-eyebrow text-[10px]">Puzzle</div>
-            <div className="font-mono text-sm tabular-nums">{safeIdx + 1} / {drills.length}</div>
+            <div className="font-mono text-sm tabular-nums">{safeIdx + 1} / {orderedDrills.length}</div>
+            <SrsChip id={drillKey} />
           </div>
         </div>
       </div>
@@ -284,6 +292,27 @@ export function DrillPlan({ drills }: Props) {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Chip SRS status. "Nuovo" / "Da ripassare" / "Box N · tra Xg".
+ */
+function SrsChip({ id }: { id: string }) {
+  const lbl = srsLabel(id);
+  const tone =
+    lbl.tone === "due"
+      ? { bg: "rgba(244, 63, 94, 0.16)", border: "rgba(244, 63, 94, 0.45)", fg: "#fda4af" }
+      : lbl.tone === "new"
+      ? { bg: "rgba(124, 92, 255, 0.16)", border: "rgba(124, 92, 255, 0.45)", fg: "#cfc6ff" }
+      : { bg: "rgba(52, 211, 153, 0.10)", border: "rgba(52, 211, 153, 0.30)", fg: "#86efac" };
+  return (
+    <span
+      className="inline-block mt-1 px-1.5 py-0.5 rounded text-[9px] tracking-wider uppercase"
+      style={{ background: tone.bg, border: `1px solid ${tone.border}`, color: tone.fg }}
+    >
+      {lbl.text}
+    </span>
   );
 }
 

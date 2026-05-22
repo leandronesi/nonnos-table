@@ -587,6 +587,64 @@ def _tactical_breakdown(conn) -> list[dict[str, Any]]:
     return out
 
 
+def _repertoire_by_color(conn, color: str, k: int = 5, min_games: int = 3) -> list[dict[str, Any]]:
+    """Repertorio peggiore di un colore.
+
+    Per ogni (eco, opening) col mio colore, prendo:
+      - games, win_rate, avg_acpl
+      - 3 posizioni "incriminate": critical mistake/blunder con cp_loss massimo,
+        preferibilmente nelle prime 25 mosse (= zona apertura/inizio middlegame).
+    """
+    ops = _q(conn, """
+        SELECT eco, opening,
+               COUNT(*) AS games,
+               SUM(CASE WHEN result='win' THEN 1 ELSE 0 END) AS wins,
+               AVG(acpl) AS avg_acpl
+        FROM games
+        WHERE eco IS NOT NULL AND my_color = ?
+        GROUP BY eco, opening
+        HAVING games >= ?
+        ORDER BY (1.0 * SUM(CASE WHEN result='win' THEN 1 ELSE 0 END) / COUNT(*)) ASC,
+                 AVG(acpl) DESC
+        LIMIT ?
+    """, color, min_games, k)
+
+    out: list[dict[str, Any]] = []
+    for op in ops:
+        positions = _q(conn, """
+            SELECT p.game_id, p.ply, p.move_number, p.san, p.best_san_sf,
+                   p.best_san_maia_target, p.best_san_maia_mine,
+                   p.p_mine_plays_best_sf, p.p_target_plays_best_sf,
+                   p.cp_before, p.cp_after, p.cp_loss, p.phase, p.fen_before,
+                   p.motif, p.motif_label_it, p.url, p.date,
+                   p.my_color, p.opp_rating, p.result, p.opening, p.eco,
+                   p.pv_san_sf,
+                   p.motif_hanging_piece, p.motif_fork, p.motif_removed_defender,
+                   p.motif_back_rank, p.motif_discovered_attack,
+                   p.last_opp_from, p.last_opp_to, p.last_opp_san
+            FROM positions p
+            WHERE p.eco = ? AND p.opening = ? AND p.my_color = ?
+              AND p.is_critical = 1 AND p.category IN ('mistake','blunder')
+              AND p.best_san_sf IS NOT NULL
+            ORDER BY CASE WHEN p.ply <= 50 THEN 0 ELSE 1 END,
+                     p.cp_loss DESC
+            LIMIT 3
+        """, op["eco"], op["opening"], color)
+        if not positions:
+            continue
+        out.append({
+            "eco": op["eco"],
+            "opening": op["opening"],
+            "games": op["games"],
+            "wins": op["wins"],
+            "win_rate": _ratio(op["wins"], op["games"]),
+            "avg_acpl": round(op["avg_acpl"] or 0, 1),
+            "confidence": _confidence(op["games"]),
+            "positions": positions,
+        })
+    return out
+
+
 def _turning_points(conn, k: int = 12) -> list[dict[str, Any]]:
     rows = _q(conn, """
         SELECT p.game_id, p.ply, p.move_number, p.san, p.best_san_sf,
@@ -853,6 +911,8 @@ def build(cfg: dict[str, Any]) -> dict[str, Any]:
     tilt = _tilt(conn)
     blind_spots = _blind_spots(conn)
     tactical_breakdown = _tactical_breakdown(conn)
+    repertoire_black = _repertoire_by_color(conn, "black")
+    repertoire_white = _repertoire_by_color(conn, "white")
     turning_points = _turning_points(conn)
     drills = _drills(conn)
     diagnoses = _diagnoses(kpi, decisions, by_phase, by_color, openings, time_mgmt, tilt, blind_spots)
@@ -874,6 +934,8 @@ def build(cfg: dict[str, Any]) -> dict[str, Any]:
         "tilt": tilt,
         "blind_spots": blind_spots,
         "tactical_breakdown": tactical_breakdown,
+        "repertoire_black": repertoire_black,
+        "repertoire_white": repertoire_white,
         "turning_points": turning_points,
         "drills": drills,
         "diagnoses": diagnoses,

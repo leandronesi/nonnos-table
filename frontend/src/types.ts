@@ -140,6 +140,17 @@ export interface BlindSpot {
   confidence: Confidence;
 }
 
+export interface RepertoireOpening {
+  eco: string;
+  opening: string;
+  games: number;
+  wins: number;
+  win_rate: number | null;
+  avg_acpl: number;
+  confidence: Confidence;
+  positions: PositionRow[];
+}
+
 export interface TacticalBreakdown {
   key: string;          // es. "motif_fork"
   label_it: string;
@@ -234,6 +245,8 @@ export interface PlayerModel {
   tilt: Tilt;
   blind_spots: BlindSpot[];
   tactical_breakdown?: TacticalBreakdown[];
+  repertoire_black?: RepertoireOpening[];
+  repertoire_white?: RepertoireOpening[];
   turning_points: PositionRow[];
   drills: PositionRow[];
   diagnoses: Diagnosis[];
