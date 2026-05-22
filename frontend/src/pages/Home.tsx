@@ -222,7 +222,6 @@ function PlanBlock({ pm }: { pm: PlayerModel }) {
 
 function ProjectionBlock({
   proj,
-  goal,
 }: {
   proj: PlayerModel["goal_projection"];
   goal: PlayerModel["identity"]["goal"];
@@ -689,10 +688,6 @@ function buildStats(
 
   // Drill money disponibili
   const money = (pm.drills || []).filter((d) => (d.priority_score ?? 0) >= 3).length;
-
-  // Aperture deboli
-  const repB = pm.repertoire_black?.length ?? 0;
-  const repW = pm.repertoire_white?.length ?? 0;
 
   return [
     {
