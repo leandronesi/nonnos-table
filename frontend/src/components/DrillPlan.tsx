@@ -210,6 +210,8 @@ export function DrillPlan({ drills }: Props) {
             </div>
           </div>
 
+          <TacticChips d={d} revealed={verdict !== null || showSolution} />
+
           <DifficultyMoney d={d} revealed={verdict !== null || showSolution} />
 
           {/* Stato */}
@@ -281,6 +283,43 @@ export function DrillPlan({ drills }: Props) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Chip dei motivi tattici. Prima del verdict NON mostriamo i tag (sennò
+ * spoileriamo la soluzione: sapere "qui c'e` un fork" suggerisce la mossa).
+ * Solo dopo che l'utente ha mosso o ha aperto la soluzione li facciamo vedere.
+ */
+const _TACTIC_LABELS: { key: keyof PositionRow; label: string; emoji: string }[] = [
+  { key: "motif_fork",              label: "Forchetta",            emoji: "⑂" },
+  { key: "motif_hanging_piece",     label: "Pezzo appeso",         emoji: "✗" },
+  { key: "motif_removed_defender",  label: "Rimozione difensore",  emoji: "↯" },
+  { key: "motif_back_rank",         label: "Ottava traversa",      emoji: "⌐" },
+  { key: "motif_discovered_attack", label: "Attacco scoperto",     emoji: "✷" },
+];
+
+function TacticChips({ d, revealed }: { d: PositionRow; revealed: boolean }) {
+  if (!revealed) return null;
+  const active = _TACTIC_LABELS.filter((t) => Number((d as Record<string, unknown>)[t.key]) === 1);
+  if (active.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-2">
+      {active.map((t) => (
+        <span
+          key={t.key as string}
+          className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-full"
+          style={{
+            background: "rgba(124, 92, 255, 0.12)",
+            border: "1px solid rgba(124, 92, 255, 0.35)",
+            color: "#cfc6ff",
+          }}
+        >
+          <span>{t.emoji}</span>
+          <span>{t.label}</span>
+        </span>
+      ))}
     </div>
   );
 }

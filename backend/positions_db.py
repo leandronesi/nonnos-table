@@ -26,7 +26,7 @@ from typing import Any
 # time_class, end_time_epoch. Per la chat l'LLM farà SELECT con WHERE composti
 # su questi.
 
-SCHEMA_VERSION = 2  # v2 = aggiunte p_mine_plays_best_sf / p_target_plays_best_sf
+SCHEMA_VERSION = 3  # v3 = aggiunti motif_fork / motif_hanging_piece / motif_removed_defender / motif_back_rank / motif_discovered_attack
 
 CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS positions (
@@ -89,9 +89,17 @@ CREATE TABLE IF NOT EXISTS positions (
     tablebase_verdict      TEXT,                   -- win / draw / loss / unknown
     tablebase_dtz          INTEGER,
 
-    -- motif tattico (v1, regole semplici)
+    -- motif tattico OUTCOME-based (v1): cosa È SUCCESSO (pezzo lasciato,
+    -- matto subìto, vantaggio buttato...). Una sola etichetta per riga.
     motif              TEXT,
     motif_label_it     TEXT,
+    -- pattern TATTICI THEMATIC (sprint 3 v2): cosa TATTICA c'era da vedere.
+    -- Indipendenti, una posizione puo` averne piu` di uno (fork + back_rank ecc).
+    motif_hanging_piece     INTEGER,
+    motif_fork              INTEGER,
+    motif_removed_defender  INTEGER,
+    motif_back_rank         INTEGER,
+    motif_discovered_attack INTEGER,
 
     -- TEMPO (sprint 1) — parsato da PGN [%clk]
     clock_seconds      REAL,                       -- secondi rimasti DOPO la mia mossa
@@ -190,6 +198,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
     additions = [
         ("p_mine_plays_best_sf", "REAL"),
         ("p_target_plays_best_sf", "REAL"),
+        ("motif_hanging_piece", "INTEGER"),
+        ("motif_fork", "INTEGER"),
+        ("motif_removed_defender", "INTEGER"),
+        ("motif_back_rank", "INTEGER"),
+        ("motif_discovered_attack", "INTEGER"),
     ]
     for col, ctype in additions:
         if col not in existing:

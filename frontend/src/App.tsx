@@ -13,6 +13,7 @@ import { TimeManagementChart } from "./components/TimeManagementChart";
 import { SpeedVsErrorsChart } from "./components/SpeedVsErrorsChart";
 import { RatingCurveChart } from "./components/RatingCurveChart";
 import { BlindSpotsList } from "./components/BlindSpotsList";
+import { TacticalBreakdownCard } from "./components/TacticalBreakdownCard";
 import { TurningPointsList } from "./components/TurningPointsList";
 import { Glossary } from "./components/Glossary";
 import { CoachNarrative } from "./components/CoachNarrative";
@@ -194,13 +195,26 @@ export function App() {
           <TimeManagementChart time_management={pm.time_management} tilt={pm.tilt} />
         </Section>
 
-        {/* ============ BLIND SPOTS ============ */}
+        {/* ============ MOTIVI TATTICI: distribuzione pattern ============ */}
+        {pm.tactical_breakdown && pm.tactical_breakdown.length > 0 && (
+          <Section
+            id="patterns"
+            index="08"
+            eyebrow="Motivi tattici"
+            title="In che tipo di tattica sbagli di piu`"
+            sub="Distribuzione dei pattern tattici (forchetta, pezzo appeso, attacco scoperto...) tra i tuoi mistake/blunder critici. Il `gap +N%` ti dice quanto piu` spesso un 1600 trovava la mossa giusta."
+          >
+            <TacticalBreakdownCard items={pm.tactical_breakdown} />
+          </Section>
+        )}
+
+        {/* ============ BLIND SPOTS (outcome-based) ============ */}
         <Section
           id="blindspots"
-          index="08"
-          eyebrow="Blind spots tattici"
-          title="Cosa non vedi"
-          sub="I motivi tattici dei tuoi blunder in posizione critica. Solo i blunder veri, niente rumore."
+          index="09"
+          eyebrow="Cosa succede quando sbagli"
+          title="Errori per conseguenza"
+          sub="Categoria OUTCOME-based (pezzo lasciato, vantaggio buttato, matto subito). Complementare ai motivi tattici sopra."
         >
           <BlindSpotsList blind_spots={pm.blind_spots} />
         </Section>
