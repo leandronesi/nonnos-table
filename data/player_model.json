@@ -1,5 +1,5 @@
 {
-  "generated_at_epoch": 1779441150.4573245,
+  "generated_at_epoch": 1779442417.9253502,
   "schema_version": 3,
   "identity": {
     "username": "breaking_plays2",
@@ -290,35 +290,55 @@
         "key": "under_10s",
         "positions": 88,
         "avg_cp_loss": 131.5,
-        "blunders": 17
+        "blunders": 17,
+        "errors": 21,
+        "avoidable_errors": 8,
+        "avoidable_share": 0.381,
+        "avg_gap": 1.6
       },
       {
         "bucket": "10-30s",
         "key": "10_30s",
         "positions": 162,
         "avg_cp_loss": 110.8,
-        "blunders": 30
+        "blunders": 30,
+        "errors": 37,
+        "avoidable_errors": 5,
+        "avoidable_share": 0.135,
+        "avg_gap": 1.8
       },
       {
         "bucket": "30-60s",
         "key": "30_60s",
         "positions": 267,
         "avg_cp_loss": 84.7,
-        "blunders": 30
+        "blunders": 30,
+        "errors": 67,
+        "avoidable_errors": 14,
+        "avoidable_share": 0.209,
+        "avg_gap": 2.4
       },
       {
         "bucket": "60-120s",
         "key": "60_120s",
         "positions": 782,
         "avg_cp_loss": 85.6,
-        "blunders": 86
+        "blunders": 86,
+        "errors": 193,
+        "avoidable_errors": 22,
+        "avoidable_share": 0.114,
+        "avg_gap": 2.3
       },
       {
         "bucket": "> 120s",
         "key": "over_120s",
         "positions": 2638,
         "avg_cp_loss": 64.5,
-        "blunders": 149
+        "blunders": 149,
+        "errors": 508,
+        "avoidable_errors": 59,
+        "avoidable_share": 0.116,
+        "avg_gap": 3.5
       }
     ],
     "spent_vs_accuracy": [
@@ -329,7 +349,10 @@
         "avg_cp_loss": 63.3,
         "blunders": 18,
         "errors": 28,
-        "error_rate": 0.143
+        "error_rate": 0.143,
+        "avoidable_errors": 7,
+        "avoidable_share": 0.25,
+        "avg_gap": 2.4
       },
       {
         "bucket": "1-3s",
@@ -338,7 +361,10 @@
         "avg_cp_loss": 58.4,
         "blunders": 87,
         "errors": 235,
-        "error_rate": 0.166
+        "error_rate": 0.166,
+        "avoidable_errors": 36,
+        "avoidable_share": 0.153,
+        "avg_gap": 3.0
       },
       {
         "bucket": "3-10s",
@@ -347,7 +373,10 @@
         "avg_cp_loss": 77.7,
         "blunders": 138,
         "errors": 391,
-        "error_rate": 0.22
+        "error_rate": 0.22,
+        "avoidable_errors": 51,
+        "avoidable_share": 0.13,
+        "avg_gap": 3.0
       },
       {
         "bucket": "10-30s",
@@ -356,7 +385,10 @@
         "avg_cp_loss": 99.6,
         "blunders": 63,
         "errors": 160,
-        "error_rate": 0.304
+        "error_rate": 0.304,
+        "avoidable_errors": 13,
+        "avoidable_share": 0.081,
+        "avg_gap": 3.6
       },
       {
         "bucket": "> 30s",
@@ -365,7 +397,10 @@
         "avg_cp_loss": 195.1,
         "blunders": 6,
         "errors": 12,
-        "error_rate": 0.667
+        "error_rate": 0.667,
+        "avoidable_errors": 1,
+        "avoidable_share": 0.083,
+        "avg_gap": 4.1
       }
     ],
     "instant_moves_in_critical": {
@@ -7034,6 +7069,15 @@
       "confidence": "high"
     },
     {
+      "key": "motif_hanging_piece",
+      "title": "Pattern dominante: Pezzo appeso",
+      "evidence": "123 dei tuoi 826 mistake/blunder critici (14.9%) erano di tipo «Pezzo appeso», avg cp_loss 311.3.",
+      "trainable": "tactic trainer Lichess focused su hangingPiece",
+      "lichess_theme": "hangingPiece",
+      "priority": 373,
+      "confidence": "high"
+    },
+    {
       "key": "phase_middlegame",
       "title": "Sbagli più nel middlegame",
       "evidence": "196 blunder (130 evitabili alla tua forza) su 2012 posizioni critiche, ACPL medio 82.8.",
@@ -7058,15 +7102,6 @@
       "trainable": "studio di finali tecnici (T+P, donna vs torre) + 'simplification when ahead'",
       "lichess_theme": "endgame",
       "priority": 105,
-      "confidence": "high"
-    },
-    {
-      "key": "tilt",
-      "title": "Tilti dopo aver sbagliato",
-      "evidence": "Dopo un tuo blunder, nelle 3 mosse seguenti l'ACPL sale a 144.1 (baseline 69.8, +106%).",
-      "trainable": "pausa di 10s prima di rispondere dopo un blunder; non rincorrere; ricalcolare equilibrio",
-      "lichess_theme": null,
-      "priority": 103,
       "confidence": "high"
     }
   ],

@@ -146,6 +146,8 @@ export function TimeManagementChart({
         </ResponsiveContainer>
       </div>
 
+      <ClockAvoidabilityStrip data={time_management.clock_vs_accuracy} />
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6">
         <StatCard
           label="Mosse istantanee in critica"
@@ -171,6 +173,50 @@ export function TimeManagementChart({
           metric={`ACPL ${tilt.after_blunder_avg_cp_loss} · baseline ${tilt.baseline_avg_cp_loss}`}
           extra=""
         />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Strip "evitabili dal target" per fascia di clock. Stesso pattern di
+ * SpeedVsErrors: di tutti gli errori in questa fascia, quanti il 1600
+ * li avrebbe trovati con >40% di probabilita`?
+ */
+function ClockAvoidabilityStrip({ data }: { data: TimeManagement["clock_vs_accuracy"] }) {
+  const anyAvoidable = data.some((d) => (d.avoidable_errors ?? 0) > 0);
+  if (!anyAvoidable) return null;
+  return (
+    <div className="mt-5 pt-4 border-t border-[color:var(--color-line)]">
+      <div className="label-eyebrow text-[10px] mb-2">
+        Errori per fascia di clock — quanti evitabili dal target (1600)
+      </div>
+      <div className="grid grid-cols-5 gap-2">
+        {data.map((d) => {
+          const share = d.avoidable_share ?? 0;
+          const pct = Math.round(share * 100);
+          const tone =
+            pct >= 25 ? { fg: "#fda4af", bg: "rgba(244,63,94,0.10)", border: "rgba(244,63,94,0.30)" }
+            : pct >= 15 ? { fg: "#fcd34d", bg: "rgba(251,191,36,0.10)", border: "rgba(251,191,36,0.30)" }
+            : { fg: "#86efac", bg: "rgba(52,211,153,0.08)", border: "rgba(52,211,153,0.25)" };
+          return (
+            <div
+              key={d.key}
+              className="rounded-lg p-2 text-center"
+              style={{ background: tone.bg, border: `1px solid ${tone.border}` }}
+            >
+              <div className="text-[10px] text-[color:var(--color-muted)] tracking-wider uppercase">
+                {d.bucket}
+              </div>
+              <div className="text-lg font-bold tabular-nums mt-0.5" style={{ color: tone.fg }}>
+                {pct}%
+              </div>
+              <div className="text-[10px] text-[color:var(--color-muted)] tabular-nums">
+                {d.avoidable_errors}/{d.errors ?? 0}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

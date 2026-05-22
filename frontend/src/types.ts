@@ -93,6 +93,10 @@ export interface ClockBucket {
   positions: number;
   avg_cp_loss: number;
   blunders: number;
+  errors?: number;
+  avoidable_errors?: number;
+  avoidable_share?: number;
+  avg_gap?: number;
 }
 
 export interface SpentBucket {
@@ -103,6 +107,9 @@ export interface SpentBucket {
   blunders: number;
   errors: number;
   error_rate: number;
+  avoidable_errors?: number;
+  avoidable_share?: number;
+  avg_gap?: number;
 }
 
 export interface TimeManagement {
