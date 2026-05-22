@@ -608,6 +608,116 @@ def _tactical_breakdown(conn) -> list[dict[str, Any]]:
     return out
 
 
+def _goal_projection(rating_curve: dict[str, list[dict[str, Any]]], goal: dict[str, Any]) -> dict[str, Any]:
+    """Proietta la data di raggiungimento del goal usando la pendenza recente.
+
+    Strategia minimal:
+      - prendo la serie del time_class target (es. blitz)
+      - calcolo la pendenza degli ultimi 30 punti perf_20 (= rolling 20 stabile)
+      - se positiva e > 0.05 Elo/giorno, estrapolo linearmente fino al target
+      - ritorno: projected_at (ISO date), slack_days vs deadline,
+                 risk_pct (0-100) di mancare il goal
+      - if-then scenario: pendenza migliore con "1 sessione/gg"
+
+    Conservativa: se pochi dati o pendenza nulla, ritorna risk=None e
+    projected_at=None — la UI mostrera` "dati insufficienti".
+    """
+    target = goal.get("target")
+    deadline = goal.get("deadline")
+    tc = goal.get("time_class") or "blitz"
+    if not target or not deadline:
+        return {"available": False}
+
+    series = rating_curve.get(tc) or []
+    if len(series) < 20:
+        return {"available": False, "reason": "meno_di_20_partite"}
+
+    # Finestra fino a 120 partite recenti (~ultimi 2-3 mesi).
+    tail = [p for p in series[-120:] if p.get("perf_20") is not None and p.get("epoch")]
+    if len(tail) < 30:
+        return {"available": False, "reason": "perf_20_insufficiente"}
+
+    # Mediana di head 25% vs tail 25%, span = avg epoch tail - avg epoch head.
+    # Block size grosso + mediana = robusto a outlier e volatilita`.
+    k = max(8, len(tail) // 4)
+    head_block = tail[:k]
+    tail_block = tail[-k:]
+
+    def _median(vals: list[float]) -> float:
+        s = sorted(vals)
+        n = len(s)
+        return s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2
+
+    head_perf = _median([p["perf_20"] for p in head_block])
+    tail_perf = _median([p["perf_20"] for p in tail_block])
+    head_epoch = sum(p["epoch"] for p in head_block) / len(head_block)
+    tail_epoch = sum(p["epoch"] for p in tail_block) / len(tail_block)
+    span_days = (tail_epoch - head_epoch) / 86400.0
+    if span_days < 14:
+        return {"available": False, "reason": "finestra_troppo_compressa"}
+    slope_per_day = (tail_perf - head_perf) / span_days  # Elo/giorno
+    current_perf = tail_perf
+
+    from datetime import datetime, timezone
+    try:
+        deadline_dt = datetime.fromisoformat(deadline).replace(tzinfo=timezone.utc)
+    except ValueError:
+        return {"available": False, "reason": "deadline_invalida"}
+
+    now = datetime.now(timezone.utc)
+    days_to_deadline = (deadline_dt - now).total_seconds() / 86400.0
+
+    out: dict[str, Any] = {
+        "available": True,
+        "current_perf_20": round(current_perf, 1),
+        "target": target,
+        "slope_elo_per_day": round(slope_per_day, 4),
+    }
+
+    if slope_per_day <= 0.01:
+        # pendenza nulla o negativa: target non raggiungibile a questo ritmo
+        out["projected_at"] = None
+        out["slack_days"] = None
+        out["risk_pct"] = 95
+        out["verdict"] = "stagnante" if slope_per_day > -0.05 else "regressione"
+        return out
+
+    days_needed = (target - current_perf) / slope_per_day
+    if days_needed < 0:
+        # gia` sopra il target
+        out["projected_at"] = now.date().isoformat()
+        out["slack_days"] = int(days_to_deadline)
+        out["risk_pct"] = 0
+        out["verdict"] = "raggiunto"
+        return out
+
+    projected_dt = now.timestamp() + days_needed * 86400
+    projected_iso = datetime.fromtimestamp(projected_dt, tz=timezone.utc).date().isoformat()
+    slack = int(days_to_deadline - days_needed)
+    # rischio: piu` slack = meno rischio. -30gg = 90%, 0gg = 50%, +30gg = 20%, +60gg = 8%.
+    if slack >= 60:    risk = 8
+    elif slack >= 30:  risk = 20
+    elif slack >= 14:  risk = 35
+    elif slack >= 0:   risk = 50
+    elif slack >= -14: risk = 70
+    elif slack >= -30: risk = 85
+    else:              risk = 95
+
+    out["projected_at"] = projected_iso
+    out["slack_days"] = slack
+    out["risk_pct"] = risk
+    out["verdict"] = "on_track" if slack >= 0 else "in_ritardo"
+
+    # if-then: se 1.3× la pendenza attuale (1 sessione/gg invece di 0.7/gg)
+    boosted_slope = slope_per_day * 1.3
+    boosted_days = (target - current_perf) / boosted_slope
+    boosted_dt = now.timestamp() + boosted_days * 86400
+    out["projected_at_with_daily_session"] = datetime.fromtimestamp(boosted_dt, tz=timezone.utc).date().isoformat()
+    out["delta_with_daily_session_days"] = int(days_needed - boosted_days)
+
+    return out
+
+
 def _trend_weekly(conn) -> dict[str, Any]:
     """Trend a 7 giorni: confronta ultimi 7gg con i 7gg precedenti.
 
@@ -1040,6 +1150,7 @@ def build(cfg: dict[str, Any]) -> dict[str, Any]:
     repertoire_black = _repertoire_by_color(conn, "black")
     repertoire_white = _repertoire_by_color(conn, "white")
     trend_weekly = _trend_weekly(conn)
+    goal_projection = _goal_projection(rating_curve, identity.get("goal", {}))
     turning_points = _turning_points(conn)
     drills = _drills(conn)
     diagnoses = _diagnoses(kpi, decisions, by_phase, by_color, openings, time_mgmt, tilt, blind_spots, tactical_breakdown)
@@ -1064,6 +1175,7 @@ def build(cfg: dict[str, Any]) -> dict[str, Any]:
         "repertoire_black": repertoire_black,
         "repertoire_white": repertoire_white,
         "trend_weekly": trend_weekly,
+        "goal_projection": goal_projection,
         "turning_points": turning_points,
         "drills": drills,
         "diagnoses": diagnoses,

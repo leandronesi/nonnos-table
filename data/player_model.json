@@ -1,5 +1,5 @@
 {
-  "generated_at_epoch": 1779442417.9253502,
+  "generated_at_epoch": 1779444721.1528225,
   "schema_version": 3,
   "identity": {
     "username": "breaking_plays2",
@@ -6237,6 +6237,18 @@
       "n_blunders": -4,
       "blunder_rate": -0.015
     }
+  },
+  "goal_projection": {
+    "available": true,
+    "current_perf_20": 1121.5,
+    "target": 1600,
+    "slope_elo_per_day": 0.474,
+    "projected_at": "2029-02-24",
+    "slack_days": -786,
+    "risk_pct": 95,
+    "verdict": "in_ritardo",
+    "projected_at_with_daily_session": "2028-07-06",
+    "delta_with_daily_session_days": 232
   },
   "turning_points": [
     {
