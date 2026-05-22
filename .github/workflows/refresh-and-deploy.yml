@@ -152,6 +152,9 @@ jobs:
           python backend/derive_features.py
           python backend/enrich_decisions.py
 
+      - name: "Step 5b · Tactical patterns (hanging/fork/back-rank/discovered)"
+        run: python backend/tactical_patterns.py
+
       - name: Step 6 · Player model
         run: python backend/player_model.py
 
@@ -189,6 +192,13 @@ jobs:
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
         run: npm run build
+
+      # GitHub Pages non gestisce SPA routing nativamente: senza 404.html, hit
+      # diretto su /Mygotham/cruscotto -> 404. Soluzione standard: copia
+      # index.html come 404.html, GH Pages serve 404 e React Router risolve.
+      - name: SPA fallback for gh-pages (copy index.html as 404.html)
+        working-directory: frontend
+        run: cp dist/index.html dist/404.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
