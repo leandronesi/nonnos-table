@@ -164,16 +164,27 @@ function BentoCell({
 
 function PlanBlock({ pm }: { pm: PlayerModel }) {
   const goal = pm.identity.goal;
-  const daysTotal = goal.days_since_start + goal.days_left;
-  const dayNum = goal.days_since_start;
+  const ps = pm.identity.plan_summary;
+  const planStarted = pm.identity.plan_started_at;
+
+  // Day "del piano" se abbiamo il riferimento, altrimenti days_since_start grezzo.
+  const dayOfPlan = ps ? ps.days_since_plan : goal.days_since_start;
   const series = pm.rating_curve?.[goal.time_class] ?? [];
-  const ratings = series.map((p) => p.rating).filter((r): r is number => r != null);
+
+  // Per la sparkline, voglio TUTTE le epoch + rating (anche null sostituito col precedente).
+  const points = series
+    .map((p) => ({ epoch: p.epoch, rating: p.rating }))
+    .filter((p): p is { epoch: number; rating: number } => p.rating != null && p.epoch != null);
+
+  // delta rating dal piano: per il sub-label
+  const deltaPlan = ps?.delta_since_plan ?? null;
+  const deltaTone = deltaPlan == null ? "var(--color-text-soft)" : deltaPlan >= 0 ? "var(--color-ok)" : "var(--color-danger)";
 
   return (
     <div className="flex flex-col h-full justify-between gap-3">
       <div>
         <div className="label-eyebrow text-[11px] tracking-[0.18em]">
-          Piano · giorno {dayNum} di {daysTotal}
+          Piano · giorno {dayOfPlan} {ps ? "dal kick-off" : `di ${goal.days_since_start + goal.days_left}`}
         </div>
         <h1
           className="mt-3 font-semibold tracking-tight leading-none"
@@ -186,8 +197,25 @@ function PlanBlock({ pm }: { pm: PlayerModel }) {
         <p className="text-sm text-[color:var(--color-text-soft)] mt-2">
           {goal.days_left} giorni alla deadline ({goal.deadline}) · {goal.time_class}
         </p>
+        {ps && deltaPlan != null && (
+          <p className="text-xs mt-1.5">
+            Dal piano:{" "}
+            <span style={{ color: deltaTone }} className="font-semibold tabular-nums">
+              {deltaPlan >= 0 ? "+" : ""}
+              {deltaPlan}pt
+            </span>{" "}
+            <span className="text-[color:var(--color-faint)]">
+              · {ps.games_after} partite ({ps.games_before} prima del piano)
+            </span>
+          </p>
+        )}
       </div>
-      <Sparkline values={ratings} height={48} />
+      <SegmentedSparkline
+        points={points}
+        planEpoch={ps?.plan_epoch}
+        height={64}
+        planLabelDate={planStarted}
+      />
     </div>
   );
 }
@@ -468,38 +496,167 @@ function DestinationsRow() {
 // Atoms & helpers
 // ---------------------------------------------------------------------------
 
-function Sparkline({ values, height = 40 }: { values: number[]; height?: number }) {
-  if (values.length < 2) return null;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = Math.max(1, max - min);
-  const points = values
-    .map((v, i) => {
-      const x = (i / (values.length - 1)) * 100;
-      const y = 100 - ((v - min) / range) * 100;
-      return `${x.toFixed(2)},${y.toFixed(2)}`;
-    })
-    .join(" ");
+/**
+ * Sparkline a due segmenti, separati da una verticale al plan_epoch.
+ *
+ * - Pre-piano: storico importato da chess.com, colore muted
+ * - Post-piano: la cosa che ChessPath sta misurando, colore brand
+ * - Linea verticale puntinata al kick-off, con label "PIANO 23 MAR"
+ *
+ * Se plan_epoch e` assente o cade fuori range, degrada a sparkline singola.
+ */
+function SegmentedSparkline({
+  points,
+  planEpoch,
+  height = 56,
+  planLabelDate,
+}: {
+  points: { epoch: number; rating: number }[];
+  planEpoch?: number;
+  height?: number;
+  planLabelDate?: string;
+}) {
+  if (points.length < 2) return null;
+
+  const xs = points.map((p) => p.epoch);
+  const ys = points.map((p) => p.rating);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const rangeX = Math.max(1, maxX - minX);
+  const rangeY = Math.max(1, maxY - minY);
+
+  // Tutti i punti come "x,y" 0-100
+  const proj = points.map((p) => ({
+    x: ((p.epoch - minX) / rangeX) * 100,
+    y: 100 - ((p.rating - minY) / rangeY) * 100,
+  }));
+
+  // Plan boundary in coordinata 0-100 (se valida)
+  let planX: number | null = null;
+  if (planEpoch != null && planEpoch >= minX && planEpoch <= maxX) {
+    planX = ((planEpoch - minX) / rangeX) * 100;
+  }
+
+  // Due segmenti: prima e dopo il plan boundary.
+  // Se planX null o fuori range, primo segmento = tutto, secondo = vuoto.
+  const preSegment: typeof proj = [];
+  const postSegment: typeof proj = [];
+  if (planX == null) {
+    preSegment.push(...proj);
+  } else {
+    // Includiamo nei due segmenti il punto di confine (interpolando) per non
+    // avere "buchi" visivi tra le due polyline.
+    let crossInserted = false;
+    for (let i = 0; i < proj.length; i++) {
+      const p = proj[i];
+      if (p.x < planX) {
+        preSegment.push(p);
+      } else if (p.x > planX) {
+        if (!crossInserted && i > 0) {
+          // interpolazione lineare sull'ascissa
+          const prev = proj[i - 1];
+          const t = (planX - prev.x) / (p.x - prev.x);
+          const yCross = prev.y + t * (p.y - prev.y);
+          preSegment.push({ x: planX, y: yCross });
+          postSegment.push({ x: planX, y: yCross });
+          crossInserted = true;
+        }
+        postSegment.push(p);
+      } else {
+        // p.x == planX esattamente
+        preSegment.push(p);
+        postSegment.push(p);
+        crossInserted = true;
+      }
+    }
+  }
+
+  const toPolyline = (arr: typeof proj) =>
+    arr.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
+
+  const labelText = planLabelDate ? formatPlanShort(planLabelDate) : "PIANO";
+
   return (
-    <svg
-      width="100%"
-      height={height}
-      viewBox="0 0 100 100"
-      preserveAspectRatio="none"
-      aria-label={`Andamento rating: minimo ${min}, massimo ${max}, ${values.length} partite`}
-      role="img"
-    >
-      <polyline
-        fill="none"
-        stroke="var(--color-brand-soft)"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        vectorEffect="non-scaling-stroke"
-        points={points}
-      />
-    </svg>
+    <div className="flex flex-col gap-1">
+      <svg
+        width="100%"
+        height={height}
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        aria-label={`Andamento rating: ${ys.length} partite, da ${minY} a ${maxY}${planEpoch ? ", segmentato dal kick-off del piano" : ""}`}
+        role="img"
+      >
+        {/* segmento pre-piano: muted */}
+        {preSegment.length >= 2 && (
+          <polyline
+            fill="none"
+            stroke="var(--color-faint)"
+            strokeOpacity={0.7}
+            strokeWidth="1.2"
+            strokeDasharray="2 2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            points={toPolyline(preSegment)}
+          />
+        )}
+        {/* segmento post-piano: brand */}
+        {postSegment.length >= 2 && (
+          <polyline
+            fill="none"
+            stroke="var(--color-brand-soft)"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            points={toPolyline(postSegment)}
+          />
+        )}
+        {/* linea verticale al kick-off */}
+        {planX != null && (
+          <line
+            x1={planX}
+            x2={planX}
+            y1={0}
+            y2={100}
+            stroke="var(--color-brand-soft)"
+            strokeOpacity={0.65}
+            strokeWidth="0.8"
+            strokeDasharray="1.5 2"
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+      </svg>
+
+      {planX != null && (
+        <div className="relative h-3 w-full text-[9px] tracking-wider uppercase font-mono">
+          <span
+            className="absolute -translate-x-1/2 whitespace-nowrap text-[color:var(--color-text-soft)]"
+            style={{ left: `${clamp(planX, 6, 94)}%` }}
+          >
+            <span className="opacity-50">← storico</span>
+            {"  ·  "}
+            <span style={{ color: "var(--color-brand-soft)" }}>piano {labelText} →</span>
+          </span>
+        </div>
+      )}
+    </div>
   );
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, v));
+}
+
+function formatPlanShort(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString("it-IT", { day: "numeric", month: "short" }).replace(".", "");
+  } catch {
+    return iso;
+  }
 }
 
 function pickCoachVoice(pm: PlayerModel): string {
