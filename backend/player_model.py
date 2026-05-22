@@ -324,7 +324,12 @@ def _openings(conn, min_games: int = 3) -> list[dict[str, Any]]:
 
 
 def _time_management(conn) -> dict[str, Any]:
-    # Buckets di tempo rimasto
+    # Buckets di tempo rimasto sull'orologio.
+    # Difficulty layer: errors = mistake+blunder, di cui "avoidable_for_target" =
+    # quelli dove il target Maia avrebbe trovato la mossa giusta con almeno il 40%
+    # di probabilita` (p_target_plays_best_sf > 0.4). Lettura: "quando il clock
+    # scende sotto X, faccio errori che il 1600 avrebbe evitato? oppure
+    # finisco in posizioni oggettivamente difficili anche per lui?"
     buckets_rows = _q(conn, """
         SELECT
           CASE WHEN clock_seconds < 10 THEN 'under_10s'
@@ -334,7 +339,11 @@ def _time_management(conn) -> dict[str, Any]:
                ELSE 'over_120s' END AS bucket,
           COUNT(*) AS positions,
           AVG(cp_loss) AS avg_cp_loss,
-          SUM(CASE WHEN category='blunder' THEN 1 ELSE 0 END) AS blunders
+          SUM(CASE WHEN category='blunder' THEN 1 ELSE 0 END) AS blunders,
+          SUM(CASE WHEN category IN ('blunder','mistake') THEN 1 ELSE 0 END) AS errors,
+          SUM(CASE WHEN category IN ('blunder','mistake')
+                    AND p_target_plays_best_sf > 0.4 THEN 1 ELSE 0 END) AS avoidable_errors,
+          AVG(p_target_plays_best_sf - COALESCE(p_mine_plays_best_sf, 0)) AS avg_gap
         FROM positions
         WHERE is_critical = 1 AND clock_seconds IS NOT NULL
         GROUP BY bucket
@@ -348,16 +357,22 @@ def _time_management(conn) -> dict[str, Any]:
         "over_120s": "> 120s",
     }
     buckets_by_key = {r["bucket"]: r for r in buckets_rows}
-    clock_vs_accuracy = [
-        {
+    clock_vs_accuracy = []
+    for b in bucket_order:
+        row = buckets_by_key.get(b, {})
+        errors = row.get("errors", 0) or 0
+        avoidable = row.get("avoidable_errors", 0) or 0
+        clock_vs_accuracy.append({
             "bucket": bucket_label[b],
             "key": b,
-            "positions": buckets_by_key.get(b, {}).get("positions", 0),
-            "avg_cp_loss": round(buckets_by_key.get(b, {}).get("avg_cp_loss") or 0, 1),
-            "blunders": buckets_by_key.get(b, {}).get("blunders", 0),
-        }
-        for b in bucket_order
-    ]
+            "positions": row.get("positions", 0) or 0,
+            "avg_cp_loss": round(row.get("avg_cp_loss") or 0, 1),
+            "blunders": row.get("blunders", 0) or 0,
+            "errors": errors,
+            "avoidable_errors": avoidable,
+            "avoidable_share": round(avoidable / errors, 3) if errors else 0.0,
+            "avg_gap": round((row.get("avg_gap") or 0) * 100, 1),
+        })
     # Buckets di tempo SPESO per mossa (≠ tempo rimasto sull'orologio).
     # Risponde alla domanda: "quanti errori faccio quando muovo troppo veloce?"
     spent_rows = _q(conn, """
@@ -370,7 +385,10 @@ def _time_management(conn) -> dict[str, Any]:
           COUNT(*) AS positions,
           AVG(cp_loss) AS avg_cp_loss,
           SUM(CASE WHEN category='blunder' THEN 1 ELSE 0 END) AS blunders,
-          SUM(CASE WHEN category IN ('blunder','mistake') THEN 1 ELSE 0 END) AS errors
+          SUM(CASE WHEN category IN ('blunder','mistake') THEN 1 ELSE 0 END) AS errors,
+          SUM(CASE WHEN category IN ('blunder','mistake')
+                    AND p_target_plays_best_sf > 0.4 THEN 1 ELSE 0 END) AS avoidable_errors,
+          AVG(p_target_plays_best_sf - COALESCE(p_mine_plays_best_sf, 0)) AS avg_gap
         FROM positions
         WHERE is_critical = 1 AND seconds_spent IS NOT NULL
         GROUP BY bucket
@@ -384,21 +402,24 @@ def _time_management(conn) -> dict[str, Any]:
         "gt_30s": "> 30s",
     }
     by_spent = {r["bucket"]: r for r in spent_rows}
-    spent_vs_accuracy = [
-        {
+    spent_vs_accuracy = []
+    for b in spent_order:
+        row = by_spent.get(b, {})
+        positions = row.get("positions", 0) or 0
+        errors = row.get("errors", 0) or 0
+        avoidable = row.get("avoidable_errors", 0) or 0
+        spent_vs_accuracy.append({
             "bucket": spent_label[b],
             "key": b,
-            "positions": by_spent.get(b, {}).get("positions", 0),
-            "avg_cp_loss": round(by_spent.get(b, {}).get("avg_cp_loss") or 0, 1),
-            "blunders": by_spent.get(b, {}).get("blunders", 0),
-            "errors": by_spent.get(b, {}).get("errors", 0),
-            "error_rate": round(
-                (by_spent.get(b, {}).get("errors", 0) / max(1, by_spent.get(b, {}).get("positions", 1))),
-                3,
-            ),
-        }
-        for b in spent_order
-    ]
+            "positions": positions,
+            "avg_cp_loss": round(row.get("avg_cp_loss") or 0, 1),
+            "blunders": row.get("blunders", 0) or 0,
+            "errors": errors,
+            "error_rate": round(errors / max(1, positions), 3),
+            "avoidable_errors": avoidable,
+            "avoidable_share": round(avoidable / errors, 3) if errors else 0.0,
+            "avg_gap": round((row.get("avg_gap") or 0) * 100, 1),
+        })
 
     # Mosse istantanee in posizione critica
     instant = _qs(conn, """
@@ -798,6 +819,15 @@ def _drills(conn, k: int = 12) -> list[dict[str, Any]]:
 # ----------------------------------------------------------------------------
 
 
+_TACTICAL_LICHESS_THEME = {
+    "motif_hanging_piece":     "hangingPiece",
+    "motif_fork":              "fork",
+    "motif_removed_defender":  "defensiveMove",
+    "motif_back_rank":         "backRankMate",
+    "motif_discovered_attack": "discoveredAttack",
+}
+
+
 def _diagnoses(
     kpi: dict[str, Any],
     decisions: dict[str, Any],
@@ -807,6 +837,7 @@ def _diagnoses(
     time_mgmt: dict[str, Any],
     tilt: dict[str, Any],
     blind_spots: list[dict[str, Any]],
+    tactical_breakdown: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Diagnosi prioritizzate.
 
@@ -886,7 +917,33 @@ def _diagnoses(
                 "confidence": worst_phase["confidence"],
             })
 
-    # 5. Motif dominante (sui blunder critici)
+    # 5a. Pattern tattico dominante (motif_*: fork, hanging, etc).
+    # E` la diagnosi PIU` ALLENABILE: dice ESATTAMENTE che tattica ti sfugge
+    # invece del solo "pezzo lasciato" outcome-based.
+    if tactical_breakdown:
+        top_t = tactical_breakdown[0]
+        if top_t["n"] >= 10:
+            evidence_extra = (
+                f" Il target risolve {int(top_t['avg_gap_pct'] + 50)}% di queste posizioni "
+                f"piu` spesso di te."
+                if top_t.get("avg_gap_pct") and top_t["avg_gap_pct"] > 5
+                else ""
+            )
+            out.append({
+                "key": top_t["key"],
+                "title": f"Pattern dominante: {top_t['label_it']}",
+                "evidence": (
+                    f"{top_t['n']} dei tuoi {top_t['n_total']} mistake/blunder critici "
+                    f"({top_t['share_pct']}%) erano di tipo «{top_t['label_it']}», "
+                    f"avg cp_loss {top_t['avg_cp_loss']}.{evidence_extra}"
+                ),
+                "trainable": f"tactic trainer Lichess focused su {_TACTICAL_LICHESS_THEME.get(top_t['key'], 'middlegame')}",
+                "lichess_theme": _TACTICAL_LICHESS_THEME.get(top_t["key"]),
+                "priority": top_t["n"] * 3 + int(top_t.get("avg_gap_pct") or 0),
+                "confidence": top_t["confidence"],
+            })
+
+    # 5b. Motif dominante OUTCOME (blind_spots) — secondario rispetto a 5a
     if blind_spots:
         top = blind_spots[0]
         if top["n"] >= 5:
@@ -985,7 +1042,7 @@ def build(cfg: dict[str, Any]) -> dict[str, Any]:
     trend_weekly = _trend_weekly(conn)
     turning_points = _turning_points(conn)
     drills = _drills(conn)
-    diagnoses = _diagnoses(kpi, decisions, by_phase, by_color, openings, time_mgmt, tilt, blind_spots)
+    diagnoses = _diagnoses(kpi, decisions, by_phase, by_color, openings, time_mgmt, tilt, blind_spots, tactical_breakdown)
     weekly_focus = _weekly_focus(diagnoses, drills)
 
     conn.close()

@@ -124,23 +124,6 @@ export function App() {
           </Section>
         </div>
 
-        {/* ============ PLAY: continua dal blunder contro Stockfish ============ */}
-        <Section
-          id="play"
-          index="02"
-          eyebrow="Gioca dal blunder"
-          title="Continua la partita contro Stockfish"
-          sub="Quando vedi un turning point e vuoi capire dove andava davvero quella posizione, clicca 'Continua qui contro Stockfish' su qualsiasi card sotto. Apre una partita vs engine partendo da quel FEN."
-          delay={2}
-        >
-          <div className="surface surface-padded">
-            <p className="text-[color:var(--color-text-soft)]">
-              Scegli un turning point qui sotto e click "▶ Continua qui contro Stockfish".
-              Si apre un overlay con scacchiera live, valutazione in tempo reale, suggerimento mossa.
-            </p>
-          </div>
-        </Section>
-
         {/* ============ FOCUS SETTIMANALE ============ */}
         <Section
           id="focus"
