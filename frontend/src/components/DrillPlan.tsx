@@ -331,7 +331,7 @@ const _TACTIC_LABELS: { key: keyof PositionRow; label: string; emoji: string }[]
 
 function TacticChips({ d, revealed }: { d: PositionRow; revealed: boolean }) {
   if (!revealed) return null;
-  const active = _TACTIC_LABELS.filter((t) => Number((d as Record<string, unknown>)[t.key]) === 1);
+  const active = _TACTIC_LABELS.filter((t) => Number((d as unknown as Record<string, unknown>)[t.key]) === 1);
   if (active.length === 0) return null;
   return (
     <div className="flex flex-wrap gap-2">

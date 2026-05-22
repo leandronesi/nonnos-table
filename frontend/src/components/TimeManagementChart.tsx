@@ -118,8 +118,11 @@ export function TimeManagementChart({
               <LabelList
                 dataKey="blunder_pct"
                 position="top"
-                content={(props: { x?: number; y?: number; width?: number; value?: number }) => {
-                  const { x = 0, y = 0, width = 0, value } = props;
+                content={(props: { x?: number | string; y?: number | string; width?: number | string; value?: number | string }) => {
+                  const x = Number(props.x ?? 0);
+                  const y = Number(props.y ?? 0);
+                  const width = Number(props.width ?? 0);
+                  const value = props.value;
                   if (value == null) return null;
                   return (
                     <text
@@ -153,8 +156,10 @@ export function TimeManagementChart({
               <LabelList
                 dataKey="avg_cp_loss"
                 position="top"
-                content={(props: { x?: number; y?: number; value?: number }) => {
-                  const { x = 0, y = 0, value } = props;
+                content={(props: { x?: number | string; y?: number | string; value?: number | string }) => {
+                  const x = Number(props.x ?? 0);
+                  const y = Number(props.y ?? 0);
+                  const value = props.value;
                   if (value == null) return null;
                   return (
                     <text
