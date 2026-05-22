@@ -556,31 +556,56 @@ def _turning_points(conn, k: int = 12) -> list[dict[str, Any]]:
 def _drills(conn, k: int = 12) -> list[dict[str, Any]]:
     """Drill = posizioni di errore allenabili.
 
-    Prima scelta: blunder evitabili alla MIA forza (Maia@mio_livello trovava
-    la mossa giusta). Richiede che Maia abbia girato (`best_san_maia_mine`
-    NOT NULL) e che `avoidable_at_my_level=1`.
+    Priorita`:
+      1. Drill con GAP massimo target-vs-mine sulla mossa giusta:
+         "il 78% dei 1600 la trova, al tuo livello solo il 23%" → drill perfetto.
+         Richiede p_target_plays_best_sf e p_mine_plays_best_sf popolati.
+      2. Avoidable (Maia@mio livello la trova) senza policy = drill secondario.
+      3. Blunder critici grezzi = ultimo fallback se Maia non ha girato (CI).
 
-    Fallback: se Maia non ha girato in questo run (es. CI senza lc0), uso
-    tutti i blunder in posizione critica con cp_loss alto. Così il trainer
-    funziona comunque anche senza Maia, solo con meno selettività.
+    drill_value = p_target_plays_best_sf - p_mine_plays_best_sf
+       in [0,1]. Piu` alto = piu` "money": il target lo sa, tu no, e si
+       puo` colmare.
     """
     rows = _q(conn, """
         SELECT p.game_id, p.ply, p.move_number, p.san, p.best_san_sf,
                p.best_san_maia_mine, p.best_san_maia_target,
+               p.p_maia_mine_top, p.p_maia_target_top,
+               p.move_difficulty,
+               p.p_mine_plays_best_sf, p.p_target_plays_best_sf,
                p.cp_before, p.cp_after, p.cp_loss, p.phase, p.fen_before,
                p.motif, p.motif_label_it, p.url, p.date,
                p.my_color, p.opp_rating, p.result, p.opening, p.eco,
                p.pv_san_sf,
                p.last_opp_from, p.last_opp_to, p.last_opp_san,
-               -- Score combinato: prima i veri "avoidable" (Maia confirmed),
-               -- poi i blunder critici grezzi, in ordine di cp_loss.
-               CASE WHEN p.avoidable_at_my_level=1 THEN 2
-                    WHEN p.category='blunder' AND p.is_critical=1 THEN 1
-                    ELSE 0 END AS priority_score
+               -- drill_value: il vero "money". Quanto il target sa che il mio
+               -- livello non sa. NULL se Maia non e` ancora passata.
+               CASE
+                 WHEN p.p_target_plays_best_sf IS NOT NULL
+                  AND p.p_mine_plays_best_sf  IS NOT NULL
+                 THEN (p.p_target_plays_best_sf - p.p_mine_plays_best_sf)
+                 ELSE NULL
+               END AS drill_value,
+               -- priority_score: tre livelli di certezza pedagogica.
+               --   3 = drill_value alto (target lo trova, tu no)
+               --   2 = avoidable (Maia old: mio livello lo trova)
+               --   1 = blunder critico grezzo (no Maia)
+               CASE
+                 WHEN p.p_target_plays_best_sf > 0.40
+                  AND (p.p_target_plays_best_sf - COALESCE(p.p_mine_plays_best_sf, 0)) > 0.15 THEN 3
+                 WHEN p.avoidable_at_my_level = 1 THEN 2
+                 WHEN p.category = 'blunder' AND p.is_critical = 1 THEN 1
+                 ELSE 0
+               END AS priority_score
         FROM positions p
-        WHERE p.avoidable_at_my_level=1
-           OR (p.category='blunder' AND p.is_critical=1 AND p.best_san_sf IS NOT NULL)
-        ORDER BY priority_score DESC, p.cp_loss DESC, p.end_time_epoch DESC
+        WHERE p.avoidable_at_my_level = 1
+           OR (p.p_target_plays_best_sf > 0.40
+               AND (p.p_target_plays_best_sf - COALESCE(p.p_mine_plays_best_sf, 0)) > 0.15)
+           OR (p.category = 'blunder' AND p.is_critical = 1 AND p.best_san_sf IS NOT NULL)
+        ORDER BY priority_score DESC,
+                 drill_value DESC NULLS LAST,
+                 p.cp_loss DESC,
+                 p.end_time_epoch DESC
         LIMIT ?
     """, k)
     return rows
