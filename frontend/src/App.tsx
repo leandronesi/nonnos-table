@@ -45,8 +45,12 @@ export function App() {
     );
   }
 
+  // GH Pages: il sito vive a /Mygotham/. Vite inietta import.meta.env.BASE_URL.
+  // BrowserRouter basename vuole il path SENZA trailing slash.
+  const basename = (import.meta.env.BASE_URL || "/").replace(/\/$/, "") || undefined;
+
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={basename}>
       <Routes>
         <Route path="/" element={<Home pm={pm} />} />
         <Route path="/cruscotto" element={<Cruscotto pm={pm} />} />
