@@ -140,6 +140,28 @@ export interface BlindSpot {
   confidence: Confidence;
 }
 
+export interface WeeklyTrendBucket {
+  n_games: number;
+  wins: number;
+  win_rate: number | null;
+  n_critical: number;
+  avg_cp_loss: number;
+  n_blunders: number;
+  blunder_rate: number | null;
+}
+
+export interface WeeklyTrend {
+  last_7d: WeeklyTrendBucket;
+  prev_7d: WeeklyTrendBucket;
+  delta: {
+    n_games: number;
+    win_rate: number | null;
+    avg_cp_loss: number;
+    n_blunders: number;
+    blunder_rate: number | null;
+  };
+}
+
 export interface RepertoireOpening {
   eco: string;
   opening: string;
@@ -247,6 +269,7 @@ export interface PlayerModel {
   tactical_breakdown?: TacticalBreakdown[];
   repertoire_black?: RepertoireOpening[];
   repertoire_white?: RepertoireOpening[];
+  trend_weekly?: WeeklyTrend;
   turning_points: PositionRow[];
   drills: PositionRow[];
   diagnoses: Diagnosis[];
