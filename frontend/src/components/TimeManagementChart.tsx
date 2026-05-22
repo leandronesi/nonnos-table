@@ -117,11 +117,13 @@ export function TimeManagementChart({
               ))}
               <LabelList
                 dataKey="blunder_pct"
-                position="top"
+                position="insideTop"
                 formatter={(v: number) => `${v}%`}
-                fill="var(--color-text-soft)"
+                fill="#0a0c18"
                 fontSize={11}
+                fontWeight={700}
                 style={{ fontFamily: "var(--font-mono)" }}
+                offset={6}
               />
             </Bar>
             <Line
