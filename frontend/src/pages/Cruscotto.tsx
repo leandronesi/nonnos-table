@@ -21,8 +21,8 @@ export function Cruscotto({ pm }: { pm: PlayerModel }) {
 
   return (
     <PageShell
-      title="Cruscotto"
-      subtitle="diagnosi, motivi tattici, time management"
+      title="Pattern"
+      subtitle="dove perdi punti e quale tema chiudere"
     >
       {/* FOCUS SETTIMANALE */}
       <Section

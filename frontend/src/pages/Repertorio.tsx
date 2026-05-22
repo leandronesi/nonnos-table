@@ -15,7 +15,7 @@ export function Repertorio({ pm }: { pm: PlayerModel }) {
   const [playPosition, setPlayPosition] = useState<PositionRow | null>(null);
 
   return (
-    <PageShell title="Repertorio" subtitle="trainer · aperture · turning points">
+    <PageShell title="Trainer" subtitle="drill, aperture, turning points">
       {/* TRAINER */}
       <Section
         id="trainer"

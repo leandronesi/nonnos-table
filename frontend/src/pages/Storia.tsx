@@ -13,7 +13,7 @@ import { CoachNarrative } from "../components/CoachNarrative";
  */
 export function Storia({ pm }: { pm: PlayerModel }) {
   return (
-    <PageShell title="Storia" subtitle="progressione · trend · coach diary">
+    <PageShell title="Profilo" subtitle="chi sei, trend, coach diary">
       {/* PLAYER CARD */}
       <Section index="01" eyebrow="Identita`" title="Chi sei adesso">
         <PlayerCard identity={pm.identity} kpi={pm.kpi} />
