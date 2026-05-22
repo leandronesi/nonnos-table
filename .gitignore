@@ -38,3 +38,14 @@ frontend/*.tsbuildinfo
 .idea/
 .DS_Store
 Thumbs.db
+
+# CI / debug output (curl dump locali)
+run.json
+runs.json
+jobs.json
+logs.zip
+pm_live.json
+*.html.tmp
+cruscotto.html
+storia.html
+repertorio.html
