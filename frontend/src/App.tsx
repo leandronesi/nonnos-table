@@ -14,6 +14,7 @@ import { SpeedVsErrorsChart } from "./components/SpeedVsErrorsChart";
 import { RatingCurveChart } from "./components/RatingCurveChart";
 import { BlindSpotsList } from "./components/BlindSpotsList";
 import { TacticalBreakdownCard } from "./components/TacticalBreakdownCard";
+import { RepertoireCard } from "./components/RepertoireCard";
 import { TurningPointsList } from "./components/TurningPointsList";
 import { Glossary } from "./components/Glossary";
 import { CoachNarrative } from "./components/CoachNarrative";
@@ -194,6 +195,33 @@ export function App() {
         >
           <TimeManagementChart time_management={pm.time_management} tilt={pm.tilt} />
         </Section>
+
+        {/* ============ REPERTORIO: aperture deboli per colore ============ */}
+        {((pm.repertoire_black && pm.repertoire_black.length > 0) ||
+          (pm.repertoire_white && pm.repertoire_white.length > 0)) && (
+          <Section
+            id="repertoire"
+            index="07b"
+            eyebrow="Repertorio · le 3 posizioni che ti fregano"
+            title="Aperture dove perdi partite"
+            sub="Le aperture peggiori per colore, con le 3 posizioni incriminate per ognuna. Clicca per rigiocarle contro Stockfish e finalmente capire dove sbagli."
+          >
+            <div className="space-y-6">
+              {pm.repertoire_black && pm.repertoire_black.length > 0 && (
+                <div>
+                  <div className="label-eyebrow mb-3">Col Nero</div>
+                  <RepertoireCard openings={pm.repertoire_black} onPlay={(p) => setPlayPosition(p)} />
+                </div>
+              )}
+              {pm.repertoire_white && pm.repertoire_white.length > 0 && (
+                <div>
+                  <div className="label-eyebrow mb-3">Col Bianco</div>
+                  <RepertoireCard openings={pm.repertoire_white} onPlay={(p) => setPlayPosition(p)} />
+                </div>
+              )}
+            </div>
+          </Section>
+        )}
 
         {/* ============ MOTIVI TATTICI: distribuzione pattern ============ */}
         {pm.tactical_breakdown && pm.tactical_breakdown.length > 0 && (
