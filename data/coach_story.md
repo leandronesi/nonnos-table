@@ -1,15 +1,9 @@
-## Sei un giocatore che si fa male da solo
+## È un giocatore che vede la mossa, ma spesso non si ferma un istante
 
-Sei uno che sa stare in partita, ma non la sa ancora tenere stretta. I tuoi dati dicono questo: col bianco e col nero sei quasi pari, quindi non sei bloccato da un colore solo; il problema è più profondo e più fastidioso, perché perdi punti dentro la partita, soprattutto quando la posizione si apre e quando l’orologio scende. Hai abbastanza forza per arrivare a vantaggio, ma non abbastanza disciplina per portarlo fino in fondo.
+Quando l'ho conosciuto, la prima cosa che si è vista non era la paura. Era la fretta. Le idee le vede, e questo si capisce subito. Il punto è che le vede e poi corre a prenderle, come se la posizione potesse scappare. E invece negli scacchi, certe volte, la posizione sta lì. Aspetta. Bisogna solo guardarla bene.
 
-## Le tue armi
+Di lui si capisce anche un'altra cosa: non è uno che si perde per mancanza di coraggio. Anzi. Quando la partita si apre, prova a prendere il centro, prova a far parlare i pezzi. Ma proprio lì, nel momento in cui la partita diventa viva, lascia più spesso un pezzo in mezzo alla strada. Non per ignoranza. Per distrazione. Perché sta già pensando alla mossa dopo, e la mossa davanti non è ancora finita.
 
-Quando sei dentro la posizione, non sei fuori strada. Il tuo ACPL medio è 73.5: non è da principiante che non vede nulla. E quando arrivi a +2, chiudi il 64% delle volte: quindi il vantaggio lo sai costruire, almeno spesso. Inoltre il tuo punteggio non crolla per colore: 48% col bianco, 47% col nero. Questo mi dice che non sei un giocatore sbilanciato per natura, ma uno che perde per errori concreti, non per mancanza di idee.
+Col Bianco ha qualche idea buona. Col Nero, invece, a volte entra senza un piano chiaro e si vede che non si fida abbastanza della posizione. Non è un giocatore vuoto. È uno che ha già la pasta. Ma la pasta, adesso, va tenuta insieme. Un po' più di pausa. Un po' più di ordine. E quando la partita si mette bene, serve anche saperla chiudere senza aprire la finestra al vento.
 
-## Dove butti via le partite
-
-Qui il quadro è chiaro. Il pezzo lasciato è il tuo buco nero: 284 blunder critici, e 90 erano evitabili alla tua forza. È il classico errore da mossa fatta senza controllo finale, soprattutto nel mediogioco, dove hai già 196 blunder critici e un ACPL medio di 82.8. In più, sotto i 30 secondi crolli: ACPL 131.5 contro 64.5 quando hai più di 120 secondi. E dopo un blunder non ti rimetti subito in asse: il tilt factor a 2.06× vuol dire che spesso il secondo errore arriva dietro al primo.
-
-## Il tuo profilo vero
-
-Sei un attaccante pratico che ha bisogno di freno e ordine, non di idee nuove. Il materiale c’è; quello che manca è la mano ferma quando la partita chiede precisione.
+La cosa interessante è che ha già fatto strada. Quindi non stiamo parlando di costruire da zero. Stiamo parlando di togliere il rumore. Se impara a fermarsi un momento prima di ogni scelta seria, viene fuori un giocatore molto più solido.

@@ -1,12 +1,12 @@
 {
-  "headline": "Taglia i pezzi lasciati e smetti di crollare sotto i 30s",
-  "diagnosis_narrative": "Sei a 1166 e il target è 1600: mancano 434 punti in 224 giorni, cioè 1.94 al giorno; oggi sei a -0.16 e la proiezione è 1130. Su 3937 posizioni critiche hai ACPL 73.5, 312 blunder critici e 284 sono pezzi lasciati: è il buco principale. In più perdi 109 vittorie da +2 (blow rate 35%) e sotto i 30s l'ACPL sale a 131.5, contro 64.5 sopra i 120s.",
+  "headline": "Oooh. Prima si guarda il pezzo, poi si muove. Sempre.",
+  "diagnosis_narrative": "La pasta c'è. La mano vede, ma corre troppo. Il pezzo lasciato torna spesso, e il pezzo appeso fa ancora male. La fretta, dopo una caduta, pesa più del resto.",
   "this_week": [
-    "Prima di ogni mossa: controlla pezzi in presa e minacce forzate",
-    "Gioca 3 blocchi da 20' di tattica su pezzi lasciati e matti",
-    "In ogni partita: se restano <30s, semplifica e cerca scambi"
+    "Prima di ogni mossa, guarda se resta un pezzo in presa.",
+    "Dopo ogni cambio, ferma la mano e conta i pezzi vicini.",
+    "Quando senti fretta, fai un respiro e ricontrolla."
   ],
-  "avoid": "Non fare mosse istintive sotto i 30s",
-  "generated_at": "2026-05-22T06:52:51+00:00",
+  "avoid": "Non muovere per primo pensiero. Prima passa sempre lo sguardo sulla scacchiera.",
+  "generated_at": "2026-05-23T20:00:59+00:00",
   "model": "gpt-5.4-mini"
 }
