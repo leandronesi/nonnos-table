@@ -276,32 +276,43 @@ function GoalPanel({ pm }: { pm: PlayerModel }) {
 }
 
 function CoachPanel({ focusName, pm }: { focusName: string; pm: PlayerModel }) {
+  // Preferiamo la voce di Nonno (coach_brief). Se manca o e` rule-based,
+  // ricadiamo su weekly_focus (regole interne).
+  const brief = pm.coach_brief;
+  const isNonno = brief?.model && brief.model !== "fallback-rules";
   const focus = pm.weekly_focus;
-  const firstAction = focus?.actions?.[0]?.replace(/^[^\wÀ-ÿ]+/u, "") || pm.diagnoses?.[0]?.trainable;
-  const topTactic = pm.tactical_breakdown?.[0];
+
+  const headline = isNonno ? brief?.headline : focusName;
+  const evidence = isNonno ? brief?.diagnosis_narrative : focus?.evidence;
+  const action = isNonno
+    ? brief?.this_week?.[0]
+    : focus?.actions?.[0]?.replace(/^[^\wÀ-ÿ]+/u, "") || pm.diagnoses?.[0]?.trainable;
+  const avoid = isNonno ? brief?.avoid : null;
 
   return (
     <Panel className="home-coach-panel" tone="quiet">
       <div className="home-panel-heading">
-        <span><Brain size={14} aria-hidden="true" /> Coach verdict</span>
-        <strong>{focus?.confidence ?? "medium"}</strong>
+        <span><Brain size={14} aria-hidden="true" /> {isNonno ? "Nonno O." : "Coach"}</span>
+        <strong>{isNonno ? "voce" : (focus?.confidence ?? "medium")}</strong>
       </div>
 
       <div className="home-coach-main">
-        <span className="home-mini-label">focus della settimana</span>
-        <strong>{focusName}</strong>
-        {focus?.evidence && <p>{focus.evidence}</p>}
+        <span className="home-mini-label">{isNonno ? "questa settimana" : "focus della settimana"}</span>
+        <strong>{headline}</strong>
+        {evidence && <p>{evidence}</p>}
       </div>
 
       <div className="home-coach-bottom">
-        <div>
-          <span className="home-mini-label">azione</span>
-          <p>{firstAction}</p>
-        </div>
-        {topTactic && (
+        {action && (
           <div>
-            <span className="home-mini-label">pattern</span>
-            <p>{topTactic.label_it}: {topTactic.n} casi, cp loss medio {Math.round(topTactic.avg_cp_loss)}</p>
+            <span className="home-mini-label">{isNonno ? "ti dice" : "azione"}</span>
+            <p>{action}</p>
+          </div>
+        )}
+        {avoid && (
+          <div>
+            <span className="home-mini-label">da evitare</span>
+            <p>{avoid}</p>
           </div>
         )}
       </div>
@@ -460,10 +471,24 @@ function normalizeFocusName(input?: string | null): string {
 }
 
 function pickCoachVoice(pm: PlayerModel, focusName: string): string {
+  // 1. Preferiamo la voce di Nonno: diagnosis_narrative del brief settimanale.
+  const brief = pm.coach_brief?.diagnosis_narrative?.trim();
+  if (brief && brief.length > 30) return brief;
+
+  // 2. Fallback: prima "frase forte" dello story del coach (narrativa lunga).
+  const story = pm.coach_artifacts?.story?.trim() || "";
+  if (story) {
+    // Salta gli header markdown (## ...) e prendi la prima frase >40 char.
+    const cleaned = story.replace(/^##\s*[^\n]+\n+/m, "").replace(/\s+/g, " ").trim();
+    const m = cleaned.match(/[^.!?]+[.!?]/);
+    if (m && m[0].length > 40) return m[0].trim();
+  }
+
+  // 3. Ultimo fallback (CI senza coach LLM): un riassunto secco.
   const avoidable = pm.kpi.avoidable_blunders;
   const critical = pm.kpi.critical_positions;
   const target = pm.identity.goal.target;
-  return `Confronto ${critical} posizioni critiche con il tuo livello e con il target ${target}: non ti mostro uno scroll di errori, isolo i ${avoidable} gap allenabili e li trasformo nella sessione di oggi. Primo tema: ${focusName.toLowerCase()}.`;
+  return `Confronto ${critical} posizioni critiche con il tuo livello e con il target ${target}: isolo i ${avoidable} gap allenabili e li trasformo nella sessione di oggi. Primo tema: ${focusName.toLowerCase()}.`;
 }
 
 function buildPreviewArrows(position: PositionRow) {
