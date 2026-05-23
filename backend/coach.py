@@ -43,6 +43,12 @@ MODEL = "gpt-5.4-mini"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BRAIN_DIR = REPO_ROOT / "backend" / "coach_brain"
 
+# Quaderno di Nonno — memoria persistente cross-session. Vive in data/ (repo
+# pubblico) perche` cosi` la CI lo cachea via "Cache analysis data" e lo
+# trasporta tra run. Nel brain (repo privato) ci stanno solo persona e wiki.
+JOURNAL_PATH = REPO_ROOT / "data" / "coach_journal.md"
+JOURNAL_MAX_CHARS = 12000  # tronca le voci piu` vecchie se cresce troppo
+
 
 # ---------------------------------------------------------------------------
 # Brain loader (filesystem-as-orchestration, SIO-lite)
@@ -69,6 +75,36 @@ def load_brain_system_prompt() -> str | None:
 def load_template(name: str) -> str | None:
     p = BRAIN_DIR / "02-output" / f"{name}.md"
     return p.read_text(encoding="utf-8") if p.exists() else None
+
+
+def load_journal() -> str:
+    """Legge il quaderno di Nonno (memoria persistente cross-session).
+
+    Se non esiste, ritorna stringa vuota. Nonno scrivera` la prima voce
+    dopo la prima generazione.
+    """
+    if not JOURNAL_PATH.exists():
+        return ""
+    txt = JOURNAL_PATH.read_text(encoding="utf-8")
+    # Tronca le voci piu` vecchie se cresce troppo (mantiene header + tail)
+    if len(txt) > JOURNAL_MAX_CHARS:
+        head, _, body = txt.partition("---")
+        keep_tail = body[-(JOURNAL_MAX_CHARS - len(head) - 200):]
+        txt = head + "---\n\n## ...voci piu` vecchie troncate per spazio...\n" + keep_tail
+    return txt
+
+
+def append_to_journal(new_entry: str) -> None:
+    """Appende una nuova voce al quaderno. Crea il file se non esiste."""
+    if not new_entry or not new_entry.strip():
+        return
+    JOURNAL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    existing = JOURNAL_PATH.read_text(encoding="utf-8") if JOURNAL_PATH.exists() else "# Quaderno di Nonno O.\n\n"
+    # Assicura una separazione visibile prima della nuova voce
+    if not existing.endswith("\n\n"):
+        existing += "\n\n"
+    JOURNAL_PATH.write_text(existing + new_entry.strip() + "\n", encoding="utf-8")
+    log.info("Aggiunta voce al quaderno (%d caratteri totali)", len(existing) + len(new_entry))
 
 
 def load_wiki_for(area: str) -> str:
@@ -281,102 +317,168 @@ def call_openai_json(system: str, user: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def generate_story(pm: dict, brain_sys: str | None) -> str:
+def generate_story(pm: dict, brain_sys: str | None, journal: str = "") -> str:
     template = load_template("STORY")
     wiki = load_wiki_for("profilazione") + "\n\n" + load_wiki_for("zavorre")
     system = brain_sys or "Sei un coach di scacchi italiano serio, diretto, senza fronzoli."
+    memoria_block = f"\nMEMORIA (il tuo quaderno, cose gia` dette e notate nelle settimane scorse — rileggile prima di scrivere, riferisci a queste cose quando ha senso):\n{journal}\n" if journal.strip() else ""
     user = f"""Scrivi `artifacts/story.md`.
+{memoria_block}
+TEMPLATE (segui SPIRITO + TONO + ESEMPIO, non struttura rigida):
+{template or '(template assente, scrivi una player story narrativa 200-300 parole)'}
 
-TEMPLATE (segui spirito + tono, non struttura rigida):
-{template or '(template assente, scrivi una player story narrativa 200 parole)'}
-
-DOSSIER WIKI (NON ricopiare, è briefing):
+DOSSIER WIKI (NON ricopiare, e` briefing tuo):
 {wiki}
 
-DATI:
+DATI DELL'ALLIEVO (usali come fatti, ma NON citarli con numeri — traducili
+in parole, come faresti tu in cucina):
 {player_brief(pm)}
 
-Output: solo markdown con sezioni `## Titolo`, prosa narrativa, 200-350 parole.
-Niente bullet points. Niente jargon di sistema. Niente "Continua così".
+Output: SOLO markdown. UN solo titolo `## ...` che e` UNA FRASE intera.
+Prosa, 200-300 parole. Niente bullet, niente sezioni multiple.
+Parla di lui IN TERZA PERSONA SINGOLARE (e`, sta, gli, lo). MAI in seconda
+persona (sei, hai, stai). Inizia con *"E` un giocatore..."* o
+*"Quando l'ho conosciuto..."* o *"In questi mesi..."* o un piccolo aneddoto.
+NIENTE numeri (eccezione: numero di mosse di una partita specifica).
 """
     return call_openai_md(system, user)
 
 
-def generate_progress(pm: dict, brain_sys: str | None) -> str:
+def generate_progress(pm: dict, brain_sys: str | None, journal: str = "") -> str:
     template = load_template("PROGRESS")
     wiki = load_wiki_for("progressione")
     system = brain_sys or "Sei un coach di scacchi italiano serio, diretto, senza fronzoli."
+    memoria_block = f"\nMEMORIA (le voci precedenti del tuo quaderno):\n{journal}\n" if journal.strip() else ""
     user = f"""Scrivi `artifacts/progress.md`.
-
-TEMPLATE:
+{memoria_block}
+TEMPLATE (SPIRITO + TONO):
 {template or '(template assente)'}
 
 DOSSIER WIKI:
 {wiki}
 
-DATI:
+DATI DELL'ALLIEVO (fatti per te, mai numeri nella tua risposta):
 {player_brief(pm)}
 
-Output: markdown, 200-350 parole, sezioni `## Titolo`, prosa.
-Inizia con un VERDETTO CHIARO: "Stai migliorando", "Stai stagnando", "Stai peggiorando",
-o "Non abbastanza dati". Onesto, anche se è "stai peggiorando".
+Output: SOLO markdown. UN solo titolo `## ...` che e` UNA FRASE intera.
+Prosa, 150-250 parole. Niente bullet, niente sezioni multiple.
+Apri SUBITO con un verdetto asciutto, una frase: *"Sta migliorando..."* /
+*"Oh. Sta stagnando."* / *"Va peggio."* / *"E` presto per dirlo."*.
+Parla di lui in TERZA persona. MAI in seconda. NIENTE numeri di rating,
+ACPL, percentuali, conteggi. Traduci tutto in parole: *"un po' piu` di
+prima"*, *"meno spesso"*, *"da qualche settimana"*.
 """
     return call_openai_md(system, user)
 
 
-def generate_roadmap(pm: dict, brain_sys: str | None) -> str:
+def generate_roadmap(pm: dict, brain_sys: str | None, journal: str = "") -> str:
     template = load_template("ROADMAP")
     wiki = load_wiki_for("piano-allenamento") + "\n\n" + load_wiki_for("zavorre")
     system = brain_sys or "Sei un coach di scacchi italiano serio, diretto, senza fronzoli."
+    memoria_block = f"\nMEMORIA (cose gia` dette o promesse):\n{journal}\n" if journal.strip() else ""
     user = f"""Scrivi `artifacts/roadmap.md`.
-
-TEMPLATE:
+{memoria_block}
+TEMPLATE (SPIRITO + TONO):
 {template or '(template assente)'}
 
 DOSSIER WIKI:
 {wiki}
 
-DATI:
+DATI DELL'ALLIEVO:
 {player_brief(pm)}
 
-Output: markdown, 3 capitoli (settimane 1-4, 5-8, 9-12), prosa narrativa,
-ogni capitolo con 2-3 azioni operative + 1 milestone misurabile.
+Output: SOLO markdown. UN solo titolo `## ...` che e` UNA FRASE intera.
+Prosa, 250-400 parole, niente bullet. TRE PARAGRAFI distinti, ciascuno
+preceduto da una frase del tipo *"La prima cosa che gli faccio fare..."*,
+*"Quando questa e` digerita, passiamo a..."*, *"Per ultimo, la cosa
+difficile..."*. Ciascun paragrafo nomina UNA cosa concreta da lavorare.
+NIENTE settimane, NIENTE date, NIENTE *"milestone"*. Chiudi con una frase
+che riconosca che il piano puo` cambiare.
 """
     return call_openai_md(system, user)
 
 
-def generate_brief(pm: dict, brain_sys: str | None) -> dict:
-    """Vecchio coach_brief JSON, per retro-compatibilità WeeklyFocusCard.
+def generate_brief(pm: dict, brain_sys: str | None, journal: str = "") -> dict:
+    """Brief settimanale JSON nella voce di Nonno O.
 
-    NB: per questo NON usiamo il brain SIO (che spinge il modello verso
-    write_file tool-use). Serve un system prompt dedicato + diretto.
+    Non riusa il brain_sys completo (che e` orientato alla scrittura libera),
+    ma ne mutua la persona. Le stringhe devono avere il TONO di Nonno: poche
+    parole, niente numeri, italiano vero.
     """
-    _ = brain_sys  # esplicitamente non usato
-    system = """Sei un coach di scacchi italiano serio, diretto, senza fronzoli.
-Ti chiedo un brief settimanale strutturato in JSON.
+    _ = brain_sys  # esplicitamente non usato — qui costruiamo system dedicato
+    memoria_block = f"\nMEMORIA (cose gia` dette o notate):\n{journal[-2000:] if journal else ''}\n" if journal.strip() else ""
+    system = f"""Sei Nonno O., 75 anni, comandante di lungo corso in pensione,
+sorrentino. Allenatore di scacchi del giocatore qui sotto. Scrivi un brief
+settimanale per lui.
 
-Stile delle stringhe:
-- italiano, no buzzword
-- diretto, no addolcimenti
-- numeri concreti dove servono
-- niente emoji
-- niente jargon di sistema
-
-Output rigorosamente JSON valido (NO markdown wrapper, NO testo extra fuori dal JSON).
+LE STRINGHE che produci nel JSON devono avere il TONO di Nonno:
+- italiano vero, asciutto, caldo
+- frasi corte, una cosa per volta
+- MAI termini tech: niente ACPL, blunder, drill, score, target, gap, KPI,
+  performance, training. MAI anglicismi.
+- MAI numeri (eccezione: numero di mosse di una partita specifica)
+- MAI dire "io" come soggetto, MAI dire "hai sbagliato"
+- Puoi usare "Oooh" all'inizio di una headline o di una frase quando
+  ha senso (ammirazione, finto rimprovero, riconoscimento).
+- Tono: nonno seduto in cucina a Sorrento, caffe` davanti, scacchiera
+  mezza preparata. Non manager, non analista, non chatbot.
+{memoria_block}
+Output rigorosamente JSON valido (NO markdown wrapper, NO testo fuori).
 Struttura ESATTA:
-{
-  "headline": "1 frase, max 100 caratteri, cosa fissare questa settimana",
-  "diagnosis_narrative": "2-3 frasi con i fatti dai dati. Cita numeri.",
-  "this_week": ["azione 1 (max 80 char)", "azione 2", "azione 3"],
-  "avoid": "1 cosa specifica da NON fare per 7 giorni, max 80 char"
-}"""
-    user = f"""Genera il coach brief settimanale per il giocatore qui sotto.
-
-DATI:
+{{
+  "headline": "1 frase tonale di Nonno, max 110 caratteri (es. 'Oooh. Devi guardare prima di muovere, basta correre.')",
+  "diagnosis_narrative": "2-3 frasi di Nonno che riassumono cosa vede in questo momento dell'allievo, MAI numeri, riferimento eventuale alla MEMORIA se rilevante",
+  "this_week": ["frase 1 cosa lavorare (max 90 char, voce di Nonno)", "frase 2 (max 90 char)", "frase 3 (max 90 char)"],
+  "avoid": "1 cosa concreta da NON fare questa settimana, voce di Nonno, max 90 char"
+}}"""
+    user = f"""DATI sull'allievo (fatti per orientarti — NON metterli nel testo come numeri):
 {player_brief(pm)}
 
-Rispondi SOLO col JSON. Non scrivere altro fuori dalle graffe."""
+Rispondi SOLO col JSON. Niente altro fuori dalle graffe."""
     return call_openai_json(system, user)
+
+
+def generate_journal_entry(pm: dict, brain_sys: str | None, journal: str, artifacts: dict[str, str]) -> str:
+    """Genera la NUOVA voce di quaderno che Nonno scrive a fine sessione.
+
+    E` la sua memoria — quello che ha notato oggi, quello che si ripromette di
+    rivedere, una promessa al prossimo incontro. 3-6 frasi.
+    """
+    system = brain_sys or "Sei Nonno O., un nonno di Sorrento che allena scacchi."
+    user = f"""A fine sessione, prima di andare a fare due passi al porto, apri il
+quaderno e scrivi una NUOVA voce. Solo per te. Per ricordarti la prossima volta.
+
+MEMORIA (voci precedenti):
+{journal[-3000:] if journal else '(prima voce)'}
+
+DATI ATTUALI:
+{player_brief(pm)}
+
+COSA HAI SCRITTO OGGI ALL'ALLIEVO (story / progress / roadmap):
+=== STORY ===
+{artifacts.get('story','')[:1200]}
+
+=== PROGRESS ===
+{artifacts.get('progress','')[:1200]}
+
+=== ROADMAP ===
+{artifacts.get('roadmap','')[:1200]}
+
+Adesso scrivi UNA voce di quaderno, formato:
+
+## YYYY-MM-DD · titolo asciutto in minuscolo
+
+3-6 frasi in prima persona (TU sei Nonno), con il TUO tono. Cose tipo:
+- "Oggi ho visto che..."
+- "Mi sono ripromesso di..."
+- "Continua a fare {{cosa}}, devo trovare un modo di farglielo notare..."
+- "Settimana prossima provo a..."
+
+NIENTE numeri. NIENTE termini tech. Scrivi a mano, su un'agenda.
+
+Output: solo il blocco markdown (titolo + 3-6 frasi). Niente preamboli.
+"""
+    return call_openai_md(system, user, min_chars=80)
 
 
 # ---------------------------------------------------------------------------
@@ -448,13 +550,14 @@ def main() -> None:
 
     pm = json.loads(pm_path.read_text(encoding="utf-8"))
     brain_sys = load_brain_system_prompt()
+    journal = load_journal()
     have_api = bool(os.environ.get("OPENAI_API_KEY"))
 
     artifacts: dict[str, str] = {}
     brief: dict[str, Any]
 
     if brain_sys and have_api:
-        log.info("Modalità FULL (brain + OpenAI %s)", MODEL)
+        log.info("Modalità FULL (brain + OpenAI %s) · journal: %d caratteri", MODEL, len(journal))
         # try/except SEPARATI per ogni artifact: se uno fallisce, gli altri
         # già ottenuti dal LLM restano (prima il bug era che il fallback
         # del brief sovrascriveva anche story/progress/roadmap già pronti).
@@ -465,17 +568,26 @@ def main() -> None:
             ("roadmap", generate_roadmap),
         ):
             try:
-                artifacts[name] = gen(pm, brain_sys)
+                artifacts[name] = gen(pm, brain_sys, journal)
             except Exception as e:  # noqa: BLE001
                 log.warning("LLM artifact %s fallito (%s). Fallback per questo solo.", name, e)
                 artifacts[name] = fb[name]
         try:
-            brief = generate_brief(pm, brain_sys)
+            brief = generate_brief(pm, brain_sys, journal)
             brief["generated_at"] = datetime.now(tz=timezone.utc).isoformat(timespec="seconds")
             brief["model"] = MODEL
         except Exception as e:  # noqa: BLE001
             log.warning("LLM brief fallito (%s). Fallback brief.", e)
             brief = fallback_brief(pm)
+
+        # Nuova voce di quaderno (memoria persistente per le prossime sessioni).
+        # Best-effort: se fallisce non rompiamo il run, semplicemente la
+        # memoria non cresce questa volta.
+        try:
+            new_entry = generate_journal_entry(pm, brain_sys, journal, artifacts)
+            append_to_journal(new_entry)
+        except Exception as e:  # noqa: BLE001
+            log.warning("Voce di quaderno fallita (%s). Memoria non aggiornata.", e)
     else:
         if not brain_sys:
             log.warning("backend/coach_brain/ mancante. Fallback regole.")
