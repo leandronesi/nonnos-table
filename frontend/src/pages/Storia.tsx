@@ -35,7 +35,7 @@ export function Storia({ pm }: { pm: PlayerModel }) {
       <Section
         index="03"
         eyebrow="Curva Elo"
-        title="La strada verso GranPa"
+        title="La strada verso il target"
         sub="Rating ufficiale e prestazione recente. Qui si vede se il gioco sta arrivando prima dell'Elo."
       >
         <RatingCurveChart ratingCurve={pm.rating_curve} goal={pm.identity.goal} />

@@ -43,7 +43,7 @@ export function Quaderno({ pm, onClose }: { pm: PlayerModel; onClose: () => void
         <header className="quaderno-header">
           <div className="quaderno-title">
             <h2>Quaderno</h2>
-            <span className="quaderno-subtitle">Nonno O. tiene tutto qui</span>
+            <span className="quaderno-subtitle">Il coach tiene tutto qui</span>
           </div>
           <button className="quaderno-close" onClick={onClose} aria-label="Chiudi quaderno">
             <X size={20} />
@@ -285,7 +285,7 @@ function EvoluzionePatterns({ gd }: { gd?: import("../types").GrowthDelta }) {
   if (!gd || !gd.available) {
     return (
       <div className="quaderno-empty">
-        Nonno ha bisogno di più partite per misurare l'evoluzione dei pattern. Continua a giocare.
+        Servono più partite per misurare l'evoluzione dei pattern. Continua a giocare.
       </div>
     );
   }

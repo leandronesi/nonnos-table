@@ -1,7 +1,7 @@
 import type { PlayerModel, PositionRow } from "./types";
 
-export const PRODUCT_NAME = "Road to GranPa";
-export const COACH_NAME = "Nonno O.";
+export const PRODUCT_NAME = "Mygotham";
+export const COACH_NAME = "Coach";
 
 const MAIA_LEVELS = [1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900];
 

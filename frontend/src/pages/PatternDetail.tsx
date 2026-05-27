@@ -241,7 +241,7 @@ export function PatternDetail({ pm }: Props) {
           <h2 className="display-small">Ancora poche occorrenze</h2>
           <p className="text-[color:var(--color-text-soft)] mt-2">
             Questo pattern si vede nelle metriche aggregate ma non ho abbastanza posizioni concrete
-            taggate per proporti un allenamento mirato. Continua a giocare e Nonno ne raccoglierà
+            taggate per proporti un allenamento mirato. Continua a giocare e il coach ne raccoglierà
             altre — appena ce ne saranno 3+ potrai allenarlo qui.
           </p>
         </section>
