@@ -93,7 +93,7 @@ export function GoalEditor({ pm, onClose, onSaved }: Props) {
               );
             })}
           </div>
-          <p className="goal-editor-hint">Mygotham allena la categoria che scegli qui.</p>
+          <p className="goal-editor-hint">L'app allena la categoria che scegli qui.</p>
         </div>
 
         <div className="goal-editor-section">
