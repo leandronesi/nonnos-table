@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import type { PlayerModel } from "../types";
 import { PageShell } from "./PageShell";
-import { LiveBrief } from "../components/LiveBrief";
 import { PatternSparkline } from "../components/PatternSparkline";
 import { entriesByDate, type JournalKind } from "../session/journal";
 import {
@@ -65,8 +64,6 @@ export function Coach({ pm }: Props) {
           </div>
         </div>
       </section>
-
-      <LiveBrief pm={pm} autoLoad />
 
       {todaysFreni.length > 0 && (
         <section className="coach-section">
