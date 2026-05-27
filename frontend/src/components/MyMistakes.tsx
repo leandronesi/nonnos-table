@@ -132,7 +132,7 @@ export function MyMistakes({ pm, currentIndex, onIndexChange, onClose }: Props) 
       <div className="mm-overlay" role="dialog" aria-modal="true" aria-label="Le tue cadute">
         <div className="mm-modal">
           <div className="mm-header">
-            <span className="mm-chip">Nonno O.</span>
+            <span className="mm-chip">Coach</span>
             <h2 className="mm-title">Le tue cadute</h2>
           </div>
           <p className="mm-empty">Nessuna posizione critica trovata nel player model.</p>
@@ -156,7 +156,7 @@ export function MyMistakes({ pm, currentIndex, onIndexChange, onClose }: Props) 
         {/* Header */}
         <div className="mm-header">
           <div className="mm-header-top">
-            <span className="mm-chip">Nonno O.</span>
+            <span className="mm-chip">Coach</span>
             <span className="mm-counter" aria-live="polite">{currentIndex + 1} / {total}</span>
           </div>
           <h2 className="mm-title">Le tue cadute</h2>

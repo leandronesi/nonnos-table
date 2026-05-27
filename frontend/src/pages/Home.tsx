@@ -64,10 +64,10 @@ export function Home({ pm }: { pm: PlayerModel }) {
       <header className="home-topbar">
         <div className="home-topbar-brand">
           <Link to="/coach" className="home-topbar-coach">
-            <Brain size={16} aria-hidden="true" /> Nonno O.
+            <Brain size={16} aria-hidden="true" /> Coach
           </Link>
           <span className="home-topbar-divider">·</span>
-          <span className="home-topbar-product">Road to GranPa</span>
+          <span className="home-topbar-product">Mygotham</span>
         </div>
         <nav className="home-topbar-nav" aria-label="Navigazione principale">
           {streak.current > 0 && (
@@ -151,8 +151,8 @@ export function Home({ pm }: { pm: PlayerModel }) {
           <div className="home-coach-quote">
             <div className="label-eyebrow flex items-center gap-1.5">
               {liveBrief
-                ? <><Sparkles size={14} aria-hidden="true" /> Nonno dice · live</>
-                : <><Brain size={14} aria-hidden="true" /> Nonno dice</>}
+                ? <><Sparkles size={14} aria-hidden="true" /> Il coach · live</>
+                : <><Brain size={14} aria-hidden="true" /> Il coach</>}
             </div>
             <h2 className="home-coach-headline">
               {liveBrief?.headline || briefHeadline || "Sediamoci, vediamo cosa hai fatto."}
@@ -261,8 +261,8 @@ export function Home({ pm }: { pm: PlayerModel }) {
           <Link to="/coach" className="home-footer-link">
             <BookOpen size={16} aria-hidden="true" />
             <div>
-              <div className="home-footer-link-title">Quaderno di Nonno</div>
-              <div className="home-footer-link-sub">Cosa pensa di te, in dettaglio</div>
+              <div className="home-footer-link-title">Il Quaderno</div>
+              <div className="home-footer-link-sub">Cosa il coach pensa di te, in dettaglio</div>
             </div>
           </Link>
           <Link to="/repertorio" className="home-footer-link">

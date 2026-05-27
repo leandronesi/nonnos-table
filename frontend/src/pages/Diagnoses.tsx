@@ -22,9 +22,9 @@ export function Diagnoses({ pm }: Props) {
   const diags = (pm.diagnoses ?? []).slice().sort((a, b) => b.priority - a.priority);
 
   return (
-    <PageShell title="Diagnosi" subtitle="Cosa Nonno vede dietro gli errori">
+    <PageShell title="Diagnosi" subtitle="Cosa il coach vede dietro gli errori">
       <section className="diagnoses-intro surface surface-padded mb-6">
-        <div className="label-eyebrow">La narrazione di Nonno</div>
+        <div className="label-eyebrow">La narrazione del coach</div>
         <h2 className="display-medium mt-2">Non solo cosa sbagli, ma <em>perché</em>.</h2>
         <p className="text-[color:var(--color-text-soft)] leading-relaxed mt-3 max-w-2xl">
           I pattern dicono "questo errore ricorre". Le diagnosi dicono <strong>perché</strong> ricorre e

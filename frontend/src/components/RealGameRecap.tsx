@@ -16,7 +16,7 @@ export function RealGameRecap({ date, onClose }: Props) {
       <div className="real-game-recap-panel fade-in">
         <div className="real-game-recap-header">
           <div className="real-game-recap-chips">
-            <span className="coach-note-chip">Nonno O.</span>
+            <span className="coach-note-chip">Coach</span>
           </div>
           <button
             type="button"
@@ -31,7 +31,7 @@ export function RealGameRecap({ date, onClose }: Props) {
         <h3 className="real-game-recap-title">Quella partita del {date}</h3>
 
         <p className="real-game-recap-body">
-          Nonno la sta ancora guardando. Tornerà nelle prossime sessioni con
+          La stiamo ancora analizzando. Torneremo nelle prossime sessioni con
           un'analisi mossa-per-mossa.
         </p>
 

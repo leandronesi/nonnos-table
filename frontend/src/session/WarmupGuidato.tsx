@@ -356,7 +356,7 @@ export function PositionPuzzle({
                 </span>
               ) : (
                 <>
-                  <b>Nonno O.</b> — {intro}
+                  <b>Coach</b> — {intro}
                 </>
               )}
             </div>

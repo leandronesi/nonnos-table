@@ -52,14 +52,14 @@ export function Coach({ pm }: Props) {
   const targetLabel = `${pm.identity.goal.target} ${(pm.identity.goal.time_class ?? "rapid").toLowerCase()}`;
 
   return (
-    <PageShell title="Quaderno" subtitle="Quello che Nonno tiene per te, da quando vi siete conosciuti">
+    <PageShell title="Quaderno" subtitle="Quello che il coach tiene per te, da quando vi siete conosciuti">
       <section className="coach-hero">
         <div className="coach-hero-id">
           <div className="coach-hero-avatar" aria-hidden="true">
             <Brain size={28} />
           </div>
           <div className="coach-hero-name">
-            <div className="label-eyebrow">Nonno O.</div>
+            <div className="label-eyebrow">Il coach</div>
             <p className="coach-hero-opening">{opening}</p>
           </div>
         </div>
@@ -195,7 +195,7 @@ export function Coach({ pm }: Props) {
             <AlertCircle size={18} aria-hidden="true" />
             <div>
               <div className="coach-esplora-title">Diagnosi</div>
-              <div className="coach-esplora-sub">Le narrazioni cross-pattern di Nonno</div>
+              <div className="coach-esplora-sub">Le narrazioni cross-pattern del coach</div>
             </div>
           </Link>
         </div>

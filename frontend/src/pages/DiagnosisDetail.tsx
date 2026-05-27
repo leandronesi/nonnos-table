@@ -58,7 +58,7 @@ export function DiagnosisDetail({ pm }: Props) {
       <section className="diagnosis-detail-prescription">
         <div className="diagnosis-detail-prescription-head">
           <Compass size={18} aria-hidden="true" />
-          <h2 className="display-small">Come Nonno la allena</h2>
+          <h2 className="display-small">Come si allena</h2>
         </div>
         <p className="diagnosis-detail-prescription-body">{diagnosis.trainable}</p>
         {diagnosis.lichess_theme && (
