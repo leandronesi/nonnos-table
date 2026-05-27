@@ -66,8 +66,6 @@ export function Home({ pm }: { pm: PlayerModel }) {
           <Link to="/coach" className="home-topbar-coach">
             <Brain size={16} aria-hidden="true" /> Coach
           </Link>
-          <span className="home-topbar-divider">·</span>
-          <span className="home-topbar-product">Mygotham</span>
         </div>
         <nav className="home-topbar-nav" aria-label="Navigazione principale">
           {streak.current > 0 && (
