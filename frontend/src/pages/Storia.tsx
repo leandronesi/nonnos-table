@@ -1,4 +1,4 @@
-import type { PlayerModel } from "../types";
+﻿import type { PlayerModel } from "../types";
 import { PageShell } from "./PageShell";
 import { Section } from "../components/Section";
 import { PlayerCard } from "../components/PlayerCard";
@@ -8,12 +8,12 @@ import { CoachNarrative } from "../components/CoachNarrative";
 
 /**
  * /storia - la progressione. Curva Elo, weekly trend dettagliato, coach diary.
- * E` la "biografia" del giocatore: cosa e` successo, cosa sta succedendo,
+ * È la "biografia" del giocatore: cosa è successo, cosa sta succedendo,
  * cosa il coach pensa del percorso.
  */
 export function Storia({ pm }: { pm: PlayerModel }) {
   return (
-    <PageShell title="Profilo" subtitle="chi sei, trend, coach diary">
+    <PageShell title="Profilo" subtitle="Elo, curve e diario di training">
       {/* PLAYER CARD */}
       <Section index="01" eyebrow="Identita`" title="Chi sei adesso">
         <PlayerCard identity={pm.identity} kpi={pm.kpi} />
@@ -24,8 +24,8 @@ export function Storia({ pm }: { pm: PlayerModel }) {
         <Section
           index="02"
           eyebrow="Trend settimanale"
-          title="Ultimi 7gg vs precedenti"
-          sub="Vincere piu`? Sbagliare meno? Confronto rolling con la settimana di prima."
+          title="Come hai giocato questa settimana"
+          sub="Risultati e precisione decidono le prossime posizioni da allenare."
         >
           <WeeklyTrendCard trend={pm.trend_weekly} />
         </Section>
@@ -35,8 +35,8 @@ export function Storia({ pm }: { pm: PlayerModel }) {
       <Section
         index="03"
         eyebrow="Curva Elo"
-        title="Rating ufficiale vs prestazioni reali"
-        sub="Rolling 5 (volatile, ultimo momento) + rolling 20 (trend stabile) vs ufficiale (laggy). Se rolling 20 sta sopra ufficiale, il tuo rating sta inseguendo le tue prestazioni."
+        title="La strada verso GranPa"
+        sub="Rating ufficiale e prestazione recente. Qui si vede se il gioco sta arrivando prima dell'Elo."
       >
         <RatingCurveChart ratingCurve={pm.rating_curve} goal={pm.identity.goal} />
       </Section>
@@ -45,9 +45,9 @@ export function Storia({ pm }: { pm: PlayerModel }) {
       {pm.coach_artifacts && (
         <Section
           index="04"
-          eyebrow="Coach diary"
-          title="Quello che il coach pensa del tuo percorso"
-          sub="3 voci: la storia (cosa stai facendo), il progress (cosa sta cambiando), la roadmap (dove andare)."
+          eyebrow="Diario di training"
+          title="Quello che il tuo storico sta dicendo"
+          sub="Profilo, progressi e prossima linea di lavoro, scritti come una memoria del coach."
         >
           <CoachNarrative {...pm.coach_artifacts} />
         </Section>

@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mygotham — OOUX Object Map</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: #0f0f0f;
+    color: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.55;
+    padding: 32px 16px 80px;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; }
+  header.top { text-align: center; margin-bottom: 48px; padding: 24px 0; }
+  header.top h1 {
+    font-size: 2.6rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #A855F7 0%, #3B82F6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  header.top .sub { color: #888; font-size: 1.05rem; margin-top: 12px; }
+  .north-star {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
+    margin-top: 18px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(246,198,74,0.14), rgba(168,85,247,0.14));
+    border: 1px solid rgba(246,198,74,0.35);
+    font-size: 0.92rem;
+    color: #fff;
+    max-width: 760px;
+    text-align: left;
+  }
+  .north-star strong { color: #f6c64a; }
+  .north-star em { color: #A855F7; font-style: normal; font-weight: 600; }
+  .north-star-icon { font-size: 1.2rem; color: #f6c64a; }
+
+  /* TOC */
+  .toc {
+    background: #161616;
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 32px;
+  }
+  .toc h4 { color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 12px; }
+  .toc ol { padding-left: 20px; }
+  .toc li { padding: 4px 0; }
+  .toc a { color: #ddd; text-decoration: none; font-weight: 500; }
+  .toc a:hover { color: #A855F7; }
+
+  section {
+    background: #161616;
+    padding: 40px 36px;
+    border-radius: 16px;
+    margin-bottom: 28px;
+    border: 1px solid #1f1f1f;
+  }
+  h2 {
+    font-size: 1.7rem;
+    margin-bottom: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  h2 .num {
+    background: linear-gradient(135deg, #A855F7, #3B82F6);
+    color: #fff;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    font-weight: 800;
+  }
+  .intro { color: #aaa; margin-bottom: 28px; max-width: 880px; font-size: 0.98rem; }
+  .intro strong { color: #fff; }
+
+  /* ORCA */
+  .orca {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+  }
+  .orca-step {
+    background: #1c1c1c;
+    border-left: 4px solid #A855F7;
+    padding: 18px 20px;
+    border-radius: 8px;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .orca-step:hover { transform: translateY(-2px); }
+  .orca-step:nth-child(1) { border-color: #3B82F6; }
+  .orca-step:nth-child(2) { border-color: #10B981; }
+  .orca-step:nth-child(3) { border-color: #F59E0B; }
+  .orca-step:nth-child(4) { border-color: #EF4444; }
+  .orca-step:nth-child(5) { border-color: #6366F1; }
+  .orca-step:nth-child(6) { border-color: #A855F7; }
+  .orca-step .stepnum {
+    color: #888;
+    font-weight: 700;
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+  }
+  .orca-step .name {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin: 6px 0 8px;
+    color: #fff;
+  }
+  .orca-step .what { color: #ddd; font-size: 0.9rem; margin-bottom: 6px; }
+  .orca-step .why { color: #888; font-size: 0.85rem; font-style: italic; }
+
+  /* Diagram */
+  .diagram-wrap {
+    background: #0d0d0d;
+    border-radius: 12px;
+    padding: 24px;
+    border: 1px solid #1a1a1a;
+  }
+  .diagram {
+    position: relative;
+    width: 100%;
+    height: 720px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .diagram svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+  .obj-node {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    background: #1a1a1a;
+    border: 2px solid;
+    border-radius: 14px;
+    padding: 14px 16px;
+    min-width: 140px;
+    max-width: 170px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.22s ease;
+    z-index: 2;
+    user-select: none;
+  }
+  .obj-node:hover {
+    transform: translate(-50%, -50%) scale(1.07);
+    z-index: 5;
+  }
+  .obj-node.north-star-node {
+    background: linear-gradient(135deg, #3d2e1a, #2a2010);
+    box-shadow: 0 0 80px rgba(246, 198, 74, 0.45), 0 0 0 1px rgba(246, 198, 74, 0.4);
+    transform: translate(-50%, -50%) scale(1.18);
+    z-index: 4;
+  }
+  .obj-node.north-star-node:hover {
+    transform: translate(-50%, -50%) scale(1.25);
+  }
+  .obj-node.north-star-node .icon {
+    font-size: 2.2rem;
+    color: #f6c64a;
+  }
+  .obj-node.north-star-node .name {
+    font-size: 1.05rem;
+    color: #f6c64a;
+  }
+  .obj-node.selected {
+    transform: translate(-50%, -50%) scale(1.1);
+    box-shadow: 0 0 36px currentColor;
+    z-index: 6;
+  }
+  .obj-node.dimmed { opacity: 0.25; }
+  .obj-node .icon { font-size: 1.7rem; line-height: 1; }
+  .obj-node .name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin-top: 6px;
+    color: #fff;
+  }
+  .obj-node .tag {
+    font-size: 0.7rem;
+    color: #999;
+    margin-top: 3px;
+    font-weight: 500;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    justify-content: center;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #1f1f1f;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: #bbb;
+  }
+  .legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid;
+  }
+
+  /* Detail panel */
+  .detail {
+    background: #161616;
+    border-radius: 16px;
+    padding: 32px 36px;
+    margin-bottom: 28px;
+    border: 1px solid #2a2a2a;
+    min-height: 200px;
+  }
+  .detail.empty {
+    text-align: center;
+    color: #666;
+    font-style: italic;
+    padding: 60px 36px;
+  }
+  .detail-head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #2a2a2a;
+  }
+  .detail-head .icon-big {
+    font-size: 3rem;
+    padding: 10px 16px;
+    border-radius: 12px;
+    border: 2px solid;
+  }
+  .detail-head h3 {
+    font-size: 1.8rem;
+    font-weight: 800;
+  }
+  .detail-head .role {
+    color: #888;
+    font-size: 0.9rem;
+    margin-top: 4px;
+  }
+  .detail-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 24px;
+  }
+  .detail-section {
+    background: #1c1c1c;
+    padding: 18px 20px;
+    border-radius: 10px;
+    border: 1px solid #232323;
+  }
+  .detail-section .label {
+    color: currentColor;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .detail-section ul { list-style: none; }
+  .detail-section li {
+    padding: 6px 0;
+    color: #ddd;
+    font-size: 0.92rem;
+    border-bottom: 1px solid #1f1f1f;
+  }
+  .detail-section li:last-child { border-bottom: none; }
+  .detail-section .chip {
+    display: inline-block;
+    background: #2a2a2a;
+    color: #ddd;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    margin: 3px 4px 3px 0;
+  }
+  .motivation {
+    background: rgba(168, 85, 247, 0.07);
+    border-left: 3px solid #A855F7;
+    padding: 16px 20px;
+    border-radius: 6px;
+    color: #d0d0d0;
+    font-style: italic;
+    margin-top: 24px;
+    font-size: 0.95rem;
+  }
+  .motivation strong {
+    font-style: normal;
+    color: #A855F7;
+    display: block;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  /* Relationships table */
+  .rel-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+    font-size: 0.9rem;
+  }
+  .rel-table th, .rel-table td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid #232323;
+  }
+  .rel-table th {
+    color: #888;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 700;
+  }
+  .rel-table td { color: #ddd; }
+  .rel-table .card {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    color: #A855F7;
+    font-weight: 600;
+  }
+
+  /* Screens grid */
+  .screens-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px;
+  }
+  .screen-card {
+    background: #1c1c1c;
+    padding: 16px 18px;
+    border-radius: 8px;
+    border-left: 3px solid #10B981;
+  }
+  .screen-card .num { color: #10B981; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.1em; }
+  .screen-card .title { font-weight: 700; margin: 4px 0; font-size: 0.98rem; }
+  .screen-card .desc { color: #999; font-size: 0.83rem; }
+
+  /* Diff */
+  .diff-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .diff-col {
+    padding: 22px 24px;
+    border-radius: 10px;
+  }
+  .diff-old {
+    background: rgba(244, 63, 94, 0.08);
+    border: 1px solid rgba(244, 63, 94, 0.3);
+  }
+  .diff-new {
+    background: rgba(52, 211, 153, 0.08);
+    border: 1px solid rgba(52, 211, 153, 0.3);
+  }
+  .diff-col h3 {
+    font-size: 1.05rem;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .diff-old h3 { color: #f43f5e; }
+  .diff-new h3 { color: #34d399; }
+  .diff-col ul { padding-left: 20px; }
+  .diff-col li { margin-bottom: 8px; color: #ccc; font-size: 0.9rem; line-height: 1.5; }
+
+  @media (max-width: 880px) {
+    .diagram { height: 1300px; }
+    .diff-grid { grid-template-columns: 1fr; }
+    .detail-body { grid-template-columns: 1fr; }
+    header.top h1 { font-size: 1.8rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <h1>Mygotham — OOUX Object Map</h1>
+    <p class="sub">Road to GranPa · metodo ORCA di Sophia Prater applicato a tutto il prodotto</p>
+    <div class="north-star">
+      <span class="north-star-icon" aria-hidden="true">★</span>
+      <span><strong>North star</strong>: l'<em>Obiettivo</em> è il centro di gravità. Tutto orbita su "ti porto da dove sei a 1600 rapid".</span>
+    </div>
+  </header>
+
+  <nav class="toc">
+    <h4>Indice</h4>
+    <ol>
+      <li><a href="#framework">Framework — cos'è OOUX</a></li>
+      <li><a href="#map">Object map — 8 oggetti</a></li>
+      <li><a href="#relationships">Relazioni & cardinalità</a></li>
+      <li><a href="#screens">Schermi derivati</a></li>
+      <li><a href="#diff">Differenze vs app attuale</a></li>
+    </ol>
+  </nav>
+
+  <!-- ============ 1. FRAMEWORK ============ -->
+  <section id="framework">
+    <h2><span class="num">1</span>Framework — cos'è OOUX</h2>
+    <p class="intro">
+      <strong>Object-Oriented UX</strong> rovescia l'approccio classico al design. Invece di partire dagli schermi ("home", "dashboard", "settings") e pippolare UI, parti dai <strong>sostantivi del dominio</strong>. Capisci gli oggetti, le loro proprietà, come si collegano — e gli schermi emergono da soli come <strong>viste di istanze</strong>.
+    </p>
+    <p class="intro">
+      La metodologia si chiama <strong>ORCA</strong> (Objects, Relationships, CTAs, Attributes) e si articola in 6 step da fare in ordine. Solo alla fine si pensa agli schermi.
+    </p>
+    <div class="orca">
+      <div class="orca-step">
+        <div class="stepnum">STEP 1</div>
+        <div class="name">🔍 Object Discovery</div>
+        <div class="what">Quali sostantivi esistono nel dominio?</div>
+        <div class="why">Filtro: ognuno linkabile singolarmente, con attributi propri.</div>
+      </div>
+      <div class="orca-step">
+        <div class="stepnum">STEP 2</div>
+        <div class="name">📇 Core Content</div>
+        <div class="what">I 3-5 attributi che l'utente DEVE vedere sempre.</div>
+        <div class="why">Carta d'identità minima dell'istanza — il DNA visibile.</div>
+      </div>
+      <div class="orca-step">
+        <div class="stepnum">STEP 3</div>
+        <div class="name">🪆 Nested Objects</div>
+        <div class="what">Quali oggetti vivono dentro il core di altri?</div>
+        <div class="why">Determina cosa è cliccabile e quanto è centrale ogni oggetto.</div>
+      </div>
+      <div class="orca-step">
+        <div class="stepnum">STEP 4</div>
+        <div class="name">🔗 Relationships</div>
+        <div class="what">Cardinality fra oggetti (1:1, 1:N, N:N).</div>
+        <div class="why">Definisce URL, navigazione, e modello dati.</div>
+      </div>
+      <div class="orca-step">
+        <div class="stepnum">STEP 5</div>
+        <div class="name">⚡ CTA</div>
+        <div class="what">I verbi disponibili su ogni istanza.</div>
+        <div class="why">Sempre azioni, mai pagine. Cosa puoi FARE.</div>
+      </div>
+      <div class="orca-step">
+        <div class="stepnum">STEP 6</div>
+        <div class="name">🚦 Stati</div>
+        <div class="what">Gli stati possibili di un'istanza.</div>
+        <div class="why">Cambiano cosa vedi e quali CTA sono disponibili.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2. OBJECT MAP ============ -->
+  <section id="map">
+    <h2><span class="num">2</span>Object Map — 9 oggetti di Mygotham</h2>
+    <p class="intro">
+      Clicca un oggetto per esplorarlo. <strong>Obiettivo</strong> è la north star al centro: il prodotto esiste per portare il Player da dove è al target dichiarato. Pattern è il moat (l'oggetto più nestato negli altri), ma Pattern stesso ha senso solo <em>rispetto all'Obiettivo</em> — un errore "facile per il tuo livello" pesa diversamente da uno "difficile anche per il target".
+    </p>
+
+    <div class="diagram-wrap">
+      <div class="diagram" id="diagram">
+        <!-- SVG for connections -->
+        <svg id="connections" viewBox="0 0 1100 720" preserveAspectRatio="xMidYMid meet"></svg>
+        <!-- Nodes will be injected by JS -->
+      </div>
+
+      <div class="legend">
+        <div class="legend-item">
+          <span class="legend-dot" style="border-color: #f6c64a;"></span>
+          North star (Obiettivo)
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="border-color: #A855F7;"></span>
+          Moat (Pattern — i tuoi freni)
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="border-color: #3B82F6;"></span>
+          Identità (Player, Coach)
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="border-color: #10B981;"></span>
+          Operativi (Game, Position, Session)
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="border-color: #EF4444;"></span>
+          Narrativo (Diagnosis)
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="border-color: #6366F1;"></span>
+          Aggregato (Repertoire)
+        </div>
+      </div>
+    </div>
+
+    <!-- Detail panel -->
+    <div class="detail empty" id="detail">
+      <p>👆 Clicca un oggetto per vedere core content, CTA, stati e motivazioni.</p>
+    </div>
+  </section>
+
+  <!-- ============ 3. RELATIONSHIPS ============ -->
+  <section id="relationships">
+    <h2><span class="num">3</span>Relazioni & cardinalità</h2>
+    <p class="intro">
+      Le linee del diagramma sopra. Cardinality definisce struttura URL e modello dati: <code style="color:#A855F7">1:N</code> = "uno a molti", <code style="color:#A855F7">N:N</code> = "molti a molti".
+    </p>
+    <table class="rel-table">
+      <thead>
+        <tr><th>Da</th><th>A</th><th class="card">Cardinality</th><th>Verbo</th></tr>
+      </thead>
+      <tbody id="rel-body"></tbody>
+    </table>
+  </section>
+
+  <!-- ============ 4. SCREENS ============ -->
+  <section id="screens">
+    <h2><span class="num">4</span>Schermi derivati</h2>
+    <p class="intro">
+      Una volta che gli oggetti sono mappati, gli schermi emergono come <strong>viste di istanze</strong>. Ogni schermo è una di queste tre cose: una <strong>collezione</strong> di un oggetto (lista), un <strong>detail</strong> di una singola istanza, o una <strong>vista cross-oggetto</strong> che combina più tipi.
+    </p>
+    <div class="screens-grid">
+      <div class="screen-card">
+        <div class="num">CROSS</div>
+        <div class="title">Home / Cruscotto</div>
+        <div class="desc">Player + Sessione di oggi + brief Coach</div>
+      </div>
+      <div class="screen-card">
+        <div class="num">COLLEZIONE</div>
+        <div class="title">Patterns</div>
+        <div class="desc">Lista pattern attivi del Player, ordinati per peso</div>
+      </div>
+      <div class="screen-card">
+        <div class="num">DETAIL</div>
+        <div class="title">Pattern singolo</div>
+        <div class="desc">Storia, occorrenze cross-game, drill</div>
+      </div>
+      <div class="screen-card">
+        <div class="num">COLLEZIONE</div>
+        <div class="title">Games</div>
+        <div class="desc">Lista partite analizzate, filtrabili per esito/apertura</div>
+      </div>
+      <div class="screen-card">
+        <div class="num">DETAIL</div>
+        <div class="title">Game singolo</div>
+        <div class="desc">Replay, posizioni chiave, pattern emersi, PGN</div>
+      </div>
+      <div class="screen-card">
+        <div class="num">CROSS</div>
+        <div class="title">Sessione corrente</div>
+        <div class="desc">Session in_progress con fasi attive (tema/warm/drill/play)</div>
+      </div>
+      <div class="screen-card">
+        <div class="num">DETAIL</div>
+        <div class="title">Sessione recap</div>
+        <div class="desc">Session done con risultati e streak</div>
+      </div>
+      <div class="screen-card">
+        <div class="num">DETAIL</div>
+        <div class="title">Quaderno (Coach)</div>
+        <div class="desc">Vista del Coach: journal + brief + story</div>
+      </div>
+      <div class="screen-card">
+        <div class="num">DETAIL</div>
+        <div class="title">Diagnosis singola</div>
+        <div class="desc">Narrazione + evidenze + prescrizione</div>
+      </div>
+      <div class="screen-card">
+        <div class="num">COLLEZIONE</div>
+        <div class="title">Repertorio</div>
+        <div class="desc">Aperture ricorrenti con win-rate e pattern</div>
+      </div>
+      <div class="screen-card">
+        <div class="num">DETAIL</div>
+        <div class="title">Repertorio singolo</div>
+        <div class="desc">Apertura specifica: partite + pattern dominanti</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 5. DIFF ============ -->
+  <section id="diff">
+    <h2><span class="num">5</span>Differenze vs app attuale</h2>
+    <p class="intro">
+      Oggi Mygotham mescola oggetti dentro gli schermi (es. il Quaderno ha 5 tab di oggetti diversi: Pattern, Game, Diagnosis, Repertoire, progressione Player). Con OOUX ogni oggetto ha vita propria e gli schermi sono viste pulite.
+    </p>
+    <div class="diff-grid">
+      <div class="diff-col diff-old">
+        <h3>🚫 App attuale (object-confused)</h3>
+        <ul>
+          <li>Quaderno fa 5 cose diverse (Pattern + Game + Diagnosis + Repertoire + Progression)</li>
+          <li>Position vive solo dentro Session, non ha schermo proprio</li>
+          <li>Diagnosis ridotta a card decorative in Home</li>
+          <li>Coach (Nonno) è frasi sparse, non oggetto navigabile</li>
+          <li>Home mescola Player progression + Sessione + frasi varie senza gerarchia</li>
+          <li>Pattern è dato calcolato, non oggetto cliccabile con storia</li>
+        </ul>
+      </div>
+      <div class="diff-col diff-new">
+        <h3>✅ Con OOUX (object-clean)</h3>
+        <ul>
+          <li>Quaderno = vista pulita del Coach (journal + brief + voice), con link agli altri oggetti</li>
+          <li>Position ha pagina detail + collezione "posizioni simili"</li>
+          <li>Diagnosis ha pagina detail con evidenze esplorabili</li>
+          <li>Coach è oggetto con voce/journal/brief, ha schermo proprio (Quaderno)</li>
+          <li>Home = card Player + Sessione di oggi + 1 nudge del Coach. Stop.</li>
+          <li>Pattern è oggetto pieno con storia, drill on-demand, evoluzione visibile</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+// ============================================================================
+// Object definitions (8 oggetti)
+// ============================================================================
+const OBJECTS = {
+  obiettivo: {
+    name: "Obiettivo",
+    icon: "★",
+    role: "North star — il centro di gravità del prodotto",
+    color: "#f6c64a",
+    bg: "#3d2e1a",
+    pos: { x: 550, y: 360 },
+    core: [
+      "Target rating (es. 1600)",
+      "Time class (es. rapid)",
+      "Deadline dichiarata",
+      "Punti da fare (target − current)",
+      "Proiezione + verdetto (on_track / in_ritardo / stagnante / regressione)"
+    ],
+    nested: ["Player (chi sta andando)", "Pattern (i tuoi freni verso l'Obiettivo)"],
+    cta: ["Vedi proiezione", "Aggiorna target", "Aggiorna deadline"],
+    states: ["on_track", "in_ritardo", "stagnante", "regressione", "raggiunto"],
+    motivation: "Senza Obiettivo esplicito l'app diventa diagnostica (\"ti dico cosa sbagli\"). Con Obiettivo diventa percorso (\"ti porto da dove sei a dove vuoi\"). Ogni metrica, ogni drill, ogni frase Nonno si formatta in funzione del target dichiarato. È il north star, non un attributo di Player."
+  },
+  pattern: {
+    name: "Pattern",
+    icon: "🎯",
+    role: "Freno — errore ricorrente relativo al tuo target",
+    color: "#A855F7",
+    bg: "#2e1a3d",
+    pos: { x: 230, y: 100 },
+    core: [
+      "Nome (es. \"Pezzo in presa\")",
+      "Impact score (= drill_value × frequency × cp_loss) — quanto ti tira giù",
+      "Frequenza % nelle partite del periodo",
+      "Drill value medio (= p_target − p_mine, l'evitabilità AL TUO LIVELLO)",
+      "Trend (↘ migliorando / → stabile / ↗ peggiorando)",
+      "Stato SRS (fresh/decaying/mastered/new)"
+    ],
+    nested: ["Obiettivo (verso quale target è un freno)", "Game (ultima volta)"],
+    cta: ["Allenalo ora", "Vedi tutte le occorrenze", "Aggiungi alla coda"],
+    states: ["fresh", "decaying", "mastered", "new"],
+    motivation: "Pattern è il MOAT topologico ma vive nell'orbita dell'Obiettivo: \"freno per arrivare a 1600 rapid\". Il count assoluto sarebbe ingannevole — quello che conta è l'impact_score (combina frequenza, evitabilità al tuo livello, gravità) e il drill_value (quanto puoi crescere lavorandolo). Sortato per impact, non per share grezza."
+  },
+  player: {
+    name: "Player",
+    icon: "👤",
+    role: "Identità — chi sta andando verso l'Obiettivo",
+    color: "#3B82F6",
+    bg: "#1e3a5f",
+    pos: { x: 550, y: 80 },
+    core: [
+      "Username",
+      "Rating attuale",
+      "Goal (target rating)",
+      "Progressione 10/30/90gg"
+    ],
+    nested: ["Coach", "Pattern (top)"],
+    cta: ["Aggiorna partite", "Imposta target"],
+    states: ["active (oggi sessione fatta)", "idle (giorni senza)"],
+    motivation: "Chi sei + dove sei + dove vai + se stai crescendo. Streak è di Session non di Player. \"Top pattern attivo\" è una vista del Quaderno, non DNA del Player. Singleton (un Player per app)."
+  },
+  game: {
+    name: "Game",
+    icon: "♟️",
+    role: "Operativo — partita giocata",
+    color: "#10B981",
+    bg: "#1a3d2e",
+    pos: { x: 870, y: 620 },
+    core: [
+      "Data",
+      "Avversario (nome + rating)",
+      "Mio colore",
+      "Esito (W / D / L)",
+      "Apertura (ECO + nome)",
+      "Pattern principali emersi (top 1-2 chip)"
+    ],
+    nested: ["Pattern (chip, top 1-2)"],
+    cta: ["Rivedi partita (replay)", "Apri momenti chiave", "Vedi pattern emersi"],
+    states: ["analyzed (analisi Stockfish completata)", "pending (in coda)"],
+    motivation: "Contenitore originale di Position. Mostra solo i Pattern top come chip perché il dettaglio sta nelle Position. Stato 'pending' permette UI di sync da Chess.com con progress."
+  },
+  position: {
+    name: "Position",
+    icon: "🔍",
+    role: "Operativo — istante con evitabilità RISPETTO al tuo livello",
+    color: "#10B981",
+    bg: "#1a3d2e",
+    pos: { x: 550, y: 660 },
+    core: [
+      "Diagramma + side-to-move",
+      "Contesto partita (data, avversario, apertura)",
+      "Mossa giocata vs mossa giusta",
+      "Costo dell'errore (cp_loss in pedoni)",
+      "Pattern collegato (chip)"
+    ],
+    nested: ["Pattern (chip)", "Game (contesto)"],
+    cta: ["Provala (drill)", "Vedi soluzione", "Vedi simili", "Apri partita da qui"],
+    states: ["untouched (mai drillata)", "attempted (provata)", "mastered (sempre OK)"],
+    motivation: "Il valore di una Position è la diff \"mio vs giusto\". Senza è solo un quadro decorativo. Position vive ANCHE fuori da Game (in Session, in liste \"posizioni simili\"), perciò è oggetto separato."
+  },
+  session: {
+    name: "Session",
+    icon: "⏱️",
+    role: "Operativo — passo verso l'Obiettivo",
+    color: "#10B981",
+    bg: "#1a3d2e",
+    pos: { x: 230, y: 620 },
+    core: [
+      "Data",
+      "Pattern focus del giorno",
+      "Punti accumulati",
+      "Avanzamento (es. \"Drill 2/3\")",
+      "Streak corrente"
+    ],
+    nested: ["Pattern (focus)"],
+    cta: ["Inizia", "Riprendi", "Rifai", "Termina"],
+    states: ["not_started", "in_progress", "done", "done_replay"],
+    motivation: "Una Session al giorno — è obiettivo, non scelta. Streak appartiene a Session (non a Player) perché misura la disciplina di sessione, non l'identità."
+  },
+  coach: {
+    name: "Coach",
+    icon: "👴",
+    role: "Identità — Nonno O., allenatore PER il tuo Obiettivo",
+    color: "#3B82F6",
+    bg: "#1e3a5f",
+    pos: { x: 870, y: 100 },
+    core: [
+      "Identità (\"Nonno O.\")",
+      "Voce / persona",
+      "Brief corrente (cosa sta osservando)",
+      "Ultima nota (journal entry)"
+    ],
+    nested: ["(nessuno — Coach parla DI altri oggetti)"],
+    cta: ["Leggi quaderno", "Chiedi a Nonno"],
+    states: ["singleton — nessuno stato"],
+    motivation: "Coach è oggetto e non frase decorativa perché ha vita propria: voce (frasi specifiche scacchistiche), journal (memoria persistente), brief (cosa osserva ora). Il Quaderno è SUO, non del Player."
+  },
+  diagnosis: {
+    name: "Diagnosis",
+    icon: "📋",
+    role: "Narrativo — sintesi cross-pattern",
+    color: "#EF4444",
+    bg: "#3d1a1a",
+    pos: { x: 100, y: 360 },
+    core: [
+      "Titolo narrativo",
+      "Spiegazione (perché succede)",
+      "Pattern correlati (chip)",
+      "Position d'esempio",
+      "Prescrizione (cosa fare)"
+    ],
+    nested: ["Pattern (correlati)", "Position (esempio)"],
+    cta: ["Vedi evidenze", "Drilla pattern correlati"],
+    states: ["active (pattern correlati ancora caldi)", "resolved (tutti mastered)"],
+    motivation: "Diagnosis opera a un livello più alto del Pattern. Pattern = \"pezzo in presa\". Diagnosis = \"non vedi pezzi non protetti quando giochi posizioni aperte\". È narrazione che lega più Pattern in una storia con prescrizione."
+  },
+  repertoire: {
+    name: "Repertoire",
+    icon: "📖",
+    role: "Aggregato — lente per apertura",
+    color: "#6366F1",
+    bg: "#1a1a2e",
+    pos: { x: 1000, y: 360 },
+    core: [
+      "Apertura (nome + ECO)",
+      "Frequenza % delle tue partite",
+      "Win-rate",
+      "Colore principale (chi gioca)",
+      "Pattern dominanti (chip)"
+    ],
+    nested: ["Pattern (dominanti)"],
+    cta: ["Vedi partite in questa apertura", "Vedi pattern dominanti", "Apri libro (PGN tree)"],
+    states: ["frequent (gioca spesso)", "occasional", "rare"],
+    motivation: "Repertorio è vista aggregata di Game per apertura. È oggetto perché linkabile singolarmente (\"vedi Sicilian Closed\") e ha attributi propri (win-rate per apertura, pattern dominanti)."
+  }
+};
+
+// ============================================================================
+// Relationships
+// ============================================================================
+const RELATIONSHIPS = [
+  // Obiettivo è la north star — connesso a tutto
+  { from: "player",     to: "obiettivo", cardinality: "1 : 1", verb: "dichiara" },
+  { from: "obiettivo",  to: "pattern",   cardinality: "1 : N", verb: "è ostacolato da (freni)" },
+  { from: "obiettivo",  to: "session",   cardinality: "1 : N", verb: "è perseguito da" },
+  { from: "obiettivo",  to: "coach",     cardinality: "1 : 1", verb: "è gestito da" },
+  { from: "obiettivo",  to: "diagnosis", cardinality: "1 : N", verb: "informa" },
+  { from: "player", to: "game",       cardinality: "1 : N", verb: "gioca" },
+  { from: "player", to: "session",    cardinality: "1 : N", verb: "fa" },
+  { from: "player", to: "coach",      cardinality: "1 : 1", verb: "ha" },
+  { from: "player", to: "pattern",    cardinality: "1 : N", verb: "esibisce (con peso/decay)" },
+  { from: "player", to: "diagnosis",  cardinality: "1 : N", verb: "riceve" },
+  { from: "game",   to: "position",   cardinality: "1 : N", verb: "contiene" },
+  { from: "game",   to: "pattern",    cardinality: "N : N", verb: "esprime" },
+  { from: "game",   to: "repertoire", cardinality: "N : 1", verb: "appartiene a" },
+  { from: "position", to: "pattern",  cardinality: "N : 0..1", verb: "è tag-ata" },
+  { from: "position", to: "session",  cardinality: "N : N", verb: "ricorre in" },
+  { from: "session",  to: "pattern",  cardinality: "N : 1", verb: "ha focus su" },
+  { from: "pattern",  to: "diagnosis",cardinality: "N : N", verb: "alimenta" },
+  { from: "pattern",  to: "repertoire",cardinality:"N : N", verb: "emerge in" }
+];
+
+// ============================================================================
+// Render diagram
+// ============================================================================
+function render() {
+  const diagram = document.getElementById("diagram");
+  const svg = document.getElementById("connections");
+
+  // Draw connections first
+  RELATIONSHIPS.forEach(rel => {
+    const from = OBJECTS[rel.from];
+    const to = OBJECTS[rel.to];
+    if (!from || !to) return;
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", from.pos.x);
+    line.setAttribute("y1", from.pos.y);
+    line.setAttribute("x2", to.pos.x);
+    line.setAttribute("y2", to.pos.y);
+    line.setAttribute("stroke", "#333");
+    line.setAttribute("stroke-width", "1.2");
+    line.setAttribute("data-from", rel.from);
+    line.setAttribute("data-to", rel.to);
+    line.classList.add("rel-line");
+    svg.appendChild(line);
+  });
+
+  // Draw nodes
+  Object.entries(OBJECTS).forEach(([key, obj]) => {
+    const node = document.createElement("div");
+    node.className = "obj-node";
+    if (key === "obiettivo") node.classList.add("north-star-node");
+    node.style.left = `${(obj.pos.x / 1100) * 100}%`;
+    node.style.top = `${(obj.pos.y / 720) * 100}%`;
+    node.style.borderColor = obj.color;
+    node.style.color = obj.color;
+    node.dataset.key = key;
+    node.innerHTML = `
+      <div class="icon">${obj.icon}</div>
+      <div class="name">${obj.name}</div>
+      <div class="tag">${obj.role.split(' — ')[0]}</div>
+    `;
+    node.addEventListener("click", () => selectObject(key));
+    diagram.appendChild(node);
+  });
+}
+
+// ============================================================================
+// Detail panel
+// ============================================================================
+function selectObject(key) {
+  const obj = OBJECTS[key];
+  if (!obj) return;
+
+  // Highlight node + dim others
+  document.querySelectorAll(".obj-node").forEach(n => {
+    n.classList.remove("selected", "dimmed");
+    if (n.dataset.key === key) n.classList.add("selected");
+    else if (!isConnected(key, n.dataset.key)) n.classList.add("dimmed");
+  });
+
+  // Highlight relevant lines
+  document.querySelectorAll(".rel-line").forEach(line => {
+    const f = line.dataset.from;
+    const t = line.dataset.to;
+    if (f === key || t === key) {
+      line.setAttribute("stroke", obj.color);
+      line.setAttribute("stroke-width", "2");
+    } else {
+      line.setAttribute("stroke", "#222");
+      line.setAttribute("stroke-width", "1");
+    }
+  });
+
+  // Build detail panel
+  const detail = document.getElementById("detail");
+  detail.classList.remove("empty");
+  detail.style.borderColor = obj.color + "55";
+
+  const ctaChips = obj.cta.map(c => `<span class="chip">${c}</span>`).join("");
+  const stateChips = obj.states.map(s => `<span class="chip">${s}</span>`).join("");
+  const nestedItems = obj.nested.map(n => `<li>${n}</li>`).join("");
+  const coreItems = obj.core.map(c => `<li>${c}</li>`).join("");
+
+  detail.innerHTML = `
+    <div class="detail-head">
+      <div class="icon-big" style="border-color: ${obj.color}; color: ${obj.color};">${obj.icon}</div>
+      <div>
+        <h3 style="color: ${obj.color};">${obj.name}</h3>
+        <div class="role">${obj.role}</div>
+      </div>
+    </div>
+    <div class="detail-body">
+      <div class="detail-section" style="color: ${obj.color};">
+        <div class="label">Core content (step 2)</div>
+        <ul>${coreItems}</ul>
+      </div>
+      <div class="detail-section" style="color: ${obj.color};">
+        <div class="label">Nested objects (step 3)</div>
+        <ul>${nestedItems}</ul>
+      </div>
+      <div class="detail-section" style="color: ${obj.color};">
+        <div class="label">CTA (step 5)</div>
+        <div>${ctaChips}</div>
+      </div>
+      <div class="detail-section" style="color: ${obj.color};">
+        <div class="label">Stati (step 6)</div>
+        <div>${stateChips}</div>
+      </div>
+    </div>
+    <div class="motivation">
+      <strong>Motivazione della scelta</strong>
+      ${obj.motivation}
+    </div>
+  `;
+}
+
+function isConnected(a, b) {
+  if (a === b) return true;
+  return RELATIONSHIPS.some(r =>
+    (r.from === a && r.to === b) || (r.from === b && r.to === a)
+  );
+}
+
+// ============================================================================
+// Relationships table
+// ============================================================================
+function renderRelTable() {
+  const body = document.getElementById("rel-body");
+  RELATIONSHIPS.forEach(rel => {
+    const from = OBJECTS[rel.from];
+    const to = OBJECTS[rel.to];
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><span style="color: ${from.color}; font-weight: 600;">${from.icon} ${from.name}</span></td>
+      <td><span style="color: ${to.color}; font-weight: 600;">${to.icon} ${to.name}</span></td>
+      <td class="card">${rel.cardinality}</td>
+      <td>${rel.verb}</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+// Init
+render();
+renderRelTable();
+
+// Auto-select Obiettivo (north star) on load
+setTimeout(() => selectObject("obiettivo"), 300);
+</script>
+</body>
+</html>

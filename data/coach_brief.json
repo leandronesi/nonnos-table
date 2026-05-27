@@ -1,12 +1,14 @@
 {
-  "headline": "Oooh. Prima si guarda il pezzo, poi si muove. Sempre.",
-  "diagnosis_narrative": "La pasta c'è. La mano vede, ma corre troppo. Il pezzo lasciato torna spesso, e il pezzo appeso fa ancora male. La fretta, dopo una caduta, pesa più del resto.",
+  "headline": "Oooh. Nel mediogioco lasci ancora un pezzo in presa.",
+  "diagnosis_narrative": "Nel mediogioco, quando la posizione si apre, ti resta ancora un pezzo in presa. La mossa buona la vedi, ma la verifica finale della sicurezza salta. E la vittoria buttata, che prima succedeva spesso, adesso quasi mai: bene, questo me lo segno. Resta da chiudere meglio quando arrivi in vantaggio.",
   "this_week": [
-    "Prima di ogni mossa, guarda se resta un pezzo in presa.",
-    "Dopo ogni cambio, ferma la mano e conta i pezzi vicini.",
-    "Quando senti fretta, fai un respiro e ricontrolla."
+    "Prima di confermare, guarda il pezzo in presa che può restare.",
+    "Quando arrivi in vantaggio, consolida prima di cercare il colpo.",
+    "Rivedi le partite buone e ferma il punto in cui il pezzo si lascia."
   ],
-  "avoid": "Non muovere per primo pensiero. Prima passa sempre lo sguardo sulla scacchiera.",
-  "generated_at": "2026-05-23T20:00:59+00:00",
-  "model": "gpt-5.4-mini"
+  "avoid": "Non confermare la mossa senza vedere il pezzo in presa.",
+  "open_tavolo": "Oooh, eccolo. Oggi guardiamo tre tue partite recenti dove il pezzo in presa è rimasto nel mediogioco, proprio quando la posizione si apriva. Ci mettiamo un quarto d'ora, senza fretta. Poi ne giochiamo una insieme, e vediamo se la posizione buona la tieni fino in fondo.",
+  "generated_at": "2026-05-27T15:51:19+00:00",
+  "model": "gpt-5.4-mini",
+  "pipeline_mode": "voice"
 }

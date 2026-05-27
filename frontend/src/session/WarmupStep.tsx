@@ -1,25 +1,29 @@
 import { useEffect, useState } from "react";
 import { Chess } from "chess.js";
-import type { PositionRow } from "../types";
+import type { PositionRow, CoachSession } from "../types";
 import { BoardView } from "../components/BoardView";
+import { CoachNote } from "../components/CoachNote";
 import { useStockfish, type EvalResult } from "../engine/useStockfish";
 import { cpToHuman, cpToPawns } from "../glossary";
 import { turnFromFen } from "../chess-utils";
 import type { DrillResult, DrillVerdict } from "./store";
+import { maiaLabel, positionCoachLine, sessionFallbackLine } from "../coaching";
 
 interface Props {
-  drills: PositionRow[];                 // 5 puzzle pre-selezionati
-  results: DrillResult[];                // risultati già fatti
+  drills: PositionRow[];                 // 5 posizioni pre-selezionate
+  results: DrillResult[];                // risultati gia' fatti
+  coachSession?: CoachSession;
+  maiaLevel: number;
   onDrillDone: (r: DrillResult) => void;
   onAllDone: () => void;
 }
 
 /**
- * 5 puzzle in sequenza. Quando l'utente sbaglia o azzecca, si avanza
- * al prossimo dopo un breve "respiro" (no auto-skip immediato — gli serve
+ * 5 posizioni in sequenza. Quando l'utente sbaglia o azzecca, si avanza
+ * al prossimo dopo un breve "respiro" (no auto-skip immediato: gli serve
  * vedere la mossa giusta).
  */
-export function WarmupStep({ drills, results, onDrillDone, onAllDone }: Props) {
+export function WarmupStep({ drills, results, coachSession, maiaLevel, onDrillDone, onAllDone }: Props) {
   const sf = useStockfish();
   const [idx, setIdx] = useState(results.length);    // riprendi dove eri rimasto
   const [verdict, setVerdict] = useState<DrillVerdict | null>(null);
@@ -30,7 +34,7 @@ export function WarmupStep({ drills, results, onDrillDone, onAllDone }: Props) {
   const [showSolution, setShowSolution] = useState(false);
   const [attempts, setAttempts] = useState(0);
 
-  // quando cambio puzzle, reset
+  // quando cambio posizione, reset
   useEffect(() => {
     setVerdict(null);
     setCpLoss(null);
@@ -42,11 +46,16 @@ export function WarmupStep({ drills, results, onDrillDone, onAllDone }: Props) {
 
   if (idx >= drills.length) {
     return (
-      <div className="text-center py-20">
-        <div className="display-medium">Warm-up completato</div>
-        <button onClick={onAllDone} className="btn btn-primary btn-lg mt-6">
-          Vai ai bivi →
-        </button>
+      <div className="max-w-2xl mx-auto py-12">
+        <div className="text-center mb-6">
+          <div className="display-medium">Calcolo completato</div>
+        </div>
+        <CoachNote text={coachSession?.between_warmup_bivio || sessionFallbackLine("between_warmup_bivio", maiaLevel)} tone="warm" />
+        <div className="text-center mt-6">
+          <button onClick={onAllDone} className="btn btn-primary btn-lg">
+            Vai ai bivi -&gt;
+          </button>
+        </div>
       </div>
     );
   }
@@ -96,13 +105,6 @@ export function WarmupStep({ drills, results, onDrillDone, onAllDone }: Props) {
     else setIdx((i) => i + 1);
   }
 
-  function revealSkip() {
-    setShowSolution(true);
-    setVerdict("wrong");
-    setCpLoss(d.cp_loss);
-    setPlayedSan(d.san);
-  }
-
   const showHints = verdict !== null || showSolution;
   const playedSquares = playedSan ? sanToSquares(baseFen, playedSan) : null;
   const bestSquares = d.best_san_sf ? sanToSquares(baseFen, d.best_san_sf) : null;
@@ -150,33 +152,36 @@ export function WarmupStep({ drills, results, onDrillDone, onAllDone }: Props) {
       </div>
 
       <div className="space-y-5">
+        {idx === 0 && <CoachNote text={coachSession?.open_warmup || sessionFallbackLine("open_warmup", maiaLevel)} tone="warm" />}
+        <CoachNote text={positionCoachLine(d, maiaLevel)} />
+
         <div>
-          <div className="label-eyebrow">Puzzle {idx + 1} di {drills.length}</div>
+          <div className="label-eyebrow">Posizione {idx + 1} di {drills.length}</div>
           <h3 className="display-small mt-2">
             {orientation === "white" ? "Bianco" : "Nero"} muove
           </h3>
           <div className="text-sm text-[color:var(--color-text-soft)] mt-1">
-            {d.date} · vs <span className="font-semibold tabular-nums">{d.opp_rating ?? "?"}</span>
-            {d.opening && <> · {d.opening} <span className="font-mono text-xs opacity-70">({d.eco})</span></>}
+            {d.date}  -  vs <span className="font-semibold tabular-nums">{d.opp_rating ?? "?"}</span>
+            {d.opening && <>  -  {d.opening} <span className="font-mono text-xs opacity-70">({d.eco})</span></>}
           </div>
         </div>
 
-        {!sf.isReady && <div className="pill pill-warn">Carico Stockfish…</div>}
+        {!sf.isReady && <div className="pill pill-warn">Preparo il tavolo di analisi...</div>}
 
         {verdict === null && !evaluating && !showSolution && (
           <div className="rounded-xl p-4 border" style={{ background: "rgba(124,92,255,0.06)", borderColor: "rgba(124,92,255,0.25)" }}>
             <div className="text-sm leading-relaxed">
-              <b>Tocca a te.</b> Trascina il pezzo. La freccia gialla è l'ultima mossa dell'avversario.
+              <b>Tocca a te.</b> Trascina il pezzo. La freccia gialla e' l'ultima mossa dell'avversario.
             </div>
-            <button onClick={revealSkip} className="btn btn-ghost btn-sm mt-3">
-              Salta · mostra soluzione
-            </button>
+            <div className="text-xs text-[color:var(--color-muted)] mt-2">
+              La mossa giusta esce dopo il tuo tentativo.
+            </div>
           </div>
         )}
 
         {evaluating && (
           <div className="rounded-xl p-4 border border-[color:var(--color-line)] bg-white/[0.02]">
-            <div className="text-sm text-[color:var(--color-text-soft)]">Stockfish sta valutando…</div>
+            <div className="text-sm text-[color:var(--color-text-soft)]">Controllo varianti, catture e difensori...</div>
           </div>
         )}
 
@@ -187,6 +192,7 @@ export function WarmupStep({ drills, results, onDrillDone, onAllDone }: Props) {
             playedSan={playedSan}
             bestSan={d.best_san_sf}
             maiaSan={d.best_san_maia_target}
+            maiaLevel={maiaLevel}
             pvSan={d.pv_san_sf}
             onNext={commitAndNext}
             isLast={idx + 1 >= drills.length}
@@ -207,6 +213,7 @@ function VerdictPanel({
   playedSan,
   bestSan,
   maiaSan,
+  maiaLevel,
   pvSan,
   onNext,
   isLast,
@@ -216,19 +223,20 @@ function VerdictPanel({
   playedSan: string | null;
   bestSan: string | null;
   maiaSan: string | null;
+  maiaLevel: number;
   pvSan: string | null;
   onNext: () => void;
   isLast: boolean;
 }) {
   const tone = verdict === "perfect" ? "good" : verdict === "ok" ? "warn" : "bad";
-  const title = verdict === "perfect" ? "Bravo · mossa esatta" : verdict === "ok" ? "Giocabile · c'era di più" : "Errore · ecco la giusta";
+  const title = verdict === "perfect" ? "Bravo  -  mossa esatta" : verdict === "ok" ? "Giocabile  -  c'era di piu'" : "Errore  -  ecco la giusta";
   const color = verdict === "perfect" ? "#34d399" : verdict === "ok" ? "#facc15" : "#f43f5e";
 
   return (
     <div className="rounded-xl p-5 border" style={{ borderColor: `${color}55`, background: `${color}0d` }}>
       <div className="flex items-baseline justify-between gap-3 mb-3">
         <div className="display-small" style={{ color }}>{title}</div>
-        <span className={`pill pill-${tone}`}>{cpToPawns(-cpLoss)} · {cpToHuman(cpLoss)}</span>
+        <span className={`pill pill-${tone}`}>{cpToPawns(-cpLoss)}  -  {cpToHuman(cpLoss)}</span>
       </div>
 
       <div className="space-y-2 text-sm">
@@ -246,7 +254,7 @@ function VerdictPanel({
         )}
         {maiaSan && maiaSan !== bestSan && (
           <div className="flex items-baseline gap-2">
-            <span className="label-eyebrow w-32">Maia 1600</span>
+            <span className="label-eyebrow w-32">{maiaLabel(maiaLevel)}</span>
             <span className="font-mono font-semibold text-[color:var(--color-gold-soft)]">{maiaSan}</span>
           </div>
         )}
@@ -259,7 +267,7 @@ function VerdictPanel({
       </div>
 
       <button onClick={onNext} className="btn btn-primary mt-4 w-full justify-center">
-        {isLast ? "Vai ai bivi →" : "Prossimo puzzle →"}
+        {isLast ? "Vai ai bivi ->" : "Prossima posizione ->"}
       </button>
     </div>
   );
@@ -281,8 +289,8 @@ function sideToMove(fen: string): "white" | "black" {
 }
 
 function scoreFromMyPov(ev: EvalResult, iAmWhite: boolean, sideToMoveIsWhite: boolean): number {
-  // Stockfish dà score dal POV di chi muove. Se chi muove è il mio colore, lo score è già mio POV.
-  // Se chi muove è l'avversario, invertire.
+  // Score dal POV di chi muove. Se chi muove e' il mio colore, lo score e' gia' mio POV.
+  // Se chi muove e' l'avversario, invertire.
   const fromMyPovIfSidesMatch = ev.scoreCp ?? (ev.mate != null ? (ev.mate > 0 ? 10000 : -10000) : 0);
   if (sideToMoveIsWhite === iAmWhite) return fromMyPovIfSidesMatch;
   return -fromMyPovIfSidesMatch;
@@ -298,3 +306,4 @@ function verdictColor(v: DrillVerdict | null): string {
 function verdictBg(v: DrillVerdict | null): string {
   return verdictColor(v) + "55";
 }
+

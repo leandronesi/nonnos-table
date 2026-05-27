@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Spaced Repetition System (minimal) per i drill.
  *
  * Algoritmo semplificato (Leitner-style):
@@ -80,7 +80,7 @@ export function recordVerdict(id: string, verdict: SrsVerdict): SrsCard {
 
 /**
  * Riordina i drill: prima i "due" (nextDue <= now), poi i "nuovi" (mai visti),
- * poi quelli non-due ordinati per box ascendente (i piu` recenti sopra).
+ * poi quelli non-due ordinati per box ascendente (i più recenti sopra).
  *
  * Pure function — non tocca localStorage.
  */
@@ -98,7 +98,7 @@ export function rankDrills<T extends { game_id: string; ply: number }>(drills: T
     const oa = order[a.status as keyof typeof order];
     const ob = order[b.status as keyof typeof order];
     if (oa !== ob) return oa - ob;
-    // dentro lo stesso status: due prima (piu` overdue) | future (meno overdue)
+    // dentro lo stesso status: due prima (più overdue) | future (meno overdue)
     if (a.status === "due") return (a.card?.nextDue ?? 0) - (b.card?.nextDue ?? 0);
     if (a.status === "future") return (a.card?.box ?? 0) - (b.card?.box ?? 0);
     return 0;
@@ -122,4 +122,72 @@ export function resetSrs(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);
   } catch { /* ignore */ }
+}
+
+// ---------------------------------------------------------------------------
+// Pattern-level SRS
+// Tracks which pattern was shown each day so we can avoid repeating the same
+// pattern on consecutive days.
+// Storage: localStorage key `mygotham_srs_pattern_v1`
+//   { "<patternKey>": { patternKey, lastSeen, dailyShown } }
+// ---------------------------------------------------------------------------
+
+const PATTERN_STORAGE = "mygotham_srs_pattern_v1";
+
+export interface PatternSrs {
+  patternKey: string;
+  lastSeen: number;    // epoch ms
+  dailyShown: number;  // contatore giorni visto consecutivi
+}
+
+function readAllPatterns(): Record<string, PatternSrs> {
+  try {
+    const raw = localStorage.getItem(PATTERN_STORAGE);
+    if (!raw) return {};
+    return JSON.parse(raw) as Record<string, PatternSrs>;
+  } catch {
+    return {};
+  }
+}
+
+function writeAllPatterns(all: Record<string, PatternSrs>): void {
+  try {
+    localStorage.setItem(PATTERN_STORAGE, JSON.stringify(all));
+  } catch { /* localStorage pieno → silent */ }
+}
+
+/** Registra che oggi il pattern è stato mostrato. */
+export function recordPatternShown(patternKey: string): void {
+  const all = readAllPatterns();
+  const prev = all[patternKey];
+  const now = Date.now();
+  // Incrementa dailyShown se era già visto ieri, altrimenti reset a 1
+  let dailyShown = 1;
+  if (prev) {
+    const daysSinceLast = (now - prev.lastSeen) / MS_PER_DAY;
+    dailyShown = daysSinceLast < 1.5 ? prev.dailyShown + 1 : 1;
+  }
+  all[patternKey] = { patternKey, lastSeen: now, dailyShown };
+  writeAllPatterns(all);
+}
+
+/** Ritorna i pattern visti negli ultimi N giorni. */
+export function getRecentlyShownPatterns(days: number = 1): string[] {
+  const all = readAllPatterns();
+  const cutoff = Date.now() - days * MS_PER_DAY;
+  return Object.values(all)
+    .filter((p) => p.lastSeen >= cutoff)
+    .map((p) => p.patternKey);
+}
+
+/**
+ * True se il pattern NON è stato visto negli ultimi ~1 giorni
+ * (= è "fresco" da poter essere proposto di nuovo).
+ */
+export function isPatternFresh(patternKey: string): boolean {
+  const all = readAllPatterns();
+  const rec = all[patternKey];
+  if (!rec) return true;
+  const daysSinceLast = (Date.now() - rec.lastSeen) / MS_PER_DAY;
+  return daysSinceLast >= 1;
 }

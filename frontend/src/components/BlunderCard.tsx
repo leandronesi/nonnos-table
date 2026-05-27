@@ -40,16 +40,13 @@ const MOTIF_COLOR: Record<string, string> = {
 export function BlunderCard({ blunder, size = 240 }: { blunder: BlunderRow; size?: number }) {
   const fen = blunder.fen_before || "";
   const played = fen && blunder.san ? squaresOfSan(fen, blunder.san) : null;
-  const best = fen && blunder.best_san ? squaresOfSan(fen, blunder.best_san) : null;
   const orientation = blunder.my_color || turnFromFen(fen);
 
   const highlights = [
     ...(played ? [{ square: played.from, color: "#f43f5e66" }, { square: played.to, color: "#f43f5e" }] : []),
-    ...(best ? [{ square: best.from, color: "#34d39966" }, { square: best.to, color: "#34d399" }] : []),
   ];
   const arrows = [
     ...(played ? [{ from: played.from, to: played.to, color: "#f43f5e" }] : []),
-    ...(best && best.from !== played?.from ? [{ from: best.from, to: best.to, color: "#34d399" }] : []),
   ];
 
   return (
@@ -57,7 +54,7 @@ export function BlunderCard({ blunder, size = 240 }: { blunder: BlunderRow; size
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className="min-w-0">
           <div className="label-eyebrow text-[10px]">
-            {blunder.date} · {blunder.my_color}
+            {blunder.date} - {blunder.my_color}
           </div>
           <div className="text-sm text-[color:var(--color-text)] truncate mt-1 font-medium">
             vs <span className="font-semibold tabular-nums">{blunder.opp_rating ?? "?"}</span>
@@ -88,17 +85,14 @@ export function BlunderCard({ blunder, size = 240 }: { blunder: BlunderRow; size
           <span className="label-eyebrow text-[10px]">m.{blunder.move_number}</span>
           <span className="text-rose-300 font-mono font-semibold">{blunder.san}</span>
           <span className="text-xs text-[color:var(--color-muted)] font-mono">
-            {cpToPawns(blunder.cp_before)} → {cpToPawns(blunder.cp_after)}
+            {cpToPawns(blunder.cp_before)} -&gt; {cpToPawns(blunder.cp_after)}
           </span>
         </div>
-        {blunder.best_san && (
-          <div className="flex items-baseline gap-2">
-            <span className="label-eyebrow text-[10px]">best</span>
-            <span className="text-emerald-300 font-mono font-semibold">{blunder.best_san}</span>
-          </div>
-        )}
+        <div className="text-xs text-[color:var(--color-text-soft)]">
+          Rigiocala per vedere la mossa corretta.
+        </div>
         <div className="text-xs text-rose-300 font-mono">
-          −{cpToPawns(blunder.cp_loss).replace("+", "")} ({cpToHuman(blunder.cp_loss)})
+          -{cpToPawns(blunder.cp_loss).replace("+", "")} ({cpToHuman(blunder.cp_loss)})
         </div>
       </div>
 
@@ -113,7 +107,7 @@ export function BlunderCard({ blunder, size = 240 }: { blunder: BlunderRow; size
             rel="noreferrer"
             className="text-[color:var(--color-brand-soft)] hover:underline"
           >
-            Chess.com →
+            Apri partita
           </a>
         )}
       </div>

@@ -49,7 +49,7 @@ export function BlindSpotsList({ blind_spots }: { blind_spots: BlindSpot[] }) {
                       rel="noreferrer"
                       className="btn btn-ghost text-[11px] !py-1 !px-2 opacity-0 group-hover:opacity-100 transition"
                     >
-                      Lichess →
+                      Lichess
                     </a>
                   )}
                 </div>
@@ -65,7 +65,7 @@ export function BlindSpotsList({ blind_spots }: { blind_spots: BlindSpot[] }) {
                 />
               </div>
               <div className="text-xs text-[color:var(--color-muted)] mt-2 ml-9 font-mono">
-                {b.n} blunder · {b.avoidable_count} evitabili alla tua forza · ACPL medio {b.avg_cp_loss}
+                {b.n} errori gravi - {b.avoidable_count} evitabili alla tua forza - perdita media {b.avg_cp_loss} cp
               </div>
             </div>
           );

@@ -49,3 +49,17 @@ pm_live.json
 cruscotto.html
 storia.html
 repertorio.html
+
+# SQLite WAL/SHM (transient — ricreati dal motore SQLite)
+data/positions.db-shm
+data/positions.db-wal
+
+# Debug dumps locali + cache LLM live coach (rigenerata on-demand)
+data/_debug/
+data/_live_coach_cache/
+
+# Claude Code project state (memoria, settings locali per agente)
+.claude/
+
+# Impeccable design sidecar (cache locale skill design)
+.impeccable/

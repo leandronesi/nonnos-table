@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import type { PlayerModel, PositionRow } from "../types";
 import { PageShell } from "./PageShell";
 import { Section } from "../components/Section";
@@ -11,25 +11,36 @@ import { TacticalBreakdownCard } from "../components/TacticalBreakdownCard";
 import { BlindSpotsList } from "../components/BlindSpotsList";
 import { Glossary } from "../components/Glossary";
 import { PlaySession } from "../components/PlaySession";
+import { maiaLevelForGoal } from "../coaching";
 
 /**
- * /cruscotto - la "verita`" analitica. Diagnosi, motivi, time mgmt, decisioni.
- * Tutto cio` che spiega PERCHE` e QUANDO sbagli. La parte "data-dense" del prodotto.
+ * /cruscotto - la "verita'" analitica. Diagnosi, motivi, time mgmt, decisioni.
+ * Tutto cio' che spiega PERCHE' e QUANDO sbagli. La parte data-dense del prodotto.
  */
 export function Cruscotto({ pm }: { pm: PlayerModel }) {
+  return (
+    <PageShell title="Profilo" subtitle="Tempo, fasi, decisioni — tutto quello che ti racconta come giochi">
+      <CruscottoBody pm={pm} />
+    </PageShell>
+  );
+}
+
+/**
+ * Body riusabile del cruscotto analitico. Esposto come componente per embed
+ * nel Quaderno (/coach) come tab "Profilo".
+ */
+export function CruscottoBody({ pm }: { pm: PlayerModel }) {
   const [playPosition, setPlayPosition] = useState<PositionRow | null>(null);
+  const maiaLevel = maiaLevelForGoal(pm);
 
   return (
-    <PageShell
-      title="Pattern"
-      subtitle="dove perdi punti e quale tema chiudere"
-    >
+    <>
       {/* FOCUS SETTIMANALE */}
       <Section
         index="01"
         eyebrow="Focus della settimana"
         title="L'una cosa da spostare nei prossimi 7 giorni"
-        sub="Una sola priorita`, calcolata dal player model."
+        sub="Una sola priorita': il tema che tornera' nelle prossime posizioni."
       >
         <WeeklyFocusCard focus={pm.weekly_focus} brief={pm.coach_brief} />
       </Section>
@@ -40,7 +51,7 @@ export function Cruscotto({ pm }: { pm: PlayerModel }) {
         index="02"
         eyebrow="Diagnosi"
         title="Le tue debolezze, in ordine di impatto"
-        sub="Calcolate come impatto × frequenza × allenabilita`."
+        sub="Ordinate per impatto, frequenza e allenabilita' immediata."
       >
         <DiagnosisList diagnoses={pm.diagnoses} />
       </Section>
@@ -51,8 +62,8 @@ export function Cruscotto({ pm }: { pm: PlayerModel }) {
           id="patterns"
           index="03"
           eyebrow="Motivi tattici"
-          title="In che tipo di tattica sbagli di piu`"
-          sub="Distribuzione dei pattern (forchetta, pezzo appeso, attacco scoperto). Il gap +N% misura quanto piu` spesso un 1600 trovava la mossa giusta."
+          title="In che tipo di tattica sbagli di piu'"
+          sub={`Distribuzione dei motivi. Lo scarto misura quanto piu' spesso MAIA ${maiaLevel} trovava la mossa giusta.`}
         >
           <TacticalBreakdownCard items={pm.tactical_breakdown} />
         </Section>
@@ -75,7 +86,7 @@ export function Cruscotto({ pm }: { pm: PlayerModel }) {
         index="05"
         eyebrow="Decisioni vs risultato"
         title="Sai chiudere? Sai salvarti?"
-        sub="Conversion + save + blow rate separano la qualita` dal risultato."
+        sub="Conversione, salvataggi e vantaggi buttati separano la tecnica dal risultato."
       >
         <DecisionsCard decisions={pm.decisions} />
       </Section>
@@ -86,7 +97,7 @@ export function Cruscotto({ pm }: { pm: PlayerModel }) {
         index="06"
         eyebrow="Time management & tilt"
         title="Cosa succede quando l'orologio scende"
-        sub="ACPL per fascia di tempo RIMASTO sull'orologio. Tilt = quanto peggiori subito dopo un blunder."
+        sub="Precisione media per fascia di tempo RIMASTO sull'orologio. Tilt = quanto peggiori subito dopo un errore grave."
       >
         <TimeManagementChart time_management={pm.time_management} tilt={pm.tilt} />
       </Section>
@@ -96,8 +107,8 @@ export function Cruscotto({ pm }: { pm: PlayerModel }) {
         id="speed"
         index="07"
         eyebrow="Velocita` della mossa"
-        title="Sbagli perche` muovi in fretta?"
-        sub="Tempo SPESO sulla singola mossa (≠ tempo rimasto). Strip avoidability misura quanti di quegli errori il target avrebbe evitato."
+        title="Sbagli perché muovi in fretta?"
+        sub="Tempo speso sulla singola mossa, non tempo rimasto. La barra mostra quanti errori MAIA target avrebbe evitato."
       >
         <SpeedVsErrorsChart data={pm.time_management.spent_vs_accuracy} />
       </Section>
@@ -108,13 +119,13 @@ export function Cruscotto({ pm }: { pm: PlayerModel }) {
       </div>
 
       {playPosition && (
-        <PlaySessionOverlay position={playPosition} onClose={() => setPlayPosition(null)} />
+        <PlaySessionOverlay position={playPosition} maiaLevel={maiaLevel} onClose={() => setPlayPosition(null)} />
       )}
-    </PageShell>
+    </>
   );
 }
 
-function PlaySessionOverlay({ position, onClose }: { position: PositionRow; onClose: () => void }) {
+function PlaySessionOverlay({ position, maiaLevel, onClose }: { position: PositionRow; maiaLevel: number; onClose: () => void }) {
   return (
     <div
       className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm overflow-auto"
@@ -126,6 +137,7 @@ function PlaySessionOverlay({ position, onClose }: { position: PositionRow; onCl
             startFen={position.fen_before}
             startSan={position.san}
             myColor={(position.my_color || "white") as "white" | "black"}
+            maiaLevel={maiaLevel}
             context={{
               date: position.date ?? undefined,
               opp_rating: position.opp_rating,

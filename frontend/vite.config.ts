@@ -9,5 +9,15 @@ const base = process.env.VITE_BASE || "/";
 export default defineConfig({
   base,
   plugins: [react(), tailwindcss()],
-  server: { port: 5173, open: true },
+  server: {
+    port: 5173,
+    open: true,
+    // Proxy /api/* al backend Python (live coach)
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+      },
+    },
+  },
 });

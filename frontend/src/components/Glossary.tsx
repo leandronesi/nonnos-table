@@ -2,7 +2,7 @@ import { useState } from "react";
 import { GLOSS } from "../glossary";
 
 // Glossary collassabile in fondo alla pagina. La metto a portata di mano ma
-// senza occupare spazio di default — l'utente la apre se non ricorda un termine.
+// senza occupare spazio di default: l'utente la apre se non ricorda un termine.
 
 const ENTRIES: { term: string; key: keyof typeof GLOSS }[] = [
   { term: "ACPL", key: "acpl" },
@@ -16,11 +16,11 @@ const ENTRIES: { term: string; key: keyof typeof GLOSS }[] = [
   { term: "Apertura", key: "phase_opening" },
   { term: "Mediogioco", key: "phase_middlegame" },
   { term: "Finale", key: "phase_endgame" },
-  { term: "Motivo · Matto subìto", key: "motif_allowed_mate" },
-  { term: "Motivo · Pezzo lasciato", key: "motif_material_loss" },
-  { term: "Motivo · Da vincente a perso", key: "motif_winning_to_lost" },
-  { term: "Motivo · Vantaggio buttato", key: "motif_winning_advantage_thrown" },
-  { term: "Motivo · Errore posizionale", key: "motif_positional_blunder" },
+  { term: "Motivo - Matto subito", key: "motif_allowed_mate" },
+  { term: "Motivo - Pezzo lasciato", key: "motif_material_loss" },
+  { term: "Motivo - Da vincente a perso", key: "motif_winning_to_lost" },
+  { term: "Motivo - Vantaggio buttato", key: "motif_winning_advantage_thrown" },
+  { term: "Motivo - Errore posizionale", key: "motif_positional_blunder" },
 ];
 
 export function Glossary() {
@@ -35,14 +35,14 @@ export function Glossary() {
         <div>
           <div className="card-title">Glossario</div>
           <p className="text-slate-400 text-sm mt-1">
-            Tutti i termini tecnici della dashboard, in italiano.
+            I termini usati per leggere posizioni, vantaggio e mosse candidate.
           </p>
         </div>
         <span
           className="text-slate-400 group-hover:text-slate-200 transition text-xl select-none"
           aria-label={open ? "Chiudi" : "Apri"}
         >
-          {open ? "−" : "+"}
+          {open ? "-" : "+"}
         </span>
       </button>
 

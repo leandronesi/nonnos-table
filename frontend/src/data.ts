@@ -1,4 +1,5 @@
 import type { PlayerModel } from "./types";
+import { applyGoalOverride } from "./goalOverride";
 
 export async function loadPlayerModel(): Promise<PlayerModel> {
   // v2 endpoint: player_model.json (sostituisce metrics.json della v1).
@@ -9,5 +10,8 @@ export async function loadPlayerModel(): Promise<PlayerModel> {
       `Impossibile caricare ${url} (${resp.status}). Lancia 'python backend/player_model.py' per generarlo.`,
     );
   }
-  return resp.json();
+  const pm = (await resp.json()) as PlayerModel;
+  // L'utente è l'autorità sul SUO obiettivo: override applicato sopra al
+  // valore generato dal backend.
+  return applyGoalOverride(pm);
 }

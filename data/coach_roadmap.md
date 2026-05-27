@@ -1,9 +1,6 @@
-## I prossimi mesi, uno alla volta
+## I prossimi passi
+La prima cosa è il pezzo in presa. Qui si lavora prima della mossa, non dopo. Quando la posizione si apre nel mediogioco, deve vedere subito quale pezzo resta esposto e quale difensore si sposta. Se questa verifica diventa automatica, il danno grosso cala.
 
-La prima cosa che gli faccio fare è fermare la mano prima di ogni mossa che tocca un pezzo importante. Qui il problema è chiaro: lascia pezzi in mezzo alla strada, e nel mediogioco la strada si apre e lui corre. Oooh... non è mancanza di idee. È fretta. Gli metto davanti una sola abitudine: prima di confermare, guardare se quel pezzo resta difeso, e se il pezzo che muoveva era l’unico che teneva insieme la posizione. Quando questa cosa entra nelle dita, si vede subito. Meno pezzi regalati. Meno partite buttate per una distrazione.
+La seconda cosa è la vittoria buttata. L'altro giorno l'avevo visto: prima succedeva spesso, adesso quasi mai. Bene. Adesso va tenuta stretta la posizione buona fino a quando il pezzo in presa non è più lì. Non basta arrivare davanti. Bisogna anche consolidare e non lasciare la partita aperta per un colpo solo.
 
-Quando questa è digerita, passiamo al modo in cui entra nel mediogioco col Nero. La memoria dice che parte bene, poi cambia idea. Ecco il punto. Col Nero non serve inventare ogni volta. Serve una casa solida, una risposta che conosce, e la pazienza di stare dentro la posizione senza vergognarsene. Gli faccio prendere un solo sistema contro il Bianco e uno contro il Nero avversario, e li faccio diventare casa sua. Non per fare il teorico. Per non arrivare già stanco alla prima vera scelta. Quando smette di vagare nelle prime mosse, il resto della partita respira.
-
-Per ultimo, la cosa difficile: chiudere quando ha il vantaggio e non farsi trascinare dall’orologio. Qui le sue partite raccontano una storia precisa. Arriva bene, poi lascia entrare il vento. Il vantaggio si scioglie, il finale si complica, e lui vuole fare tutto subito. Aspetta. Adesso facciamo le cose serie. Gli faccio lavorare sui finali semplici di torre e pedoni, e sulla calma dopo un colpo riuscito: semplificare quando serve, portare il re dove conta, non cercare il colpo bello se basta la mossa giusta. Se questa parte entra, il salto vero comincia lì.
-
-Se cambia qualcosa, cambiamo anche noi.
+La terza cosa è il passaggio dalla posizione favorevole alla partita vinta. Qui non serve correre. Serve fermarsi, guardare le minacce e semplificare nel modo giusto. Finché questo passaggio non diventa stabile, ogni vantaggio resta un po' appeso.

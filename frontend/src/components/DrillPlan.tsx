@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Chess } from "chess.js";
 import type { PositionRow } from "../types";
 import { BoardView } from "./BoardView";
@@ -6,25 +6,28 @@ import { useStockfish, type EvalResult } from "../engine/useStockfish";
 import { cpToHuman, cpToPawns } from "../glossary";
 import { turnFromFen } from "../chess-utils";
 import { rankDrills, recordVerdict, srsLabel } from "../srs";
+import { CoachNote } from "./CoachNote";
+import { maiaLabel, positionCoachLine } from "../coaching";
 
 /**
- * PUZZLE MODE INTERATTIVO.
+ * TRAINER POSIZIONALE INTERATTIVO.
  *
  * Per ogni drill (un blunder evitabile alla tua forza):
  *   1. mostra la posizione (FEN), tocca a te
- *   2. trascini un pezzo → la mossa viene applicata
- *   3. Stockfish valuta la posizione PRIMA della tua mossa (target = best)
+ *   2. trascini un pezzo -> la mossa viene applicata
+ *   3. il tavolo di analisi valuta la posizione PRIMA della tua mossa
  *      e DOPO la tua mossa (cp_after).
  *   4. cp_loss = cp_before - cp_after (dal POV del tuo colore).
  *   5. Feedback:
- *        verde   : cp_loss < 30   → "hai trovato la mossa giusta (o un'idea equivalente)"
- *        giallo  : cp_loss < 100  → "giocabile, ma c'era meglio"
- *        rosso   : cp_loss >= 100 → "errore, hai perso X cp; ecco la giusta"
- *   6. Streak salvato in localStorage. +1 se verde, reset se rosso.
+ *        verde   : cp_loss < 30   -> "hai trovato la mossa giusta"
+ *        giallo  : cp_loss < 100  -> "giocabile, ma c'era meglio"
+ *        rosso   : cp_loss >= 100 -> "errore, ecco la giusta"
+ *   6. Fila salvata in localStorage. +1 se verde, reset se rosso.
  */
 
 interface Props {
   drills: PositionRow[];
+  maiaLevel?: number;
 }
 
 type Verdict = null | "perfect" | "ok" | "wrong";
@@ -52,10 +55,10 @@ function saveStreak(s: StreakState): void {
   try { localStorage.setItem(STREAK_KEY, JSON.stringify(s)); } catch { /* ignore */ }
 }
 
-export function DrillPlan({ drills }: Props) {
+export function DrillPlan({ drills, maiaLevel = 1600 }: Props) {
   const sf = useStockfish();
   // SRS: riordina i drill mettendo prima i "da ripassare" e i "nuovi".
-  // Memo per drills.length per stabilita` (no shuffle a ogni render).
+  // Memo per drills.length per stabilità (no shuffle a ogni render).
   const orderedDrills = useMemo(() => rankDrills(drills), [drills]);
   const [idx, setIdx] = useState(0);
   const [verdict, setVerdict] = useState<Verdict>(null);
@@ -63,22 +66,20 @@ export function DrillPlan({ drills }: Props) {
   const [playedSan, setPlayedSan] = useState<string | null>(null);
   const [displayFen, setDisplayFen] = useState<string | null>(null); // FEN mostrato (dopo la mia mossa)
   const [evaluating, setEvaluating] = useState(false);
-  const [showSolution, setShowSolution] = useState(false);
   const [streak, setStreak] = useState<StreakState>(loadStreak);
 
-  // Reset stato quando cambio puzzle
+  // Reset stato quando cambio posizione
   useEffect(() => {
     setVerdict(null);
     setCpLoss(null);
     setPlayedSan(null);
     setDisplayFen(null);
-    setShowSolution(false);
   }, [idx]);
 
   if (!orderedDrills || orderedDrills.length === 0) {
     return (
       <div className="surface surface-padded">
-        <p className="text-[color:var(--color-text-soft)]">Nessun puzzle disponibile.</p>
+        <p className="text-[color:var(--color-text-soft)]">Nessuna posizione disponibile.</p>
       </div>
     );
   }
@@ -91,7 +92,7 @@ export function DrillPlan({ drills }: Props) {
 
   // Quando l'utente droppa un pezzo
   async function onDrop(from: string, to: string): Promise<boolean> {
-    if (verdict !== null) return false;     // già giudicato
+    if (verdict !== null) return false;     // gia' giudicato
     if (evaluating) return false;
     const board = new Chess(baseFen);
     // promotion sempre a regina per semplificare (qui il pawn promotion sarebbe gestita meglio in UI)
@@ -107,7 +108,7 @@ export function DrillPlan({ drills }: Props) {
     try {
       const evBefore: EvalResult = await sf.evaluate(baseFen, { depth: 14 });
       const evAfter: EvalResult = await sf.evaluate(fenAfter, { depth: 14 });
-      // Score di Stockfish è dal POV del player AL TRATTO in quel FEN.
+      // Score dal POV del player AL TRATTO in quel FEN.
       // Per fare cp_loss devo riportare tutto allo stesso POV (mio colore).
       const cpBeforeMine = scoreFromMyPov(evBefore, myColor === "white", "white" === sideToMove(baseFen));
       const cpAfterMine = scoreFromMyPov(evAfter, myColor === "white", "white" === sideToMove(fenAfter));
@@ -123,7 +124,7 @@ export function DrillPlan({ drills }: Props) {
       // SRS: registra il verdict (sempre, anche su gia` risolto)
       recordVerdict(drillKey, v);
 
-      // streak: success solo se perfect/ok E non già risolto
+      // fila: success solo se perfect/ok E non gia' risolto
       const alreadySolved = streak.solvedIds.includes(drillKey);
       if (v === "perfect" || v === "ok") {
         if (!alreadySolved) {
@@ -152,36 +153,44 @@ export function DrillPlan({ drills }: Props) {
 
   const lichessUrl = `https://lichess.org/analysis?fen=${encodeURIComponent(baseFen)}&color=${orientation}`;
   const alreadySolved = streak.solvedIds.includes(drillKey);
+  const progressPct = ((safeIdx + 1) / orderedDrills.length) * 100;
 
   return (
-    <div className="surface surface-padded">
-      {/* Header: contesto + streak */}
-      <div className="flex items-baseline justify-between gap-3 flex-wrap mb-6">
+    <div className="surface surface-padded trainer-shell">
+      <div className="trainer-header">
         <div>
           <div className="label-eyebrow text-[color:var(--color-brand-soft)]">
-            Trainer · {orientation} muove
+            Training room - {maiaLabel(maiaLevel)}
           </div>
-          <p className="text-sm text-[color:var(--color-text-soft)] mt-2 max-w-xl">
-            Posizione presa da un tuo blunder evitabile. Trascina il pezzo per giocare la mossa.
-            Stockfish la giudica subito.
+          <h3 className="trainer-title">Trova la mossa senza tema regalato.</h3>
+          <p className="trainer-subtitle">
+            La posizione viene dal tuo storico. La soluzione resta coperta: prima leggi
+            minacce, pezzi non difesi e candidate forzanti, poi giochi sulla scacchiera.
           </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="text-right">
-            <div className="label-eyebrow text-[10px]">Streak</div>
-            <div className="display-small tabular-nums">{streak.current}</div>
-            <div className="text-[10px] text-[color:var(--color-muted)] font-mono">best: {streak.best}</div>
+          <div className="trainer-progress" aria-label={`Progresso posizione ${safeIdx + 1} di ${orderedDrills.length}`}>
+            <span style={{ width: `${progressPct}%` }} />
           </div>
-          <div className="text-right">
-            <div className="label-eyebrow text-[10px]">Puzzle</div>
-            <div className="font-mono text-sm tabular-nums">{safeIdx + 1} / {orderedDrills.length}</div>
+        </div>
+        <div className="trainer-scorebox">
+          <div>
+            <span>Focus</span>
+            <strong>{streak.current}</strong>
+            <small>record {streak.best}</small>
+          </div>
+          <div>
+            <span>Posizione</span>
+            <strong>{safeIdx + 1}/{orderedDrills.length}</strong>
             <SrsChip id={drillKey} />
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-10 items-start">
-        <div className="flex justify-center">
+      <div className="trainer-grid">
+        <div className="trainer-board-stage">
+          <div className="trainer-board-top">
+            <span>{orientation === "white" ? "Bianco" : "Nero"} muove</span>
+            <strong>{d.phase}</strong>
+          </div>
           <BoardView
             fen={displayFen || baseFen}
             resetKey={drillKey}
@@ -191,21 +200,28 @@ export function DrillPlan({ drills }: Props) {
             onPieceDrop={onDrop}
             highlights={[
               ...buildLastOppHighlights(d),
-              ...(showSolution || verdict ? buildHighlights(d, playedSan, baseFen) : []),
+              ...(verdict ? buildHighlights(d, playedSan, baseFen) : []),
             ]}
             arrows={[
               ...buildLastOppArrows(d),
-              ...(showSolution || verdict ? buildArrows(d, playedSan, baseFen) : []),
+              ...(verdict ? buildArrows(d, playedSan, baseFen) : []),
             ]}
           />
+          <div className="trainer-board-info">
+            <span>ultima mossa avversaria</span>
+            <strong>{d.last_opp_san || "non disponibile"}</strong>
+          </div>
         </div>
 
-        <div className="space-y-5">
+        <div className="trainer-side">
+          <CalculationProtocol />
+          <CoachNote text={positionCoachLine(d, maiaLevel)} />
+
           {/* Contesto */}
-          <div>
+          <div className="trainer-context">
             <div className="label-eyebrow">Contesto</div>
             <div className="text-sm text-[color:var(--color-text)] mt-2">
-              {d.date} · {d.my_color === "white" ? "♔ bianco" : "♚ nero"} vs{" "}
+              {d.date} - {d.my_color === "white" ? "bianco" : "nero"} vs{" "}
               <span className="font-semibold tabular-nums">{d.opp_rating ?? "?"}</span>
             </div>
             {d.opening && (
@@ -214,53 +230,51 @@ export function DrillPlan({ drills }: Props) {
               </div>
             )}
             <div className="text-xs text-[color:var(--color-muted)] mt-1 font-mono">
-              mossa {d.move_number} · {d.phase}
+              mossa {d.move_number} - {d.phase}
             </div>
           </div>
 
-          <TacticChips d={d} revealed={verdict !== null || showSolution} />
+          <TacticChips d={d} revealed={verdict !== null} />
 
-          <DifficultyMoney d={d} revealed={verdict !== null || showSolution} />
+          <DifficultyMoney d={d} maiaLevel={maiaLevel} revealed={verdict !== null} />
 
           {/* Stato */}
           {!sf.isReady && (
-            <div className="pill pill-warn">Carico Stockfish (prima volta, ~5s)…</div>
+            <div className="pill pill-warn">Preparo il tavolo di analisi...</div>
           )}
 
           {verdict === null && !evaluating && (
-            <div className="rounded-xl p-4" style={{ background: "rgba(124,92,255,0.06)", border: "1px solid rgba(124,92,255,0.25)" }}>
-              <div className="text-sm text-[color:var(--color-text)] leading-relaxed">
+            <div className="trainer-attempt">
+              <div>
                 <b>Tocca a te.</b> Trascina il pezzo che giocheresti.{" "}
-                {alreadySolved && <span className="text-[color:var(--color-muted)]">(già risolto)</span>}
+                {alreadySolved && <span>(gia' risolto)</span>}
               </div>
-              <button onClick={() => setShowSolution(true)} className="btn btn-ghost text-xs mt-3">
-                Salta · mostra soluzione
-              </button>
+              <small>La correzione, il tema tattico e la linea migliore si sbloccano solo dopo il tentativo.</small>
             </div>
           )}
 
           {evaluating && (
-            <div className="pill pill-brand">Stockfish sta valutando…</div>
+            <div className="pill pill-brand">Controllo varianti, catture e difensori...</div>
           )}
 
           {verdict === "perfect" && (
-            <Verdict tone="good" title="✓ Perfetta">
-              {playedSan && <span className="font-mono">{playedSan}</span>} · {cpLoss != null && `perdita ${cpLoss} cp`} ·
+            <Verdict tone="good" title="Mossa esatta">
+              {playedSan && <span className="font-mono">{playedSan}</span>} - {cpLoss != null && `perdita ${cpLoss} cp`} -
               ottima scelta.
             </Verdict>
           )}
           {verdict === "ok" && (
-            <Verdict tone="warn" title="≈ Giocabile">
-              {playedSan && <span className="font-mono">{playedSan}</span>} · cedi {cpLoss} cp.
-              Migliore: <span className="font-mono text-emerald-300">{d.best_san_sf}</span>
+            <Verdict tone="warn" title="Giocabile">
+              {playedSan && <span className="font-mono">{playedSan}</span>} - cedi {cpLoss} cp.
+              Linea migliore: <span className="font-mono text-emerald-300">{d.best_san_sf}</span>
             </Verdict>
           )}
           {verdict === "wrong" && (
-            <Verdict tone="bad" title="✗ Errore">
-              {playedSan && <span className="font-mono">{playedSan}</span>} · perdi{" "}
+            <Verdict tone="bad" title="Errore">
+              {playedSan && <span className="font-mono">{playedSan}</span>} - perdi{" "}
               {cpLoss != null ? `${cpToPawns(cpLoss).replace("+", "")} (${cpToHuman(cpLoss)})` : ""}.
               <br />
-              Giusta: <span className="font-mono text-emerald-300">{d.best_san_sf}</span>
+              Linea corretta: <span className="font-mono text-emerald-300">{d.best_san_sf}</span>
               {d.pv_san_sf && (
                 <div className="text-xs font-mono text-[color:var(--color-text-soft)] mt-1">
                   seguito: {d.pv_san_sf}
@@ -269,25 +283,13 @@ export function DrillPlan({ drills }: Props) {
             </Verdict>
           )}
 
-          {showSolution && verdict === null && (
-            <Verdict tone="warn" title="Soluzione">
-              Giusta: <span className="font-mono text-emerald-300">{d.best_san_sf}</span>
-              {d.best_san_maia_target && (
-                <div className="text-xs mt-1">
-                  Cosa gioca un 1600: <span className="font-mono text-amber-300">{d.best_san_maia_target}</span>
-                </div>
-              )}
-            </Verdict>
-          )}
-
-          {/* Nav + link */}
-          <div className="flex flex-wrap items-center gap-2 pt-3 hairline">
-            <button onClick={prev} className="btn btn-ghost text-xs">← Prec</button>
-            <button onClick={next} className="btn btn-ghost text-xs">Succ →</button>
+          <div className="trainer-actions">
+            <button onClick={prev} className="btn btn-ghost text-xs">Prec</button>
+            <button onClick={next} className="btn btn-ghost text-xs">Succ</button>
             <a href={lichessUrl} target="_blank" rel="noreferrer" className="btn btn-ghost text-xs ml-auto">
-              Lichess →
+              Analizza su Lichess
             </a>
-            {d.url && <a href={d.url} target="_blank" rel="noreferrer" className="btn btn-ghost text-xs">Chess.com →</a>}
+            {d.url && <a href={d.url} target="_blank" rel="noreferrer" className="btn btn-ghost text-xs">Apri partita</a>}
           </div>
         </div>
       </div>
@@ -296,7 +298,7 @@ export function DrillPlan({ drills }: Props) {
 }
 
 /**
- * Chip SRS status. "Nuovo" / "Da ripassare" / "Box N · tra Xg".
+ * Chip SRS status. "Nuovo" / "Da ripassare" / "Box N - tra Xg".
  */
 function SrsChip({ id }: { id: string }) {
   const lbl = srsLabel(id);
@@ -316,17 +318,39 @@ function SrsChip({ id }: { id: string }) {
   );
 }
 
+function CalculationProtocol() {
+  const steps = [
+    { label: "Minacce", text: "Cosa vuole l'avversario alla prossima?" },
+    { label: "Difensori", text: "Quali pezzi restano senza protezione?" },
+    { label: "Candidate", text: "Quali catture, scacchi e mosse forzanti hai?" },
+  ];
+  return (
+    <div className="calculation-protocol" aria-label="Protocollo di calcolo">
+      <div className="label-eyebrow">Protocollo</div>
+      <div className="calculation-steps">
+        {steps.map((step, i) => (
+          <div key={step.label} className="calculation-step">
+            <span>{i + 1}</span>
+            <strong>{step.label}</strong>
+            <small>{step.text}</small>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /**
- * Chip dei motivi tattici. Prima del verdict NON mostriamo i tag (sennò
+ * Chip dei motivi tattici. Prima del verdict NON mostriamo i tag (senno'
  * spoileriamo la soluzione: sapere "qui c'e` un fork" suggerisce la mossa).
  * Solo dopo che l'utente ha mosso o ha aperto la soluzione li facciamo vedere.
  */
 const _TACTIC_LABELS: { key: keyof PositionRow; label: string; emoji: string }[] = [
-  { key: "motif_fork",              label: "Forchetta",            emoji: "⑂" },
-  { key: "motif_hanging_piece",     label: "Pezzo appeso",         emoji: "✗" },
-  { key: "motif_removed_defender",  label: "Rimozione difensore",  emoji: "↯" },
-  { key: "motif_back_rank",         label: "Ottava traversa",      emoji: "⌐" },
-  { key: "motif_discovered_attack", label: "Attacco scoperto",     emoji: "✷" },
+  { key: "motif_fork",              label: "Forchetta",            emoji: "" },
+  { key: "motif_hanging_piece",     label: "Pezzo appeso",         emoji: "" },
+  { key: "motif_removed_defender",  label: "Rimozione difensore",  emoji: "" },
+  { key: "motif_back_rank",         label: "Ottava traversa",      emoji: "" },
+  { key: "motif_discovered_attack", label: "Attacco scoperto",     emoji: "" },
 ];
 
 function TacticChips({ d, revealed }: { d: PositionRow; revealed: boolean }) {
@@ -354,13 +378,13 @@ function TacticChips({ d, revealed }: { d: PositionRow; revealed: boolean }) {
 }
 
 /**
- * Difficulty-as-money — il cuore del prodotto.
+ * Difficulty-as-money: il cuore del prodotto.
  *
  * Mostra il gap quantificato tra "quanto spesso il target gioca la mossa
  * giusta" vs "quanto spesso il mio livello la gioca". Prima del verdict
- * mostra solo i due numeri, NON la mossa (sennò spoileri la soluzione).
+ * mostra solo i due numeri, NON la mossa (senno' spoileri la soluzione).
  */
-function DifficultyMoney({ d, revealed }: { d: PositionRow; revealed: boolean }) {
+function DifficultyMoney({ d, maiaLevel, revealed }: { d: PositionRow; maiaLevel: number; revealed: boolean }) {
   const pTarget = d.p_target_plays_best_sf;
   const pMine = d.p_mine_plays_best_sf;
   if (pTarget == null || pMine == null) return null;
@@ -381,12 +405,12 @@ function DifficultyMoney({ d, revealed }: { d: PositionRow; revealed: boolean })
       style={{ background: tone.bg, border: `1px solid ${tone.border}` }}
     >
       <div className="label-eyebrow" style={{ color: tone.label, marginBottom: "0.5rem" }}>
-        Gap target · mio livello
+        Scarto MAIA - mio livello
       </div>
       <div className="grid grid-cols-3 gap-3 text-center">
         <div>
           <div className="text-[10px] tracking-wider uppercase text-[color:var(--color-muted)]">
-            1600 trova
+            {maiaLabel(maiaLevel)} trova
           </div>
           <div className="text-2xl font-bold tabular-nums" style={{ color: "#fff" }}>
             {target}%
@@ -411,7 +435,7 @@ function DifficultyMoney({ d, revealed }: { d: PositionRow; revealed: boolean })
       </div>
       {revealed && d.best_san_sf && (
         <div className="text-xs mt-3 leading-relaxed text-[color:var(--color-text-soft)]">
-          Il {target}% dei 1600 gioca{" "}
+          Il {target}% di {maiaLabel(maiaLevel)} gioca{" "}
           <span className="font-mono text-emerald-300">{d.best_san_sf}</span> qui.
           Al tuo livello la trova solo il {mine}%.
         </div>
@@ -455,11 +479,11 @@ function sideToMove(fen: string): "white" | "black" {
   return fen.split(" ")[1] === "b" ? "black" : "white";
 }
 
-// Score restituito da Stockfish è dal POV del side-to-move; lo riporto SEMPRE
+// Score restituito dal tavolo di analisi: lo riporto SEMPRE
 // dal POV del MIO colore (per cp_loss coerente).
 function scoreFromMyPov(ev: EvalResult, iAmWhite: boolean, sideToMoveIsWhite: boolean): number {
   let cp = ev.scoreCp ?? 0;
-  // se chi muove è bianco, sf score è dal POV del bianco. Se chi muove è nero, dal POV del nero.
+  // se chi muove e' bianco, lo score e' dal POV del bianco. Se chi muove e' nero, dal POV del nero.
   // Normalizzo allo POV del bianco:
   if (!sideToMoveIsWhite) cp = -cp;
   // poi dal POV del MIO colore:
@@ -470,7 +494,7 @@ function scoreFromMyPov(ev: EvalResult, iAmWhite: boolean, sideToMoveIsWhite: bo
   return cp;
 }
 
-// Highlights: rosso = mossa giocata, verde = mossa migliore (Stockfish)
+// Highlights: rosso = mossa giocata, verde = mossa migliore.
 function buildHighlights(d: PositionRow, playedSan: string | null, fen: string) {
   const out: { square: string; color: string }[] = [];
   if (playedSan) {
@@ -514,7 +538,7 @@ function sanToSquares(fen: string, san: string): { from: string; to: string } | 
   }
 }
 
-// Freccia "ultima mossa avversario" — sempre visibile, in giallo soft alla Chess.com/Lichess.
+// Freccia "ultima mossa avversario": sempre visibile, in giallo soft.
 function buildLastOppHighlights(d: PositionRow) {
   if (!d.last_opp_from || !d.last_opp_to) return [];
   return [
@@ -527,3 +551,4 @@ function buildLastOppArrows(d: PositionRow) {
   if (!d.last_opp_from || !d.last_opp_to) return [];
   return [{ from: d.last_opp_from, to: d.last_opp_to, color: "#fde047" }];
 }
+

@@ -27,7 +27,7 @@ interface Props {
  * Layout (Apple-Health/Linear inspired):
  *  - Sinistra: ring di progresso verso il goal 1600 (focal point gestalt).
  *  - Centro: nome + headline diagnosi #1 + CTA "Inizia sessione" (primary action).
- *  - Destra: 3 stats della sessione di oggi (puzzle pronti, bivi da rivedere, streak).
+ *  - Destra: 3 stats della sessione di oggi (posizioni pronte, bivi da rivedere, giorni al tavolo).
  */
 export function TodaySession({
   identity,
@@ -91,7 +91,7 @@ export function TodaySession({
         {/* Center: pitch */}
         <div className="text-center lg:text-left">
           <div className="label-eyebrow text-[color:var(--color-brand-soft)]">
-            Sessione di oggi · {today}
+            Sessione di oggi - {today}
           </div>
           <h1 className="display-medium mt-3 text-balance">
             {topDiagnosis ? topDiagnosis.title : "Tutto sotto controllo"}
@@ -105,22 +105,22 @@ export function TodaySession({
             {sessionDone ? (
               <>
                 <button onClick={onStartTrainer} className="btn btn-ghost btn-lg">
-                  ✓ Sessione completata · vedi recap
+                  Sessione completata - vedi recap
                 </button>
                 {streak && (
                   <span className="pill pill-good">
                     <span className="dot" style={{ background: "#34d399" }} />
-                    streak {streak.current} g · +{session?.points ?? 0} pt
+                    {streak.current} giorni al tavolo - +{session?.points ?? 0} pt
                   </span>
                 )}
               </>
             ) : sessionInProgress ? (
               <button onClick={onStartTrainer} className="btn btn-primary btn-lg">
-                ▶ Riprendi sessione
+                Riprendi sessione
               </button>
             ) : (
               <button onClick={onStartTrainer} className="btn btn-primary btn-lg">
-                ▶ Inizia sessione · 5 puzzle + 2 bivi + 1 partita
+                Siediti alla scacchiera - 5 posizioni + 2 bivi + 1 partita
               </button>
             )}
             {topDiagnosis?.lichess_theme && !sessionDone && (
@@ -130,7 +130,7 @@ export function TodaySession({
                 rel="noreferrer"
                 className="btn btn-ghost btn-lg"
               >
-                Tactics su Lichess →
+                Tattica su Lichess -&gt;
               </a>
             )}
           </div>
@@ -138,7 +138,7 @@ export function TodaySession({
 
         {/* Right: stats */}
         <div className="grid grid-cols-3 lg:grid-cols-1 gap-2 lg:gap-3 min-w-[200px]">
-          <MiniStat label="Puzzle pronti" value={nDrills.toString()} />
+          <MiniStat label="Posizioni pronte" value={nDrills.toString()} />
           <MiniStat label="Turning points" value={nTurningPoints.toString()} />
           <MiniStat label="Partite analizzate" value={kpi.games_analyzed.toString()} />
         </div>
@@ -214,10 +214,10 @@ function GoalRing({
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <div className="display-rating leading-none">{current}</div>
-        <div className="label-eyebrow mt-1">→ {target}</div>
+        <div className="label-eyebrow mt-1">-&gt; {target}</div>
         <div className={`pill mt-2 ${onTrack ? "pill-good" : "pill-bad"}`}>
           <span className="dot" style={{ background: onTrack ? "#34d399" : "#f43f5e" }} />
-          {onTrack ? "ON TRACK" : `→ ${projection}`}
+          {onTrack ? "IN LINEA" : `-> ${projection}`}
         </div>
       </div>
     </div>
