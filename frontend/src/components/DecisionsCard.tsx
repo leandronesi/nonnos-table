@@ -1,7 +1,7 @@
 import type { Decisions } from "../types";
 
 /**
- * Three big pillars: Conversion · Blow · Save. Numero giant + label.
+ * Three big pillars: conversione, vantaggi buttati, salvataggi.
  * Niente "card grigie tutte uguali". Bordi luminescenti in base al tono.
  */
 export function DecisionsCard({ decisions }: { decisions: Decisions }) {
@@ -13,23 +13,23 @@ export function DecisionsCard({ decisions }: { decisions: Decisions }) {
     <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
       <Pillar
         tone={conv != null && conv >= 0.7 ? "good" : conv != null && conv < 0.55 ? "bad" : "mute"}
-        label="Conversion rate"
-        sub="partite arrivate a +2 → vinte"
-        value={conv != null ? `${Math.round(conv * 100)}%` : "—"}
+        label="Conversione"
+        sub="partite arrivate a +2 -> vinte"
+        value={conv != null ? `${Math.round(conv * 100)}%` : "-"}
         detail={`${decisions.converted_winning} / ${decisions.reached_winning}`}
       />
       <Pillar
         tone={blow != null && blow > 0.3 ? "bad" : blow != null && blow < 0.15 ? "good" : "mute"}
         label="Vittorie buttate"
         sub="da +2 a non-vittoria"
-        value={blow != null ? `${Math.round(blow * 100)}%` : "—"}
+        value={blow != null ? `${Math.round(blow * 100)}%` : "-"}
         detail={`${decisions.blew_winning} partite`}
       />
       <Pillar
         tone={save != null && save >= 0.35 ? "good" : "mute"}
-        label="Save rate"
-        sub="partite a -2 → salvate"
-        value={save != null ? `${Math.round(save * 100)}%` : "—"}
+        label="Salvataggi"
+        sub="partite a -2 -> salvate"
+        value={save != null ? `${Math.round(save * 100)}%` : "-"}
         detail={`${decisions.saved_losing} / ${decisions.reached_losing}`}
       />
     </div>

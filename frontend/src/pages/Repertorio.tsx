@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import type { PlayerModel, PositionRow } from "../types";
 import { PageShell } from "./PageShell";
 import { Section } from "../components/Section";
@@ -6,25 +6,36 @@ import { DrillPlan } from "../components/DrillPlan";
 import { RepertoireCard } from "../components/RepertoireCard";
 import { TurningPointsList } from "../components/TurningPointsList";
 import { PlaySession } from "../components/PlaySession";
+import { maiaLevelForGoal } from "../coaching";
 
 /**
  * /repertorio - la "libreria" delle posizioni. Trainer drill + aperture deboli
- * + turning points. Tutto cio` che e` DRILLABLE direttamente.
+ * + turning points. Tutto cio` che è DRILLABLE direttamente.
  */
 export function Repertorio({ pm }: { pm: PlayerModel }) {
+  return (
+    <PageShell title="Repertorio" subtitle="Le tue aperture, le posizioni deboli, i bivi delle partite">
+      <RepertorioBody pm={pm} />
+    </PageShell>
+  );
+}
+
+/** Body riusabile del Repertorio. Esposto per embed nel Quaderno tab. */
+export function RepertorioBody({ pm }: { pm: PlayerModel }) {
   const [playPosition, setPlayPosition] = useState<PositionRow | null>(null);
+  const maiaLevel = maiaLevelForGoal(pm);
 
   return (
-    <PageShell title="Trainer" subtitle="drill, aperture, turning points">
+    <>
       {/* TRAINER */}
       <Section
         id="trainer"
         index="01"
-        eyebrow="Trainer · drag & drop"
-        title="Rifai i tuoi blunder. Stockfish ti giudica al volo."
-        sub="Posizioni dove un 1600 trovava la mossa giusta e tu no. Drill ordinati per drill_value (gap target-vs-mine). SRS attivo: i ripassi tornano in cima."
+        eyebrow="Trainer"
+        title="Allenamento dalle tue posizioni reali"
+        sub="Niente tattica generica: giochi prima la posizione, poi vedi correzione, tema e scarto rispetto al target MAIA."
       >
-        <DrillPlan drills={pm.drills} />
+        <DrillPlan drills={pm.drills} maiaLevel={maiaLevel} />
       </Section>
 
       {/* APERTURE */}
@@ -35,7 +46,7 @@ export function Repertorio({ pm }: { pm: PlayerModel }) {
           index="02"
           eyebrow="Aperture deboli"
           title="Le 3 posizioni che ti fregano per ogni apertura"
-          sub="Clicca per rigiocare contro Stockfish la posizione incriminata."
+          sub="Clicca per rigiocare contro MAIA la posizione incriminata."
         >
           <div className="space-y-6">
             {pm.repertoire_black && pm.repertoire_black.length > 0 && (
@@ -79,6 +90,7 @@ export function Repertorio({ pm }: { pm: PlayerModel }) {
                 startFen={playPosition.fen_before}
                 startSan={playPosition.san}
                 myColor={(playPosition.my_color || "white") as "white" | "black"}
+                maiaLevel={maiaLevel}
                 context={{
                   date: playPosition.date ?? undefined,
                   opp_rating: playPosition.opp_rating,
@@ -91,6 +103,7 @@ export function Repertorio({ pm }: { pm: PlayerModel }) {
           </div>
         </div>
       )}
-    </PageShell>
+    </>
   );
 }
+

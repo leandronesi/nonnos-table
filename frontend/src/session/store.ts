@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Sessione giornaliera — stato + persistenza localStorage.
  *
  * Modello mentale: la sessione è un OBIETTIVO QUOTIDIANO. Ne fai una al giorno,
@@ -7,7 +7,11 @@
  * Se torni nello stesso giorno, vedi il riassunto della sessione già fatta.
  */
 
-export type StepKey = "warmup" | "bivio" | "play" | "recap";
+export type StepKey =
+  // Nuova architettura 4 fasi
+  | "intro" | "tema" | "warmup_guidato" | "drill" | "play" | "outro"
+  // Back-compat (vecchi nomi, ancora gestiti da loadSession)
+  | "review" | "warmup" | "bivio" | "recap";
 export type DrillVerdict = "perfect" | "ok" | "wrong";
 
 export interface DrillResult {
@@ -29,7 +33,7 @@ export interface PlayResult {
   finished_at: number;   // epoch ms
 }
 
-export const SESSION_SCHEMA = 2;
+export const SESSION_SCHEMA = 3;
 
 export interface SessionState {
   schema?: number;       // versione schema; serve per invalidare le session vecchie
@@ -42,6 +46,10 @@ export interface SessionState {
   bivioIds: string[];
   playFen?: string;
   playMyColor?: "white" | "black";   // colore del giocatore nella posizione di partenza
+  // Nuova architettura: posizioni per fase (opzionali per back-compat)
+  temaPositionId?: string;       // "<game_id>:<ply>" della posizione Tema
+  warmupPositionId?: string;     // idem per Warmup
+  drillPositionId?: string;      // idem per Drill
   // Risultati
   drills: DrillResult[];
   bivi: BivioResult[];
@@ -79,6 +87,12 @@ export function yesterdayUTC(): string {
 // Read / write
 // ---------------------------------------------------------------------------
 
+// Step canonici nella nuova architettura 4-fase (intro/tema/warmup/drill/play/outro)
+// + recap accettato come alias di outro per back-compat soft.
+const VALID_STEPS: ReadonlySet<StepKey> = new Set<StepKey>([
+  "intro", "tema", "warmup_guidato", "drill", "play", "outro", "recap",
+]);
+
 export function loadSession(): SessionState | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -86,6 +100,13 @@ export function loadSession(): SessionState | null {
     const parsed = JSON.parse(raw) as SessionState;
     // Invalida session vecchie (schema cambiato)
     if ((parsed.schema ?? 1) < SESSION_SCHEMA) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+    // Invalida session con step non più supportato (es. "review", "warmup",
+    // "bivio" dell'architettura precedente: contenuto blank perché nessun
+    // ramo del render matcha).
+    if (!VALID_STEPS.has(parsed.step)) {
       localStorage.removeItem(STORAGE_KEY);
       return null;
     }
@@ -160,6 +181,10 @@ export interface SessionInputs {
   bivioIds: string[];      // primi M turning points
   playFen?: string;        // FEN per la partita finale (es. da un turning point)
   playMyColor?: "white" | "black";
+  // Nuova architettura: posizioni per fase
+  temaPositionId?: string;
+  warmupPositionId?: string;
+  drillPositionId?: string;
 }
 
 export function startNewSession(inputs: SessionInputs): SessionState {
@@ -167,11 +192,14 @@ export function startNewSession(inputs: SessionInputs): SessionState {
     schema: SESSION_SCHEMA,
     date: todayUTC(),
     startedAt: Date.now(),
-    step: "warmup",
+    step: "intro",
     drillIds: inputs.drillIds,
     bivioIds: inputs.bivioIds,
     playFen: inputs.playFen,
     playMyColor: inputs.playMyColor,
+    temaPositionId: inputs.temaPositionId,
+    warmupPositionId: inputs.warmupPositionId,
+    drillPositionId: inputs.drillPositionId,
     drills: [],
     bivi: [],
     points: 0,
@@ -184,7 +212,7 @@ export function completeSession(s: SessionState): { session: SessionState; strea
   const finished: SessionState = {
     ...s,
     finishedAt: Date.now(),
-    step: "recap",
+    step: "outro",
     points: computePoints(s),
   };
   saveSession(finished);
@@ -193,12 +221,18 @@ export function completeSession(s: SessionState): { session: SessionState; strea
   const prev = loadStreak();
   const today = todayUTC();
   let current = prev.current;
+  let streakKind: "up" | "broken" | "same" = "same";
   if (prev.lastDate === today) {
-    // ricarica della stessa sessione, niente bump
+    streakKind = "same";
   } else if (prev.lastDate === yesterdayUTC()) {
     current = prev.current + 1;
+    streakKind = "up";
+  } else if (prev.lastDate !== "") {
+    current = 1;
+    streakKind = "broken";
   } else {
     current = 1;
+    streakKind = "up";
   }
   const next: DailyStreak = {
     current,
@@ -208,6 +242,40 @@ export function completeSession(s: SessionState): { session: SessionState; strea
     totalPoints: prev.totalPoints + finished.points,
   };
   saveStreak(next);
+
+  // Journal: scrivi entries per la sessione + streak. Import lazy per evitare
+  // cicli (journal.ts → store.ts → journal.ts).
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  import("./journal").then(({ writeEntry, bodyForStreakMilestone, hasEntryToday }) => {
+    if (!hasEntryToday("session_done")) {
+      writeEntry({
+        kind: "session_done",
+        body: `Sessione di oggi: ${finished.points} punti.`,
+        meta: { points: finished.points },
+      });
+    }
+    if (streakKind === "up" && !hasEntryToday("streak_up")) {
+      writeEntry({
+        kind: "streak_up",
+        body: `Streak a ${current} ${current === 1 ? "giorno" : "giorni"}.`,
+        meta: { current },
+      });
+      if ([7, 14, 30, 60, 100].includes(current) && !hasEntryToday("streak_milestone")) {
+        writeEntry({
+          kind: "streak_milestone",
+          body: bodyForStreakMilestone(current),
+          meta: { days: current },
+        });
+      }
+    } else if (streakKind === "broken" && !hasEntryToday("streak_broken")) {
+      writeEntry({
+        kind: "streak_broken",
+        body: `Hai saltato qualche giorno. Si ricomincia da uno.`,
+        meta: { previous: prev.current },
+      });
+    }
+  }).catch(() => { /* silent */ });
+
   return { session: finished, streak: next };
 }
 

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { PRODUCT_NAME } from "../coaching";
 
 /**
  * Wrapper di pagina per le destinazioni secondarie (/cruscotto, /storia,
@@ -29,7 +30,7 @@ export function PageShell({
             <ArrowLeft size={16} aria-hidden="true" />
             <span className="hidden sm:inline">Home</span>
           </Link>
-          <span className="text-[color:var(--color-faint)]">·</span>
+          <span className="text-[color:var(--color-faint)]">-</span>
           <span className="text-lg font-semibold tracking-tight">{title}</span>
           {subtitle && (
             <span className="hidden lg:inline text-sm text-[color:var(--color-text-soft)] truncate">
@@ -37,7 +38,7 @@ export function PageShell({
             </span>
           )}
           <div className="ml-auto flex items-center gap-3">
-            <span className="hidden sm:inline text-xs text-[color:var(--color-faint)]">♚ chesspath</span>
+            <span className="hidden sm:inline text-xs text-[color:var(--color-faint)]">{PRODUCT_NAME}</span>
             <ThemeToggle compact />
           </div>
         </div>

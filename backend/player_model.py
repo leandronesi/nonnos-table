@@ -504,6 +504,48 @@ def _time_management(conn) -> dict[str, Any]:
     }
 
 
+def _recent_progression(
+    rating_curve: dict[str, list[dict[str, Any]]],
+    time_class: str,
+) -> dict[str, Any]:
+    """Delta rating sulle ultime N finestre temporali (10/30/90 giorni).
+
+    Per ogni finestra:
+      - current_rating = ultimo punto della curva
+      - start_rating   = rating del punto più vecchio dentro la finestra
+      - delta          = current - start
+      - games          = numero di punti nella finestra
+      - available      = False se < 3 punti
+    """
+    series = rating_curve.get(time_class) or []
+
+    def _window(days: int) -> dict[str, Any]:
+        if not series:
+            return {"start_rating": None, "current_rating": None, "delta": None, "games": 0, "available": False}
+        current_rating = series[-1]["rating"]
+        current_epoch = series[-1]["epoch"]
+        cutoff_epoch = current_epoch - days * 86400
+        in_window = [p for p in series if p["epoch"] >= cutoff_epoch]
+        games = len(in_window)
+        if games < 3:
+            return {"start_rating": None, "current_rating": current_rating, "delta": None, "games": games, "available": False}
+        start_rating = in_window[0]["rating"]
+        delta = (current_rating - start_rating) if (current_rating is not None and start_rating is not None) else None
+        return {
+            "start_rating": start_rating,
+            "current_rating": current_rating,
+            "delta": delta,
+            "games": games,
+            "available": True,
+        }
+
+    return {
+        "last_10d": _window(10),
+        "last_30d": _window(30),
+        "last_90d": _window(90),
+    }
+
+
 def _rating_curve(conn) -> dict[str, list[dict[str, Any]]]:
     """Per ogni cadenza, lista cronologica con rating ufficiale + perf rolling 5 + perf rolling 20.
 
@@ -912,13 +954,138 @@ def _turning_points(conn, k: int = 12) -> list[dict[str, Any]]:
                p.my_color, p.opp_rating, p.result, p.opening, p.eco,
                p.pv_san_sf,
                p.avoidable_at_my_level, p.unavoidable_at_target,
-               p.last_opp_from, p.last_opp_to, p.last_opp_san
+               p.last_opp_from, p.last_opp_to, p.last_opp_san,
+               p.seconds_spent,
+               p.waiting_moves
         FROM positions p
         WHERE p.is_turning_point=1
         ORDER BY p.end_time_epoch DESC, p.cp_loss DESC
         LIMIT ?
     """, k)
-    return rows
+    return _enrich_review_fields(conn, rows)
+
+
+def _build_prev_moves_map(
+    conn, game_rows: list[dict[str, Any]]
+) -> dict[tuple[str, int], list[str]]:
+    """Pre-costruisce la mappa (game_id, ply) → prev_moves (5 SAN precedenti).
+
+    Strategia: i record `positions` contengono SOLO le mie mosse (ply dispari se
+    sono bianco, pari se sono nero). Ogni riga ha anche `last_opp_san` = la mossa
+    avversaria appena prima di questa posizione.
+
+    Per ricostruire le 5 mosse precedenti (alternando la e avversario):
+      ply P   → last_opp_san[P]        (opponent move just before this)
+      ply P-2 → san[P-2]               (my move 2 plies ago)
+      ply P-2 → last_opp_san[P-2]      (opponent move 4 plies ago)
+      ply P-4 → san[P-4]               (my move 4 plies ago, if exists)
+      ply P-4 → last_opp_san[P-4]      (opponent move 6 plies ago)
+
+    Ordine: dal più lontano al più recente (= ordine di partita).
+    """
+    if not game_rows:
+        return {}
+
+    # Raggruppa i game_id necessari
+    game_ids = list({r["game_id"] for r in game_rows})
+    placeholders = ",".join("?" * len(game_ids))
+
+    # Leggi tutte le righe delle partite rilevanti, ordinate per ply
+    all_rows = _q(conn, f"""
+        SELECT game_id, ply, san, last_opp_san
+        FROM positions
+        WHERE game_id IN ({placeholders})
+        ORDER BY game_id, ply
+    """, *game_ids)
+
+    # Indicizza per (game_id, ply) → {san, last_opp_san}
+    by_game_ply: dict[str, dict[int, dict[str, Any]]] = {}
+    for r in all_rows:
+        by_game_ply.setdefault(r["game_id"], {})[r["ply"]] = r
+
+    result: dict[tuple[str, int], list[str]] = {}
+    for row in game_rows:
+        gid = row["game_id"]
+        ply = row["ply"]
+        game_map = by_game_ply.get(gid, {})
+
+        # Ricostruiamo le 5 posizioni precedenti (ply-1 ... ply-5)
+        # Le mie mosse sono a ply, ply-2, ply-4, ...
+        # Le mosse avversario sono a ply-1 (= last_opp_san di questo row),
+        #                              ply-3 (= last_opp_san del row a ply-2),
+        #                              ply-5 (= last_opp_san del row a ply-4)
+
+        def _get_row(p: int) -> dict[str, Any] | None:
+            return game_map.get(p)
+
+        prev: list[tuple[int, str]] = []  # (ply_position, san)
+
+        # ply P: last_opp_san = mossa avversario a ply-1
+        this_row = game_map.get(ply, {})
+        if this_row.get("last_opp_san"):
+            prev.append((ply - 1, this_row["last_opp_san"]))
+
+        # ply P-2: mia mossa
+        r_p2 = _get_row(ply - 2)
+        if r_p2 and r_p2.get("san"):
+            prev.append((ply - 2, r_p2["san"]))
+            # ply P-3: avversario dentro last_opp_san di row P-2
+            if r_p2.get("last_opp_san"):
+                prev.append((ply - 3, r_p2["last_opp_san"]))
+
+        # ply P-4: mia mossa
+        r_p4 = _get_row(ply - 4)
+        if r_p4 and r_p4.get("san"):
+            prev.append((ply - 4, r_p4["san"]))
+            # ply P-5: avversario dentro last_opp_san di row P-4
+            if r_p4.get("last_opp_san"):
+                prev.append((ply - 5, r_p4["last_opp_san"]))
+
+        # Ordina per ply crescente (dal più lontano al più recente)
+        prev.sort(key=lambda x: x[0])
+        moves_list = [s for _, s in prev] if prev else None
+
+        result[(gid, ply)] = moves_list if moves_list else None  # type: ignore[assignment]
+
+    return result
+
+
+def _enrich_review_fields(
+    conn, rows: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Aggiunge spent_seconds, prev_moves, waiting_moves a ogni PositionRow.
+
+    - spent_seconds : rinomina `seconds_spent` dal DB (già popolato al 100%)
+    - prev_moves    : ricostruito via _build_prev_moves_map (5 SAN prima)
+    - waiting_moves : deserializza JSON dal DB (NULL se Stockfish non ha girato)
+    """
+    if not rows:
+        return rows
+
+    prev_map = _build_prev_moves_map(conn, rows)
+
+    enriched: list[dict[str, Any]] = []
+    for row in rows:
+        r = dict(row)
+        # 1. spent_seconds
+        r["spent_seconds"] = r.pop("seconds_spent", None)
+
+        # 2. prev_moves
+        key = (r["game_id"], r["ply"])
+        r["prev_moves"] = prev_map.get(key)
+
+        # 3. waiting_moves — deserializza da JSON (TEXT nel DB)
+        wm_raw = r.pop("waiting_moves", None)
+        if wm_raw:
+            try:
+                r["waiting_moves"] = json.loads(wm_raw)
+            except (json.JSONDecodeError, TypeError):
+                r["waiting_moves"] = None
+        else:
+            r["waiting_moves"] = None
+
+        enriched.append(r)
+    return enriched
 
 
 def _drills(conn, k: int = 12) -> list[dict[str, Any]]:
@@ -949,6 +1116,8 @@ def _drills(conn, k: int = 12) -> list[dict[str, Any]]:
                p.my_color, p.opp_rating, p.result, p.opening, p.eco,
                p.pv_san_sf,
                p.last_opp_from, p.last_opp_to, p.last_opp_san,
+               p.seconds_spent,
+               p.waiting_moves,
                -- drill_value: il vero "money". Quanto il target sa che il mio
                -- livello non sa. NULL se Maia non e` ancora passata.
                CASE
@@ -979,7 +1148,7 @@ def _drills(conn, k: int = 12) -> list[dict[str, Any]]:
                  p.end_time_epoch DESC
         LIMIT ?
     """, k)
-    return rows
+    return _enrich_review_fields(conn, rows)
 
 
 # ----------------------------------------------------------------------------
@@ -1203,6 +1372,9 @@ def build(cfg: dict[str, Any]) -> dict[str, Any]:
     openings = _openings(conn)
     time_mgmt = _time_management(conn)
     rating_curve = _rating_curve(conn)
+    # Patch goal con progressione su finestre rolling (10/30/90gg)
+    time_class = identity.get("goal", {}).get("time_class") or "blitz"
+    identity["goal"]["recent_progression"] = _recent_progression(rating_curve, time_class)
     tilt = _tilt(conn)
     blind_spots = _blind_spots(conn)
     tactical_breakdown = _tactical_breakdown(conn)
@@ -1214,6 +1386,10 @@ def build(cfg: dict[str, Any]) -> dict[str, Any]:
     drills = _drills(conn)
     diagnoses = _diagnoses(kpi, decisions, by_phase, by_color, openings, time_mgmt, tilt, blind_spots, tactical_breakdown)
     weekly_focus = _weekly_focus(diagnoses, drills)
+
+    # B — strutture pedonali (strategia di mediogioco)
+    from pawn_structures import analyze_player_structures
+    pawn_structures = analyze_player_structures(conn)
 
     conn.close()
 
@@ -1239,6 +1415,7 @@ def build(cfg: dict[str, Any]) -> dict[str, Any]:
         "drills": drills,
         "diagnoses": diagnoses,
         "weekly_focus": weekly_focus,
+        "pawn_structures": pawn_structures,
     }
 
 

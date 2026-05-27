@@ -1,13 +1,13 @@
-import type { WeeklyTrend } from "../types";
+﻿import type { WeeklyTrend } from "../types";
 
 /**
  * Trend a 7 giorni: confronto fra ultimi 7gg e i 7gg precedenti. Mostrato
  * a fine sessione come "ricompensa" e nella sezione sopra-piega del
- * cruscotto se la settimana e` significativa.
+ * cruscotto se la settimana è significativa.
  *
  * Lettura: per ogni metrica, una freccia + numero. Verde = stai migliorando,
  * rosso = stai peggiorando. La direzione "buona" dipende dalla metrica
- * (ACPL: piu` basso = meglio. win_rate: piu` alto = meglio).
+ * (ACPL: più basso = meglio. win_rate: più alto = meglio).
  */
 export function WeeklyTrendCard({ trend, title = "Settimana vs precedente" }: {
   trend: WeeklyTrend;
@@ -35,21 +35,21 @@ export function WeeklyTrendCard({ trend, title = "Settimana vs precedente" }: {
       <div className="label-eyebrow text-[color:var(--color-brand-soft)] mb-3">{title}</div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Metric
-          label="Win rate"
+          label="Vittorie"
           value={`${Math.round((last.win_rate ?? 0) * 100)}%`}
           delta={d.win_rate}
           deltaFmt={(x) => `${x > 0 ? "+" : ""}${Math.round(x * 100)}pt`}
           higherIsBetter
         />
         <Metric
-          label="ACPL critico"
+          label="Precisione media"
           value={String(last.avg_cp_loss)}
           delta={d.avg_cp_loss}
           deltaFmt={(x) => (x > 0 ? "+" : "") + Math.round(x)}
           higherIsBetter={false}
         />
         <Metric
-          label="Blunder"
+          label="Errori gravi"
           value={String(last.n_blunders)}
           delta={d.n_blunders}
           deltaFmt={(x) => (x > 0 ? "+" : "") + Math.round(x)}
@@ -60,7 +60,7 @@ export function WeeklyTrendCard({ trend, title = "Settimana vs precedente" }: {
           value={String(last.n_games)}
           delta={d.n_games}
           deltaFmt={(x) => (x > 0 ? "+" : "") + Math.round(x)}
-          higherIsBetter // piu` partite = piu` dati
+          higherIsBetter // più partite = più dati
         />
       </div>
     </div>

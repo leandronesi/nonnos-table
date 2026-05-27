@@ -1,6 +1,6 @@
 import type { Diagnosis } from "../types";
 
-// Numbered list editorial. Niente "card" inscatolate uguali — solo separazione
+// Numbered list editorial. Niente "card" inscatolate uguali: solo separazione
 // hairline e numero ordinale grande a sinistra. Tipo articolo di Wired.
 export function DiagnosisList({ diagnoses }: { diagnoses: Diagnosis[] }) {
   if (!diagnoses || diagnoses.length === 0) return null;
@@ -21,7 +21,7 @@ export function DiagnosisList({ diagnoses }: { diagnoses: Diagnosis[] }) {
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
               <span className="text-[color:var(--color-brand-soft)] font-medium">
-                Allena →
+                Allena
               </span>
               <span className="text-[color:var(--color-text)]">{d.trainable}</span>
               {d.lichess_theme && (
@@ -31,8 +31,7 @@ export function DiagnosisList({ diagnoses }: { diagnoses: Diagnosis[] }) {
                   rel="noreferrer"
                   className="btn btn-ghost text-xs"
                 >
-                  Lichess · {d.lichess_theme}
-                  <span aria-hidden>→</span>
+                  Lichess - {d.lichess_theme}
                 </a>
               )}
             </div>

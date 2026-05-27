@@ -1,15 +1,19 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Chess } from "chess.js";
-import type { PositionRow } from "../types";
+import type { PositionRow, CoachSession } from "../types";
 import { BoardView } from "../components/BoardView";
+import { CoachNote } from "../components/CoachNote";
 import { useStockfish, type EvalResult } from "../engine/useStockfish";
 import { cpToHuman, cpToPawns } from "../glossary";
 import { turnFromFen } from "../chess-utils";
 import type { BivioResult } from "./store";
+import { positionCoachLine, sessionFallbackLine } from "../coaching";
 
 interface Props {
   tps: PositionRow[];
   results: BivioResult[];
+  coachSession?: CoachSession;
+  maiaLevel: number;
   onBivioDone: (r: BivioResult) => void;
   onAllDone: () => void;
 }
@@ -18,12 +22,12 @@ type Verdict = "perfect" | "ok" | "wrong" | null;
 
 /**
  * Bivi = posizioni che hanno deciso le partite, non strettamente blunder evitabili.
- * Stessa UX del warmup (drag&drop + Stockfish judge), ma con il messaging diverso:
+ * Stessa UX del warmup, ma con il messaging diverso:
  * "Cosa avresti dovuto giocare?".
  */
 type PremortemAnswer = "piece_threat" | "mate_check" | "positional" | "nothing";
 
-export function BivioStep({ tps, results, onBivioDone, onAllDone }: Props) {
+export function BivioStep({ tps, results, coachSession, maiaLevel, onBivioDone, onAllDone }: Props) {
   const sf = useStockfish();
   const [idx, setIdx] = useState(results.length);
   const [verdict, setVerdict] = useState<Verdict>(null);
@@ -48,11 +52,16 @@ export function BivioStep({ tps, results, onBivioDone, onAllDone }: Props) {
 
   if (idx >= tps.length) {
     return (
-      <div className="text-center py-20">
-        <div className="display-medium">Bivi visti</div>
-        <button onClick={onAllDone} className="btn btn-primary btn-lg mt-6">
-          Alla partita →
-        </button>
+      <div className="max-w-2xl mx-auto py-12">
+        <div className="text-center mb-6">
+          <div className="display-medium">Bivi visti</div>
+        </div>
+        <CoachNote text={coachSession?.between_bivio_play || sessionFallbackLine("between_bivio_play", maiaLevel)} tone="warm" />
+        <div className="text-center mt-6">
+          <button onClick={onAllDone} className="btn btn-primary btn-lg">
+            Alla partita -&gt;
+          </button>
+        </div>
       </div>
     );
   }
@@ -93,13 +102,6 @@ export function BivioStep({ tps, results, onBivioDone, onAllDone }: Props) {
     onBivioDone({ tpId: bivioKey, revealed: true });
     if (idx + 1 >= tps.length) onAllDone();
     else setIdx((i) => i + 1);
-  }
-
-  function revealSkip() {
-    setRevealed(true);
-    setVerdict("wrong");
-    setPlayedSan(d.san);
-    setCpLoss(d.cp_loss);
   }
 
   const showHints = verdict !== null || revealed;
@@ -149,26 +151,28 @@ export function BivioStep({ tps, results, onBivioDone, onAllDone }: Props) {
       </div>
 
       <div className="space-y-5">
+        {idx === 0 && <CoachNote text={coachSession?.open_bivio || sessionFallbackLine("open_bivio", maiaLevel)} tone="warm" />}
+        <CoachNote text={positionCoachLine(d, maiaLevel)} />
+
         <div>
           <div className="label-eyebrow">Bivio {idx + 1} di {tps.length}</div>
           <h3 className="display-small mt-2">
-            {orientation === "white" ? "Bianco" : "Nero"} muove · quale mossa?
+            {orientation === "white" ? "Bianco" : "Nero"} muove  -  quale mossa?
           </h3>
           <div className="text-sm text-[color:var(--color-text-soft)] mt-1">
             Una delle 3 posizioni che hanno deciso davvero quella partita.{" "}
-            {d.date} · vs <span className="font-semibold tabular-nums">{d.opp_rating ?? "?"}</span>
-            {d.opening && <> · {d.opening} <span className="font-mono text-xs opacity-70">({d.eco})</span></>}
+            {d.date}  -  vs <span className="font-semibold tabular-nums">{d.opp_rating ?? "?"}</span>
+            {d.opening && <>  -  {d.opening} <span className="font-mono text-xs opacity-70">({d.eco})</span></>}
           </div>
         </div>
 
-        {!sf.isReady && <div className="pill pill-warn">Carico Stockfish…</div>}
+        {!sf.isReady && <div className="pill pill-warn">Preparo il tavolo di analisi...</div>}
 
         {/* PRE-MORTEM: forza la scansione delle minacce avversarie prima di muovere */}
         {premortem === null && verdict === null && !revealed && (
           <PremortemPanel
             lastOppSan={d.last_opp_san || null}
             onAnswer={setPremortem}
-            onSkip={revealSkip}
           />
         )}
 
@@ -184,7 +188,7 @@ export function BivioStep({ tps, results, onBivioDone, onAllDone }: Props) {
 
         {evaluating && (
           <div className="rounded-xl p-4 border border-[color:var(--color-line)] bg-white/[0.02]">
-            <div className="text-sm text-[color:var(--color-text-soft)]">Stockfish sta valutando…</div>
+            <div className="text-sm text-[color:var(--color-text-soft)]">Controllo varianti, catture e difensori...</div>
           </div>
         )}
 
@@ -228,8 +232,8 @@ function VerdictPanel({
   isLast: boolean;
 }) {
   const title =
-    verdict === "perfect" ? "Bravo · mossa esatta" :
-    verdict === "ok" ? "Giocabile · c'era meglio" :
+    verdict === "perfect" ? "Bravo  -  mossa esatta" :
+    verdict === "ok" ? "Giocabile  -  c'era meglio" :
     "Ecco la mossa giusta";
   const color = verdict === "perfect" ? "#34d399" : verdict === "ok" ? "#facc15" : "#f43f5e";
 
@@ -239,7 +243,7 @@ function VerdictPanel({
         <div className="display-small" style={{ color }}>{title}</div>
         {cpLoss > 0 && (
           <span className={`pill pill-${verdict === "perfect" ? "good" : verdict === "ok" ? "warn" : "bad"}`}>
-            {cpToPawns(-cpLoss)} · {cpToHuman(cpLoss)}
+            {cpToPawns(-cpLoss)}  -  {cpToHuman(cpLoss)}
           </span>
         )}
       </div>
@@ -278,7 +282,7 @@ function VerdictPanel({
       </div>
 
       <button onClick={onNext} className="btn btn-primary mt-4 w-full justify-center">
-        {isLast ? "Alla partita →" : "Prossimo bivio →"}
+        {isLast ? "Alla partita ->" : "Prossimo bivio ->"}
       </button>
     </div>
   );
@@ -287,30 +291,28 @@ function VerdictPanel({
 /**
  * Pre-mortem step: prima di muovere, l'utente deve dichiarare cosa sta
  * facendo l'avversario. Quattro opzioni ortogonali, non valutate (no
- * "giusto/sbagliato"): il valore e` la PAUSA + la scansione forzata, non
+ * "giusto/sbagliato"): il valore è la PAUSA + la scansione forzata, non
  * la precisione della risposta.
  *
- * Razionale: a 1100-1600 il 60% dei blunder e` "non ho visto cosa fa lui".
- * Una micro-disciplina ripetuta 50 volte/sett. impatta piu` di mille puzzle.
+ * Razionale: a 1100-1600 il 60% dei blunder è "non ho visto cosa fa lui".
+ * Una micro-disciplina ripetuta 50 volte/sett. impatta piu' di mille esercizi generici.
  */
 function PremortemPanel({
   lastOppSan,
   onAnswer,
-  onSkip,
 }: {
   lastOppSan: string | null;
   onAnswer: (a: PremortemAnswer) => void;
-  onSkip: () => void;
 }) {
   const opts: { key: PremortemAnswer; label: string; sub: string }[] = [
     { key: "piece_threat", label: "Minaccia un mio pezzo", sub: "cattura, doppio, vincere materiale" },
     { key: "mate_check",   label: "Scacco / matto",         sub: "attacco al re forte, matto in vista" },
     { key: "positional",   label: "Pressione posizionale",  sub: "no minaccia diretta ma migliora la sua posizione" },
-    { key: "nothing",      label: "Niente di concreto",     sub: "mossa neutra / di sviluppo / pawn move" },
+    { key: "nothing",      label: "Niente di concreto",     sub: "mossa neutra / sviluppo / spinta di pedone" },
   ];
   return (
     <div className="rounded-xl p-4 border" style={{ background: "rgba(124,92,255,0.06)", borderColor: "rgba(124,92,255,0.25)" }}>
-      <div className="label-eyebrow text-[color:var(--color-brand-soft)] mb-2">Pre-mortem · 5 secondi</div>
+      <div className="label-eyebrow text-[color:var(--color-brand-soft)] mb-2">Prima della mossa  -  5 secondi</div>
       <div className="text-sm leading-relaxed">
         Prima di muovere: <b>cosa sta facendo l'avversario?</b>
         {lastOppSan && (
@@ -337,9 +339,9 @@ function PremortemPanel({
           </button>
         ))}
       </div>
-      <button onClick={onSkip} className="btn btn-ghost btn-sm mt-3">
-        Non lo so · mostra soluzione
-      </button>
+      <div className="text-xs text-[color:var(--color-muted)] mt-3">
+        Scegli una lettura, poi gioca: la mossa giusta arriva solo dopo il tentativo.
+      </div>
     </div>
   );
 }
@@ -385,3 +387,4 @@ function verdictColor(v: Verdict): string {
 function verdictBg(v: Verdict): string {
   return verdictColor(v) + "55";
 }
+

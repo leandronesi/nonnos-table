@@ -1,10 +1,24 @@
-// Tipi del player model v2 — sostituisce types v1.
+﻿// Tipi del player model v2 — sostituisce types v1.
 
 export type Phase = "opening" | "middlegame" | "endgame";
 export type Color = "white" | "black";
 export type Result = "win" | "loss" | "draw";
 export type MoveCategory = "ok" | "inaccuracy" | "mistake" | "blunder";
 export type Confidence = "low" | "medium" | "high";
+
+export interface RecentProgressionWindow {
+  start_rating: number | null;
+  current_rating: number | null;
+  delta: number | null;
+  games: number;
+  available: boolean;
+}
+
+export interface RecentProgression {
+  last_10d: RecentProgressionWindow;
+  last_30d: RecentProgressionWindow;
+  last_90d: RecentProgressionWindow;
+}
 
 export interface Goal {
   target: number;
@@ -20,6 +34,8 @@ export interface Goal {
   rate_per_day_needed: number | null;
   projection_at_deadline: number | null;
   on_track: boolean;
+  /** R2-A8 — progressione su finestre brevi (10gg/30gg/90gg) */
+  recent_progression?: RecentProgression;
 }
 
 export interface PlanSummary {
@@ -249,17 +265,17 @@ export interface PositionRow {
   p_mine_plays_best_sf?: number | null;
   /** Probabilita` che Maia@target giochi la mossa Stockfish-best in [0,1] */
   p_target_plays_best_sf?: number | null;
-  /** Top-policy del mio livello (quanto "ovvia" e` la posizione per me) */
+  /** Top-policy del mio livello (quanto "ovvia" è la posizione per me) */
   p_maia_mine_top?: number | null;
-  /** Top-policy del target (quanto "ovvia" e` per chi voglio diventare) */
+  /** Top-policy del target (quanto "ovvia" è per chi voglio diventare) */
   p_maia_target_top?: number | null;
-  /** 1 - p_maia_target_top — quanto e` ambigua la posizione anche per il target */
+  /** 1 - p_maia_target_top — quanto è ambigua la posizione anche per il target */
   move_difficulty?: number | null;
   /** Differenza p_target_plays_best - p_mine_plays_best in [0,1]. Vero "drill money". */
   drill_value?: number | null;
   /** 3=money / 2=avoidable / 1=blunder critico raw / 0=skip */
   priority_score?: number;
-  /** Tactical pattern detection (sprint 3 v2). Una posizione puo` averne piu` di uno. */
+  /** Tactical pattern detection (sprint 3 v2). Una posizione può averne più di uno. */
   motif_hanging_piece?: number;
   motif_fork?: number;
   motif_removed_defender?: number;
@@ -269,6 +285,13 @@ export interface PositionRow {
   last_opp_from?: string | null;
   last_opp_to?: string | null;
   last_opp_san?: string | null;
+  /** R1-A — Review fields. */
+  /** Secondi che il giocatore ha pensato sulla mossa (da Chess.com PGN [%clk]). */
+  spent_seconds?: number | null;
+  /** 3-5 mosse SAN PRECEDENTI per contesto pre-blunder (cronologico). */
+  prev_moves?: string[] | null;
+  /** Alternative "di attesa" Stockfish-validate (cp_loss < 50, non forzanti) quando la mossa giusta è troppo difficile (p_maia_mine_top < 0.20). */
+  waiting_moves?: { san: string; cp_loss: number }[] | null;
 }
 
 export interface Diagnosis {
@@ -316,6 +339,138 @@ export interface PlayerModel {
     progress?: string;
     roadmap?: string;
   };
+  coach_session?: CoachSession;
+  growth_delta?: GrowthDelta;
+  /** Strutture pedonali rilevate nel tuo mediogioco — B (strategia). */
+  pawn_structures?: PawnStructure[];
+}
+
+export interface StructureOpeningRow {
+  eco: string;
+  opening: string;
+  n_games: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  win_rate: number | null;
+}
+
+export interface StructureSamplePosition {
+  game_id: string;
+  ply: number;
+  move_number: number;
+  fen_before: string;
+  cp_loss: number;
+  cp_before?: number;
+  cp_after?: number;
+  san: string;
+  best_san_sf: string | null;
+  motif: string | null;
+  motif_label_it: string | null;
+  phase: Phase;
+  my_color: Color;
+  date: string | null;
+  opp_rating: number | null;
+  opening: string | null;
+  eco: string | null;
+  url: string | null;
+  result: Result | null;
+  last_opp_from: string | null;
+  last_opp_to: string | null;
+  last_opp_san: string | null;
+  p_mine_plays_best_sf: number | null;
+  p_target_plays_best_sf: number | null;
+  drill_value: number | null;
+  motif_hanging_piece?: number;
+  motif_fork?: number;
+  motif_removed_defender?: number;
+  motif_back_rank?: number;
+  motif_discovered_attack?: number;
+}
+
+export interface StructureGameRow {
+  game_id: string;
+  date: string | null;
+  opp_rating: number | null;
+  opening: string | null;
+  eco: string | null;
+  my_color: Color;
+  result: Result | null;
+  url: string | null;
+  n_positions_in_struct: number;
+  worst_cp_loss: number;
+}
+
+export interface PawnStructure {
+  /** Chiave canonica (es. "iqp_white", "carlsbad", "french_chain"). */
+  key: string;
+  /** Etichetta italiana per UI. */
+  label_it: string;
+  /** Posizioni di mediogioco rilevate con questa struttura. */
+  n_positions: number;
+  /** Partite distinte che ci passano. */
+  n_games: number;
+  wins: number;
+  losses: number;
+  draws: number;
+  /** Win-rate delle partite (0..1) o null. */
+  win_rate: number | null;
+  /** Avg cp_loss dei tuoi errori in queste posizioni. */
+  avg_cp_loss: number;
+  /** Motif tattico dominante (label_it) quando sbagli qui. */
+  dominant_motif: string | null;
+  confidence: Confidence;
+  /** Top ECO che ti portano in questa struttura. */
+  openings_breakdown?: StructureOpeningRow[];
+  /** Posizioni rappresentative (top per cp_loss, max 1 per partita per varietà). */
+  sample_positions?: StructureSamplePosition[];
+  /** Partite recenti che hanno toccato la struttura. */
+  games_sample?: StructureGameRow[];
+}
+
+// Delta-pattern week-over-week — calcolato deterministico da backend/growth.py.
+// Versione estesa (R1-A7): serie temporale multi-settimana per ogni pattern,
+// + back-compat coi campi `summary_*` esistenti.
+
+export interface PatternWeeklyPoint {
+  week_iso: string;
+  share: number;
+  n: number;
+}
+
+export interface PatternEvolution {
+  key: string;
+  label_it: string;
+  category: "tactic" | "timing" | "psych" | "decision" | "phase" | "color";
+  current_share: number;
+  previous_share: number;
+  trend: "improving" | "worsening" | "stable";
+  magnitude: "weak" | "medium" | "strong";
+  weekly_series: PatternWeeklyPoint[];
+  phrase_hint: string;
+  // back-compat (vecchio formato GrowthDeltaPattern)
+  share_curr?: number;
+  share_prev?: number;
+  delta_share?: number;
+  direction?: string;
+}
+
+// Alias retro-compatibile (nessun chiamante usa più questo type ma lo mantengo)
+export type GrowthDeltaPattern = PatternEvolution;
+
+export interface GrowthDelta {
+  available: boolean;
+  reason?: string;
+  as_of?: string;
+  window_days?: number;
+  compare_to_days?: number;
+  patterns?: PatternEvolution[];
+  // back-compat summary_*
+  summary_key?: string;
+  summary_label_it?: string;
+  summary_direction?: string;
+  summary_magnitude?: string;
+  summary_phrase_hint?: string;
 }
 
 // Output OpenAI gpt-5.4-mini in coach.py (opzionale, può non esistere)
@@ -326,4 +481,24 @@ export interface CoachBrief {
   avoid: string;
   generated_at: string;
   model: string;
+  pipeline_mode?: string;
+  /** R1-B — apertura del Tavolo (home): 3-4 frasi che anticipano la sessione. */
+  open_tavolo?: string;
+}
+
+// Frasi di Coach pre-generate per la sessione (warmup/bivio/play/recap).
+// Generate da coach.py.generate_session_phrases() e iniettate in
+// pm.coach_session.
+export interface CoachSession {
+  /** R1-B — apertura della home/Tavolo: 3-4 frasi che anticipano la sessione. */
+  open_tavolo?: string;
+  open_warmup: string;
+  between_warmup_bivio: string;
+  open_bivio: string;
+  between_bivio_play: string;
+  open_play: string;
+  recap_win: string;
+  recap_draw: string;
+  recap_loss: string;
+  close: string;
 }

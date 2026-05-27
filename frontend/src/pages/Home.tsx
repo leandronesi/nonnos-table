@@ -1,522 +1,342 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Activity,
-  Brain,
-  ChevronRight,
-  Database,
-  Flame,
-  Layers,
-  Library,
-  PlayCircle,
-  Sparkles,
-  Target,
-  TrendingUp,
+  BookOpen, Brain, ChevronRight, PlayCircle, Target, TrendingUp, TrendingDown, Minus, Pencil,
+  Dumbbell, Sparkles, Library,
 } from "lucide-react";
-import type { PlayerModel, PositionRow } from "../types";
+import type { PlayerModel, RecentProgressionWindow } from "../types";
 import { GuidedSession } from "../session/GuidedSession";
-import { loadSession, sessionIsTodayAndDone, loadStreak } from "../session/store";
-import { BoardView } from "../components/BoardView";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { GoalEditor } from "../components/GoalEditor";
+import { buildPatterns, formatSharePct, trendArrow, trendColor, trendLabel, categoryColor, categoryLabel, pickTodaysPatterns } from "../patterns";
+import { PatternSparkline } from "../components/PatternSparkline";
+import { timeClassLabel } from "../coaching";
+import { loadStreak } from "../session/store";
+import { todayRuns } from "../session/drillLog";
+import { lastEntry } from "../session/journal";
+import { getCachedLiveCoach } from "../liveCoach";
 
+/**
+ * Home (Tavolo) — la dashboard OOUX completa.
+ *
+ * Mostra a colpo d'occhio: chi sei (Player card), dove vuoi arrivare
+ * (Obiettivo), cosa Nonno dice oggi, cosa hai fatto l'ultima volta, i 3
+ * freni di oggi da allenare, e i 4 deep-dive (Freni, Quaderno, Repertorio,
+ * Profilo) per andare in profondita`.
+ *
+ * Niente "Solo Nonno + 1 bottone" — quel paradigma nascondeva il valore.
+ * Qui il prodotto si presenta intero in 1 schermata, e l'utente capisce
+ * subito perche` sta usando l'app.
+ */
 export function Home({ pm }: { pm: PlayerModel }) {
   const [sessionOpen, setSessionOpen] = useState(false);
-  const [sessionDoneToday, setSessionDoneToday] = useState(false);
-  const [streakDays, setStreakDays] = useState(0);
+  const [goalEditorOpen, setGoalEditorOpen] = useState(false);
 
-  useEffect(() => {
-    setSessionDoneToday(sessionIsTodayAndDone(loadSession()));
-    setStreakDays(loadStreak().current);
-  }, []);
+  const greeting = pickTavoloGreeting(pm);
+  const briefHeadline = pm.coach_brief?.headline;
+  const liveBrief = useMemo(() => getCachedLiveCoach(pm), [pm]);
+  const journalLast = useMemo(() => lastEntry(), []);
 
-  function closeSession() {
-    setSessionOpen(false);
-    setSessionDoneToday(sessionIsTodayAndDone(loadSession()));
-    setStreakDays(loadStreak().current);
-  }
+  const nReview = Math.min(5, (pm.drills?.length ?? 0) + (pm.turning_points?.length ?? 0));
+  const sessionSpec = `${nReview} momenti · 1 partita · ~15 minuti`;
 
-  const featured = useMemo(() => pickFeaturedPosition(pm), [pm]);
-  const focusName = normalizeFocusName(pm.weekly_focus?.headline || pm.diagnoses?.[0]?.title);
-  const coachVoice = pickCoachVoice(pm, focusName);
+  const allPatterns = useMemo(() => buildPatterns(pm), [pm]);
+  const todaysPatterns = useMemo(() => pickTodaysPatterns(allPatterns, 3), [allPatterns]);
+
   const goal = pm.identity.goal;
-  const plan = pm.identity.plan_summary;
-  const projection = pm.goal_projection;
-  const proofCards = buildProofCards(pm, streakDays);
-  const sessionSpec = buildSessionSpec(pm);
+  const currentRating = goal.current_rating ?? null;
+  const targetRating = goal.target;
+  const timeClass = timeClassLabel(goal.time_class);
+  const recent = goal.recent_progression;
+  const windowDays = pm.growth_delta?.window_days ?? 14;
+
+  const streak = useMemo(() => loadStreak(), []);
+  const drillsToday = useMemo(() => todayRuns(), []);
+  const drilledPatternKeys = useMemo(
+    () => new Set(drillsToday.map((r) => r.pattern_key)),
+    [drillsToday],
+  );
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const ctaState: "todo" | "done" = streak.lastDate === todayIso ? "done" : "todo";
 
   return (
     <div className="home-page">
       <header className="home-topbar">
-        <div className="home-brand">
-          <div className="home-brand-mark" aria-hidden="true">♚</div>
-          <div>
-            <div className="home-brand-name">ChessPath</div>
-            <div className="home-brand-sub">AI coach per {pm.identity.username}</div>
-          </div>
+        <div className="home-topbar-brand">
+          <Link to="/coach" className="home-topbar-coach">
+            <Brain size={16} aria-hidden="true" /> Nonno O.
+          </Link>
+          <span className="home-topbar-divider">·</span>
+          <span className="home-topbar-product">Road to GranPa</span>
         </div>
-
-        <div className="home-top-actions">
-          <div className="home-target-strip" aria-label={`Obiettivo ${goal.current_rating ?? "-"} verso ${goal.target}`}>
-            <span>{goal.current_rating ?? "-"}</span>
-            <ChevronRight size={14} aria-hidden="true" />
-            <strong>{goal.target}</strong>
-          </div>
+        <nav className="home-topbar-nav" aria-label="Navigazione principale">
+          {streak.current > 0 && (
+            <span
+              className="home-topbar-streak"
+              title={`Catena attuale: ${streak.current} ${streak.current === 1 ? "giorno" : "giorni"}, record ${streak.best}`}
+              aria-label={`Catena ${streak.current} giorni`}
+            >
+              🔥 {streak.current}
+            </span>
+          )}
+          <Link to="/patterns" className="home-topbar-link" title="Freni">
+            <Target size={18} aria-hidden="true" />
+            <span className="home-topbar-link-label">Freni</span>
+          </Link>
+          <Link to="/coach" className="home-topbar-link" title="Quaderno">
+            <BookOpen size={18} aria-hidden="true" />
+            <span className="home-topbar-link-label">Quaderno</span>
+          </Link>
           <ThemeToggle compact />
-        </div>
+        </nav>
       </header>
 
-      <main className="home-cockpit">
-        <Panel className="home-hero-panel" tone="hero">
-          <div className="home-status-line">
-            <StatusPill projection={projection} goal={goal} />
-            <span>{plan ? `+${plan.delta_since_plan ?? 0} Elo dal piano` : `${goal.points_needed} punti mancanti`}</span>
-          </div>
-
-          <h1 className="home-title">
-            Il tuo gioco, misurato contro il giocatore che vuoi diventare.
-          </h1>
-
-          <p className="home-lede">{coachVoice}</p>
-
-          <div className="home-action-row">
-            <button
-              type="button"
-              onClick={() => setSessionOpen(true)}
-              className="home-session-button"
-              aria-label={sessionDoneToday ? "Riapri la sessione di oggi" : "Inizia la sessione di oggi"}
-            >
-              <PlayCircle size={22} aria-hidden="true" />
-              <span>{sessionDoneToday ? "Sessione completata" : "Inizia sessione di oggi"}</span>
-              <ChevronRight size={18} aria-hidden="true" />
-            </button>
-
-            <div className="home-session-meta">
-              <strong>{sessionSpec}</strong>
-              <span>{streakDays > 0 ? `${streakDays} giorni di streak` : "primo giro del piano"}</span>
+      <main className="home-main">
+        {/* OBIETTIVO — north star, identita` del giocatore verso il target */}
+        <section className="home-obiettivo">
+          <div className="home-obiettivo-star" aria-hidden="true">★</div>
+          <div className="home-obiettivo-content">
+            <div className="home-obiettivo-eyebrow-row">
+              <span className="label-eyebrow">L'obiettivo dichiarato</span>
+              <button
+                type="button"
+                onClick={() => setGoalEditorOpen(true)}
+                className="home-obiettivo-edit"
+                aria-label="Modifica l'obiettivo"
+                title="Modifica l'obiettivo"
+              >
+                <Pencil size={12} aria-hidden="true" /> Modifica
+              </button>
             </div>
+            <h1 className="home-obiettivo-headline">
+              Da <span className="home-obiettivo-rating">{currentRating ?? "?"}</span> a{" "}
+              <span className="home-obiettivo-target">{targetRating}</span>{" "}
+              <span className="home-obiettivo-tc">{timeClass}</span>
+            </h1>
+            {currentRating != null && (
+              <div className="home-obiettivo-sub">
+                <strong>{Math.max(0, targetRating - currentRating)} punti da fare</strong>
+                {goal.days_left != null && goal.days_left > 0 && (
+                  <span> · entro {goal.deadline} ({goal.days_left} gg)</span>
+                )}
+                {goal.recent_progression?.last_30d?.delta != null && (
+                  <span>
+                    {" "} · ultimi 30gg{" "}
+                    <strong style={{ color: (goal.recent_progression.last_30d.delta ?? 0) >= 0 ? "var(--color-ok)" : "var(--color-danger)" }}>
+                      {goal.recent_progression.last_30d.delta > 0 ? "+" : ""}
+                      {goal.recent_progression.last_30d.delta}
+                    </strong>
+                  </span>
+                )}
+              </div>
+            )}
+            {pm.goal_projection?.verdict && (
+              <div className={`home-obiettivo-verdict verdict-${pm.goal_projection.verdict}`}>
+                {verdictLabel(pm.goal_projection.verdict)}
+              </div>
+            )}
           </div>
+        </section>
 
-          <div className="home-proof-grid" aria-label="Prove numeriche del coach">
-            {proofCards.map((card) => (
-              <ProofCard key={card.label} {...card} />
-            ))}
+        {recent && (
+          <section className="home-progression-strip">
+            <ProgressionWindow label="10gg" w={recent.last_10d} />
+            <ProgressionWindow label="30gg" w={recent.last_30d} />
+            <ProgressionWindow label="90gg" w={recent.last_90d} />
+          </section>
+        )}
+
+        {/* Nonno dice + Sediamoci affiancati */}
+        <section className="home-coach-row">
+          <div className="home-coach-quote">
+            <div className="label-eyebrow flex items-center gap-1.5">
+              {liveBrief
+                ? <><Sparkles size={14} aria-hidden="true" /> Nonno dice · live</>
+                : <><Brain size={14} aria-hidden="true" /> Nonno dice</>}
+            </div>
+            <h2 className="home-coach-headline">
+              {liveBrief?.headline || briefHeadline || "Sediamoci, vediamo cosa hai fatto."}
+            </h2>
+            <p className="home-coach-text">{liveBrief?.body || greeting}</p>
+            {journalLast && (
+              <div className="home-journal-last">
+                <span className="home-journal-last-label">L'ultima volta:</span>
+                <span className="home-journal-last-body">{journalLast.body}</span>
+              </div>
+            )}
+            <Link to="/coach" className="home-coach-more">
+              Vedi il Quaderno completo <ChevronRight size={14} aria-hidden="true" />
+            </Link>
           </div>
-        </Panel>
+          <div className={`home-session-cta home-session-cta-${ctaState}`}>
+            <button className="home-session-btn" onClick={() => setSessionOpen(true)} type="button">
+              <PlayCircle size={22} aria-hidden="true" />
+              <span>{ctaState === "done" ? "Rivedi la sessione di oggi" : "Sediamoci"}</span>
+              <ChevronRight size={20} aria-hidden="true" />
+            </button>
+            <div className="home-session-spec">
+              {ctaState === "done"
+                ? `Fatto oggi · ${streak.current} ${streak.current === 1 ? "giorno" : "giorni"} di fila`
+                : sessionSpec}
+            </div>
+            <div className="home-session-hint">
+              {ctaState === "done"
+                ? "Domani nuova sessione. Non rompere la catena."
+                : `Allenamento per ${targetRating} ${timeClass}, parte dai freni qui sotto`}
+            </div>
+            {drilledPatternKeys.size > 0 && (
+              <div className="home-session-drilled-today">
+                <Dumbbell size={12} aria-hidden="true" />
+                Freni allenati oggi: <strong>{drilledPatternKeys.size}</strong>
+              </div>
+            )}
+          </div>
+        </section>
 
-        <PositionPanel position={featured} />
+        {/* Cosa ti propongo oggi — top 3 freni cliccabili */}
+        {todaysPatterns.length > 0 && (
+          <section className="home-section">
+            <header className="home-section-head">
+              <div>
+                <div className="label-eyebrow flex items-center gap-1.5">
+                  <Target size={14} aria-hidden="true" /> Freni di oggi
+                </div>
+                <h2 className="display-small mt-1">Cosa ti propongo oggi</h2>
+                <p className="text-sm text-[color:var(--color-text-soft)] mt-1">
+                  Verso {targetRating} {timeClass}, ruotano in base a quello che hai già allenato
+                </p>
+              </div>
+              <Link to="/patterns" className="home-section-link">
+                Tutti i freni <ChevronRight size={14} aria-hidden="true" />
+              </Link>
+            </header>
+            <div className="home-pattern-grid">
+              {todaysPatterns.map((p) => (
+                <Link
+                  key={p.key}
+                  to={`/patterns/${encodeURIComponent(p.key)}`}
+                  className={`home-pattern-card ${drilledPatternKeys.has(p.key) ? "home-pattern-card-drilled" : ""}`}
+                >
+                  <div className="home-pattern-cat" style={{ color: categoryColor(p.category) }}>
+                    <span className="home-pattern-cat-dot" style={{ background: categoryColor(p.category) }} />
+                    {categoryLabel(p.category)}
+                    {drilledPatternKeys.has(p.key) && (
+                      <span className="home-pattern-drilled-badge" title="Allenato oggi">
+                        <Dumbbell size={11} aria-hidden="true" /> oggi
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="home-pattern-name">{p.name}</h3>
+                  <div className="home-pattern-row">
+                    <div>
+                      <div className="home-pattern-stat-val">{formatSharePct(p.current_share)}</div>
+                      <div className="home-pattern-stat-lbl">delle partite {windowDays}gg</div>
+                    </div>
+                    <div className="home-pattern-trend" style={{ color: trendColor(p.trend) }}>
+                      <span aria-hidden="true">{trendArrow(p.trend)}</span> {trendLabel(p.trend)}
+                    </div>
+                  </div>
+                  <PatternSparkline
+                    series={p.weekly_series}
+                    width={240}
+                    height={36}
+                    color={trendColor(p.trend)}
+                    ariaLabel={`andamento ${p.name}`}
+                  />
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
-        <GoalPanel pm={pm} />
-
-        <CoachPanel focusName={focusName} pm={pm} />
-
-        <NavigationPanel />
+        {/* Esplora — 4 deep-dive sempre raggiungibili */}
+        <section className="home-footer-nav">
+          <Link to="/patterns" className="home-footer-link">
+            <Target size={16} aria-hidden="true" />
+            <div>
+              <div className="home-footer-link-title">I tuoi freni</div>
+              <div className="home-footer-link-sub">{allPatterns.length} cose da sciogliere</div>
+            </div>
+          </Link>
+          <Link to="/coach" className="home-footer-link">
+            <BookOpen size={16} aria-hidden="true" />
+            <div>
+              <div className="home-footer-link-title">Quaderno di Nonno</div>
+              <div className="home-footer-link-sub">Cosa pensa di te, in dettaglio</div>
+            </div>
+          </Link>
+          <Link to="/repertorio" className="home-footer-link">
+            <Library size={16} aria-hidden="true" />
+            <div>
+              <div className="home-footer-link-title">Repertorio</div>
+              <div className="home-footer-link-sub">Le tue aperture</div>
+            </div>
+          </Link>
+          <Link to="/profilo" className="home-footer-link">
+            <TrendingUp size={16} aria-hidden="true" />
+            <div>
+              <div className="home-footer-link-title">Profilo</div>
+              <div className="home-footer-link-sub">Tempo, fasi, decisioni</div>
+            </div>
+          </Link>
+        </section>
       </main>
 
-      {sessionOpen && <GuidedSession pm={pm} onClose={closeSession} />}
-    </div>
-  );
-}
-
-function Panel({
-  children,
-  className = "",
-  tone = "default",
-}: {
-  children: ReactNode;
-  className?: string;
-  tone?: "default" | "hero" | "quiet";
-}) {
-  return (
-    <section className={`home-panel home-panel-${tone} ${className}`}>
-      {children}
-    </section>
-  );
-}
-
-function StatusPill({
-  projection,
-  goal,
-}: {
-  projection?: PlayerModel["goal_projection"];
-  goal: PlayerModel["identity"]["goal"];
-}) {
-  if (goal.on_track) {
-    return (
-      <span className="home-pill home-pill-good">
-        <Target size={13} aria-hidden="true" />
-        in traiettoria
-      </span>
-    );
-  }
-
-  const label = projection?.verdict ? projection.verdict.replaceAll("_", " ") : "goal da recuperare";
-  return (
-    <span className="home-pill home-pill-risk">
-      <Target size={13} aria-hidden="true" />
-      {label}
-    </span>
-  );
-}
-
-function PositionPanel({ position }: { position: PositionRow | null }) {
-  if (!position) {
-    return (
-      <Panel className="home-position-panel">
-        <div className="home-panel-heading">
-          <span><Database size={14} aria-hidden="true" /> Posizione reale</span>
-          <strong>in arrivo</strong>
-        </div>
-        <p className="home-muted">Nessun drill disponibile nel player model corrente.</p>
-      </Panel>
-    );
-  }
-
-  const pMine = position.p_mine_plays_best_sf;
-  const pTarget = position.p_target_plays_best_sf;
-  const targetPct = pTarget == null ? null : Math.round(pTarget * 100);
-  const minePct = pMine == null ? null : Math.round(pMine * 100);
-  const gapPct = targetPct != null && minePct != null ? targetPct - minePct : null;
-  const orientation = position.my_color || "white";
-
-  return (
-    <Panel className="home-position-panel">
-      <div className="home-panel-heading">
-        <span><Database size={14} aria-hidden="true" /> Caso reale</span>
-        <strong>{position.eco ?? position.phase}</strong>
-      </div>
-
-      <div className="home-board-frame">
-        <div className="home-board-scale">
-          <BoardView
-            fen={position.fen_before}
-            orientation={orientation}
-            size={304}
-            resetKey={`${position.game_id}:${position.ply}:home`}
-            arrows={buildPreviewArrows(position)}
-            highlights={buildPreviewHighlights(position)}
-          />
-        </div>
-      </div>
-
-      <div className="home-position-copy">
-        <div>
-          <span className="home-mini-label">mossa giocata</span>
-          <strong>{position.san}</strong>
-        </div>
-        <div>
-          <span className="home-mini-label">mossa target</span>
-          <strong>{position.best_san_sf ?? position.best_san_maia_target ?? "-"}</strong>
-        </div>
-      </div>
-
-      {gapPct != null && targetPct != null && minePct != null && (
-        <div className="home-gap-box">
-          <div className="home-gap-title">Gap target sulla mossa</div>
-          <div className="home-gap-grid">
-            <Metric label="target 1600" value={`${targetPct}%`} />
-            <Metric label="tuo livello" value={`${minePct}%`} />
-            <Metric label="gap allenabile" value={`+${gapPct}pp`} tone="hot" />
-          </div>
-        </div>
+      {sessionOpen && <GuidedSession pm={pm} onClose={() => setSessionOpen(false)} />}
+      {goalEditorOpen && (
+        <GoalEditor
+          pm={pm}
+          onClose={() => setGoalEditorOpen(false)}
+          onSaved={() => {
+            setGoalEditorOpen(false);
+            window.location.reload();
+          }}
+        />
       )}
-
-      <p className="home-position-insight">
-        Non è una review generica: è il confronto fra la tua scelta reale e la probabilità
-        che un giocatore target trovi la mossa giusta nella stessa posizione.
-      </p>
-    </Panel>
-  );
-}
-
-function GoalPanel({ pm }: { pm: PlayerModel }) {
-  const goal = pm.identity.goal;
-  const plan = pm.identity.plan_summary;
-  const start = plan?.rating_at_plan ?? goal.start_rating ?? goal.current_rating ?? goal.target;
-  const current = goal.current_rating ?? start;
-  const total = Math.max(1, goal.target - start);
-  const gained = current - start;
-  const progressPct = clamp((gained / total) * 100, 0, 100);
-  const projection = pm.goal_projection;
-
-  return (
-    <Panel className="home-goal-panel" tone="quiet">
-      <div className="home-panel-heading">
-        <span><TrendingUp size={14} aria-hidden="true" /> Piano 1600</span>
-        <strong>{goal.days_left} giorni</strong>
-      </div>
-
-      <div className="home-goal-numbers">
-        <span>{start}</span>
-        <ChevronRight size={16} aria-hidden="true" />
-        <strong>{current}</strong>
-        <ChevronRight size={16} aria-hidden="true" />
-        <span>{goal.target}</span>
-      </div>
-
-      <div className="home-progress-track" aria-label={`Progresso ${Math.round(progressPct)}%`}>
-        <div className="home-progress-fill" style={{ width: `${progressPct}%` }} />
-      </div>
-
-      <div className="home-goal-detail">
-        <Metric label="mancano" value={`${goal.points_needed}`} sub="punti Elo" />
-        <Metric
-          label="ritmo richiesto"
-          value={goal.rate_per_day_needed == null ? "-" : `${goal.rate_per_day_needed.toFixed(1)}/g`}
-          sub="fino alla deadline"
-        />
-        <Metric
-          label="proiezione"
-          value={projection?.projected_at ? formatItalianDate(projection.projected_at) : "-"}
-          sub={projection?.risk_pct != null ? `rischio ${projection.risk_pct}%` : undefined}
-          tone={projection?.risk_pct != null && projection.risk_pct >= 70 ? "hot" : "default"}
-        />
-      </div>
-    </Panel>
-  );
-}
-
-function CoachPanel({ focusName, pm }: { focusName: string; pm: PlayerModel }) {
-  // Preferiamo la voce di Nonno (coach_brief). Se manca o e` rule-based,
-  // ricadiamo su weekly_focus (regole interne).
-  const brief = pm.coach_brief;
-  const isNonno = brief?.model && brief.model !== "fallback-rules";
-  const focus = pm.weekly_focus;
-
-  const headline = isNonno ? brief?.headline : focusName;
-  const evidence = isNonno ? brief?.diagnosis_narrative : focus?.evidence;
-  const action = isNonno
-    ? brief?.this_week?.[0]
-    : focus?.actions?.[0]?.replace(/^[^\wÀ-ÿ]+/u, "") || pm.diagnoses?.[0]?.trainable;
-  const avoid = isNonno ? brief?.avoid : null;
-
-  return (
-    <Panel className="home-coach-panel" tone="quiet">
-      <div className="home-panel-heading">
-        <span><Brain size={14} aria-hidden="true" /> {isNonno ? "Nonno O." : "Coach"}</span>
-        <strong>{isNonno ? "voce" : (focus?.confidence ?? "medium")}</strong>
-      </div>
-
-      <div className="home-coach-main">
-        <span className="home-mini-label">{isNonno ? "questa settimana" : "focus della settimana"}</span>
-        <strong>{headline}</strong>
-        {evidence && <p>{evidence}</p>}
-      </div>
-
-      <div className="home-coach-bottom">
-        {action && (
-          <div>
-            <span className="home-mini-label">{isNonno ? "ti dice" : "azione"}</span>
-            <p>{action}</p>
-          </div>
-        )}
-        {avoid && (
-          <div>
-            <span className="home-mini-label">da evitare</span>
-            <p>{avoid}</p>
-          </div>
-        )}
-      </div>
-    </Panel>
-  );
-}
-
-function NavigationPanel() {
-  const items = [
-    {
-      to: "/storia",
-      icon: <Sparkles size={18} aria-hidden="true" />,
-      label: "Profilo",
-      question: "Chi sono come giocatore?",
-      detail: "rating, trend, storia del coach",
-    },
-    {
-      to: "/cruscotto",
-      icon: <Layers size={18} aria-hidden="true" />,
-      label: "Pattern",
-      question: "Dove perdo punti?",
-      detail: "diagnosi, tattica, decisioni",
-    },
-    {
-      to: "/repertorio",
-      icon: <Library size={18} aria-hidden="true" />,
-      label: "Trainer",
-      question: "Dove mi alleno?",
-      detail: "drill, aperture, turning point",
-    },
-  ];
-
-  return (
-    <Panel className="home-nav-panel">
-      <div className="home-panel-heading">
-        <span><Activity size={14} aria-hidden="true" /> Approfondisci</span>
-        <strong>3 viste</strong>
-      </div>
-
-      <div className="home-nav-grid">
-        {items.map((item) => (
-          <Link key={item.to} to={item.to} className="home-nav-card">
-            <span className="home-nav-icon">{item.icon}</span>
-            <span>
-              <strong>{item.label}</strong>
-              <em>{item.question}</em>
-              <small>{item.detail}</small>
-            </span>
-            <ChevronRight size={16} aria-hidden="true" />
-          </Link>
-        ))}
-      </div>
-    </Panel>
-  );
-}
-
-function ProofCard({
-  icon,
-  label,
-  value,
-  sub,
-  tone = "default",
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-  sub: string;
-  tone?: "default" | "good" | "hot";
-}) {
-  return (
-    <div className={`home-proof-card home-proof-${tone}`}>
-      <span className="home-proof-icon">{icon}</span>
-      <span className="home-mini-label">{label}</span>
-      <strong>{value}</strong>
-      <small>{sub}</small>
     </div>
   );
 }
 
-function Metric({
-  label,
-  value,
-  sub,
-  tone = "default",
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  tone?: "default" | "hot" | "good";
-}) {
+function verdictLabel(v: string): string {
+  return ({
+    on_track: "Sei sulla rotta giusta, continua così",
+    in_ritardo: "Sei in ritardo sul piano, bisogna spingere",
+    stagnante: "Stai fermo, i drill devono diventare quotidiani",
+    regressione: "In regressione, rivedi i freni",
+    raggiunto: "Obiettivo raggiunto, alza l'asticella",
+  } as Record<string, string>)[v] ?? v;
+}
+
+function ProgressionWindow({ label, w }: { label: string; w: RecentProgressionWindow }) {
+  if (!w.available || w.delta == null) {
+    return (
+      <div className="home-progress-window home-progress-window-na">
+        <div className="home-progress-window-delta">—</div>
+        <div className="home-progress-window-lbl">{label}</div>
+      </div>
+    );
+  }
+  const positive = w.delta > 0;
+  const neutral = w.delta === 0;
+  const color = positive ? "var(--color-ok)" : neutral ? "var(--color-muted)" : "var(--color-danger)";
+  const Icon = positive ? TrendingUp : neutral ? Minus : TrendingDown;
   return (
-    <div className={`home-metric home-metric-${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-      {sub && <small>{sub}</small>}
+    <div className="home-progress-window" style={{ color }}>
+      <div className="home-progress-window-delta">
+        <Icon size={14} aria-hidden="true" />
+        <span>{positive ? "+" : ""}{w.delta}</span>
+      </div>
+      <div className="home-progress-window-lbl">{label} · {w.games} partite</div>
     </div>
   );
 }
 
-function buildProofCards(pm: PlayerModel, streakDays: number) {
-  const planDelta = pm.identity.plan_summary?.delta_since_plan;
-  const winDelta = pm.trend_weekly?.delta.win_rate;
-
-  return [
-    {
-      icon: <Database size={16} aria-hidden="true" />,
-      label: "campione reale",
-      value: `${pm.kpi.games_analyzed}`,
-      sub: `${pm.kpi.critical_positions} posizioni critiche`,
-    },
-    {
-      icon: <Target size={16} aria-hidden="true" />,
-      label: "gap allenabile",
-      value: `${pm.kpi.avoidable_blunders}`,
-      sub: "blunder evitabili al tuo livello",
-      tone: "hot" as const,
-    },
-    {
-      icon: <Flame size={16} aria-hidden="true" />,
-      label: "piano attivo",
-      value: planDelta == null ? `${streakDays}g` : `+${planDelta}`,
-      sub: planDelta == null ? "streak corrente" : "Elo dal kick-off",
-      tone: "good" as const,
-    },
-    {
-      icon: <TrendingUp size={16} aria-hidden="true" />,
-      label: "ultimi 7 giorni",
-      value: winDelta == null ? "-" : `${winDelta >= 0 ? "+" : ""}${Math.round(winDelta * 100)}pp`,
-      sub: `${pm.trend_weekly?.last_7d.n_games ?? 0} partite recenti`,
-      tone: winDelta != null && winDelta > 0 ? "good" as const : "default" as const,
-    },
-  ];
-}
-
-function buildSessionSpec(pm: PlayerModel): string {
-  const drills = Math.min(5, pm.drills?.length || 0);
-  const turning = Math.min(2, pm.turning_points?.length || 0);
-  return `${drills} drill, ${turning} bivi, 1 partita`;
-}
-
-function pickFeaturedPosition(pm: PlayerModel): PositionRow | null {
-  const ranked = [...(pm.drills || [])].sort((a, b) => (b.drill_value ?? 0) - (a.drill_value ?? 0));
-  return ranked.find((d) => d.fen_before && d.p_target_plays_best_sf != null && d.p_mine_plays_best_sf != null)
-    ?? ranked[0]
-    ?? pm.turning_points?.[0]
-    ?? null;
-}
-
-function normalizeFocusName(input?: string | null): string {
-  if (!input) return "la mossa critica della settimana";
-  return input
-    .replace(/^Blind spot:\s*/i, "")
-    .replace(/^Pattern dominante:\s*/i, "")
-    .replace(/^Sbagli più nel\s*/i, "")
-    .trim();
-}
-
-function pickCoachVoice(pm: PlayerModel, focusName: string): string {
-  // 1. Preferiamo la voce di Nonno: diagnosis_narrative del brief settimanale.
-  const brief = pm.coach_brief?.diagnosis_narrative?.trim();
-  if (brief && brief.length > 30) return brief;
-
-  // 2. Fallback: prima "frase forte" dello story del coach (narrativa lunga).
-  const story = pm.coach_artifacts?.story?.trim() || "";
-  if (story) {
-    // Salta gli header markdown (## ...) e prendi la prima frase >40 char.
-    const cleaned = story.replace(/^##\s*[^\n]+\n+/m, "").replace(/\s+/g, " ").trim();
-    const m = cleaned.match(/[^.!?]+[.!?]/);
-    if (m && m[0].length > 40) return m[0].trim();
-  }
-
-  // 3. Ultimo fallback (CI senza coach LLM): un riassunto secco.
-  const avoidable = pm.kpi.avoidable_blunders;
-  const critical = pm.kpi.critical_positions;
-  const target = pm.identity.goal.target;
-  return `Confronto ${critical} posizioni critiche con il tuo livello e con il target ${target}: isolo i ${avoidable} gap allenabili e li trasformo nella sessione di oggi. Primo tema: ${focusName.toLowerCase()}.`;
-}
-
-function buildPreviewArrows(position: PositionRow) {
-  if (position.last_opp_from && position.last_opp_to) {
-    return [{ from: position.last_opp_from, to: position.last_opp_to, color: "#f4c95d" }];
-  }
-  return [];
-}
-
-function buildPreviewHighlights(position: PositionRow) {
-  if (position.last_opp_from && position.last_opp_to) {
-    return [
-      { square: position.last_opp_from, color: "#f4c95d44" },
-      { square: position.last_opp_to, color: "#f4c95d88" },
-    ];
-  }
-  return [];
-}
-
-function formatItalianDate(iso: string): string {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString("it-IT", { day: "numeric", month: "short", year: "numeric" });
-  } catch {
-    return iso;
-  }
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
+function pickTavoloGreeting(pm: PlayerModel): string {
+  const fromSession = pm.coach_session?.open_tavolo;
+  if (fromSession && fromSession.length > 30) return fromSession;
+  const fromBrief = pm.coach_brief?.open_tavolo;
+  if (fromBrief && fromBrief.length > 30) return fromBrief;
+  const briefDiag = pm.coach_brief?.diagnosis_narrative;
+  if (briefDiag && briefDiag.length > 30) return briefDiag;
+  return "Oooh, eccolo. Sediamoci, vediamo insieme com'è andata.";
 }

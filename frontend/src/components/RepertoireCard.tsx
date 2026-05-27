@@ -3,12 +3,12 @@ import { cpToHuman } from "../glossary";
 
 /**
  * Repertorio peggiore per colore. Per ogni apertura mostro le 3 posizioni
- * incriminate, cliccabili → si apre PlaySession contro Stockfish per
+ * incriminate, cliccabili -> si apre PlaySession contro MAIA per
  * rivivere il bivio.
  *
  * Promessa: "lo so che perdi la Francese, ecco le 3 posizioni che hai
- * sbagliato nelle ultime partite. Rifalle col motore davanti, capisci
- * dove vai male, la prossima partita non ti suicidi al 22imo".
+ * sbagliato nelle ultime partite. Rifalle sulla scacchiera, capisci
+ * dove vai male, la prossima partita non regali il punto al 22imo".
  */
 export function RepertoireCard({
   openings,
@@ -56,8 +56,8 @@ function OpeningBlock({ op, onPlay }: { op: RepertoireOpening; onPlay: (p: Posit
         <span className="font-mono text-[10px] text-[color:var(--color-muted)]">{op.eco}</span>
       </div>
       <div className="text-[11px] text-[color:var(--color-muted)] tracking-wider uppercase">
-        {op.games} partite · win{" "}
-        <span style={{ color: wrTone }}>{wr != null ? `${wr}%` : "—"}</span> · ACPL {op.avg_acpl}
+        {op.games} partite - vinte{" "}
+        <span style={{ color: wrTone }}>{wr != null ? `${wr}%` : "-"}</span> - ACPL {op.avg_acpl}
       </div>
 
       <div className="mt-3 space-y-1.5">
@@ -78,11 +78,11 @@ function OpeningBlock({ op, onPlay }: { op: RepertoireOpening; onPlay: (p: Posit
               </span>
               <span className="flex-1">
                 <span className="font-mono text-rose-300 text-sm">{p.san}</span>
-                <span className="text-[color:var(--color-muted)] mx-1">→</span>
-                <span className="font-mono text-emerald-300 text-sm">{p.best_san_sf || "?"}</span>
+                <span className="text-[color:var(--color-muted)] mx-1">-</span>
+                <span className="text-[color:var(--color-text-soft)] text-sm">rigioca il bivio</span>
               </span>
               <span className="text-[10px] tabular-nums text-rose-300">{lossLabel}</span>
-              <span className="text-[10px] text-[color:var(--color-faint)]">▶</span>
+              <span className="text-[10px] text-[color:var(--color-faint)]">MAIA</span>
             </button>
           );
         })}

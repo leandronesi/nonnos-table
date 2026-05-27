@@ -2,7 +2,7 @@ import type { PositionRow } from "../types";
 import { BlunderCard } from "./BlunderCard";
 import type { BlunderRow } from "./BlunderCard";
 
-// Adattatore: PositionRow → BlunderRow (la BlunderCard è già scritta per la v1, la riusiamo).
+// Adattatore: PositionRow -> BlunderRow.
 function toBlunder(p: PositionRow): BlunderRow {
   return {
     game_id: p.game_id,
@@ -48,7 +48,7 @@ export function TurningPointsList({ turning_points, onPlay }: Props) {
               onClick={() => onPlay(tp)}
               className="btn btn-primary text-xs mt-2 w-full justify-center"
             >
-              ▶ Continua qui contro Stockfish
+              Continua qui contro MAIA
             </button>
           )}
         </div>

@@ -1,11 +1,11 @@
-import type { TacticalBreakdown } from "../types";
+﻿import type { TacticalBreakdown } from "../types";
 
 /**
  * Distribuzione dei motivi tattici tra i miei mistake/blunder critici.
  *
  * Esempio di lettura: "Forchetta · 47 ricorrenze, 12% dei tuoi blunder, gap
- * +28% sulla mossa giusta". Il pattern con piu` "gap" e piu` casi e` quello
- * che brucia di piu` punti Elo: priorita` di training.
+ * +28% sulla mossa giusta". Il pattern con più "gap" e più casi è quello
+ * che brucia di più punti Elo: priorità di training.
  */
 export function TacticalBreakdownCard({ items }: { items: TacticalBreakdown[] }) {
   if (!items || items.length === 0) {
@@ -63,7 +63,7 @@ export function TacticalBreakdownCard({ items }: { items: TacticalBreakdown[] })
       </div>
       <div className="text-[11px] text-[color:var(--color-muted)] mt-5 leading-relaxed">
         <b>gap +N%</b> = differenza fra "quanto un 1600 trova la mossa giusta in queste posizioni"
-        e "quanto la trova al tuo livello". Piu` alto = piu` valore di allenamento.
+        e "quanto la trova al tuo livello". Più alto = più valore di allenamento.
       </div>
     </div>
   );

@@ -57,7 +57,7 @@ export function WeeklyFocusCard({ focus, brief }: { focus: WeeklyFocus; brief?: 
 
       {brief && (
         <div className="mt-5 pt-4 hairline text-[11px] text-[color:var(--color-muted)] font-mono">
-          generato da {brief.model} · {brief.generated_at}
+          generato da {brief.model} - {brief.generated_at}
         </div>
       )}
     </div>

@@ -26,7 +26,7 @@ from typing import Any
 # time_class, end_time_epoch. Per la chat l'LLM farà SELECT con WHERE composti
 # su questi.
 
-SCHEMA_VERSION = 3  # v3 = aggiunti motif_fork / motif_hanging_piece / motif_removed_defender / motif_back_rank / motif_discovered_attack
+SCHEMA_VERSION = 4  # v4 = aggiunta waiting_moves (JSON) per le posizioni con p_maia_mine_top < 0.20
 
 CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS positions (
@@ -203,6 +203,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
         ("motif_removed_defender", "INTEGER"),
         ("motif_back_rank", "INTEGER"),
         ("motif_discovered_attack", "INTEGER"),
+        # v4 — mosse di attesa Stockfish multi-PV per p_maia_mine_top < 0.20
+        # JSON: list[{san: str, cp_loss: int}] oppure NULL
+        ("waiting_moves", "TEXT"),
     ]
     for col, ctype in additions:
         if col not in existing:
