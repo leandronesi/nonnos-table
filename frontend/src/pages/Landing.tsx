@@ -28,7 +28,7 @@ function useFitSize(min: number, max: number) {
 }
 
 export function Landing() {
-  const board = useFitSize(224, 342);
+  const board = useFitSize(208, 304);
 
   return (
     <div className="public-home">
@@ -58,22 +58,22 @@ export function Landing() {
             </h1>
 
             <p className="public-payoff">
-              Scegli un ELO target. Nonno ti misura contro chi gioca gia' li'.
+              Scegli il tuo prossimo livello. Nonno si siede un passo piu' avanti.
             </p>
 
             <p className="public-lede">
-              Non una review che ti dice solo la mossa migliore. Una casa di lavoro:
-              obiettivo, gap evitabile, sessione di oggi e Quaderno che ricorda dove
-              stai migliorando.
+              Come quella persona che ti aspettava per giocare: si metteva al tuo
+              passo, ma vedeva sempre un poco piu' in la'. Qui ogni partita diventa
+              una sera al tavolo, e ogni sera sai meglio dove guardare.
             </p>
 
             <TargetRail />
 
             <div className="public-nonno">
               <span>Nonno, quando ti siedi</span>
-              Io non ti chiedo di giocare come un motore. Ti confronto con il prossimo
-              giocatore che vuoi diventare. Dove lui vede la mossa e tu no, li' ci sono
-              i tuoi punti.
+              Ti aspetto qui. Giochiamo al tuo passo, ma tengo la sedia appena piu'
+              avanti. Non per farti sentire piccolo: per mostrarti, una mossa alla
+              volta, dove andrai a sederti.
             </div>
 
             <div className="public-actions">
@@ -91,6 +91,7 @@ export function Landing() {
               <span className="public-lamp-glow" />
               <span className="public-lamp-shade" />
               <span className="public-lamp-stem" />
+              <span className="public-lamp-base" />
             </div>
             <div className="public-desk" aria-hidden />
 
@@ -101,13 +102,13 @@ export function Landing() {
                 <span />
                 <b>1500</b>
               </div>
-              <p>rapid, 90 giorni. Tutto il Tavolo si calibra su questo.</p>
+              <p>Il posto al tavolo che hai scelto.</p>
             </div>
 
             <div className="public-session-card">
               <span className="public-panel-label">Oggi al tavolo</span>
               <strong>Pezzo in presa</strong>
-              <p>6 Momenti, 12 minuti. Torna tra 3 giorni se non lo chiudi.</p>
+              <p>Rivediamo quella mano che parte un attimo troppo presto.</p>
             </div>
 
             <div className="public-board-card">
@@ -136,28 +137,31 @@ export function Landing() {
                 <span />
               </div>
               <p>
-                Hai chiuso <b>21%</b> del gap. La prossima volta rivediamo la
-                stessa geometria.
+                Ce lo segniamo. Hai chiuso <b>21%</b> del gap, e la prossima
+                sera ripartiamo da li'.
               </p>
             </div>
           </div>
         </section>
 
-        <section className="public-app-strip" aria-label="Come si usa il Tavolo">
-          <AppStripItem
+        <section className="public-story-grid" aria-label="Come si usa il Tavolo">
+          <StoryCard
             label="01"
-            title="Scegli il target"
-            body="1500 rapid non e' un badge. E' il metro con cui leggiamo le tue mosse."
+            kind="target"
+            title="Il posto da raggiungere"
+            body="Dici 1500 rapid, e il tavolo cambia misura. Nonno non ti confronta con il motore: ti confronta con la sedia accanto."
           />
-          <AppStripItem
+          <StoryCard
             label="02"
-            title="Fai la sessione di oggi"
-            body="Una cosa sola, dal tuo storico. Non venti grafici che competono."
+            kind="moment"
+            title="La mossa che ritorna"
+            body="Non rivedi la stessa posizione a memoria. Rivedi la stessa idea, in un'altra sera, finche' la riconosci da solo."
           />
-          <AppStripItem
+          <StoryCard
             label="03"
-            title="Riapri il Quaderno"
-            body="Nonno torna sullo stesso pattern finche' diventa tuo."
+            kind="notebook"
+            title="Il Quaderno ti riconosce"
+            body="Quando torni, Nonno sa dove eravate rimasti. Non riparti da un report: riparti da una storia che continua."
           />
         </section>
       </main>
@@ -207,18 +211,26 @@ function GapBar({
   );
 }
 
-function AppStripItem({
+function StoryCard({
   label,
+  kind,
   title,
   body,
 }: {
   label: string;
+  kind: "target" | "moment" | "notebook";
   title: string;
   body: string;
 }) {
   return (
-    <article className="public-strip-item">
-      <span>{label}</span>
+    <article className="public-story-card">
+      <div className={`public-story-visual ${kind}`} aria-hidden>
+        <span className="v-board" />
+        <span className="v-line one" />
+        <span className="v-line two" />
+        <span className="v-dot" />
+      </div>
+      <span className="public-story-num">{label}</span>
       <h2>{title}</h2>
       <p>{body}</p>
     </article>

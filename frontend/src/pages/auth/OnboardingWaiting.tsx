@@ -103,7 +103,7 @@ export function OnboardingWaiting() {
 
   return (
     <AuthShell
-      title="Nonno sta apparecchiando."
+      title="Nonno sta sistemando la scacchiera."
       subtitle="Puoi chiudere questa pagina e tornare quando vuoi: riprendo da dove sono."
     >
       <div style={{ display: "grid", gap: "1.75rem" }}>
