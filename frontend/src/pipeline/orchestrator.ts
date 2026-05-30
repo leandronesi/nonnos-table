@@ -47,18 +47,27 @@ let activeRun: Promise<void> | null = null;
 // causa del "Mi preparo…" congelato (doRun gira ma il progresso va nel vuoto)
 // finché non si refreshava la pagina.
 let currentOnProgress: ((p: OrchestratorProgress) => void) | null = null;
+// Stessa disciplina "listener vivo" per le callback opzionali di lifecycle.
+let currentOnFirstBatchReady: (() => void) | null = null;
+let currentOnBackgroundDone: (() => void) | null = null;
 
 export function resetActiveLock(): void {
   activeRun = null;
   currentOnProgress = null;
+  currentOnFirstBatchReady = null;
+  currentOnBackgroundDone = null;
 }
 
 export function runOnboardingOrchestrator(opts: {
   profile: ProfileRow;
   onProgress?: (p: OrchestratorProgress) => void;
+  onFirstBatchReady?: () => void;
+  onBackgroundDone?: () => void;
 }): Promise<void> {
-  // Aggiorna SEMPRE il listener vivo, anche se un run è già in corso.
+  // Aggiorna SEMPRE i listener vivi, anche se un run è già in corso.
   currentOnProgress = opts.onProgress ?? null;
+  currentOnFirstBatchReady = opts.onFirstBatchReady ?? null;
+  currentOnBackgroundDone = opts.onBackgroundDone ?? null;
   if (activeRun) return activeRun;
   activeRun = (async () => {
     try {
@@ -93,6 +102,8 @@ async function currentJob(userId: string): Promise<IngestJobRow | null> {
 async function doRun(opts: {
   profile: ProfileRow;
   onProgress?: (p: OrchestratorProgress) => void;
+  onFirstBatchReady?: () => void;
+  onBackgroundDone?: () => void;
 }) {
   const { profile } = opts;
   const userId = profile.user_id;
@@ -273,7 +284,12 @@ async function doRun(opts: {
       throw e;
     }
 
-    // Profilo NON è 'ready' qui: è un aggregate parziale, solo per il Quaderno interno.
+    // Il profilo diventa 'ready' QUI (dopo le prime 20): l'utente può entrare
+    // al Tavolo mentre il background continua. Da questo momento in poi il
+    // background NON toccherà più onboarding_state.
+    await setProfileState(userId, "ready");
+    currentOnFirstBatchReady?.();
+
     // Controlla se esistono partite da analizzare nella seconda fetta.
     const { count: pendingRestCount } = await supabase
       .from("games")
@@ -290,16 +306,53 @@ async function doRun(opts: {
     const hasSecondBatch = (pendingRestCount ?? 0) > 0 && (quotaCount ?? 0) > FIRST_BATCH_SIZE;
     if (hasSecondBatch) {
       await supabase.from("ingest_jobs").update({ status: "analyzing_rest" }).eq("id", job.id);
+      job = (await currentJob(userId)) ?? job;
     } else {
-      // Quota <= FIRST_BATCH_SIZE o tutte già analizzate: vai dritto al coaching finale.
-      await supabase.from("ingest_jobs").update({ status: "coaching" }).eq("id", job.id);
+      // Quota <= FIRST_BATCH_SIZE o tutte già analizzate: il profilo è già ready,
+      // non c'è secondo lotto — history snapshot + done senza chiamare onBackgroundDone
+      // (non c'era nessun "resto" da annunciare).
+      try {
+        const currentRating = await deriveCurrentRating(userId, profile);
+        const targetRating = profile.goal_rating ?? undefined;
+        const aggregates = await computeAggregates(userId, currentRating, targetRating);
+        const existingHistory = await readHistory(userId);
+        const run_kind: HistorySnapshot["run_kind"] =
+          existingHistory.snapshots.length > 0 ? "reanalyze" : "onboarding";
+        const goalForSnap: Goal = {
+          target: profile.goal_rating,
+          time_class: profile.goal_time_class,
+          deadline: profile.goal_deadline ?? "",
+          current_rating: currentRating,
+          start_rating: currentRating,
+          points_gained_since_start: 0,
+          points_needed: Math.max(0, profile.goal_rating - (currentRating ?? 0)),
+          days_left: profile.goal_horizon_weeks * 7,
+          days_since_start: 0,
+          rate_per_day_so_far: null,
+          rate_per_day_needed: null,
+          projection_at_deadline: null,
+          on_track: false,
+        };
+        const snap = buildSnapshot(aggregates, goalForSnap, run_kind);
+        await appendSnapshot(userId, snap);
+      } catch (histErr) {
+        // eslint-disable-next-line no-console
+        console.warn("[orchestrator] history snapshot fallito (best-effort, ignoro):", histErr);
+      }
+      await supabase
+        .from("ingest_jobs")
+        .update({ status: "done", finished_at: new Date().toISOString() })
+        .eq("id", job.id);
+      emit({ phase: "ready" });
+      return; // tutto finito, niente secondo lotto
     }
-    job = (await currentJob(userId)) ?? job;
   }
 
   // ---- Step 2c: ANALYZE REST (partite 21-100) ----
+  // NOTA: NON chiamiamo setProfileState qui. Il profilo è già 'ready' dal
+  // coaching_first. Toccarlo di nuovo (→ "analyzing") farebbe rimbalzare
+  // HomeGate dall'utente che sta già navigando il Tavolo.
   if (job.status === "analyzing_rest") {
-    await setProfileState(userId, "analyzing");
     emit({ phase: "analyzing", message: "Analizzo le partite con Stockfish…" });
     try {
       await runAnalyze({
@@ -320,7 +373,9 @@ async function doRun(opts: {
         .from("ingest_jobs")
         .update({ status: "error", error: msg })
         .eq("id", job.id);
-      await setProfileState(userId, "error", msg);
+      // BACKGROUND: il profilo e' gia' 'ready', NON riportarlo a 'error'
+      // (sbatterebbe l'utente fuori dal Tavolo). Il job resta 'error': al
+      // prossimo avvio l'error-recovery riprende da analyzing_rest.
       throw e;
     }
     await supabase.from("ingest_jobs").update({ status: "coaching" }).eq("id", job.id);
@@ -328,8 +383,10 @@ async function doRun(opts: {
   }
 
   // ---- Step 3: AGGREGATE + COACH FINALE (tutte le done, max 100) ----
+  // NOTA: NON chiamiamo setProfileState qui. Il profilo è già 'ready' dal
+  // coaching_first. Questo step è puro background: aggiorna il coach_brief con
+  // tutte le 100 partite e annuncia la fine via onBackgroundDone.
   if (job.status === "coaching") {
-    await setProfileState(userId, "coaching");
     emit({ phase: "coaching", message: "Confronto col tuo livello (Maia)…" });
     try {
       await runAggregateAndCoach(userId, profile);
@@ -379,15 +436,17 @@ async function doRun(opts: {
         .from("ingest_jobs")
         .update({ status: "error", error: msg })
         .eq("id", job.id);
-      await setProfileState(userId, "error", msg);
+      // BACKGROUND: il profilo e' gia' 'ready', NON riportarlo a 'error'
+      // (sbatterebbe l'utente fuori dal Tavolo). Il job resta 'error': al
+      // prossimo avvio l'error-recovery riprende e ritenta il coaching finale.
       throw e;
     }
     await supabase
       .from("ingest_jobs")
       .update({ status: "done", finished_at: new Date().toISOString() })
       .eq("id", job.id);
-    await setProfileState(userId, "ready");
     emit({ phase: "ready" });
+    currentOnBackgroundDone?.();
   }
 }
 
