@@ -944,11 +944,11 @@ function parseJournal(raw: string): JournalEntry[] {
     entries.push({ date: current.date, text: current.lines.join("\n").trim() });
   }
 
-  // Most recent first, then DEDUP per GIORNO: il coach appende una nota a ogni
-  // analisi (anche piu' volte nello stesso giorno, con conteggi diversi).
-  // Teniamo UNA voce per data, la piu' recente di quel giorno, cosi' la Storia
-  // non e' "20 volte lo stesso giorno".
-  const ordered = entries.reverse();
+  // Ordina per DATA decrescente (dalla piu' recente alla piu' vecchia). Il file ha
+  // le voci piu' recenti in cima (il coach prepende), quindi il sort STABILE a
+  // parita' di data tiene la piu' recente di quel giorno. Poi DEDUP per giorno:
+  // una nota al giorno (la coach appende a ogni analisi, anche piu' volte al giorno).
+  const ordered = [...entries].sort((a, b) => b.date.localeCompare(a.date));
   const seenDate = new Set<string>();
   return ordered.filter((e) => {
     if (seenDate.has(e.date)) return false;
