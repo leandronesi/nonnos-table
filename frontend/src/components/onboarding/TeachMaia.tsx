@@ -24,7 +24,7 @@ export function TeachMaia() {
   const [t, setT] = useState(0); // 0..1 nel ciclo
   const rafRef = useRef<number | null>(null);
   const startRef = useRef<number | null>(null);
-  const DURATION = 3000;
+  const DURATION = 4200;
 
   useEffect(() => {
     const loop = (ts: number) => {

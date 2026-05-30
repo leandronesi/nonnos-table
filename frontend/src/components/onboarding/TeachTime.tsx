@@ -12,7 +12,7 @@ export function TeachTime() {
   const rafRef = useRef<number | null>(null);
   const startRef = useRef<number | null>(null);
 
-  const DURATION = 3600; // ms per ciclo completo
+  const DURATION = 5000; // ms per ciclo completo
 
   useEffect(() => {
     const loop = (ts: number) => {

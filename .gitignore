@@ -66,8 +66,10 @@ data/positions.db-wal
 data/_debug/
 data/_live_coach_cache/
 
-# Claude Code project state (memoria, settings locali per agente)
+# Claude Code project state + "cervello" del progetto (skill, CLAUDE.md kickstart).
+# Volutamente FUORI dal repo pubblico: le skill sono IP, andranno in un repo PRIVATO.
 .claude/
+/CLAUDE.md
 
 # Impeccable design sidecar (cache locale skill design)
 .impeccable/

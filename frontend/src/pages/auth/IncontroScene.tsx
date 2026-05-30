@@ -56,7 +56,7 @@ const TEACH_SLIDES: TeachSlide[] = [
   },
 ];
 
-const SLIDE_DURATION = 6000; // ms per ogni slide
+const SLIDE_DURATION = 8000; // ms per ogni slide (calmo, tempo di leggere + guardare)
 
 // ── Componente frase di Nonno con fade ───────────────────────────────────────
 

@@ -37,7 +37,7 @@ export function TeachAncora() {
   const [progress, setProgress] = useState(0); // 0..1
   const rafRef = useRef<number | null>(null);
   const startRef = useRef<number | null>(null);
-  const DURATION = 3200;
+  const DURATION = 4600;
 
   useEffect(() => {
     const loop = (ts: number) => {

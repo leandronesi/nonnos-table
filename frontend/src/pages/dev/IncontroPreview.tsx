@@ -20,8 +20,8 @@ const FAKE_BRIEF: CoachLlmBrief = {
 const PHASE_DURATIONS: Record<Phase, number> = {
   pending:   1000,
   ingesting: 3000,
-  analyzing: 8000,
-  coaching:  4000,
+  analyzing: 18000,
+  coaching:  6000,
   ready:     0,    // terminale
   error:     0,    // non usata nella sequenza automatica
 };
