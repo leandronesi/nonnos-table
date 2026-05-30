@@ -60,7 +60,7 @@ const SLIDE_DURATION = 8000; // ms per ogni slide (calmo, tempo di leggere + gua
 
 // ── Componente frase di Nonno con fade ───────────────────────────────────────
 
-function NonnoVoice({ text, key: _key }: { text: string; key: string }) {
+function NonnoVoice({ text }: { text: string }) {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 40);
