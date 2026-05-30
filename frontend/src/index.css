@@ -7689,7 +7689,7 @@ button:disabled, [aria-disabled="true"] {
 }
 
 .public-session-card {
-  top: 7.55rem;
+  top: 6.8rem;
   right: 1.55rem;
   width: min(36%, 15.4rem);
   padding: 1rem;
@@ -7802,7 +7802,7 @@ button:disabled, [aria-disabled="true"] {
 }
 
 .public-story-grid {
-  margin: clamp(0.75rem, 2.4vw, 1.7rem) 0 clamp(4.5rem, 10vw, 7rem);
+  margin: clamp(0.75rem, 2.4vw, 1.7rem) 0 clamp(6rem, 12vw, 9rem);
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1.15rem;

@@ -108,7 +108,7 @@ export function Landing() {
             <div className="public-session-card">
               <span className="public-panel-label">Oggi al tavolo</span>
               <strong>Pezzo in presa</strong>
-              <p>Rivediamo quella mano che parte un attimo troppo presto.</p>
+              <p>La mossa di fretta in cui lasci il pezzo. La rivediamo insieme.</p>
             </div>
 
             <div className="public-board-card">
