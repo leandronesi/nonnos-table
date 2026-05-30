@@ -7217,5 +7217,45 @@ button:disabled, [aria-disabled="true"] {
   overflow: hidden;
 }
 
+/* ── Phase-enter transition (CaduteTrainer phase/position change) ─── */
+/*
+ * Used by InteractivePuzzle (key={puzzleKey} triggers re-mount = new animation).
+ * Short fade + subtle slide-up: signals new content without being flashy.
+ * prefers-reduced-motion is handled by the global * rule above (duration → 0.001ms).
+ */
+@keyframes phaseEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.phase-enter {
+  animation: phaseEnter 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+/* ── Trainer phase layout: board + panel, responsive ─────────────── */
+/*
+ * Desktop (≥ 640px): side-by-side, board auto-width + panel takes remaining space.
+ * Mobile (< 640px):  board full-width on top, panel below.
+ * Replaces inline gridTemplateColumns:"auto 1fr" that caused overflow on mobile.
+ */
+.trainer-phase-layout {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 639px) {
+  .trainer-phase-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* === fine KIT Tavolo del Nonno === */
 

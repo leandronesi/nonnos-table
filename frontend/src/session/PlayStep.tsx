@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Chess } from "chess.js";
 import { BoardView } from "../components/BoardView";
 import { BoardLegend } from "../components/BoardLegend";
+import { useBoardFit } from "../components/useBoardFit";
 import { CoachNote } from "../components/CoachNote";
 import { SureCheck } from "../components/SureCheck";
 import { useStockfish } from "../engine/useStockfish";
@@ -219,6 +220,7 @@ export function PlayStep({
     ? stockfishSkillForMaiaLevel(maiaLevel)
     : (skillLevelProp ?? 8);
   const sf = useStockfish();
+  const fit = useBoardFit({ min: 232, max: 500 });
   const myColor: "white" | "black" = myColorProp || turnFromFen(startFen);
   const boardRef = useRef<Chess>(new Chess(startFen));
   const [fen, setFen] = useState<string>(startFen);
@@ -642,18 +644,22 @@ export function PlayStep({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-10 items-start">
       <div className="flex flex-col items-center gap-2">
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+        {/* Wrapper: ref here measures available width. EvalBar is decorative
+            (14px wide), so board gets fit.size minus its width. */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 6, width: "100%", maxWidth: fit.max + 20 }}>
           <EvalBar score={evalScore} mate={evalMate} />
-          <BoardView
-            fen={fen}
-            resetKey={startFen}
-            orientation={myColor}
-            size={500}
-            draggable={!outcome && !engineThinking && !evaluatingMove && !pendingSure && turnFromFen(fen) === myColor}
-            onPieceDrop={onDrop}
-            highlights={highlights}
-            arrows={arrows}
-          />
+          <div ref={fit.ref} style={{ flex: 1, minWidth: 0 }}>
+            <BoardView
+              fen={fen}
+              resetKey={startFen}
+              orientation={myColor}
+              size={fit.size}
+              draggable={!outcome && !engineThinking && !evaluatingMove && !pendingSure && turnFromFen(fen) === myColor}
+              onPieceDrop={onDrop}
+              highlights={highlights}
+              arrows={arrows}
+            />
+          </div>
         </div>
         <BoardLegend preset="play" />
       </div>

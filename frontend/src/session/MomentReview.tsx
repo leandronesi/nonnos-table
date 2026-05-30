@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import { Chess } from "chess.js";
 import type { PositionRow } from "../types";
 import { BoardView } from "../components/BoardView";
+import { useBoardFit } from "../components/useBoardFit";
 import { useStockfish } from "../engine/useStockfish";
 
 // ---------------------------------------------------------------------------
@@ -259,6 +260,7 @@ function DrillBars({ pMine, pTarget }: { pMine: number; pTarget: number }) {
 
 export function MomentReview({ position, index, total, maiaLevel, onNext, onPrev }: MomentReviewProps) {
   const sf = useStockfish();
+  const fit = useBoardFit({ min: 232, max: 460 });
   const orientation = position.my_color || "white";
 
   // Waiting moves calcolate on-demand
@@ -373,12 +375,13 @@ export function MomentReview({ position, index, total, maiaLevel, onNext, onPrev
       {/* Layout board + pannello destra */}
       <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-10 items-start">
 
-        {/* Board */}
-        <div className="sess-board-frame">
+        {/* Board — ref on the frame; on desktop the auto-col sizes to fit.max,
+              on mobile (grid-cols-1) the frame fills the row and clamps to fit.max. */}
+        <div ref={fit.ref} className="sess-board-frame" style={{ width: "100%", maxWidth: fit.max }}>
           <BoardView
             fen={position.fen_before}
             orientation={orientation}
-            size={460}
+            size={fit.size}
             resetKey={`review-${position.game_id}:${position.ply}`}
             arrows={arrows}
             highlights={highlights}

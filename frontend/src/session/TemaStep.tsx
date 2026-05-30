@@ -7,6 +7,7 @@
 import type { PositionRow } from "../types";
 import { BoardView } from "../components/BoardView";
 import { BoardLegend } from "../components/BoardLegend";
+import { useBoardFit } from "../components/useBoardFit";
 
 // ---------------------------------------------------------------------------
 // Date helper
@@ -109,6 +110,7 @@ function pickWaiting(seed: number): string {
 // ---------------------------------------------------------------------------
 
 export function TemaStep({ position, patternLabel, onNext }: TemaStepProps) {
+  const fit = useBoardFit({ min: 232, max: 460 });
   const orientation = position.my_color || "white";
 
   // Highlight ultima mossa avversario (freccia gialla, stile Chess.com)
@@ -147,17 +149,22 @@ export function TemaStep({ position, patternLabel, onNext }: TemaStepProps) {
     <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-10 items-start">
       {/* Scacchiera statica + legenda */}
       <div className="flex flex-col items-center gap-2">
-        <BoardView
-          fen={position.fen_before}
-          resetKey={`tema:${position.game_id}:${position.ply}`}
-          orientation={orientation}
-          size={460}
-          draggable={false}
-          highlights={highlights}
-          arrows={arrows}
-        />
+        <div ref={fit.ref} style={{ width: "100%", maxWidth: fit.max }}>
+          <BoardView
+            fen={position.fen_before}
+            resetKey={`tema:${position.game_id}:${position.ply}`}
+            orientation={orientation}
+            size={fit.size}
+            draggable={false}
+            highlights={highlights}
+            arrows={arrows}
+          />
+        </div>
         <BoardLegend preset="tema" />
       </div>
+      {/* Note: TemaStep uses lg:grid-cols-[auto_1fr]. On mobile (grid-cols-1)
+          the board fills full width clamped to maxWidth. On desktop the
+          auto column tracks fit.max = 460px. */}
 
       {/* Pannello informazioni */}
       <div className="space-y-5">
