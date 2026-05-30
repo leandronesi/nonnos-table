@@ -25,7 +25,7 @@
  *   - classi tt-* + .segment/.segment-item
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { downloadJson, downloadText, quadernoPath } from "../../auth/storage";
@@ -704,7 +704,46 @@ function parseJournal(raw: string): JournalEntry[] {
     entries.push({ date: current.date, text: current.lines.join("\n").trim() });
   }
 
-  return entries.reverse(); // most recent first
+  // Most recent first, then DEDUP voci identiche: il coach appende una nota a
+  // ogni analisi, anche identica. Collassiamo i duplicati tenendo l'occorrenza
+  // piu' recente, cosi' la Storia non e' "20 volte la stessa cosa".
+  const ordered = entries.reverse();
+  const seen = new Set<string>();
+  return ordered.filter((e) => {
+    const key = e.text.replace(/\s+/g, " ").trim();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Render inline del markdown del diario (**grassetto**, _corsivo_) in nodi React. */
+function renderInline(text: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  const regex = /(\*\*[^*]+\*\*|_[^_]+_)/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let k = 0;
+  while ((m = regex.exec(text)) !== null) {
+    if (m.index > last) nodes.push(text.slice(last, m.index));
+    const tok = m[0];
+    if (tok.startsWith("**")) {
+      nodes.push(
+        <strong key={k++} style={{ color: "var(--color-text)", fontWeight: 700 }}>
+          {tok.slice(2, -2)}
+        </strong>,
+      );
+    } else {
+      nodes.push(
+        <em key={k++} style={{ fontStyle: "italic", color: "var(--color-muted)" }}>
+          {tok.slice(1, -1)}
+        </em>,
+      );
+    }
+    last = m.index + tok.length;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
 }
 
 function TabStoria({
@@ -769,8 +808,8 @@ function TabStoria({
                   {dateIt(entry.date)}
                 </div>
                 <div style={{ fontSize: "0.88rem", color: "var(--color-text-soft)", lineHeight: 1.65 }}>
-                  {entry.text.split("\n").map((line, j) => (
-                    <span key={j}>{line}{j < entry.text.split("\n").length - 1 && <br />}</span>
+                  {entry.text.split("\n").map((line, j, arr) => (
+                    <span key={j}>{renderInline(line)}{j < arr.length - 1 && <br />}</span>
                   ))}
                 </div>
               </div>

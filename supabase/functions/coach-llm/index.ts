@@ -377,9 +377,20 @@ async function prependJournalEntry(
   // Inserisci la nuova voce prima della prima voce esistente ("\n## ").
   const idx = existing.indexOf("\n## ");
   if (idx >= 0) {
+    // Dedup: se il corpo della nuova voce e' identico all'ultima esistente, non
+    // appendere (il coach gira a ogni analisi, anche senza novita': evita la
+    // "Storia ripetuta 20 volte").
+    const nextIdx = existing.indexOf("\n## ", idx + 4);
+    const lastBlock = nextIdx >= 0 ? existing.slice(idx, nextIdx) : existing.slice(idx);
+    if (journalBody(lastBlock) === journalBody(entry)) return existing;
     return `${existing.slice(0, idx)}\n${entry}${existing.slice(idx)}`;
   }
   return `${existing}\n${entry}`;
+}
+
+/** Corpo di una voce di diario senza l'header data, per il confronto di dedup. */
+function journalBody(s: string): string {
+  return s.replace(/##[^\n]*\n/, "").replace(/\s+/g, " ").trim();
 }
 
 function renderJournalEntry(
