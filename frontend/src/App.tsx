@@ -12,6 +12,7 @@ import { Sessione } from "./pages/Sessione";
 import { MaiaTest } from "./pages/MaiaTest";
 import { AppShell } from "./components/AppShell";
 import { PRODUCT_NAME } from "./coaching";
+import { IncontroPreview } from "./pages/dev/IncontroPreview";
 
 /**
  * Root router multi-utente per Nonno's Table.
@@ -112,6 +113,11 @@ export function App() {
 
           {/* Maia smoke test (dev, pubblica) — da rimuovere dopo la verifica */}
           <Route path="/maia-test" element={<MaiaTest />} />
+
+          {/* Anteprima dev scena onboarding — solo in sviluppo, nessun auth */}
+          {import.meta.env.DEV && (
+            <Route path="/dev/incontro" element={<IncontroPreview />} />
+          )}
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
