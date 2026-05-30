@@ -7259,3 +7259,698 @@ button:disabled, [aria-disabled="true"] {
 
 /* === fine KIT Tavolo del Nonno === */
 
+/* ============================================================================
+ * Public homepage - il Tavolo del Nonno
+ * App-like entry point, not a SaaS landing. Scoped with public-*.
+ * ========================================================================== */
+
+.public-home {
+  min-height: 100vh;
+  color: var(--color-text);
+  background:
+    radial-gradient(880px 560px at 78% 4%, color-mix(in srgb, var(--color-gold) 12%, transparent), transparent 62%),
+    radial-gradient(720px 460px at 14% 12%, color-mix(in srgb, var(--color-brand) 11%, transparent), transparent 58%),
+    var(--color-bg);
+}
+
+.public-home .honey {
+  color: var(--color-gold-soft);
+}
+
+.public-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 1.5rem;
+  border-bottom: 1px solid var(--color-line);
+  background: color-mix(in srgb, var(--color-bg-2) 86%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.public-brand {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  color: var(--color-text);
+  text-decoration: none;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+
+.public-brand b {
+  color: var(--color-gold-soft);
+  font-weight: 850;
+}
+
+.public-brand-mark {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--color-gold) 34%, var(--color-line));
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0)),
+    color-mix(in srgb, var(--color-gold) 11%, var(--color-surface-2));
+  color: var(--color-gold-soft);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.public-login {
+  min-height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0 0.875rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-line);
+  color: var(--color-text-soft);
+  background: rgba(255,255,255,0.025);
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 700;
+  transition:
+    border-color 160ms var(--ease-out),
+    color 160ms var(--ease-out),
+    background-color 160ms var(--ease-out);
+}
+
+.public-login:hover {
+  color: var(--color-text);
+  border-color: var(--color-line-strong);
+  background: rgba(255,255,255,0.05);
+}
+
+.public-main {
+  width: min(1220px, calc(100% - 40px));
+  margin: 0 auto;
+}
+
+.public-hero {
+  min-height: calc(100vh - 60px);
+  display: grid;
+  grid-template-columns: minmax(0, 0.88fr) minmax(430px, 1.12fr);
+  gap: clamp(2rem, 5vw, 4.25rem);
+  align-items: center;
+  padding: clamp(2.25rem, 6vw, 5rem) 0;
+}
+
+.public-copy {
+  min-width: 0;
+}
+
+.public-kicker,
+.public-panel-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--color-brand-soft);
+}
+
+.public-panel-label.honey {
+  color: var(--color-gold-soft);
+}
+
+.public-panel-label.muted {
+  color: var(--color-muted);
+}
+
+.public-copy h1 {
+  max-width: 8.7ch;
+  margin: 1rem 0 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: clamp(3.85rem, 9vw, 7.6rem);
+  line-height: 0.88;
+  letter-spacing: 0;
+  font-weight: 920;
+}
+
+.public-copy h1 span {
+  display: block;
+  color: var(--color-gold-soft);
+}
+
+.public-payoff {
+  max-width: 15ch;
+  margin: 1.35rem 0 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: clamp(1.85rem, 4.2vw, 3.25rem);
+  line-height: 1;
+  font-weight: 820;
+  letter-spacing: 0;
+}
+
+.public-lede {
+  max-width: 46ch;
+  margin: 1.15rem 0 0;
+  color: var(--color-text-soft);
+  font-size: 1.02rem;
+  line-height: 1.64;
+}
+
+.public-target-rail {
+  width: min(100%, 28rem);
+  margin-top: 1.6rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.875rem;
+  align-items: center;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--color-gold) 22%, var(--color-line));
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0)),
+    var(--color-surface);
+}
+
+.public-target-rail div:not(.public-rail-track) {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.public-target-rail div:last-child {
+  text-align: right;
+}
+
+.public-target-rail span {
+  color: var(--color-muted);
+  font-size: 0.63rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.public-target-rail strong {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 1.28rem;
+  line-height: 1;
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+}
+
+.public-target-rail div:last-child strong {
+  color: var(--color-gold-soft);
+}
+
+.public-rail-track {
+  position: relative;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--color-surface-3);
+  overflow: visible;
+}
+
+.public-rail-track span {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--color-brand-soft), var(--color-gold-soft));
+}
+
+.public-rail-track span::after {
+  content: "";
+  position: absolute;
+  right: -5px;
+  top: 50%;
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  background: var(--color-gold-soft);
+  border: 2px solid var(--color-bg);
+  transform: translateY(-50%);
+}
+
+.public-nonno {
+  max-width: 44ch;
+  margin-top: 1.55rem;
+  padding: 1.05rem 0 1.05rem 1.1rem;
+  border-left: 2px solid var(--color-brand);
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: clamp(1.05rem, 2vw, 1.28rem);
+  line-height: 1.43;
+  font-weight: 680;
+}
+
+.public-nonno span {
+  display: block;
+  margin-bottom: 0.55rem;
+  color: var(--color-brand-soft);
+  font-family: var(--font-sans);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.public-actions {
+  margin-top: 1.55rem;
+  display: grid;
+  justify-items: start;
+  gap: 0.65rem;
+}
+
+.public-actions p {
+  margin: 0;
+  color: var(--color-faint);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+}
+
+.public-cta {
+  gap: 0.6rem;
+  min-width: min(100%, 17rem);
+}
+
+.public-stage {
+  min-height: clamp(600px, 74vh, 760px);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 18px;
+  background:
+    radial-gradient(380px 280px at 72% 14%, color-mix(in srgb, var(--color-gold) 22%, transparent), transparent 68%),
+    linear-gradient(180deg, rgba(255,255,255,0.025), transparent 42%),
+    var(--color-bg-2);
+}
+
+.public-wall {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent 49.8%, rgba(255,255,255,0.035) 50%, transparent 50.2%),
+    linear-gradient(180deg, transparent 63%, color-mix(in srgb, var(--color-gold) 8%, transparent) 63.2%, transparent 63.6%);
+  opacity: 0.55;
+}
+
+.public-lamp {
+  position: absolute;
+  top: 2rem;
+  right: 5rem;
+  width: 11rem;
+  height: 15rem;
+}
+
+.public-lamp-glow {
+  position: absolute;
+  left: -5.5rem;
+  top: 1.25rem;
+  width: 22rem;
+  height: 22rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-gold) 22%, transparent), color-mix(in srgb, var(--color-gold) 7%, transparent) 44%, transparent 70%);
+}
+
+.public-lamp-shade {
+  position: absolute;
+  top: 0;
+  left: 2.1rem;
+  width: 7.1rem;
+  height: 4.2rem;
+  clip-path: polygon(24% 0, 76% 0, 100% 100%, 0 100%);
+  border: 1px solid color-mix(in srgb, var(--color-gold) 44%, transparent);
+  background:
+    linear-gradient(180deg, var(--color-gold-soft), #8d642f);
+}
+
+.public-lamp-stem {
+  position: absolute;
+  left: 5.5rem;
+  top: 4.1rem;
+  width: 2px;
+  height: 8.8rem;
+  background: color-mix(in srgb, var(--color-gold) 42%, var(--color-line));
+}
+
+.public-desk {
+  position: absolute;
+  left: -9%;
+  right: -9%;
+  bottom: -4.2rem;
+  height: 24rem;
+  border-radius: 50% 50% 0 0 / 24% 24% 0 0;
+  border-top: 1px solid color-mix(in srgb, var(--color-gold) 24%, transparent);
+  background:
+    repeating-linear-gradient(8deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 17px),
+    linear-gradient(180deg, #5b3b24, #33231a 46%, #17100d);
+}
+
+.public-target-card,
+.public-session-card,
+.public-board-card,
+.public-notebook {
+  position: absolute;
+  min-width: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0)),
+    color-mix(in srgb, var(--color-surface) 92%, transparent);
+}
+
+.public-target-card {
+  top: 4rem;
+  left: 2rem;
+  width: min(48%, 21rem);
+  padding: 1rem;
+  border-color: color-mix(in srgb, var(--color-gold) 30%, var(--color-line));
+  background:
+    radial-gradient(220px 120px at 100% 0%, color-mix(in srgb, var(--color-gold) 14%, transparent), transparent 62%),
+    var(--color-surface-2);
+}
+
+.public-target-card p,
+.public-session-card p,
+.public-notebook p {
+  margin: 0;
+  color: var(--color-text-soft);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.public-rating-line {
+  margin: 0.75rem 0 0.55rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+  font-family: var(--font-mono);
+}
+
+.public-rating-line strong,
+.public-rating-line b {
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  line-height: 1;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.public-rating-line strong {
+  color: var(--color-text);
+}
+
+.public-rating-line b {
+  color: var(--color-gold-soft);
+}
+
+.public-rating-line span {
+  width: 1.5rem;
+  height: 1px;
+  background: var(--color-muted);
+}
+
+.public-session-card {
+  top: 10.75rem;
+  right: 2rem;
+  width: min(38%, 17rem);
+  padding: 1rem;
+}
+
+.public-session-card strong {
+  display: block;
+  margin: 0.6rem 0 0.35rem;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  line-height: 1.1;
+}
+
+.public-board-card {
+  left: 2rem;
+  bottom: 3.1rem;
+  width: min(52%, 24rem);
+  padding: clamp(0.75rem, 2vw, 1rem);
+  border-color: color-mix(in srgb, var(--color-gold) 24%, var(--color-line));
+}
+
+.public-board-wrap {
+  width: 100%;
+  max-width: 342px;
+  margin: 0 auto;
+}
+
+.public-gap {
+  margin-top: 0.95rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--color-line);
+  display: grid;
+  gap: 0.55rem;
+}
+
+.public-gap-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5.25rem;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.public-gap-track {
+  height: 1rem;
+  overflow: hidden;
+  border-radius: 7px;
+  background: var(--color-surface-3);
+}
+
+.public-gap-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-brand);
+}
+
+.public-gap-fill.gold {
+  background: var(--color-gold);
+}
+
+.public-gap-row strong {
+  color: var(--color-brand-soft);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  line-height: 1.1;
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+}
+
+.public-gap-row strong.honey {
+  color: var(--color-gold-soft);
+}
+
+.public-notebook {
+  right: 2.3rem;
+  bottom: 4.6rem;
+  width: min(39%, 17rem);
+  padding: 1rem;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--color-gold) 9%, transparent), transparent 2px),
+    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0)),
+    #141827;
+}
+
+.public-note-lines {
+  margin: 0.85rem 0;
+  display: grid;
+  gap: 0.48rem;
+}
+
+.public-note-lines span {
+  height: 0.55rem;
+  border-radius: 999px;
+  background: rgba(238,240,250,0.14);
+}
+
+.public-note-lines span:nth-child(2) {
+  width: 82%;
+}
+
+.public-note-lines span:nth-child(3) {
+  width: 62%;
+}
+
+.public-notebook b {
+  color: var(--color-gold-soft);
+  font-family: var(--font-mono);
+  font-weight: 850;
+}
+
+.public-app-strip {
+  margin-bottom: clamp(2rem, 6vw, 4rem);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.public-strip-item {
+  min-width: 0;
+  padding: 1.15rem;
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0)),
+    var(--color-surface);
+}
+
+.public-strip-item span {
+  color: var(--color-brand-soft);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.public-strip-item h2 {
+  margin: 0.65rem 0 0.35rem;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  line-height: 1.15;
+  font-weight: 780;
+  letter-spacing: 0;
+}
+
+.public-strip-item p {
+  margin: 0;
+  color: var(--color-text-soft);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 1040px) {
+  .public-main {
+    width: min(100% - 32px, 760px);
+  }
+
+  .public-hero {
+    min-height: auto;
+    grid-template-columns: 1fr;
+    padding-top: 2.5rem;
+  }
+
+  .public-copy h1 {
+    max-width: 9.5ch;
+  }
+
+  .public-payoff {
+    max-width: 19ch;
+  }
+
+  .public-stage {
+    min-height: 640px;
+  }
+
+  .public-app-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .public-topbar {
+    min-height: 56px;
+    padding: 0 1rem;
+  }
+
+  .public-brand {
+    font-size: 0.92rem;
+  }
+
+  .public-brand-mark {
+    width: 1.85rem;
+    height: 1.85rem;
+  }
+
+  .public-login {
+    padding: 0 0.7rem;
+  }
+
+  .public-main {
+    width: min(100% - 24px, 760px);
+  }
+
+  .public-hero {
+    gap: 1.75rem;
+    padding-top: 2rem;
+  }
+
+  .public-copy h1 {
+    font-size: clamp(3rem, 18vw, 4.6rem);
+  }
+
+  .public-payoff {
+    font-size: clamp(1.65rem, 9vw, 2.35rem);
+  }
+
+  .public-target-rail {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .public-target-rail div:last-child {
+    text-align: left;
+  }
+
+  .public-rail-track {
+    height: 0.5rem;
+  }
+
+  .public-stage {
+    min-height: 720px;
+    border-radius: 14px;
+  }
+
+  .public-lamp {
+    top: 1.1rem;
+    right: 0.8rem;
+    transform: scale(0.78);
+    transform-origin: top right;
+  }
+
+  .public-desk {
+    height: 26rem;
+  }
+
+  .public-target-card,
+  .public-session-card,
+  .public-board-card,
+  .public-notebook {
+    left: 1rem;
+    right: 1rem;
+    width: auto;
+  }
+
+  .public-target-card {
+    top: 1.2rem;
+    right: 6.5rem;
+  }
+
+  .public-session-card {
+    top: 9.35rem;
+  }
+
+  .public-board-card {
+    bottom: 13.2rem;
+  }
+
+  .public-notebook {
+    bottom: 1rem;
+  }
+
+  .public-actions,
+  .public-cta {
+    width: 100%;
+  }
+}
+

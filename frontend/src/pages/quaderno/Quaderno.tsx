@@ -48,10 +48,11 @@ import { uciToArrow, cpToPawns, uciToSan } from "./boardArrows";
 
 // ── Tab definition ─────────────────────────────────────────────────────────────
 
-type TabKey = "percorso" | "traguardi" | "profilo" | "cadute" | "repertorio";
+type TabKey = "percorso" | "traguardi" | "profilo" | "cadute" | "repertorio" | "diario";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "percorso",    label: "Percorso"    },
+  { key: "diario",      label: "Diario"      },
   { key: "traguardi",   label: "Traguardi"   },
   { key: "profilo",     label: "Profilo"     },
   { key: "cadute",      label: "Cadute"      },
@@ -181,6 +182,481 @@ function motifLabel(motif: string): string {
 }
 
 
+// ─────────────────────────────────────────────────────────────────────────────
+// DIAGNOSI COLLAPSIBLE (latest journal entry, secondary)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function DiagnosiCollapsible({ entry }: { entry: JournalEntry }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Reveal delay={240} className="mb-6">
+      <div style={{ border: "1px solid var(--color-line)", borderRadius: "10px", overflow: "hidden" }}>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            width: "100%", padding: "0.75rem 1rem",
+            background: "var(--color-surface)", border: "none", cursor: "pointer",
+            textAlign: "left", gap: "0.75rem",
+          }}
+        >
+          <span style={{ fontSize: "0.78rem", color: "var(--color-faint)", fontFamily: "var(--font-mono)" }}>
+            Diagnosi attuale di Nonno · {dateIt(entry.date)}
+          </span>
+          <span style={{ color: "var(--color-muted)", fontSize: "0.72rem", flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform 200ms" }}>
+            ▾
+          </span>
+        </button>
+        {open && (
+          <div style={{ padding: "0.75rem 1rem 1rem", borderTop: "1px solid var(--color-line)", background: "var(--color-surface)" }}>
+            <div style={{ fontSize: "0.84rem", color: "var(--color-text-soft)", lineHeight: 1.65 }}>
+              {entry.text.split("\n").map((line, j, arr) => (
+                <span key={j}>{renderInline(line)}{j < arr.length - 1 && <br />}</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Reveal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TAB: DIARIO — rassegna del mattino dopo, per giorno giocato
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A per-day review.
+ * "The morning-after review": reviews games of day D (played on D).
+ * The framing is "yesterday" for the most recent day.
+ */
+interface DayReview {
+  /** ISO date "YYYY-MM-DD" of the day games were played */
+  date: string;
+  n_games: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  n_errori_gravi: number;
+  errori_per_fase: { apertura: number; mediogioco: number; finale: number };
+  /** Dominant anchor label for this day, or null if no anchors */
+  ancora_dominante: string | null;
+  /** Worst position of the day (highest cp_loss) */
+  peggior_caduta: {
+    cp_loss: number;
+    phase: string;
+    game_url: string | null;
+    fen_before: string;
+    color: "white" | "black";
+    played_uci: string;
+    best_uci: string | null;
+  } | null;
+}
+
+/**
+ * Build per-day reviews from rating_curve (games metadata) and cadute (errors).
+ * One DayReview per day where at least one game was played.
+ * Sorted descending (most recent first).
+ */
+function buildDayReviews(
+  ratingCurve: Record<string, import("../../types").RatingPoint[]> | undefined,
+  cadute: import("../../pipeline/aggregate").PositionExample[] | undefined,
+  anchors: import("../../pipeline/aggregate").Anchor[] | undefined,
+): DayReview[] {
+  if (!ratingCurve) return [];
+
+  // ── Step 1: collect all games per date from rating_curve ──────────────────
+  // rating_curve is Record<time_class, RatingPoint[]>
+  // Each RatingPoint has date (YYYY-MM-DD), result, game_id
+  const gamesByDate = new Map<string, {
+    wins: number; draws: number; losses: number;
+    gameIds: Set<string>;
+  }>();
+
+  for (const pts of Object.values(ratingCurve)) {
+    for (const pt of pts) {
+      if (!pt.date) continue;
+      const d = pt.date.slice(0, 10);
+      if (!gamesByDate.has(d)) {
+        gamesByDate.set(d, { wins: 0, draws: 0, losses: 0, gameIds: new Set() });
+      }
+      const g = gamesByDate.get(d)!;
+      g.gameIds.add(pt.game_id ?? d + Math.random());
+      if (pt.result === "win") g.wins++;
+      else if (pt.result === "draw") g.draws++;
+      else if (pt.result === "loss") g.losses++;
+    }
+  }
+
+  if (gamesByDate.size === 0) return [];
+
+  // ── Step 2: group cadute by date ──────────────────────────────────────────
+  interface DayCadute {
+    n_gravi: number;
+    fase: { apertura: number; mediogioco: number; finale: number };
+    worst: import("../../pipeline/aggregate").PositionExample | null;
+    anchorTypes: Record<string, number>;
+  }
+
+  const caduteByDate = new Map<string, DayCadute>();
+
+  for (const c of cadute ?? []) {
+    if (!c.played_at) continue;
+    const d = c.played_at.slice(0, 10);
+    if (!caduteByDate.has(d)) {
+      caduteByDate.set(d, {
+        n_gravi: 0,
+        fase: { apertura: 0, mediogioco: 0, finale: 0 },
+        worst: null,
+        anchorTypes: {},
+      });
+    }
+    const dc = caduteByDate.get(d)!;
+    dc.n_gravi++;
+
+    // Count by phase
+    const ph = c.phase ?? "mediogioco";
+    if (ph === "apertura") dc.fase.apertura++;
+    else if (ph === "finale") dc.fase.finale++;
+    else dc.fase.mediogioco++;
+
+    // Track worst (max cp_loss)
+    if (!dc.worst || c.cp_loss > dc.worst.cp_loss) dc.worst = c;
+
+    // Anchor type from error_type
+    if (c.error_type) {
+      dc.anchorTypes[c.error_type] = (dc.anchorTypes[c.error_type] ?? 0) + 1;
+    }
+  }
+
+  // Build anchor label map
+  const anchorLabelMap = new Map<string, string>();
+  for (const a of anchors ?? []) {
+    anchorLabelMap.set(a.type, a.label_it);
+  }
+
+  // ── Step 3: build DayReview per date ─────────────────────────────────────
+  const reviews: DayReview[] = [];
+
+  for (const [date, gd] of gamesByDate) {
+    const dc = caduteByDate.get(date);
+
+    // Dominant anchor: the error type with the highest count for this day
+    let ancoraDominante: string | null = null;
+    if (dc && Object.keys(dc.anchorTypes).length > 0) {
+      const topType = Object.entries(dc.anchorTypes).sort((a, b) => b[1] - a[1])[0][0];
+      ancoraDominante = anchorLabelMap.get(topType) ?? topType;
+    }
+
+    reviews.push({
+      date,
+      n_games: gd.wins + gd.draws + gd.losses || Array.from(gd.gameIds).length,
+      wins: gd.wins,
+      draws: gd.draws,
+      losses: gd.losses,
+      n_errori_gravi: dc?.n_gravi ?? 0,
+      errori_per_fase: dc?.fase ?? { apertura: 0, mediogioco: 0, finale: 0 },
+      ancora_dominante: ancoraDominante,
+      peggior_caduta: dc?.worst
+        ? {
+            cp_loss: dc.worst.cp_loss,
+            phase: dc.worst.phase,
+            game_url: dc.worst.game_url ?? null,
+            fen_before: dc.worst.fen_before,
+            color: dc.worst.color,
+            played_uci: dc.worst.played_uci,
+            best_uci: dc.worst.best_uci ?? null,
+          }
+        : null,
+    });
+  }
+
+  // Sort descending (most recent first)
+  reviews.sort((a, b) => b.date.localeCompare(a.date));
+  return reviews;
+}
+
+/** One-line summary for the day row */
+function dayRowSummary(r: DayReview): string {
+  const parts: string[] = [`${r.n_games} ${r.n_games === 1 ? "partita" : "partite"}`];
+  const res: string[] = [];
+  if (r.wins > 0) res.push(`${r.wins}V`);
+  if (r.draws > 0) res.push(`${r.draws}P`);
+  if (r.losses > 0) res.push(`${r.losses}S`);
+  if (res.length > 0) parts.push(res.join(" "));
+  if (r.n_errori_gravi > 0) {
+    const faseDesc = (() => {
+      const f = r.errori_per_fase;
+      const max = Math.max(f.apertura, f.mediogioco, f.finale);
+      if (max === 0) return "";
+      if (f.mediogioco === max) return ", soprattutto mediogioco";
+      if (f.apertura === max) return ", soprattutto apertura";
+      return ", soprattutto finale";
+    })();
+    parts.push(`${r.n_errori_gravi} ${r.n_errori_gravi === 1 ? "errore grave" : "errori gravi"}${faseDesc}`);
+  } else {
+    parts.push("nessun errore grave");
+  }
+  return parts.join(" · ");
+}
+
+/** Nonno's voice line for a day, template-based (no LLM) */
+function nonnoLineDayTemplate(r: DayReview, isLatest: boolean): string {
+  const dateStr = isLatest ? `Ieri (${dateIt(r.date)})` : `Il ${dateIt(r.date)}`;
+  const resultStr = (() => {
+    if (r.n_games === 0) return "nessuna partita registrata";
+    const res: string[] = [];
+    if (r.wins > 0) res.push(`${r.wins} ${r.wins === 1 ? "vinta" : "vinte"}`);
+    if (r.draws > 0) res.push(`${r.draws} patta`);
+    if (r.losses > 0) res.push(`${r.losses} ${r.losses === 1 ? "persa" : "perse"}`);
+    return res.join(", ");
+  })();
+
+  if (r.n_errori_gravi === 0) {
+    return `${dateStr} hai giocato ${r.n_games} ${r.n_games === 1 ? "partita" : "partite"} (${resultStr}) senza errori gravi. Giornata pulita.`;
+  }
+
+  const faseTop = (() => {
+    const f = r.errori_per_fase;
+    const max = Math.max(f.apertura, f.mediogioco, f.finale);
+    if (max === 0) return "mediogioco";
+    if (f.mediogioco === max) return "mediogioco";
+    if (f.apertura === max) return "apertura";
+    return "finale";
+  })();
+
+  const ancoraPart = r.ancora_dominante ? ` Ancora piu' frequente: ${r.ancora_dominante}.` : "";
+
+  return `${dateStr} hai giocato ${r.n_games} ${r.n_games === 1 ? "partita" : "partite"} (${resultStr}): ${r.n_errori_gravi} ${r.n_errori_gravi === 1 ? "errore grave" : "errori gravi"}, soprattutto in ${faseTop}.${ancoraPart}`;
+}
+
+function TabDiario({
+  pmLite,
+  aggregates,
+}: {
+  pmLite: import("../../pipeline/playerModelLite").PlayerModelLite | null;
+  aggregates: import("../../pipeline/aggregate").Aggregates | null;
+}) {
+  const [expandedDate, setExpandedDate] = useState<string | null>(null);
+
+  const reviews = buildDayReviews(
+    pmLite?.rating_curve,
+    aggregates?.cadute ?? aggregates?.examples,
+    aggregates?.anchors,
+  );
+
+  if (reviews.length === 0) {
+    return (
+      <div>
+        <Reveal delay={0} className="mb-6">
+          <p className="tt-nonno">
+            Il Diario si compone giorno per giorno. Quando avrai partite analizzate,
+            ogni mattina troverai qui la rassegna del giorno prima.
+          </p>
+        </Reveal>
+        <Section delay={60}>
+          <div style={{ textAlign: "center", padding: "2rem 0", color: "var(--color-muted)", fontSize: "0.88rem" }}>
+            Nessuna partita ancora. Completa la prima analisi dal Tavolo.
+          </div>
+        </Section>
+      </div>
+    );
+  }
+
+  const latest = reviews[0];
+
+  return (
+    <div>
+      {/* Nonno intro */}
+      <Reveal delay={0} className="mb-6">
+        <p className="tt-nonno">
+          Ogni riga e' un giorno in cui hai giocato. La rassegna del mattino dopo:
+          cosa e' successo ieri, errore per errore.
+        </p>
+      </Reveal>
+
+      {/* Calendar list */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        {reviews.map((r, idx) => {
+          const isLatest = r.date === latest.date;
+          const isExpanded = expandedDate === r.date;
+          const summary = dayRowSummary(r);
+          const nonnoLine = nonnoLineDayTemplate(r, isLatest);
+          const arrowPlayed = r.peggior_caduta ? uciToArrow(r.peggior_caduta.played_uci, "rgba(239,68,68,0.85)") : null;
+          const arrowBest = r.peggior_caduta ? uciToArrow(r.peggior_caduta.best_uci, "rgba(34,197,94,0.85)") : null;
+          const boardArrows = [arrowPlayed, arrowBest].filter(Boolean) as { from: string; to: string; color: string }[];
+
+          return (
+            <Reveal key={r.date} delay={Math.min(idx * 30, 240)}>
+              <div style={{
+                background: "var(--color-surface)",
+                border: `1px solid ${isLatest ? "var(--color-line-strong)" : "var(--color-line)"}`,
+                borderRadius: "10px",
+                overflow: "hidden",
+              }}>
+                {/* Row header (always visible) */}
+                <button
+                  onClick={() => setExpandedDate(isExpanded ? null : r.date)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "0.875rem",
+                    width: "100%", padding: "0.75rem 1rem",
+                    background: "none", border: "none", cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  {/* Date badge */}
+                  <div style={{
+                    flexShrink: 0,
+                    fontFamily: "var(--font-mono)", fontSize: "0.75rem",
+                    color: isLatest ? "var(--color-text)" : "var(--color-muted)",
+                    fontWeight: isLatest ? 700 : 400,
+                    minWidth: "5.5rem",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {isLatest ? "Ieri" : dateIt(r.date)}
+                  </div>
+
+                  {/* Summary */}
+                  <div style={{
+                    flex: 1, minWidth: 0,
+                    fontSize: "0.82rem", color: "var(--color-text-soft)",
+                    lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}>
+                    {summary}
+                  </div>
+
+                  {/* Result pills */}
+                  <div style={{ display: "flex", gap: "0.25rem", flexShrink: 0, alignItems: "center" }}>
+                    {r.wins > 0 && (
+                      <span className="tt-chip good" style={{ fontSize: "0.65rem", padding: "0.1rem 0.4rem" }}>
+                        {r.wins}V
+                      </span>
+                    )}
+                    {r.draws > 0 && (
+                      <span className="tt-chip" style={{ fontSize: "0.65rem", padding: "0.1rem 0.4rem", color: "var(--color-muted)", background: "rgba(255,255,255,0.05)" }}>
+                        {r.draws}P
+                      </span>
+                    )}
+                    {r.losses > 0 && (
+                      <span className="tt-chip bad" style={{ fontSize: "0.65rem", padding: "0.1rem 0.4rem" }}>
+                        {r.losses}S
+                      </span>
+                    )}
+                    <span style={{
+                      color: "var(--color-muted)", fontSize: "0.72rem",
+                      transform: isExpanded ? "rotate(180deg)" : "none",
+                      transition: "transform 200ms",
+                      marginLeft: "0.25rem",
+                    }}>
+                      ▾
+                    </span>
+                  </div>
+                </button>
+
+                {/* Expanded detail */}
+                {isExpanded && (
+                  <div style={{
+                    padding: "0 1rem 1rem",
+                    borderTop: "1px solid var(--color-line)",
+                  }}>
+                    {/* Nonno voice */}
+                    <p style={{
+                      fontSize: "0.88rem", color: "var(--color-text-soft)",
+                      lineHeight: 1.65, margin: "0.875rem 0",
+                      fontStyle: "italic",
+                    }}>
+                      {nonnoLine}
+                    </p>
+
+                    {/* Phase breakdown */}
+                    {r.n_errori_gravi > 0 && (
+                      <div style={{
+                        display: "flex", gap: "1.25rem", flexWrap: "wrap",
+                        marginBottom: "0.875rem",
+                        fontSize: "0.78rem", color: "var(--color-muted)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}>
+                        {r.errori_per_fase.apertura > 0 && (
+                          <span>Apertura: <strong style={{ color: "var(--color-text)" }}>{r.errori_per_fase.apertura}</strong></span>
+                        )}
+                        {r.errori_per_fase.mediogioco > 0 && (
+                          <span>Mediogioco: <strong style={{ color: "var(--color-text)" }}>{r.errori_per_fase.mediogioco}</strong></span>
+                        )}
+                        {r.errori_per_fase.finale > 0 && (
+                          <span>Finale: <strong style={{ color: "var(--color-text)" }}>{r.errori_per_fase.finale}</strong></span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Dominant anchor chip */}
+                    {r.ancora_dominante && (
+                      <div style={{ marginBottom: "0.875rem" }}>
+                        <span className="tt-chip warn" style={{ fontSize: "0.72rem" }}>
+                          Ancora: {r.ancora_dominante}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Worst position mini-board */}
+                    {r.peggior_caduta && (
+                      <div style={{
+                        display: "flex", gap: "1rem", alignItems: "flex-start",
+                        flexWrap: "wrap",
+                        padding: "0.75rem",
+                        background: "var(--color-surface-2)",
+                        borderRadius: "8px",
+                        border: "1px solid var(--color-line)",
+                      }}>
+                        <div style={{ flexShrink: 0 }}>
+                          <BoardView
+                            fen={r.peggior_caduta.fen_before}
+                            orientation={r.peggior_caduta.color}
+                            size={140}
+                            arrows={boardArrows}
+                          />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="tt-eyebrow" style={{ color: "var(--color-faint)", marginBottom: "0.375rem" }}>
+                            Momento peggiore del giorno
+                          </div>
+                          <div className="font-mono font-bold" style={{
+                            fontSize: "1.1rem", color: "var(--color-danger)",
+                            fontVariantNumeric: "tabular-nums",
+                            marginBottom: "0.25rem",
+                          }}>
+                            -{cpToPawns(r.peggior_caduta.cp_loss)}
+                          </div>
+                          <div style={{
+                            fontSize: "0.75rem", color: "var(--color-muted)",
+                            marginBottom: "0.5rem", textTransform: "capitalize",
+                          }}>
+                            {r.peggior_caduta.phase}
+                          </div>
+                          {r.peggior_caduta.game_url && (
+                            <a
+                              href={r.peggior_caduta.game_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-ghost btn-sm"
+                              style={{ fontSize: "0.72rem", display: "inline-block" }}
+                            >
+                              Vedi partita
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </Reveal>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Nonno's verdict on the most recent window vs prior for a motif.
  * honest: we say "euristica" where needed.
@@ -199,7 +675,7 @@ function transferVerdictLine(
     // No prior baseline
     if (recent.rate != null) {
       const pct = Math.round(recent.rate * 100);
-      if (pct >= 70) return `${label}: gestito ${rateStr(recent)} — buon lavoro.`;
+      if (pct >= 70) return `${label}: gestito ${rateStr(recent)}. Buon lavoro.`;
       if (pct >= 40) return `${label}: gestito ${rateStr(recent)}. C'e' ancora margine.`;
       return `${label}: gestito ${rateStr(recent)}. E' il punto su cui lavorare.`;
     }
@@ -543,7 +1019,7 @@ function TabPercorso({
               )}
               <div style={{ fontSize: "0.78rem", color: "var(--color-text-soft)", lineHeight: 1.45 }}>
                 {day1Profile.topAnchors.length > 0
-                  ? "Freni: " + day1Profile.topAnchors.join(", ")
+                  ? "Ancore: " + day1Profile.topAnchors.join(", ")
                   : "Profilo ancora da costruire"}
               </div>
             </div>
@@ -580,8 +1056,8 @@ function TabPercorso({
               )}
               <div style={{ fontSize: "0.78rem", color: "var(--color-text-soft)", lineHeight: 1.45 }}>
                 {nowProfile.topAnchors.length > 0
-                  ? "Freni: " + nowProfile.topAnchors.join(", ")
-                  : "Nessun freno rilevato"}
+                  ? "Ancore: " + nowProfile.topAnchors.join(", ")
+                  : "Nessuna ancora rilevata"}
               </div>
             </div>
           </div>
@@ -592,38 +1068,9 @@ function TabPercorso({
         )}
       </Section>
 
-      {/* ── Coach journal — secondary, deduplicated, collapsible ─────────── */}
+      {/* ── Coach journal — most recent entry only, collapsible ─────────── */}
       {journalEntries.length > 0 && (
-        <Section eyebrow="Note di Nonno (diario)" delay={240}>
-          <p style={{ fontSize: "0.78rem", color: "var(--color-faint)", marginBottom: "0.75rem" }}>
-            Note qualitative accumulate nel tempo. Il transfer numerico sopra e' la misura principale.
-          </p>
-          <div>
-            {journalEntries.slice(0, 5).map((entry, i) => (
-              <div key={entry.date + i}
-                style={{
-                  display: "flex", gap: "1rem",
-                  padding: "0.75rem 0",
-                  borderBottom: i < Math.min(journalEntries.length, 5) - 1 ? "1px solid var(--color-line)" : undefined,
-                }}
-              >
-                <div style={{
-                  flexShrink: 0,
-                  fontFamily: "var(--font-mono)", fontSize: "0.68rem",
-                  color: "var(--color-faint)", whiteSpace: "nowrap",
-                  paddingTop: "0.125rem", minWidth: "4.5rem",
-                }}>
-                  {dateIt(entry.date)}
-                </div>
-                <div style={{ fontSize: "0.84rem", color: "var(--color-text-soft)", lineHeight: 1.6 }}>
-                  {entry.text.split("\n").map((line, j, arr) => (
-                    <span key={j}>{renderInline(line)}{j < arr.length - 1 && <br />}</span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Section>
+        <DiagnosiCollapsible entry={journalEntries[0]} />
       )}
 
       {/* Cross-link to anchors */}
@@ -1609,6 +2056,12 @@ export function Quaderno() {
               aggregates={aggregates}
               anchorFilter={selectedAnchor}
               onOpeningLink={handleOpeningLink}
+            />
+          )}
+          {activeTab === "diario" && (
+            <TabDiario
+              pmLite={pmLite}
+              aggregates={aggregates}
             />
           )}
           {activeTab === "repertorio" && (
