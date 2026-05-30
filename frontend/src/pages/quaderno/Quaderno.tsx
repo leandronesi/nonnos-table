@@ -944,21 +944,30 @@ function parseJournal(raw: string): JournalEntry[] {
     entries.push({ date: current.date, text: current.lines.join("\n").trim() });
   }
 
-  // Most recent first, then DEDUP voci identiche: il coach appende una nota a
-  // ogni analisi, anche identica. Collassiamo i duplicati tenendo l'occorrenza
-  // piu' recente, cosi' la Storia non e' "20 volte la stessa cosa".
+  // Most recent first, then DEDUP per GIORNO: il coach appende una nota a ogni
+  // analisi (anche piu' volte nello stesso giorno, con conteggi diversi).
+  // Teniamo UNA voce per data, la piu' recente di quel giorno, cosi' la Storia
+  // non e' "20 volte lo stesso giorno".
   const ordered = entries.reverse();
-  const seen = new Set<string>();
+  const seenDate = new Set<string>();
   return ordered.filter((e) => {
-    const key = e.text.replace(/\s+/g, " ").trim();
-    if (seen.has(key)) return false;
-    seen.add(key);
+    if (seenDate.has(e.date)) return false;
+    seenDate.add(e.date);
     return true;
   });
 }
 
 /** Render inline del markdown del diario (**grassetto**, _corsivo_) in nodi React. */
 function renderInline(text: string): ReactNode[] {
+  // Normalizza la copy del diario gia' salvato: "freni/freno" -> "ancore/ancora"
+  // (rinominati nel prodotto) e em-dash -> " · " (DESIGN.md). Stopgap a schermo;
+  // il template del coach corretto arriva col redeploy di coach-llm.
+  text = text
+    .replace(/\s*—\s*/g, " · ")
+    .replace(/\bFreni\b/g, "Ancore")
+    .replace(/\bfreni\b/g, "ancore")
+    .replace(/\bFreno\b/g, "Ancora")
+    .replace(/\bfreno\b/g, "ancora");
   const nodes: ReactNode[] = [];
   const regex = /(\*\*[^*]+\*\*|_[^_]+_)/g;
   let last = 0;
