@@ -30,14 +30,12 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { downloadJson, downloadText, quadernoPath } from "../../auth/storage";
 import { PRODUCT_NAME } from "../../coaching";
-import type { Aggregates, Anchor, PositionExample } from "../../pipeline/aggregate";
+import type { Aggregates, PositionExample } from "../../pipeline/aggregate";
 import type { PlayerModelLite } from "../../pipeline/playerModelLite";
 import type { HistoryFile, Milestone } from "../../types";
 import {
   readHistory,
-  anchorTrendsFromHistory,
   computeMilestones,
-  goalProgress,
 } from "../../pipeline/history";
 import { RatingCurveChart } from "../../components/RatingCurveChart";
 import { DecisionsCard } from "../../components/DecisionsCard";
@@ -50,12 +48,11 @@ import { uciToArrow, cpToPawns, uciToSan } from "./boardArrows";
 
 // ── Tab definition ─────────────────────────────────────────────────────────────
 
-type TabKey = "evoluzione" | "traguardi" | "storia" | "profilo" | "cadute" | "repertorio";
+type TabKey = "percorso" | "traguardi" | "profilo" | "cadute" | "repertorio";
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: "evoluzione",  label: "Evoluzione"  },
+  { key: "percorso",    label: "Percorso"    },
   { key: "traguardi",   label: "Traguardi"   },
-  { key: "storia",      label: "Storia"      },
   { key: "profilo",     label: "Profilo"     },
   { key: "cadute",      label: "Cadute"      },
   { key: "repertorio",  label: "Repertorio"  },
@@ -63,7 +60,9 @@ const TABS: { key: TabKey; label: string }[] = [
 
 function tabFromHash(): TabKey {
   const h = typeof window !== "undefined" ? window.location.hash.replace("#", "") : "";
-  return TABS.some((t) => t.key === h) ? (h as TabKey) : "evoluzione";
+  // Legacy hash aliases: evoluzione/storia both map to percorso
+  if (h === "evoluzione" || h === "storia") return "percorso";
+  return TABS.some((t) => t.key === h) ? (h as TabKey) : "percorso";
 }
 
 // ── Motif label map ────────────────────────────────────────────────────────────
@@ -83,11 +82,6 @@ function dateIt(iso: string): string {
     const d = new Date(iso);
     return `${d.getDate()} ${MONTHS_IT[d.getMonth()]} ${d.getFullYear()}`;
   } catch { return iso.slice(0, 10); }
-}
-
-function weekToLabel(week_iso: string): string {
-  // "2026-W22" → simple label
-  return week_iso.replace("-W", " sett. ");
 }
 
 // ── Reveal ─────────────────────────────────────────────────────────────────────
@@ -117,16 +111,6 @@ function Reveal({ children, delay = 0, className = "" }: {
     </div>
   );
 }
-
-// ── CATEGORY PILL colors ──────────────────────────────────────────────────────
-
-const CATEGORY_PILL: Record<string, { bg: string; color: string }> = {
-  tattica:       { bg: "rgba(244,63,94,0.12)",  color: "var(--color-danger)" },
-  timing:        { bg: "rgba(251,146,60,0.12)", color: "var(--color-warn, #f5a524)" },
-  tecnica:       { bg: "rgba(161,139,255,0.14)", color: "var(--color-brand-soft)" },
-  comportamento: { bg: "rgba(96,165,250,0.12)", color: "var(--color-info)" },
-};
-const DEFAULT_PILL = { bg: "rgba(255,255,255,0.07)", color: "var(--color-text-soft)" };
 
 // ── Mini sparkline (SVG, no dep) ──────────────────────────────────────────────
 
@@ -180,231 +164,487 @@ function Section({ children, eyebrow, delay = 0 }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB: EVOLUZIONE
+// TAB: PERCORSO (merges Evoluzione + Storia)
+// 3 sections: (1) Polso di ieri, (2) Applicazione nel tempo, (3) Dal primo giorno
 // ─────────────────────────────────────────────────────────────────────────────
 
-function TabEvoluzione({
+/** Transfer motif labels for display (honest: classification is heuristic). */
+const MOTIF_LABEL_TRANSFER: Record<string, string> = {
+  hanging_piece: "Pezzo in presa",
+  fork:          "Doppio attacco",
+  back_rank:     "Ultima traversa",
+  none:          "Posizione tranquilla",
+};
+
+function motifLabel(motif: string): string {
+  return MOTIF_LABEL_TRANSFER[motif] ?? motif.replace(/_/g, " ");
+}
+
+
+/**
+ * Nonno's verdict on the most recent window vs prior for a motif.
+ * honest: we say "euristica" where needed.
+ */
+function transferVerdictLine(
+  label: string,
+  recent: { faced: number; handled: number; rate: number | null },
+  prior: { faced: number; handled: number; rate: number | null } | null,
+): string {
+  if (recent.faced === 0) return `${label}: nessuna posizione critica recente.`;
+
+  const rateStr = (r: { handled: number; faced: number }) =>
+    `${r.handled} su ${r.faced}`;
+
+  if (prior == null || prior.faced === 0) {
+    // No prior baseline
+    if (recent.rate != null) {
+      const pct = Math.round(recent.rate * 100);
+      if (pct >= 70) return `${label}: gestito ${rateStr(recent)} — buon lavoro.`;
+      if (pct >= 40) return `${label}: gestito ${rateStr(recent)}. C'e' ancora margine.`;
+      return `${label}: gestito ${rateStr(recent)}. E' il punto su cui lavorare.`;
+    }
+    return `${label}: affrontato ${recent.faced} volte di recente (dati parziali).`;
+  }
+
+  // Compare recent vs prior
+  if (recent.rate != null && prior.rate != null) {
+    const delta = recent.rate - prior.rate;
+    const suffix = delta > 0.08
+      ? " Stai applicando."
+      : delta < -0.08
+      ? " Qualcosa e' calato, tienilo d'occhio."
+      : " Stabile.";
+    return `${label}: recente ${rateStr(recent)}, prima ${rateStr(prior)}.${suffix}`;
+  }
+  return `${label}: affrontato ${recent.faced} volte (recente), ${prior.faced} prima.`;
+}
+
+function TabPercorso({
   aggregates,
   pmLite,
   history,
+  journalRaw,
   onSelectAnchor,
 }: {
   aggregates: Aggregates | null;
   pmLite: PlayerModelLite | null;
   history: HistoryFile;
+  journalRaw: string | null;
   onSelectAnchor: (anchorType: string) => void;
 }) {
   const goal = pmLite?.identity?.goal ?? null;
-  const anchors: Anchor[] = aggregates?.anchors ?? [];
-  const sortedAnchors = [...anchors].sort((a, b) => (b.rating_upside ?? 0) - (a.rating_upside ?? 0));
+  const transfer = aggregates?.transfer ?? null;
 
-  // anchorTrendsFromHistory (>=2 snapshots) or fall back to trend_now
-  const historySeries = history.snapshots.length >= 2
-    ? anchorTrendsFromHistory(history)
+  // ── Transfer data availability checks ──────────────────────────────────────
+  // Transfer motif_occurrences exist only after a re-analysis with pattern detection.
+  const hasTransferData =
+    transfer != null &&
+    (transfer.overall.some((s) => s.faced > 0) ||
+     transfer.recent.some((s) => s.faced > 0));
+
+  // >=2 windows: both recent AND prior have data for at least one motif
+  const hasWindowComparison =
+    hasTransferData &&
+    transfer != null &&
+    transfer.prior.some((s) => s.faced > 0) &&
+    transfer.recent.some((s) => s.faced > 0);
+
+  // History for section 3
+  const snaps = [...history.snapshots].sort((a, b) =>
+    a.captured_at.localeCompare(b.captured_at),
+  );
+  const firstSnap = snaps[0] ?? null;
+  const lastSnap = snaps[snaps.length - 1] ?? null;
+
+  // Journal entries (deduplicated, for secondary notes at bottom)
+  const journalEntries = journalRaw ? parseJournal(journalRaw) : [];
+
+  // Nonno's main intro for Percorso tab
+  const percorsoNonno = (() => {
+    if (!hasTransferData) {
+      return "Sto raccogliendo i dati sul trasferimento. Torna dopo la prossima analisi e vedrai se stai applicando quello che impari.";
+    }
+    if (!hasWindowComparison) {
+      return "Ho i dati della finestra recente. Per vedere se stai applicando serve anche la finestra precedente: torna dopo la prossima analisi.";
+    }
+    // Build a summary verdict from the top motif with faced > 0
+    const topMotif = transfer!.recent.find((s) => s.faced > 0 && s.motif !== "none");
+    if (topMotif) {
+      const lbl = motifLabel(topMotif.motif);
+      const priorStat = transfer!.prior.find((s) => s.motif === topMotif.motif);
+      if (priorStat && priorStat.faced > 0 && topMotif.rate != null && priorStat.rate != null) {
+        const delta = topMotif.rate - priorStat.rate;
+        if (delta > 0.08) return `Sul "${lbl}" stai migliorando: lo gestisci piu' spesso di prima. Vai avanti.`;
+        if (delta < -0.08) return `Sul "${lbl}" il dato recente e' calato rispetto a prima. Vale la pena guardare.`;
+      }
+    }
+    return "Ecco il tuo percorso reale, partita dopo partita. Tre domande: cosa e' successo ieri, come stai evolvendo, chi sei rispetto al giorno 1.";
+  })();
+
+  // ── Section 1: Polso di ieri/recente ──────────────────────────────────────
+  // Recent window = transfer.recent (games played_at <= 28d from most recent game)
+  const recentStats = transfer?.recent.filter((s) => s.faced > 0 && s.motif !== "none") ?? [];
+  const priorStats = transfer?.prior ?? [];
+
+  // ── Section 2: Applicazione nel tempo ─────────────────────────────────────
+  // For each motif: rate from history transfer snapshots (if >=2) or recent vs prior
+  type TransferPoint = { label: string; recent_rate: number | null; prior_rate: number | null; faced_recent: number; faced_prior: number };
+  const transferPoints: TransferPoint[] = [];
+  if (hasTransferData && transfer) {
+    const allMotifs = new Set([
+      ...transfer.recent.map((s) => s.motif),
+      ...transfer.prior.map((s) => s.motif),
+    ]);
+    for (const motif of allMotifs) {
+      if (motif === "none") continue;
+      const r = transfer.recent.find((s) => s.motif === motif);
+      const p = transfer.prior.find((s) => s.motif === motif);
+      if (!r || r.faced === 0) continue;
+      transferPoints.push({
+        label: motifLabel(motif),
+        recent_rate: r.rate,
+        prior_rate: p?.rate ?? null,
+        faced_recent: r.faced,
+        faced_prior: p?.faced ?? 0,
+      });
+    }
+  }
+
+  // ── Section 3: Dal primo giorno ────────────────────────────────────────────
+  // Rating curve + day1 vs now snapshot comparison
+  const hasRatingCurve = pmLite?.rating_curve != null &&
+    Object.values(pmLite.rating_curve).some((pts) => pts.length > 0);
+
+  const day1Profile = firstSnap != null && lastSnap != null && firstSnap.week_iso !== lastSnap.week_iso
+    ? {
+        rating: firstSnap.goal.current,
+        topAnchors: firstSnap.anchors.slice(0, 3).map((a) => a.label_it),
+        gamesAnalyzed: firstSnap.games_analyzed,
+        capturedAt: firstSnap.captured_at,
+      }
     : null;
 
-  const gp = goal ? goalProgress(goal) : null;
+  const nowProfile = lastSnap != null
+    ? {
+        rating: lastSnap.goal.current,
+        topAnchors: lastSnap.anchors.slice(0, 3).map((a) => a.label_it),
+        gamesAnalyzed: lastSnap.games_analyzed,
+      }
+    : null;
 
-  const hasAnchors = sortedAnchors.length > 0;
-
-  // Build Nonno's intro for Evoluzione based on available data
-  const evolNonno = (() => {
-    if (!hasAnchors) return "Non ho ancora abbastanza partite per disegnare il tuo profilo. Gioca, poi torni qui.";
-    const top = sortedAnchors[0];
-    const trendNow = top.trend_now;
-    const improving = trendNow?.direction === "improving" && (trendNow.confidence === "medium" || trendNow.confidence === "high");
-    if (improving) {
-      return `Stai migliorando su "${top.label_it}". Il grafico lo conferma. Continua cosi'.`;
-    }
-    if (gp && !gp.on_track) {
-      return `Sei fuori rotta verso il target. Le ancore qui sotto mostrano dove guadagnare piu' punti.`;
-    }
-    return `Queste sono le tue ancore: i pattern che, se impari a riconoscerli, valgono piu' punti. Cliccane una per vedere le posizioni collegate.`;
-  })();
+  const ratingDelta =
+    day1Profile?.rating != null && nowProfile?.rating != null
+      ? nowProfile.rating - day1Profile.rating
+      : null;
 
   return (
     <div>
       {/* Nonno voice */}
       <Reveal delay={0} className="mb-6">
-        <p className="tt-nonno">{evolNonno}</p>
+        <p className="tt-nonno">{percorsoNonno}</p>
       </Reveal>
 
-      {/* Proiezione obiettivo */}
-      {gp != null && goal != null && (
-        <Section eyebrow="Verso il tuo obiettivo" delay={0}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "1.5rem", alignItems: "flex-start" }}>
-            <div>
-              <div style={{ fontSize: "0.82rem", color: "var(--color-text-soft)", marginBottom: "0.5rem" }}>
-                Servono{" "}
-                <span className="font-mono font-bold" style={{ color: "var(--color-text)", fontVariantNumeric: "tabular-nums" }}>
-                  +{gp.rate_needed_per_week != null ? `${gp.rate_needed_per_week.toFixed(1)}/sett` : "n.d."}
-                </span>
-                {gp.rate_real_per_week != null && (
-                  <>, vai a <span className="font-mono font-bold" style={{ color: gp.on_track ? "var(--color-ok)" : "var(--color-warn)", fontVariantNumeric: "tabular-nums" }}>
-                    {gp.rate_real_per_week.toFixed(1)}
-                  </span></>
-                )}
-                .
+      {/* ── SEZIONE 1: Polso di ieri/recente ──────────────────────────────── */}
+      <Section eyebrow="Polso di ieri" delay={0}>
+        {!hasTransferData ? (
+          <div style={{ color: "var(--color-muted)", fontSize: "0.88rem", lineHeight: 1.6 }}>
+            Sto raccogliendo i dati. Torna dopo la prossima analisi e vedrai se stai applicando.
+            <div style={{ marginTop: "0.75rem", fontSize: "0.75rem", color: "var(--color-faint)" }}>
+              La classificazione e' euristica (chess.js): richiede una rianalisi per popolarsi.
+            </div>
+          </div>
+        ) : recentStats.length === 0 ? (
+          <div style={{ color: "var(--color-muted)", fontSize: "0.88rem" }}>
+            Nessuna posizione critica classificata nella finestra recente (ultimi 28 giorni).
+          </div>
+        ) : (
+          <div>
+            {recentStats.map((stat, i) => {
+              const priorStat = priorStats.find((s) => s.motif === stat.motif);
+              const verdictLine = transferVerdictLine(
+                motifLabel(stat.motif),
+                { faced: stat.faced, handled: stat.handled, rate: stat.rate },
+                priorStat && priorStat.faced > 0
+                  ? { faced: priorStat.faced, handled: priorStat.handled, rate: priorStat.rate }
+                  : null,
+              );
+              const improving =
+                stat.rate != null &&
+                priorStat?.rate != null &&
+                stat.rate > priorStat.rate + 0.08;
+              const worsening =
+                stat.rate != null &&
+                priorStat?.rate != null &&
+                stat.rate < priorStat.rate - 0.08;
+
+              return (
+                <div
+                  key={stat.motif}
+                  style={{
+                    padding: "0.875rem 0",
+                    borderBottom: i < recentStats.length - 1 ? "1px solid var(--color-line)" : undefined,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", flexWrap: "wrap" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: "0.92rem", color: "var(--color-text)", marginBottom: "0.25rem" }}>
+                        {motifLabel(stat.motif)}
+                      </div>
+                      <div style={{ fontSize: "0.84rem", color: "var(--color-text-soft)", lineHeight: 1.55 }}>
+                        {verdictLine}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.25rem", flexShrink: 0 }}>
+                      {/* Recent rate pill */}
+                      {stat.rate != null ? (
+                        <span
+                          className="tt-chip"
+                          style={{
+                            color: stat.rate >= 0.6 ? "var(--color-ok)" : stat.rate >= 0.35 ? "var(--color-warn)" : "var(--color-danger)",
+                            background: stat.rate >= 0.6
+                              ? "color-mix(in srgb, var(--color-ok) 12%, transparent)"
+                              : stat.rate >= 0.35
+                              ? "color-mix(in srgb, var(--color-warn) 10%, transparent)"
+                              : "color-mix(in srgb, var(--color-danger) 10%, transparent)",
+                            fontVariantNumeric: "tabular-nums",
+                          }}
+                        >
+                          {Math.round(stat.rate * 100)}% gestito
+                        </span>
+                      ) : (
+                        <span className="tt-chip" style={{ color: "var(--color-faint)", background: "rgba(255,255,255,0.04)" }}>
+                          dati parziali
+                        </span>
+                      )}
+                      {improving && <span className="tt-chip good" style={{ fontSize: "0.65rem" }}>in crescita</span>}
+                      {worsening && <span className="tt-chip warn" style={{ fontSize: "0.65rem" }}>in calo</span>}
+                    </div>
+                  </div>
+                  {/* Prior comparison row */}
+                  {priorStat && priorStat.faced > 0 && (
+                    <div style={{ marginTop: "0.375rem", display: "flex", gap: "1.25rem", fontSize: "0.75rem", color: "var(--color-faint)", fontVariantNumeric: "tabular-nums" }}>
+                      <span>Recente: {stat.handled}/{stat.faced}</span>
+                      <span>Finestra precedente: {priorStat.handled}/{priorStat.faced}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            <div style={{ marginTop: "0.75rem", fontSize: "0.72rem", color: "var(--color-faint)", lineHeight: 1.4 }}>
+              La classificazione e' euristica (chess.js geometry). "Affrontato" significa che la mossa migliore coinvolgeva quel motif, non che tu l'abbia riconosciuto.
+            </div>
+          </div>
+        )}
+      </Section>
+
+      {/* ── SEZIONE 2: Applicazione nel tempo ─────────────────────────────── */}
+      <Section eyebrow="Applicazione nel tempo" delay={80}>
+        {!hasWindowComparison ? (
+          <div style={{ color: "var(--color-muted)", fontSize: "0.88rem", lineHeight: 1.6 }}>
+            {!hasTransferData
+              ? "La curva del trasferimento appare dopo la prima analisi con rilevamento dei motif."
+              : "Serve la finestra precedente per disegnare la curva. Torna dopo la prossima analisi."}
+          </div>
+        ) : transferPoints.length === 0 ? (
+          <div style={{ color: "var(--color-muted)", fontSize: "0.88rem" }}>
+            Nessun motif tattico classificato con sufficiente dati.
+          </div>
+        ) : (
+          <div>
+            <p style={{ fontSize: "0.82rem", color: "var(--color-muted)", marginBottom: "1rem", lineHeight: 1.5 }}>
+              Tasso di gestione (gestito / affrontato) nelle due finestre disponibili. La curva storica appare dopo piu' analisi.
+            </p>
+            {transferPoints.map((tp, i) => {
+              const improving = tp.recent_rate != null && tp.prior_rate != null && tp.recent_rate > tp.prior_rate + 0.05;
+              const worsening = tp.recent_rate != null && tp.prior_rate != null && tp.recent_rate < tp.prior_rate - 0.05;
+              const sparkPoints: number[] | null =
+                tp.prior_rate != null && tp.recent_rate != null
+                  ? [tp.prior_rate, tp.recent_rate]
+                  : null;
+              return (
+                <div
+                  key={tp.label}
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "1rem",
+                    padding: "0.875rem 0",
+                    borderBottom: i < transferPoints.length - 1 ? "1px solid var(--color-line)" : undefined,
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: "0.92rem", color: "var(--color-text)", marginBottom: "0.2rem" }}>
+                      {tp.label}
+                    </div>
+                    <div style={{ fontSize: "0.78rem", color: "var(--color-text-soft)", fontVariantNumeric: "tabular-nums" }}>
+                      {tp.prior_rate != null
+                        ? `Prima: ${Math.round(tp.prior_rate * 100)}% (${tp.faced_prior} occ.)`
+                        : `Prima: dati insufficienti`
+                      }
+                      {" "}
+                      {tp.recent_rate != null
+                        ? `Adesso: ${Math.round(tp.recent_rate * 100)}% (${tp.faced_recent} occ.)`
+                        : `Adesso: dati insufficienti`
+                      }
+                    </div>
+                    {improving && (
+                      <div style={{ marginTop: "0.2rem", fontSize: "0.75rem", color: "var(--color-ok)" }}>
+                        Stai applicando.
+                      </div>
+                    )}
+                    {worsening && (
+                      <div style={{ marginTop: "0.2rem", fontSize: "0.75rem", color: "var(--color-warn)" }}>
+                        Tienilo d'occhio.
+                      </div>
+                    )}
+                  </div>
+                  {sparkPoints && (
+                    <div style={{ flexShrink: 0, paddingTop: "0.125rem" }}>
+                      <MiniSparkline points={sparkPoints} improving={improving} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Section>
+
+      {/* ── SEZIONE 3: Dal primo giorno ────────────────────────────────────── */}
+      <Section eyebrow="Dal primo giorno" delay={160}>
+        {/* Rating curve */}
+        {hasRatingCurve && pmLite != null && goal != null ? (
+          <Reveal delay={0} className="mb-6">
+            <RatingCurveChart ratingCurve={pmLite.rating_curve} goal={goal} />
+          </Reveal>
+        ) : (
+          <div style={{ color: "var(--color-muted)", fontSize: "0.88rem", marginBottom: "1.5rem" }}>
+            Curva di rating non disponibile ancora.
+          </div>
+        )}
+
+        {/* Day 1 vs now comparison */}
+        {day1Profile != null && nowProfile != null ? (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1rem" }}>
+            {/* Day 1 */}
+            <div style={{
+              background: "var(--color-surface-2)",
+              border: "1px solid var(--color-line)",
+              borderRadius: "10px",
+              padding: "1rem",
+            }}>
+              <div className="tt-eyebrow" style={{ marginBottom: "0.5rem", color: "var(--color-faint)" }}>
+                Giorno 1 · {dateIt(day1Profile.capturedAt.slice(0, 10))}
               </div>
-              {gp.projection != null && (
-                <div style={{ fontSize: "0.78rem", color: "var(--color-muted)", fontVariantNumeric: "tabular-nums" }}>
-                  Proiezione alla scadenza:{" "}
-                  <span className="font-mono font-bold" style={{ color: "var(--color-text)" }}>
-                    {Math.round(gp.projection)}
+              {day1Profile.rating != null && (
+                <div className="font-mono font-bold" style={{ fontSize: "1.35rem", color: "var(--color-text)", fontVariantNumeric: "tabular-nums", marginBottom: "0.5rem" }}>
+                  {day1Profile.rating}
+                </div>
+              )}
+              <div style={{ fontSize: "0.78rem", color: "var(--color-text-soft)", lineHeight: 1.45 }}>
+                {day1Profile.topAnchors.length > 0
+                  ? "Freni: " + day1Profile.topAnchors.join(", ")
+                  : "Profilo ancora da costruire"}
+              </div>
+            </div>
+
+            {/* Now */}
+            <div style={{
+              background: "var(--color-surface-2)",
+              border: "1px solid var(--color-line-strong)",
+              borderRadius: "10px",
+              padding: "1rem",
+            }}>
+              <div className="tt-eyebrow" style={{ marginBottom: "0.5rem", color: "var(--color-brand-soft)" }}>
+                Oggi
+              </div>
+              {nowProfile.rating != null && (
+                <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                  <span className="font-mono font-bold" style={{ fontSize: "1.35rem", color: "var(--color-text)", fontVariantNumeric: "tabular-nums" }}>
+                    {nowProfile.rating}
                   </span>
-                  {goal.target > 0 && (
-                    <> su <span className="font-mono" style={{ color: "var(--color-gold-soft)" }}>{goal.target}</span></>
+                  {ratingDelta != null && (
+                    <span
+                      className="font-mono"
+                      style={{
+                        fontSize: "0.85rem",
+                        fontVariantNumeric: "tabular-nums",
+                        color: ratingDelta > 0 ? "var(--color-ok)" : ratingDelta < 0 ? "var(--color-danger)" : "var(--color-muted)",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {ratingDelta > 0 ? "+" : ""}{ratingDelta}
+                    </span>
                   )}
                 </div>
               )}
+              <div style={{ fontSize: "0.78rem", color: "var(--color-text-soft)", lineHeight: 1.45 }}>
+                {nowProfile.topAnchors.length > 0
+                  ? "Freni: " + nowProfile.topAnchors.join(", ")
+                  : "Nessun freno rilevato"}
+              </div>
             </div>
-            <span
-              className="tt-chip"
-              style={gp.on_track
-                ? { color: "var(--color-ok)", background: "color-mix(in srgb, var(--color-ok) 12%, transparent)" }
-                : { color: "var(--color-warn)", background: "color-mix(in srgb, var(--color-warn) 10%, transparent)" }
-              }
-            >
-              {gp.on_track ? "In carreggiata" : "Fuori rotta"}
-            </span>
+          </div>
+        ) : (
+          <div style={{ color: "var(--color-muted)", fontSize: "0.88rem", marginTop: "1rem" }}>
+            Il confronto giorno 1 vs oggi appare dopo la seconda analisi.
+          </div>
+        )}
+      </Section>
+
+      {/* ── Coach journal — secondary, deduplicated, collapsible ─────────── */}
+      {journalEntries.length > 0 && (
+        <Section eyebrow="Note di Nonno (diario)" delay={240}>
+          <p style={{ fontSize: "0.78rem", color: "var(--color-faint)", marginBottom: "0.75rem" }}>
+            Note qualitative accumulate nel tempo. Il transfer numerico sopra e' la misura principale.
+          </p>
+          <div>
+            {journalEntries.slice(0, 5).map((entry, i) => (
+              <div key={entry.date + i}
+                style={{
+                  display: "flex", gap: "1rem",
+                  padding: "0.75rem 0",
+                  borderBottom: i < Math.min(journalEntries.length, 5) - 1 ? "1px solid var(--color-line)" : undefined,
+                }}
+              >
+                <div style={{
+                  flexShrink: 0,
+                  fontFamily: "var(--font-mono)", fontSize: "0.68rem",
+                  color: "var(--color-faint)", whiteSpace: "nowrap",
+                  paddingTop: "0.125rem", minWidth: "4.5rem",
+                }}>
+                  {dateIt(entry.date)}
+                </div>
+                <div style={{ fontSize: "0.84rem", color: "var(--color-text-soft)", lineHeight: 1.6 }}>
+                  {entry.text.split("\n").map((line, j, arr) => (
+                    <span key={j}>{renderInline(line)}{j < arr.length - 1 && <br />}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </Section>
       )}
 
-      {/* Ancore nel tempo */}
-      {hasAnchors ? (
-        <Section eyebrow="Le tue ancore nel tempo" delay={80}>
-          <p style={{ fontSize: "0.82rem", color: "var(--color-muted)", marginBottom: "1.25rem", lineHeight: 1.5 }}>
-            Ordinate per potenziale di guadagno. Cliccane una per vedere le cadute collegate.
+      {/* Cross-link to anchors */}
+      {(aggregates?.anchors?.length ?? 0) > 0 && (
+        <Reveal delay={280} className="mb-6">
+          <p style={{ fontSize: "0.82rem", color: "var(--color-muted)", lineHeight: 1.5 }}>
+            Le ancore nel dettaglio:{" "}
+            {(aggregates?.anchors ?? []).slice(0, 3).map((a, i, arr) => (
+              <span key={a.type}>
+                <button
+                  onClick={() => onSelectAnchor(a.type)}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-brand-soft)", fontSize: "0.82rem", padding: "0 0.15rem", textDecoration: "underline", textUnderlineOffset: "2px" }}
+                >
+                  {a.label_it}
+                </button>
+                {i < arr.length - 1 ? ", " : ""}
+              </span>
+            ))}
+            {" "}(vai alle Cadute per allenarle).
           </p>
-          {sortedAnchors.map((anchor, i) => {
-            const series = historySeries?.[anchor.type];
-            const hasSeries = series && series.length >= 2;
-            const trendNow = anchor.trend_now ?? null;
-            const hasDirection =
-              trendNow != null &&
-              (trendNow.confidence === "medium" || trendNow.confidence === "high");
-
-            // Build sparkline from history mine_pct OR count values
-            let sparkPoints: number[] | null = null;
-            let sparkImproving = false;
-            if (hasSeries) {
-              const vals = series!.map((pt) => pt.count);
-              sparkPoints = vals;
-              // improving = count going down (fewer errors)
-              sparkImproving = vals[vals.length - 1] < vals[0];
-            } else if (hasDirection && trendNow) {
-              sparkImproving = trendNow.direction === "improving";
-            }
-
-            const improving =
-              (hasSeries && sparkImproving) ||
-              (!hasSeries && hasDirection && trendNow?.direction === "improving");
-
-            const pill = CATEGORY_PILL[anchor.category] ?? DEFAULT_PILL;
-
-            return (
-              <div
-                key={anchor.type}
-                onClick={() => onSelectAnchor(anchor.type)}
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "1rem",
-                  padding: "0.875rem 0",
-                  borderBottom: i < sortedAnchors.length - 1 ? "1px solid var(--color-line)" : undefined,
-                  cursor: "pointer",
-                  transition: "opacity 120ms",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.8")}
-                onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
-              >
-                {/* Rank */}
-                <div style={{
-                  flexShrink: 0, width: "1.75rem", height: "1.75rem",
-                  borderRadius: "999px",
-                  background: "var(--color-surface-3)",
-                  border: "1px solid var(--color-line-strong)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontFamily: "var(--font-mono)", fontWeight: 700,
-                  fontSize: "0.72rem", color: "var(--color-brand-soft)",
-                }}>
-                  {i + 1}
-                </div>
-
-                {/* Label + meta */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--color-text)", lineHeight: 1.3, marginBottom: "0.375rem" }}>
-                    {anchor.label_it}
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                    {anchor.rating_upside != null && anchor.rating_upside > 0 && (
-                      <span className="tt-chip" style={{ color: "var(--color-gold-soft)", background: "color-mix(in srgb, var(--color-gold) 14%, transparent)" }}>
-                        +{anchor.rating_upside} punti
-                      </span>
-                    )}
-                    <span className="tt-chip" style={{ background: pill.bg, color: pill.color }}>
-                      {anchor.category}
-                    </span>
-                    {hasSeries && improving && (
-                      <span className="tt-chip good">in miglioramento</span>
-                    )}
-                    {hasSeries && !improving && (
-                      <span className="tt-chip warn">ancora da lavorare</span>
-                    )}
-                    {!hasSeries && hasDirection && improving && (
-                      <span className="tt-chip good">stai migliorando</span>
-                    )}
-                    {!hasSeries && !hasDirection && !hasSeries && (
-                      <span className="tt-chip" style={{ color: "var(--color-faint)", background: "rgba(255,255,255,0.04)" }}>
-                        prima misura
-                      </span>
-                    )}
-                    <span className="font-mono" style={{ fontSize: "0.72rem", color: "var(--color-muted)", fontVariantNumeric: "tabular-nums" }}>
-                      {anchor.count} {anchor.count === 1 ? "errore" : "errori"} in {anchor.games_with} {anchor.games_with === 1 ? "partita" : "partite"}
-                    </span>
-                  </div>
-
-                  {/* History series text OR empty state */}
-                  {hasSeries ? (
-                    <div style={{ marginTop: "0.5rem", fontSize: "0.78rem", color: "var(--color-text-soft)", lineHeight: 1.4 }}>
-                      {series!.length} punti nel tempo: {series![0].count} errori ({weekToLabel(series![0].week_iso)}) {sparkImproving ? "scesi a" : "saliti a"} {series![series!.length - 1].count} ({weekToLabel(series![series!.length - 1].week_iso)})
-                    </div>
-                  ) : !hasDirection ? (
-                    <div style={{ marginTop: "0.5rem", fontSize: "0.78rem", color: "var(--color-faint)", lineHeight: 1.4 }}>
-                      Prima misura registrata. Il trend appare dopo la prossima analisi.
-                    </div>
-                  ) : trendNow != null ? (
-                    <div style={{ marginTop: "0.5rem", fontSize: "0.78rem", color: "var(--color-text-soft)", lineHeight: 1.4 }}>
-                      {trendNow.recent_per_game != null && trendNow.prior_per_game != null
-                        ? `Recente: ${trendNow.recent_per_game.toFixed(2)} errori/partita vs precedente: ${trendNow.prior_per_game.toFixed(2)}`
-                        : "Dati parziali sulla finestra recente."
-                      }
-                    </div>
-                  ) : null}
-                </div>
-
-                {/* Sparkline */}
-                {sparkPoints && sparkPoints.length >= 2 && (
-                  <div style={{ flexShrink: 0 }}>
-                    <MiniSparkline points={sparkPoints} improving={sparkImproving} />
-                  </div>
-                )}
-
-                {/* Arrow cross-link hint */}
-                <div style={{ flexShrink: 0, color: "var(--color-faint)", fontSize: "0.75rem", paddingTop: "0.25rem" }}>
-                  cadute
-                </div>
-              </div>
-            );
-          })}
-        </Section>
-      ) : (
-        <Section delay={80}>
-          <div style={{ color: "var(--color-muted)", fontSize: "0.88rem", textAlign: "center", padding: "2rem 0" }}>
-            Ancora nessuna ancora rilevata. Torna dopo la prossima analisi.
-          </div>
-        </Section>
+        </Reveal>
       )}
     </div>
   );
@@ -746,87 +986,6 @@ function renderInline(text: string): ReactNode[] {
   return nodes;
 }
 
-function TabStoria({
-  pmLite,
-  journalRaw,
-}: {
-  pmLite: PlayerModelLite | null;
-  journalRaw: string | null;
-}) {
-  const goal = pmLite?.identity?.goal ?? null;
-  const journalEntries = journalRaw ? parseJournal(journalRaw) : [];
-
-  const storiaNonno = (() => {
-    if (journalEntries.length === 0) {
-      return "La curva di rating e' l'impronta del tuo percorso. Il diario arriva dopo la prima sessione di coaching.";
-    }
-    const last = journalEntries[0];
-    if (last) {
-      return `L'ultima nota e' del ${dateIt(last.date)}. La storia si accumula. Ogni sessione lascia un segno.`;
-    }
-    return "Qui vivi la storia della tua progressione, partita dopo partita.";
-  })();
-
-  return (
-    <div>
-      {/* Nonno voice */}
-      <Reveal delay={0} className="mb-6">
-        <p className="tt-nonno">{storiaNonno}</p>
-      </Reveal>
-
-      {/* Rating curve */}
-      {pmLite != null && goal != null ? (
-        <Reveal delay={0} className="mb-8">
-          <RatingCurveChart ratingCurve={pmLite.rating_curve} goal={goal} />
-        </Reveal>
-      ) : (
-        <Section delay={0}>
-          <div style={{ color: "var(--color-muted)", fontSize: "0.88rem", textAlign: "center", padding: "1.5rem 0" }}>
-            Curva di rating non disponibile.
-          </div>
-        </Section>
-      )}
-
-      {/* Journal timeline */}
-      {journalEntries.length > 0 ? (
-        <Section eyebrow="Diario di Nonno" delay={80}>
-          <div>
-            {journalEntries.map((entry, i) => (
-              <div key={entry.date + i}
-                style={{
-                  display: "flex", gap: "1rem",
-                  padding: "0.875rem 0",
-                  borderBottom: i < journalEntries.length - 1 ? "1px solid var(--color-line)" : undefined,
-                }}
-              >
-                <div style={{
-                  flexShrink: 0,
-                  fontFamily: "var(--font-mono)", fontSize: "0.72rem",
-                  color: "var(--color-faint)", whiteSpace: "nowrap",
-                  paddingTop: "0.125rem", minWidth: "5rem",
-                }}>
-                  {dateIt(entry.date)}
-                </div>
-                <div style={{ fontSize: "0.88rem", color: "var(--color-text-soft)", lineHeight: 1.65 }}>
-                  {entry.text.split("\n").map((line, j, arr) => (
-                    <span key={j}>{renderInline(line)}{j < arr.length - 1 && <br />}</span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Section>
-      ) : (
-        <Section eyebrow="Diario di Nonno" delay={80}>
-          <div style={{ color: "var(--color-muted)", fontSize: "0.88rem" }}>
-            Il diario apparira' dopo la prima sessione di coaching.
-          </div>
-        </Section>
-      )}
-    </div>
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB: PROFILO
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1062,6 +1221,16 @@ function GroupGallery({ positions, onOpeningLink }: { positions: PositionExample
                 {c.eco}{c.opening ? ` · ${c.opening.slice(0, 22)}` : ""}
               </button>
             )}
+            {c.game_url && (
+              <a
+                href={c.game_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: "block", marginTop: "0.25rem", fontSize: "0.60rem", color: "var(--color-faint)", fontFamily: "var(--font-mono)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+              >
+                Vedi partita
+              </a>
+            )}
           </div>
         );
       })}
@@ -1264,7 +1433,7 @@ export function Quaderno() {
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<TabKey>(tabFromHash);
+  const [activeTab, setActiveTab] = useState<TabKey>(() => tabFromHash());
   // Cross-link state: which anchor is selected (to filter cadute)
   const [selectedAnchor, setSelectedAnchor] = useState<string | null>(null);
 
@@ -1405,11 +1574,12 @@ export function Quaderno() {
 
         {/* Tab content */}
         <div>
-          {activeTab === "evoluzione" && (
-            <TabEvoluzione
+          {activeTab === "percorso" && (
+            <TabPercorso
               aggregates={aggregates}
               pmLite={pmLite}
               history={history}
+              journalRaw={journalRaw}
               onSelectAnchor={handleSelectAnchor}
             />
           )}
@@ -1417,12 +1587,6 @@ export function Quaderno() {
             <TabTraguardi
               milestones={milestones}
               historyLength={history.snapshots.length}
-            />
-          )}
-          {activeTab === "storia" && (
-            <TabStoria
-              pmLite={pmLite}
-              journalRaw={journalRaw}
             />
           )}
           {activeTab === "profilo" && (

@@ -104,7 +104,7 @@ export function App() {
           {/* Quaderno — hub a tab + deep-link via hash */}
           <Route path="/quaderno" element={<RequireAuth><AppShell><Quaderno /></AppShell></RequireAuth>} />
           {/* Legacy routes redirect into Quaderno tabs */}
-          <Route path="/freni"  element={<Navigate to="/quaderno#evoluzione" replace />} />
+          <Route path="/freni"  element={<Navigate to="/quaderno#percorso" replace />} />
           <Route path="/cadute" element={<Navigate to="/quaderno#cadute"     replace />} />
 
           {/* Sessione di coaching */}
