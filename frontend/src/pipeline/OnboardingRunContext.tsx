@@ -12,8 +12,9 @@
  *   - Riparte il background se l'utente riapre la scheda con profilo già 'ready'
  *     (es. analyzing_rest interrotto): activeRun è null al mount → doRun riparte.
  *
- * CRITICO: deps [profile?.user_id] — stessa disciplina anti-loop di
- * OnboardingWaiting. NON aggiungere profile.onboarding_state alle deps.
+ * Deps [userId, onboarding_state]: riparte su signup (il profilo compare) e su
+ * Rianalizza/Refresh (stato non-ready, userId invariato). activeRun rende
+ * idempotente ogni ri-esecuzione (no doppio run, no loop).
  */
 
 import {
@@ -67,10 +68,11 @@ export function OnboardingRunProvider({ children }: { children: ReactNode }) {
   // dopo che il provider è già stato rimontato.
   const cancelledRef = useRef(false);
 
-  // CRITICO: deps [profile?.user_id] — non aggiungere onboarding_state.
-  // Se il profilo è già 'ready' (utente di ritorno), lanciamo comunque
-  // l'orchestratore: activeRun + doRun garantiscono no-op se job è 'done',
-  // ma riprendono il background se analyzing_rest era interrotto.
+  // Ri-lanciamo l'orchestratore quando il profilo COMPARE (signup) o quando lo
+  // stato torna non-ready (Rianalizza/Refresh resettano il lock): in quei casi
+  // l'userId NON cambia, quindi onboarding_state DEVE stare nelle deps, sennò
+  // l'effetto non rigira e nessuno chiama doRun (era "Dammi un attimo" eterno).
+  // L'idempotenza la garantisce activeRun: job 'done' = no-op, run in corso riusato.
   const userId = profile?.user_id;
 
   const handleProgress = useCallback((p: OrchestratorProgress) => {
@@ -96,6 +98,17 @@ export function OnboardingRunProvider({ children }: { children: ReactNode }) {
 
     cancelledRef.current = false;
 
+    // (Ri)partenza da uno stato non-ready = run NUOVO (signup, Rianalizza,
+    // Refresh): azzera i flag della sessione precedente, così la scena mostra
+    // di nuovo l'attesa e non il vecchio primo colpo. Sullo stato 'ready' (la
+    // transizione di meta'-run dopo le 20) NON azzeriamo.
+    if (profile.onboarding_state !== "ready") {
+      setFirstBatchReady(false);
+      setBackgroundDone(false);
+      setError(null);
+      setProgress(null);
+    }
+
     runOnboardingOrchestrator({
       profile,
       onProgress: handleProgress,
@@ -111,7 +124,7 @@ export function OnboardingRunProvider({ children }: { children: ReactNode }) {
       cancelledRef.current = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [userId, profile?.onboarding_state]);
 
   return (
     <Ctx.Provider
