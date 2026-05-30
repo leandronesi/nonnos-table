@@ -9,7 +9,10 @@ if (!url || !anonKey) {
   // Supabase configurato. Niente fallback nascosti su mock.
   // eslint-disable-next-line no-console
   console.error(
-    "[supabase] VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY mancanti — vedi frontend/.env.example"
+    "[supabase] VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY mancanti. " +
+      "Locale: vedi frontend/.env.example (copia in .env.local). " +
+      "Su GitHub Pages: impostali come repo secret (Settings > Secrets > Actions), " +
+      "il workflow li inietta nel build."
   );
 }
 
