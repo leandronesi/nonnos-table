@@ -6,6 +6,14 @@ __pycache__/
 
 # Env
 .env
+.env.local
+.env.*.local
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+supabase/.env
+# Credenziali Supabase generate localmente — MAI committare.
+supabase-creds.txt
 
 # Data (PGN/analisi grezzi possono pesare; metrics.json lo lasciamo tracciabile)
 data/raw/

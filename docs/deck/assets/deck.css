@@ -1,0 +1,2114 @@
+/* =========================================================
+   Reset + base
+   ========================================================= */
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-size: 18px;
+  line-height: 1.65;
+  color: #1a1a1a;
+  background: #fafaf7;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+code, pre, .mono {
+  font-family: "SF Mono", ui-monospace, "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+}
+h1, h2, h3, h4 {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+}
+
+/* =========================================================
+   Layout: side nav + main column
+   ========================================================= */
+.layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* Side nav */
+.nav {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  padding: 48px 24px;
+  border-right: 1px solid #e5e3dc;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #c9c6bc transparent;
+}
+.nav::-webkit-scrollbar { width: 6px; }
+.nav::-webkit-scrollbar-track { background: transparent; }
+.nav::-webkit-scrollbar-thumb { background: #c9c6bc; border-radius: 3px; }
+.nav-brand {
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6e6a5e;
+  margin-bottom: 28px;
+}
+.nav ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.nav li {
+  margin: 0 0 14px 0;
+}
+.nav a {
+  display: block;
+  color: #4a4a44;
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: background 160ms ease-out, color 160ms ease-out;
+}
+.nav a:hover { background: #efece2; color: #1a1a1a; }
+.nav a.active { background: #1a1a1a; color: #fafaf7; }
+.nav-part-label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #9a9685;
+  margin: 18px 10px 4px 10px;
+}
+
+/* Main column */
+main {
+  padding: 0 64px;
+  max-width: 880px;
+}
+
+/* =========================================================
+   Hero
+   ========================================================= */
+.hero {
+  padding: 120px 0 80px 0;
+  border-bottom: 1px solid #e5e3dc;
+  margin-bottom: 64px;
+}
+.hero-eyebrow {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #6e6a5e;
+  margin-bottom: 16px;
+}
+.hero h1 {
+  font-size: 56px;
+  font-weight: 700;
+  margin: 0 0 24px 0;
+  letter-spacing: -0.03em;
+}
+.hero h1 .accent { color: #7c5cff; }
+.hero p {
+  font-size: 22px;
+  line-height: 1.5;
+  color: #4a4a44;
+  margin: 0;
+  max-width: 640px;
+}
+.hero-meta {
+  margin-top: 40px;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  color: #6e6a5e;
+  display: flex;
+  gap: 24px;
+}
+.hero-meta span::before {
+  content: "·";
+  margin-right: 24px;
+  color: #c9c6bc;
+}
+.hero-meta span:first-child::before { content: none; margin-right: 0; }
+
+/* =========================================================
+   Part divider
+   ========================================================= */
+.part-divider {
+  padding: 80px 0 32px 0;
+  margin-top: 48px;
+  border-top: 1px solid #e5e3dc;
+}
+.part-divider-eyebrow {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #9a9685;
+  margin-bottom: 12px;
+}
+.part-divider h2 {
+  font-size: 36px;
+  font-weight: 700;
+  margin: 0;
+  color: #1a1a1a;
+}
+.part-divider p {
+  margin-top: 16px;
+  color: #4a4a44;
+  font-size: 18px;
+  max-width: 600px;
+}
+
+/* =========================================================
+   Slide
+   ========================================================= */
+.slide {
+  padding: 56px 0;
+  border-bottom: 1px solid #f0eee6;
+}
+.slide:last-of-type { border-bottom: none; }
+.slide-num {
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 12px;
+  color: #9a9685;
+  letter-spacing: 0.08em;
+  margin-bottom: 16px;
+}
+.slide h1 {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0 0 12px 0;
+}
+.slide .slide-sub {
+  font-size: 20px;
+  color: #4a4a44;
+  margin: 0 0 32px 0;
+  font-style: italic;
+  max-width: 680px;
+}
+.slide-body {
+  max-width: 720px;
+}
+.slide-body p {
+  margin: 0 0 18px 0;
+}
+.slide-body p:last-child { margin-bottom: 0; }
+.slide-body strong { color: #1a1a1a; font-weight: 600; }
+.slide-body em { color: #7c5cff; font-style: normal; }
+
+/* Lists */
+.slide-body ul, .slide-body ol {
+  padding-left: 24px;
+  margin: 0 0 18px 0;
+}
+.slide-body li { margin: 6px 0; }
+
+/* Pull-quote */
+.pull {
+  border-left: 3px solid #7c5cff;
+  padding: 8px 0 8px 20px;
+  margin: 24px 0;
+  font-size: 22px;
+  line-height: 1.45;
+  color: #1a1a1a;
+  font-weight: 500;
+}
+
+/* Note box */
+.note {
+  background: #f3f1e8;
+  padding: 16px 20px;
+  border-radius: 6px;
+  margin: 24px 0;
+  font-size: 16px;
+  color: #4a4a44;
+}
+.note strong { color: #1a1a1a; }
+
+/* Code snippet */
+.code {
+  background: #1a1a1a;
+  color: #e5e3dc;
+  padding: 20px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-x: auto;
+  margin: 20px 0;
+  white-space: pre;
+  tab-size: 2;
+}
+.code .comment { color: #888070; }
+.code .key { color: #7c5cff; }
+.code .str { color: #f6c64a; }
+
+/* Placeholder content marker */
+.placeholder {
+  background: #fff;
+  border: 2px dashed #c9c6bc;
+  border-radius: 8px;
+  padding: 32px;
+  margin: 24px 0;
+  color: #6e6a5e;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+}
+.placeholder-label {
+  display: inline-block;
+  background: #1a1a1a;
+  color: #fafaf7;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.placeholder-label.accent { background: #7c5cff; }
+.placeholder p { margin: 8px 0; }
+.placeholder ul { margin: 8px 0; padding-left: 20px; }
+
+/* Visualizer placeholder (slide 9 + 11) */
+.visualizer {
+  background: #1a1a1a;
+  color: #e5e3dc;
+  border-radius: 12px;
+  padding: 48px;
+  margin: 32px 0;
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+.visualizer-label {
+  display: inline-block;
+  background: #7c5cff;
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+.visualizer h3 {
+  color: #fafaf7;
+  font-size: 22px;
+  margin: 0 0 16px 0;
+}
+.visualizer p {
+  color: #c9c6bc;
+  font-size: 15px;
+  max-width: 520px;
+  margin: 0 0 8px 0;
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}
+.visualizer .vz-todo {
+  margin-top: 24px;
+  padding: 12px 20px;
+  background: rgba(124, 92, 255, 0.15);
+  border-radius: 6px;
+  font-size: 13px;
+  color: #b8a8ff;
+}
+
+/* =========================================================
+   Slide-specific components
+   ========================================================= */
+
+/* Mental model diagram (slide 2) */
+.diagram-mental {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 32px 0;
+  flex-wrap: wrap;
+}
+.dm-box {
+  flex: 0 0 auto;
+  min-width: 100px;
+  padding: 24px 28px;
+  background: #fff;
+  border: 1px solid #1a1a1a;
+  border-radius: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  font-weight: 600;
+  text-align: center;
+}
+.dm-box-opaque {
+  background: #1a1a1a;
+  color: #fafaf7;
+  font-size: 32px;
+  min-width: 140px;
+}
+.dm-arrow {
+  font-size: 24px;
+  color: #6e6a5e;
+}
+
+/* Timeline (slide 3) */
+.timeline {
+  list-style: none;
+  padding: 0;
+  margin: 28px 0;
+  border-left: 2px solid #c9c6bc;
+}
+.timeline li {
+  position: relative;
+  padding: 12px 0 12px 28px;
+  margin: 0;
+}
+.timeline li::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 22px;
+  width: 12px;
+  height: 12px;
+  background: #7c5cff;
+  border-radius: 50%;
+  border: 2px solid #fafaf7;
+}
+.tl-when {
+  display: block;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #7c5cff;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.tl-what {
+  display: block;
+  color: #2a2a2a;
+}
+
+/* Formula (slide 4) */
+.formula {
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 32px;
+  text-align: center;
+  padding: 36px 24px;
+  background: #1a1a1a;
+  color: #fafaf7;
+  border-radius: 10px;
+  margin: 28px 0;
+  letter-spacing: -0.01em;
+}
+.formula .formula-in,
+.formula .formula-out {
+  color: #7c5cff;
+  font-weight: 700;
+}
+.formula .formula-out { color: #f6c64a; }
+
+/* Harness grid (slide 6) */
+.harness-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin: 28px 0;
+}
+.hg-item {
+  padding: 20px;
+  background: #fff;
+  border: 1px solid #e5e3dc;
+  border-radius: 8px;
+  position: relative;
+}
+.hg-num {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  width: 28px;
+  height: 28px;
+  background: #7c5cff;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+}
+.hg-name {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 8px;
+  color: #1a1a1a;
+}
+.hg-desc {
+  font-size: 14px;
+  color: #4a4a44;
+  line-height: 1.5;
+}
+.hg-desc code {
+  background: #f3f1e8;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 13px;
+}
+
+/* Analogy split (slide 7) */
+.analogy-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 28px 0;
+}
+.as-half {
+  padding: 28px 24px;
+  border-radius: 10px;
+  text-align: center;
+}
+.as-half-engine { background: #1a1a1a; color: #fafaf7; }
+.as-half-car { background: #7c5cff; color: #fff; }
+.as-label {
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-bottom: 8px;
+}
+.as-thing {
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.as-detail {
+  font-size: 15px;
+  line-height: 1.5;
+  opacity: 0.9;
+}
+.as-detail em {
+  color: inherit;
+  font-style: italic;
+  opacity: 1;
+}
+@media (max-width: 720px) {
+  .analogy-split { grid-template-columns: 1fr; }
+}
+
+/* Turn steps (slide 8) */
+.turn-steps {
+  list-style: none;
+  padding: 0;
+  margin: 28px 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.turn-steps li {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 16px 20px;
+  background: #fff;
+  border: 1px solid #e5e3dc;
+  border-radius: 8px;
+  margin: 0;
+}
+.ts-num {
+  flex: 0 0 auto;
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 20px;
+  font-weight: 700;
+  color: #7c5cff;
+  min-width: 44px;
+}
+.ts-name {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  color: #1a1a1a;
+  margin-bottom: 4px;
+}
+.ts-desc {
+  font-size: 15px;
+  color: #4a4a44;
+  line-height: 1.5;
+}
+.ts-desc code {
+  background: #f3f1e8;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 13px;
+}
+
+/* Recap (slide 10) */
+.recap {
+  counter-reset: r;
+  list-style: none;
+  padding: 0;
+  margin: 28px 0;
+}
+.recap li {
+  counter-increment: r;
+  padding: 16px 16px 16px 56px;
+  margin: 0 0 10px 0;
+  background: #fff;
+  border: 1px solid #e5e3dc;
+  border-radius: 8px;
+  position: relative;
+}
+.recap li::before {
+  content: counter(r);
+  position: absolute;
+  left: 16px;
+  top: 14px;
+  width: 28px;
+  height: 28px;
+  background: #1a1a1a;
+  color: #fafaf7;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+/* "Ah" frame (slide 12) */
+.ah-frame {
+  background: #1a1a1a;
+  color: #fafaf7;
+  padding: 64px 40px;
+  border-radius: 12px;
+  margin: 24px 0 32px 0;
+  text-align: center;
+}
+.ah-text {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 0;
+  color: #fafaf7;
+}
+.ah-emph {
+  color: #f6c64a;
+  font-weight: 700;
+}
+
+/* Survive list (slide 13/14) */
+.survive-list {
+  display: grid;
+  gap: 12px;
+  margin: 28px 0;
+}
+.sv-item {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  grid-template-rows: auto auto;
+  gap: 4px 16px;
+  padding: 16px 20px;
+  background: #fff;
+  border: 1px solid #e5e3dc;
+  border-radius: 8px;
+  align-items: start;
+}
+.sv-icon {
+  grid-row: 1 / span 2;
+  grid-column: 1;
+  align-self: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+}
+.sv-positive .sv-icon { background: #ecf6ec; color: #2c8a3e; }
+.sv-negative .sv-icon { background: #fbecec; color: #c4322a; }
+.sv-name {
+  grid-row: 1; grid-column: 2;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #1a1a1a;
+}
+.sv-desc {
+  grid-row: 2; grid-column: 2;
+  font-size: 14px;
+  color: #4a4a44;
+  line-height: 1.5;
+}
+.sv-desc code {
+  background: #f3f1e8;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+/* =========================================================
+   VISUALIZER (slide 9 + 11) — il cuore del deck
+   ========================================================= */
+.vz {
+  background: #1a1a1a;
+  border-radius: 14px;
+  padding: 28px;
+  margin: 28px 0;
+  color: #e5e3dc;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+}
+.vz-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.vz-tag {
+  display: inline-block;
+  background: #7c5cff;
+  color: #fff;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+.vz-tag-accent { background: #f6c64a; color: #1a1a1a; }
+.vz-prompt {
+  font-size: 14px;
+  color: #c9c6bc;
+  font-style: italic;
+}
+
+/* Stage: 2 colonne — actors a sx, filesystem a dx */
+.vz-stage {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+  position: relative;
+}
+
+/* Atmosphere layer: gradient drift + vignette */
+.vz-atmosphere {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
+.vz-atmosphere::before {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  background:
+    radial-gradient(circle at 30% 40%, rgba(124, 92, 255, 0.42), transparent 55%),
+    radial-gradient(circle at 70% 60%, rgba(246, 198, 74, 0.22), transparent 55%),
+    radial-gradient(circle at 50% 80%, rgba(124, 92, 255, 0.18), transparent 60%);
+  animation: vz-atmo-drift 14s ease-in-out infinite alternate;
+}
+.vz-atmosphere::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.45) 100%);
+}
+@keyframes vz-atmo-drift {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(1); }
+  100% { transform: translate(-4%, 3%) rotate(8deg) scale(1.1); }
+}
+
+/* FX layer per particelle + wave (iniettato runtime) */
+.vz-fx-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  overflow: visible;
+}
+.vz-fx-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(255,255,255,0.95), rgba(255,255,255,0.6) 40%, transparent 70%);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 6;
+  mix-blend-mode: screen;
+  will-change: opacity;
+}
+.vz-particle-trail {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #7c5cff;
+  box-shadow: 0 0 8px rgba(124, 92, 255, 0.7);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.vz-particle-trail-gold {
+  background: #f6c64a;
+  box-shadow: 0 0 8px rgba(246, 198, 74, 0.7);
+}
+.vz-particle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #7c5cff;
+  box-shadow:
+    0 0 10px rgba(124, 92, 255, 0.95),
+    0 0 24px rgba(124, 92, 255, 0.55),
+    0 0 48px rgba(124, 92, 255, 0.25);
+  transform: translate(-50%, -50%);
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+.vz-particle-gold {
+  background: #f6c64a;
+  box-shadow:
+    0 0 10px rgba(246, 198, 74, 0.95),
+    0 0 24px rgba(246, 198, 74, 0.55),
+    0 0 48px rgba(246, 198, 74, 0.25);
+}
+.vz-wave {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid #7c5cff;
+  transform: translate(-50%, -50%);
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+.vz-wave-gold { border-color: #f6c64a; }
+
+.vz-actors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-content: center;
+}
+.vz-actor {
+  padding: 18px 16px;
+  background: #262626;
+  border: 1px solid #333;
+  border-radius: 8px;
+  text-align: center;
+  transition:
+    background 360ms cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 360ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 360ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 480ms cubic-bezier(0.34, 1.4, 0.5, 1),
+    filter 360ms ease-out;
+  position: relative;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  will-change: transform, box-shadow, opacity;
+}
+.vz-actor-name {
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  color: #c9c6bc;
+  transition: color 360ms ease-out;
+}
+
+/* Dim: gli inattivi quando c'e' un attore protagonista */
+.vz-actor.dim {
+  opacity: 0.32;
+  filter: saturate(0.5);
+  transform: scale(0.97);
+}
+
+/* Active: protagonista del frame */
+.vz-actor.active {
+  background: #7c5cff;
+  border-color: #9d83ff;
+  transform: translateY(-3px) scale(1.04);
+  z-index: 2;
+  animation: vz-pulse-breathe 2.2s ease-in-out infinite;
+}
+.vz-actor.active .vz-actor-name { color: #fff; }
+@keyframes vz-pulse-breathe {
+  0%, 100% {
+    box-shadow:
+      0 10px 28px rgba(124, 92, 255, 0.4),
+      0 0 0 0 rgba(124, 92, 255, 0.5);
+  }
+  50% {
+    box-shadow:
+      0 16px 42px rgba(124, 92, 255, 0.55),
+      0 0 0 14px rgba(124, 92, 255, 0);
+  }
+}
+
+/* Thinking: brain-pattern ECG-like — dentro al box modello, ben visibile */
+.vz-actor .vz-brain { display: none; }
+.vz-actor.thinking .vz-brain {
+  display: block;
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 72px;
+  height: 20px;
+  overflow: hidden;
+  opacity: 1;
+}
+.vz-actor.thinking .vz-brain svg {
+  width: 100%;
+  height: 100%;
+  stroke: #fff;
+  stroke-width: 2;
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.6));
+}
+.vz-actor.thinking .vz-brain svg path {
+  stroke-dasharray: 90;
+  stroke-dashoffset: 90;
+  animation: vz-brain-draw 1.8s ease-in-out infinite;
+}
+@keyframes vz-brain-draw {
+  0%   { stroke-dashoffset: 90;  opacity: 0.5; }
+  45%  { stroke-dashoffset: 0;   opacity: 1; }
+  55%  { stroke-dashoffset: 0;   opacity: 1; }
+  100% { stroke-dashoffset: -90; opacity: 0.5; }
+}
+
+/* Filesystem panel */
+.vz-fs {
+  background: #0f0f0f;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 14px 16px;
+  position: relative;
+  transition: border-color 360ms ease-out, box-shadow 360ms ease-out;
+}
+.vz-fs.writing {
+  border-color: #f6c64a;
+  box-shadow:
+    0 0 0 1px rgba(246, 198, 74, 0.4),
+    0 0 28px rgba(246, 198, 74, 0.25),
+    0 0 56px rgba(246, 198, 74, 0.12);
+  animation: vz-fs-breathe 1.6s ease-in-out infinite;
+}
+@keyframes vz-fs-breathe {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px rgba(246, 198, 74, 0.4),
+      0 0 28px rgba(246, 198, 74, 0.25),
+      0 0 56px rgba(246, 198, 74, 0.12);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(246, 198, 74, 0.6),
+      0 0 36px rgba(246, 198, 74, 0.4),
+      0 0 72px rgba(246, 198, 74, 0.18);
+  }
+}
+.vz-fs-head {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #888070;
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+.vz-fs-tree {
+  min-height: 80px;
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 13px;
+}
+.vz-fs-empty {
+  color: #555;
+  font-style: italic;
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 13px;
+}
+.vz-fs-cursor {
+  width: 9px;
+  height: 16px;
+  background: #f6c64a;
+  display: inline-block;
+  animation: vz-cursor-blink 0.7s steps(2) infinite;
+  box-shadow: 0 0 8px rgba(246, 198, 74, 0.6);
+}
+@keyframes vz-cursor-blink {
+  to { opacity: 0; }
+}
+.vz-fs-file {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 6px 0;
+}
+.vz-fs-file.just-changed {
+  border-color: #f6c64a;
+  box-shadow: 0 0 0 2px rgba(246, 198, 74, 0.18), 0 0 24px rgba(246, 198, 74, 0.18);
+}
+.vz-fs-caret {
+  display: inline-block;
+  width: 7px;
+  height: 13px;
+  background: #f6c64a;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+  animation: vz-cursor-blink 0.7s steps(2) infinite;
+}
+.vz-fs-name {
+  display: block;
+  color: #f6c64a;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.vz-fs-content {
+  display: block;
+  color: #c9c6bc;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+@keyframes vz-file-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Narration */
+.vz-narration {
+  background: #262626;
+  border-left: 3px solid #7c5cff;
+  padding: 16px 20px;
+  border-radius: 6px;
+  font-size: 15px;
+  color: #e5e3dc;
+  line-height: 1.55;
+  min-height: 70px;
+  position: relative;
+  overflow: hidden;
+  will-change: opacity, filter, transform;
+}
+.vz-narration.fading-out {
+  opacity: 0;
+  filter: blur(5px);
+  transform: translateY(-3px);
+  transition:
+    opacity 260ms cubic-bezier(0.4, 0, 0.2, 1),
+    filter 260ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 260ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.vz-narration.entering {
+  opacity: 0;
+  filter: blur(8px);
+  transform: translateY(6px);
+}
+.vz-narration.entered {
+  opacity: 1;
+  filter: blur(0);
+  transform: translateY(0);
+  transition:
+    opacity 460ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter 460ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 460ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.vz-narration code {
+  background: #1a1a1a;
+  color: #f6c64a;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 13px;
+}
+.vz-narration strong { color: #fff; }
+.vz-narration em {
+  color: #f6c64a;
+  font-style: italic;
+}
+
+/* Controls */
+.vz-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.vz-progress {
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 13px;
+  color: #888070;
+  letter-spacing: 0.05em;
+}
+.vz-progress span:first-child {
+  color: #f6c64a;
+  font-weight: 700;
+}
+.vz-buttons {
+  display: flex;
+  gap: 8px;
+}
+.vz-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #262626;
+  color: #e5e3dc;
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 160ms ease-out;
+}
+.vz-btn:hover { background: #333; border-color: #555; }
+.vz-btn-primary {
+  background: #7c5cff;
+  border-color: #7c5cff;
+  color: #fff;
+}
+.vz-btn-primary:hover { background: #9d83ff; border-color: #9d83ff; }
+.vz-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.vz-btn:disabled:hover {
+  background: #262626;
+  border-color: #444;
+}
+
+@media (max-width: 720px) {
+  .vz-stage { grid-template-columns: 1fr; }
+  .vz-actors { grid-template-columns: 1fr 1fr; }
+}
+
+/* =========================================================
+   Slide 23 — la lezione + regalo finale
+   ========================================================= */
+.slide-gift .lesson {
+  margin: 32px 0 48px 0;
+}
+.lesson-text {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #1a1a1a;
+  margin: 0 0 24px 0;
+  letter-spacing: -0.01em;
+}
+.lesson-text:last-child { margin-bottom: 0; }
+.lesson-text strong {
+  color: #7c5cff;
+  font-weight: 700;
+}
+
+.gift {
+  margin: 48px 0 36px 0;
+  padding: 40px 36px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2a2440 50%, #1a1a1a 100%);
+  color: #fafaf7;
+  position: relative;
+  overflow: hidden;
+}
+.gift::before {
+  content: "";
+  position: absolute;
+  top: -40%;
+  right: -20%;
+  width: 60%;
+  height: 180%;
+  background: radial-gradient(circle, rgba(124, 92, 255, 0.25), transparent 60%);
+  pointer-events: none;
+}
+.gift::after {
+  content: "";
+  position: absolute;
+  bottom: -40%;
+  left: -10%;
+  width: 50%;
+  height: 160%;
+  background: radial-gradient(circle, rgba(246, 198, 74, 0.18), transparent 60%);
+  pointer-events: none;
+}
+.gift > * { position: relative; z-index: 1; }
+.gift-eyebrow {
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #f6c64a;
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+.gift-title {
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 34px;
+  font-weight: 700;
+  margin: 0 0 18px 0;
+  color: #fafaf7;
+  line-height: 1.2;
+}
+.gift-title code {
+  background: rgba(124, 92, 255, 0.25);
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: #c9b8ff;
+  font-size: 30px;
+}
+.gift-desc {
+  font-size: 16px;
+  color: #c9c6bc;
+  line-height: 1.6;
+  margin: 0 0 28px 0;
+  max-width: 580px;
+}
+.gift-desc em {
+  color: #f6c64a;
+  font-style: italic;
+}
+
+.gift-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 28px;
+  background: #7c5cff;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  transition:
+    transform 280ms cubic-bezier(0.23, 1, 0.32, 1),
+    background 280ms ease-out,
+    box-shadow 280ms ease-out;
+  box-shadow:
+    0 8px 24px rgba(124, 92, 255, 0.45),
+    0 0 0 0 rgba(124, 92, 255, 0.6);
+  animation: gift-pulse 2.8s ease-in-out infinite;
+}
+@keyframes gift-pulse {
+  0%, 100% {
+    box-shadow: 0 8px 24px rgba(124, 92, 255, 0.45), 0 0 0 0 rgba(124, 92, 255, 0.6);
+  }
+  50% {
+    box-shadow: 0 12px 32px rgba(124, 92, 255, 0.55), 0 0 0 12px rgba(124, 92, 255, 0);
+  }
+}
+.gift-btn:hover {
+  background: #9d83ff;
+  transform: translateY(-2px);
+}
+.gift-btn:focus-visible {
+  outline: 2px solid #f6c64a;
+  outline-offset: 3px;
+}
+.gift-btn-icon {
+  font-size: 28px;
+  font-weight: 700;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.gift-btn-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.gift-btn-main {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.gift-btn-sub {
+  font-size: 12px;
+  opacity: 0.85;
+  font-weight: 400;
+}
+.gift-foot {
+  margin-top: 24px;
+  font-size: 14px;
+  color: #888070;
+  line-height: 1.55;
+  max-width: 580px;
+}
+.gift-foot em { color: #c9b8ff; font-style: italic; }
+
+@media (max-width: 720px) {
+  .lesson-text { font-size: 20px; }
+  .gift { padding: 28px 22px; }
+  .gift-title { font-size: 26px; }
+  .gift-title code { font-size: 22px; }
+  .gift-btn { padding: 14px 20px; gap: 12px; }
+  .gift-btn-main { font-size: 15px; }
+  .gift-btn-sub { font-size: 11px; }
+}
+
+/* =========================================================
+   Essence formula (slide 15) — "agente = LLM + cartella"
+   ========================================================= */
+.essence {
+  margin: 36px 0;
+  text-align: center;
+  padding: 36px 24px;
+  background: #1a1a1a;
+  color: #fafaf7;
+  border-radius: 12px;
+}
+.essence-formula {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+}
+.essence-eq, .essence-plus {
+  display: inline-block;
+  margin: 0 8px;
+  color: #c9c6bc;
+  font-weight: 400;
+}
+.essence-llm { color: #7c5cff; }
+.essence-files { color: #f6c64a; }
+.essence-caption {
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 14px;
+  color: #c9c6bc;
+  margin-top: 14px;
+  font-style: italic;
+}
+
+/* =========================================================
+   Hierarchy (slide 19) — tre livelli macro/sub/skill
+   ========================================================= */
+.hierarchy {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin: 32px 0;
+}
+.hi-level {
+  padding: 20px 24px;
+  border-radius: 10px;
+  border: 1px solid #e5e3dc;
+  background: #fff;
+  position: relative;
+  border-left: 4px solid;
+}
+.hi-1 { border-left-color: #7c5cff; }
+.hi-2 { border-left-color: #b8881a; }
+.hi-3 { border-left-color: #4f7c3a; }
+.hi-label {
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9a9685;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.hi-name {
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 4px;
+}
+.hi-file {
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 13px;
+  color: #7c5cff;
+  margin-bottom: 10px;
+}
+.hi-2 .hi-file { color: #b8881a; }
+.hi-3 .hi-file { color: #4f7c3a; }
+.hi-what {
+  font-size: 14px;
+  color: #4a4a44;
+  line-height: 1.5;
+}
+.hi-arrow {
+  text-align: center;
+  font-size: 22px;
+  color: #c9c6bc;
+  margin: 6px 0;
+  line-height: 1;
+}
+
+/* =========================================================
+   Navigation visualizer (slide 20) — agente che esplora docs/deck/
+   ========================================================= */
+.vz-nav .vz-nav-stage {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+  position: relative;
+}
+.vz-nav-thoughts {
+  background: #0f0f0f;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 14px 16px;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+.vz-nav-thoughts::before {
+  content: "PENSIERO DELL'AGENTE";
+  display: block;
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: #888070;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.vz-thought-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.vz-thought {
+  padding: 10px 12px;
+  background: #1a1a1a;
+  border-left: 3px solid #7c5cff;
+  border-radius: 4px;
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 13.5px;
+  color: #e5e3dc;
+  line-height: 1.5;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: vz-thought-in 360ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.vz-thought code {
+  background: #0f0f0f;
+  color: #f6c64a;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-family: "SF Mono", ui-monospace, monospace;
+}
+.vz-thought strong { color: #fff; }
+.vz-thought-action {
+  border-left-color: #f6c64a;
+}
+.vz-thought-write {
+  border-left-color: #4f7c3a;
+}
+@keyframes vz-thought-in {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.vz-nav-fs {
+  background: #0f0f0f;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.vz-fs-tree-nav {
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 13px;
+  color: #c9c6bc;
+}
+.fsn {
+  padding: 5px 8px;
+  margin: 2px 0;
+  border-radius: 4px;
+  transition: background 280ms ease-out, color 280ms ease-out;
+  cursor: default;
+}
+.fsn-folder > .fsn-icon { color: #888070; }
+.fsn-children {
+  margin-left: 18px;
+  border-left: 1px dashed #2a2a2a;
+  padding-left: 8px;
+}
+.fsn.is-reading {
+  background: rgba(124, 92, 255, 0.18);
+  color: #c9b8ff;
+  box-shadow:
+    inset 2px 0 0 #7c5cff,
+    0 0 0 1px rgba(124, 92, 255, 0.3);
+}
+.fsn.is-writing {
+  background: rgba(246, 198, 74, 0.2);
+  color: #f6c64a;
+  box-shadow:
+    inset 2px 0 0 #f6c64a,
+    0 0 0 1px rgba(246, 198, 74, 0.4),
+    0 0 18px rgba(246, 198, 74, 0.3);
+  animation: vz-fsn-write-pulse 1.2s ease-in-out infinite;
+}
+.fsn.is-done {
+  background: rgba(79, 124, 58, 0.18);
+  color: #b3d49f;
+  box-shadow: inset 2px 0 0 #4f7c3a;
+}
+@keyframes vz-fsn-write-pulse {
+  0%, 100% { box-shadow: inset 2px 0 0 #f6c64a, 0 0 0 1px rgba(246, 198, 74, 0.4), 0 0 18px rgba(246, 198, 74, 0.3); }
+  50%      { box-shadow: inset 2px 0 0 #f6c64a, 0 0 0 1px rgba(246, 198, 74, 0.6), 0 0 32px rgba(246, 198, 74, 0.5); }
+}
+.fsn-icon {
+  display: inline-block;
+  width: 18px;
+  text-align: center;
+  margin-right: 4px;
+}
+
+@media (max-width: 720px) {
+  .vz-nav .vz-nav-stage { grid-template-columns: 1fr; }
+  .vz-nav-thoughts { min-height: 220px; }
+}
+
+/* =========================================================
+   Pilastri (slide 15-23) — accent variabile per pilastro
+   ========================================================= */
+.slide.pillar-1 { --pillar-accent: #7c5cff; --pillar-bg: #efeaff; --pillar-deep: #4a3299; }
+.slide.pillar-2 { --pillar-accent: #b8881a; --pillar-bg: #fff4d9; --pillar-deep: #8b6612; }
+.slide.pillar-3 { --pillar-accent: #4f7c3a; --pillar-bg: #e8f3df; --pillar-deep: #2c4f1c; }
+
+/* Tag pilastro sotto lo slide-num */
+.slide.pillar-1 .slide-num::after,
+.slide.pillar-2 .slide-num::after,
+.slide.pillar-3 .slide-num::after {
+  content: attr(data-pillar);
+  display: inline-block;
+  margin-left: 14px;
+  padding: 2px 10px;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #fff;
+  background: var(--pillar-accent);
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+/* Headings dei pilastri tinti */
+.slide.pillar-1 h1 .pillar-tint,
+.slide.pillar-2 h1 .pillar-tint,
+.slide.pillar-3 h1 .pillar-tint {
+  color: var(--pillar-accent);
+}
+
+/* Pull-quote bordo tinto */
+.slide.pillar-1 .pull,
+.slide.pillar-2 .pull,
+.slide.pillar-3 .pull {
+  border-left-color: var(--pillar-accent);
+}
+
+.pillar-thesis {
+  margin: 28px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.pt-step {
+  background: #fff;
+  border: 1px solid #e5e3dc;
+  border-radius: 10px;
+  padding: 18px 22px;
+  font-size: 16px;
+  line-height: 1.55;
+  position: relative;
+}
+.slide.pillar-1 .pt-step,
+.slide.pillar-2 .pt-step,
+.slide.pillar-3 .pt-step {
+  border-left: 3px solid var(--pillar-accent);
+}
+.pt-label {
+  display: inline-block;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #7c5cff;
+  margin-right: 12px;
+  padding: 2px 8px;
+  background: #efeaff;
+  border-radius: 4px;
+}
+.slide.pillar-1 .pt-label,
+.slide.pillar-2 .pt-label,
+.slide.pillar-3 .pt-label {
+  color: var(--pillar-deep);
+  background: var(--pillar-bg);
+}
+.pt-step strong { color: #1a1a1a; font-weight: 700; }
+.pt-step em { color: #4a4a44; font-style: italic; }
+.pt-step code {
+  background: #f3f1e8;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 14px;
+}
+.pt-arrow {
+  text-align: center;
+  font-size: 24px;
+  color: #c9c6bc;
+  margin: 6px 0;
+  line-height: 1;
+}
+
+/* =========================================================
+   Anti-pattern list (slide 17, 20, 23)
+   ========================================================= */
+.antipattern-list {
+  display: grid;
+  gap: 12px;
+  margin: 28px 0;
+}
+.ap-item {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 16px;
+  padding: 16px 20px;
+  background: #fff;
+  border: 1px solid #e5e3dc;
+  border-left: 3px solid #c4322a;
+  border-radius: 8px;
+}
+.ap-no {
+  width: 28px;
+  height: 28px;
+  background: #fbecec;
+  color: #c4322a;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  align-self: start;
+}
+.ap-name {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #1a1a1a;
+  margin-bottom: 6px;
+}
+.ap-why {
+  font-size: 14px;
+  color: #4a4a44;
+  line-height: 1.55;
+}
+.ap-why code {
+  background: #f3f1e8;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+.ap-why em { color: #7c5cff; font-style: italic; }
+
+/* =========================================================
+   Wiki flow (slide 19)
+   ========================================================= */
+.wiki-flow {
+  list-style: none;
+  padding: 0;
+  margin: 24px 0;
+  display: grid;
+  gap: 10px;
+}
+.wiki-flow li {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 14px;
+  padding: 14px 18px;
+  background: #fff;
+  border: 1px solid #e5e3dc;
+  border-radius: 8px;
+}
+.wf-step {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: #7c5cff;
+  align-self: center;
+}
+.wf-action {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 14px;
+  color: #1a1a1a;
+}
+.wf-action code {
+  background: #1a1a1a;
+  color: #f6c64a;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 13px;
+  margin: 0 2px;
+}
+.wf-result {
+  grid-column: 2;
+  grid-row: 2;
+  font-size: 14px;
+  color: #4a4a44;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+/* =========================================================
+   Summary diagram (slide 24)
+   ========================================================= */
+.summary-diagram {
+  margin: 32px 0;
+}
+.sd-pillars {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+}
+.sd-pillar {
+  padding: 24px 18px;
+  background: #fff;
+  border: 1px solid #e5e3dc;
+  border-radius: 10px;
+  text-align: center;
+}
+.sd-pillar:nth-child(2) {
+  background: #1a1a1a;
+  color: #fafaf7;
+  border-color: #1a1a1a;
+}
+.sd-pillar-author {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7c5cff;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+.sd-pillar:nth-child(2) .sd-pillar-author { color: #f6c64a; }
+.sd-pillar-name {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.sd-pillar-desc {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #4a4a44;
+}
+.sd-pillar:nth-child(2) .sd-pillar-desc { color: #c9c6bc; }
+.sd-pillar-desc em { color: #7c5cff; font-style: italic; }
+.sd-pillar:nth-child(2) .sd-pillar-desc em { color: #f6c64a; }
+.sd-arrows {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+  margin: 8px 0;
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 11px;
+  color: #9a9685;
+  text-align: center;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sd-loop {
+  padding: 24px 20px;
+  background: #7c5cff;
+  color: #fff;
+  border-radius: 10px;
+  text-align: center;
+}
+.sd-loop-label {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+.sd-loop-desc {
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 12px;
+  opacity: 0.9;
+}
+@media (max-width: 720px) {
+  .sd-pillars, .sd-arrows { grid-template-columns: 1fr; }
+}
+
+/* =========================================================
+   Checklist (slide 25)
+   ========================================================= */
+.checklist {
+  display: grid;
+  gap: 14px;
+  margin: 28px 0;
+}
+.cl-item {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 16px;
+  padding: 18px 22px;
+  background: #fff;
+  border: 1px solid #e5e3dc;
+  border-radius: 10px;
+}
+.cl-num {
+  width: 36px;
+  height: 36px;
+  background: #1a1a1a;
+  color: #fafaf7;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  align-self: start;
+}
+.cl-q {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #1a1a1a;
+  margin-bottom: 8px;
+  line-height: 1.45;
+}
+.cl-q code {
+  background: #f3f1e8;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.cl-a {
+  font-size: 14px;
+  color: #4a4a44;
+  line-height: 1.55;
+}
+
+/* =========================================================
+   Tour list (slide 26)
+   ========================================================= */
+.tour-list {
+  display: grid;
+  gap: 10px;
+  margin: 28px 0;
+}
+.tour-item {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 16px;
+  padding: 14px 18px;
+  background: #fff;
+  border: 1px solid #e5e3dc;
+  border-radius: 8px;
+}
+.tour-path {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 12px;
+  color: #7c5cff;
+  align-self: center;
+  word-break: break-all;
+}
+.tour-pillar {
+  grid-column: 2;
+  grid-row: 1;
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: #1a1a1a;
+}
+.tour-desc {
+  grid-column: 2;
+  grid-row: 2;
+  font-size: 14px;
+  color: #4a4a44;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+@media (max-width: 720px) {
+  .tour-item { grid-template-columns: 1fr; }
+  .tour-path { grid-column: 1; grid-row: 1; }
+  .tour-pillar { grid-column: 1; grid-row: 2; }
+  .tour-desc { grid-column: 1; grid-row: 3; }
+}
+
+.closing-line {
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+  margin-top: 48px;
+  color: #1a1a1a;
+}
+.closing-line em { color: #7c5cff; font-style: italic; }
+
+/* =========================================================
+   Footer
+   ========================================================= */
+footer {
+  padding: 80px 0 120px 0;
+  border-top: 1px solid #e5e3dc;
+  margin-top: 64px;
+  font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 13px;
+  color: #6e6a5e;
+}
+
+/* =========================================================
+   Progress bar
+   ========================================================= */
+.progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: #7c5cff;
+  width: 0%;
+  z-index: 100;
+  transition: width 80ms linear;
+}
+
+/* =========================================================
+   Hamburger button — visibile solo su mobile
+   ========================================================= */
+.nav-toggle {
+  display: none;
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 60;
+  width: 44px;
+  height: 44px;
+  border: 1px solid #1a1a1a;
+  background: #fafaf7;
+  border-radius: 8px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+  padding: 0;
+}
+.nav-toggle-icon {
+  position: relative;
+  width: 20px;
+  height: 14px;
+}
+.nav-toggle-icon::before,
+.nav-toggle-icon::after,
+.nav-toggle-icon span {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 20px;
+  height: 2px;
+  background: #1a1a1a;
+  border-radius: 1px;
+  transition: transform 300ms cubic-bezier(0.23, 1, 0.32, 1), opacity 200ms ease-out;
+}
+.nav-toggle-icon::before { top: 0; }
+.nav-toggle-icon span { top: 6px; }
+.nav-toggle-icon::after { top: 12px; }
+
+.nav-toggle.is-open .nav-toggle-icon::before {
+  transform: translateY(6px) rotate(45deg);
+}
+.nav-toggle.is-open .nav-toggle-icon span {
+  opacity: 0;
+}
+.nav-toggle.is-open .nav-toggle-icon::after {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
+/* Backdrop overlay quando nav mobile e' aperta */
+.nav-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 26, 26, 0.4);
+  z-index: 45;
+  opacity: 0;
+  transition: opacity 280ms ease-out;
+}
+.nav-backdrop.is-open {
+  display: block;
+  opacity: 1;
+}
+
+/* =========================================================
+   Tablet / mobile (sotto 960px)
+   ========================================================= */
+@media (max-width: 960px) {
+  .layout { grid-template-columns: 1fr; }
+
+  /* Nav diventa overlay top-anchored che scende dall'alto */
+  .nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100vh;
+    z-index: 50;
+    background: #fafaf7;
+    transform: translateY(-100%);
+    transition: transform 380ms cubic-bezier(0.23, 1, 0.32, 1);
+    padding: 80px 28px 40px 28px;
+    border-right: none;
+    border-bottom: none;
+    overflow-y: auto;
+  }
+  .nav.is-open {
+    transform: translateY(0);
+    box-shadow: 0 12px 36px rgba(0,0,0,0.18);
+  }
+
+  /* Hamburger sempre visibile su mobile */
+  .nav-toggle { display: flex; }
+
+  /* Main column padding */
+  main { padding: 0 22px; max-width: 100%; }
+
+  /* Hero scale */
+  .hero { padding: 80px 0 48px 0; margin-bottom: 40px; }
+  .hero h1 { font-size: 40px; }
+  .hero p { font-size: 18px; }
+  .hero-meta { gap: 14px; font-size: 12px; flex-wrap: wrap; }
+  .hero-meta span::before { margin-right: 14px; }
+
+  /* Part divider + slide */
+  .part-divider { padding: 56px 0 24px 0; margin-top: 32px; }
+  .part-divider h2 { font-size: 28px; }
+  .slide { padding: 40px 0; }
+  .slide h1 { font-size: 26px; }
+  .slide .slide-sub { font-size: 17px; }
+  .pull { font-size: 19px; padding: 6px 0 6px 16px; }
+
+  /* Formula */
+  .formula { font-size: 22px; padding: 28px 16px; }
+
+  /* Mental model diagram (slide 2) */
+  .diagram-mental { gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .dm-box { padding: 14px 18px; font-size: 14px; min-width: 80px; }
+  .dm-box-opaque { font-size: 24px; min-width: 100px; }
+
+  /* Timeline (slide 3) */
+  .tl-when { font-size: 11px; }
+  .tl-what { font-size: 15px; }
+
+  /* Code snippet */
+  .code { font-size: 12.5px; padding: 16px 18px; }
+
+  /* Visualizer su tablet */
+  .vz { padding: 20px; }
+  .vz-header { gap: 10px; }
+  .vz-prompt { font-size: 13px; }
+  .vz-actors { gap: 8px; }
+  .vz-actor { padding: 14px 10px; min-height: 56px; }
+  .vz-actor-name { font-size: 13px; }
+  .vz-narration { font-size: 14px; padding: 14px 16px; min-height: 60px; }
+  .vz-fs { padding: 12px 14px; }
+  .vz-fs-tree { font-size: 12px; }
+  .vz-controls { gap: 10px; }
+  .vz-btn { padding: 7px 12px; font-size: 12.5px; }
+
+  /* Ah frame */
+  .ah-frame { padding: 40px 22px; }
+  .ah-text { font-size: 20px; }
+
+  /* Pilastri thesis */
+  .pt-step { font-size: 15px; padding: 16px 18px; }
+  .pt-label { font-size: 10px; padding: 2px 6px; }
+
+  /* Anti-pattern + checklist + tour */
+  .ap-item, .cl-item { padding: 14px 16px; }
+  .ap-name, .cl-q { font-size: 14px; }
+  .ap-why, .cl-a { font-size: 13.5px; }
+
+  /* Closing */
+  .closing-line { font-size: 22px; }
+}
+
+/* =========================================================
+   Smartphone piccoli (sotto 560px)
+   ========================================================= */
+@media (max-width: 560px) {
+  main { padding: 0 16px; }
+  .hero { padding: 72px 0 36px 0; }
+  .hero h1 { font-size: 30px; }
+  .hero p { font-size: 16px; }
+  .hero-eyebrow { font-size: 11px; }
+
+  .part-divider h2 { font-size: 24px; }
+  .slide h1 { font-size: 22px; }
+  .slide .slide-sub { font-size: 15px; }
+  .pull { font-size: 17px; }
+
+  .formula { font-size: 18px; padding: 22px 12px; }
+
+  /* Visualizer: layout verticale (actors stack 2x2 piu' stretto, fs sotto) */
+  .vz { padding: 16px; }
+  .vz-actors { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .vz-actor { padding: 10px 6px; min-height: 48px; }
+  .vz-actor-name { font-size: 12px; }
+  .vz-narration { font-size: 13px; padding: 12px 14px; }
+  .vz-fs { padding: 10px 12px; }
+  .vz-fs-head { font-size: 10px; }
+  .vz-fs-tree { font-size: 11.5px; min-height: 60px; }
+  .vz-btn { padding: 6px 10px; font-size: 11.5px; }
+  .vz-progress { font-size: 11px; }
+
+  .ah-text { font-size: 17px; }
+  .ah-frame { padding: 32px 16px; }
+
+  /* Diagram + survive list */
+  .sd-pillar-name { font-size: 19px; }
+  .sd-pillar-desc { font-size: 12px; }
+  .sd-loop-label { font-size: 15px; }
+
+  .closing-line { font-size: 19px; margin-top: 36px; }
+}
+
+/* =========================================================
+   Print
+   ========================================================= */
+@media print {
+  .nav, .progress, footer { display: none; }
+  .layout { grid-template-columns: 1fr; }
+  main { padding: 0; max-width: 100%; }
+  .slide { page-break-after: always; padding: 24px 0; border: none; }
+  body { font-size: 14px; }
+  .visualizer { border: 1px solid #c9c6bc; background: #fff; color: #1a1a1a; }
+  .visualizer h3, .visualizer p { color: #1a1a1a; }
+}

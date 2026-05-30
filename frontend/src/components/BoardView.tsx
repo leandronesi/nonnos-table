@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import { Chessboard } from "react-chessboard";
 import type { Color } from "../types";
 
@@ -28,11 +29,33 @@ export function BoardView({
   onSquareClick,
   resetKey,
 }: Props) {
+  // Responsive sizing: measure the available container width and clamp to
+  // the requested size so the board never overflows on narrow viewports.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const maxSize = typeof size === "number" ? size : 320;
+  const [boardSize, setBoardSize] = useState(maxSize);
+
+  useLayoutEffect(() => {
+    function measure() {
+      if (!wrapRef.current) return;
+      const availableWidth = wrapRef.current.parentElement?.offsetWidth ?? maxSize;
+      setBoardSize(Math.min(maxSize, availableWidth));
+    }
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (wrapRef.current) ro.observe(wrapRef.current.parentElement ?? wrapRef.current);
+    return () => ro.disconnect();
+  }, [maxSize]);
+
   const squareStyles: Record<string, React.CSSProperties> = {};
   if (highlights) {
     for (const h of highlights) {
       squareStyles[h.square] = {
-        background: `radial-gradient(circle, ${h.color} 0%, ${h.color}88 60%, transparent 70%)`,
+        // Riempimento radiale + anello interno: l'anello resta visibile anche
+        // quando sulla casa c'e' un pezzo (che copre il centro del gradiente).
+        // Cosi' la casa di partenza in oro si vede SEMPRE, anche occupata.
+        background: `radial-gradient(circle, ${h.color} 0%, ${h.color}88 55%, transparent 72%)`,
+        boxShadow: `inset 0 0 0 3px ${h.color}`,
         boxSizing: "border-box",
       };
     }
@@ -42,7 +65,12 @@ export function BoardView({
   // `position`. Forziamo il reset re-montando il componente con una key dipendente
   // dal FEN, e usiamo anche le opzioni dedicate alla pulizia.
   return (
-    <div style={{ width: size, height: size }}>
+    <div
+      ref={wrapRef}
+      style={{ width: boardSize, height: boardSize }}
+      role="img"
+      aria-label="Scacchiera"
+    >
       <Chessboard
         key={resetKey ?? fen}
         options={{

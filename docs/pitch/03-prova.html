@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>La Prova · il Tavolo del Nonno</title>
+  <link rel="stylesheet" href="assets/pitch.css">
+  <style>
+    /* tocchi specifici del capitolo (nessun colore ridefinito) */
+    .cap-hero .display { max-width: 16ch; }
+    .flow-screens .step { grid-template-columns: 44px 1fr; align-items: start; }
+    .flow-screens .screen { margin-top: 14px; }
+    .moment-line { font-family: var(--font-mono); font-size: 0.82rem; color: var(--paper-soft); letter-spacing: 0.01em; }
+    .moment-line .t { color: var(--twilight-soft); }
+    .moment-line .h { color: var(--honey-soft); }
+    .micro-board { width: 132px; }
+    .ladder { display: grid; gap: 0; }
+    .ladder .rung { display: grid; grid-template-columns: 96px 1fr auto; gap: 16px; align-items: center; padding: 13px 0; }
+    .ladder .rung + .rung { border-top: 1px solid var(--line); }
+    .ladder .when { font-family: var(--font-mono); font-weight: 700; color: var(--twilight-soft); font-size: 0.92rem; }
+    .tier { display: grid; gap: 10px; }
+    .tier .price { font-family: var(--font-mono); font-weight: 700; font-size: 1.7rem; line-height: 1; }
+    .tier .price.honey { color: var(--honey-soft); }
+    .tier ul { list-style: none; display: grid; gap: 8px; }
+    .tier li { display: grid; grid-template-columns: 18px 1fr; gap: 8px; font-size: 0.92rem; color: var(--paper-soft); }
+    .tier li .mk { color: var(--twilight-soft); font-weight: 700; }
+    .churn { font-size: 0.78rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; margin-top: 4px; }
+    .churn b { color: var(--paper-soft); font-weight: 700; }
+    .adv { display: grid; grid-template-columns: 40px 1fr; gap: 14px; align-items: start; }
+    .adv .num { font-family: var(--font-mono); font-weight: 700; font-size: 1.3rem; color: var(--twilight-soft); }
+    .roadmap { display: grid; gap: 0; }
+    .roadmap .obj { display: grid; grid-template-columns: 30px 1fr auto; gap: 16px; align-items: center; padding: 15px 0; }
+    .roadmap .obj + .obj { border-top: 1px solid var(--line); }
+    .roadmap .obj .led { width: 12px; height: 12px; border-radius: 50%; background: var(--line-strong); justify-self: center; }
+    .roadmap .obj.on .led { background: var(--good); }
+    .roadmap .obj.now .led { background: var(--twilight); }
+    .ask-line { font-family: var(--font-display); font-weight: 700; font-size: clamp(1.5rem, 3.4vw, 2.3rem); line-height: 1.18; letter-spacing: -0.018em; max-width: 22ch; }
+  </style>
+</head>
+<body>
+
+<nav class="topnav"><div class="inner">
+  <a class="brand" href="index.html">il Tavolo del <span class="o">Nonno</span></a>
+  <div class="links">
+    <a href="index.html">Copertina</a>
+    <a href="01-anima.html">L'Anima</a>
+    <a href="02-moneta.html">La Moneta</a>
+    <a href="03-prova.html">La Prova</a>
+  </div>
+</div></nav>
+
+<main>
+
+  <!-- ============ APERTURA CAPITOLO ============ -->
+  <section class="band">
+    <div class="wrap cap-hero reveal">
+      <div class="eyebrow">Capitolo 3 · La Prova</div>
+      <h1 class="display" style="margin-top:14px;">Il rituale che<br>non molli più.</h1>
+      <p class="lead" style="margin-top:22px;">
+        Sai dov'è il tuo gap, e sai che la prima ancora vale <span class="mono">+18</span> punti.
+        Resta una domanda sola: cosa succede quando ti siedi. Quindici minuti, quattro fasi,
+        un numero che cresce ogni settimana e che ti fa tornare. Poi: il mercato, perché si paga,
+        e cosa accendiamo per primo.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ BEAT 1 · IL FLUSSO SEDIAMOCI ============ -->
+  <section class="band">
+    <div class="wrap reveal">
+      <div class="eyebrow">Beat 1 · Il flusso</div>
+      <h2 style="margin-top:12px;">Sediamoci. Quindici minuti, quattro fasi.</h2>
+      <p class="soft" style="margin-top:14px;">
+        Non è un review passivo, e non è un puzzle rush. È una progressione pedagogica sulle
+        <strong>tue</strong> posizioni: prima guardo, poi facciamo insieme, poi faccio da solo,
+        poi gioco. Ogni fase su un Momento che hai vissuto davvero.
+      </p>
+    </div>
+
+    <div class="wrap reveal" style="margin-top:34px;">
+      <div class="flow flow-screens">
+
+        <!-- FASE 1 -->
+        <div class="step">
+          <div class="dot">1</div>
+          <div>
+            <h3>Guardo, e Nonno parla</h3>
+            <p class="soft" style="margin:6px 0 0;">
+              Rivedo il Momento dall'alto: il film delle mosse precedenti, il tempo che ci ho
+              messo, quanti al mio livello l'avrebbero trovata. Passivo. Solo capire.
+            </p>
+            <div class="screen">
+              <div class="bar"><i></i><i></i><i></i></div>
+              <div class="moment-line">
+                lun 19 mag · vs <span class="t">1180</span> · mossa <span class="t">24</span> · orologio <span class="t">1:48</span>
+              </div>
+              <div class="row" style="margin-top:12px; align-items:flex-start; gap:18px;">
+                <div class="board micro-board" aria-hidden="true">
+                  <i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i>
+                  <i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i>
+                  <i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i>
+                  <i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i>
+                  <i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i>
+                  <i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i>
+                  <i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i>
+                  <i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i>
+                </div>
+                <div class="nonno" style="font-size:1.05rem; flex:1; min-width:240px;">
+                  <span class="who">Nonno dice</span>
+                  Qui hai mosso in <b>8 secondi</b>. Al tuo livello questa la trovava 1 su 8:
+                  non era facile. Guarda solo come ci sei arrivato.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FASE 2 -->
+        <div class="step">
+          <div class="dot">2</div>
+          <div>
+            <h3>Nonno mi aiuta</h3>
+            <p class="soft" style="margin:6px 0 0;">
+              Stessa posizione, ora tocca a me, ma con una mano sulla spalla: un accenno alla
+              casa di partenza, niente di più. Guidato. Imparo la geometria, non la risposta.
+            </p>
+            <div class="screen">
+              <div class="bar"><i></i><i></i><i></i></div>
+              <div class="moment-line">la TUA posizione · <span class="h">aiuto attivo</span> · trova la mossa</div>
+              <div class="nonno" style="font-size:1.05rem; margin-top:12px;">
+                <span class="who">Nonno dice</span>
+                Guarda la torre in <b>f1</b>. Da lì cambia tutto. Non te la dico, ma sai dove
+                guardare adesso.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FASE 3 -->
+        <div class="step">
+          <div class="dot">3</div>
+          <div>
+            <h3>Gioco da solo</h3>
+            <p class="soft" style="margin:6px 0 0;">
+              Adesso niente aiuto, e il tema resta <strong>nascosto fino al tentativo</strong>:
+              non sai se è un pezzo in presa o un'ottava traversa, devi vederlo tu. È l'esercizio
+              sulle tue posizioni, non puzzle a caso.
+            </p>
+            <div class="screen">
+              <div class="bar"><i></i><i></i><i></i></div>
+              <div class="moment-line">esercizio · tema <span class="muted">nascosto</span> · solo tu e la scacchiera</div>
+              <div class="row" style="margin-top:10px; gap:8px;">
+                <span class="chip tw">pezzo in presa</span>
+                <span class="chip">il tema si rivela dopo</span>
+              </div>
+              <div class="nonno" style="font-size:1.05rem; margin-top:12px;">
+                <span class="who">Nonno dice</span>
+                Niente indizi stavolta. Se la trovi adesso, è tua per sempre.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FASE 4 -->
+        <div class="step">
+          <div class="dot honey">4</div>
+          <div>
+            <h3>Rifaccio la partita</h3>
+            <p class="soft" style="margin:6px 0 0;">
+              Si torna al bivio e lo si rigioca, ma contro un <span class="honey">avversario 1500</span>:
+              il livello che vuoi diventare, vivo, nel browser. Non un check, un avversario che ti
+              risponde calibrato sul target. Con "Ripensaci" sempre a portata di mano.
+            </p>
+            <div class="screen">
+              <div class="bar"><i></i><i></i><i></i></div>
+              <div class="moment-line">rigioco il bivio · vs <span class="h">avversario 1500 rapid</span> · dalla TUA posizione</div>
+              <div class="row" style="margin-top:10px; gap:8px;">
+                <span class="chip honey">il livello che vuoi diventare</span>
+                <span class="chip">Ripensaci</span>
+              </div>
+              <div class="nonno" style="font-size:1.05rem; margin-top:12px;">
+                <span class="who">Nonno dice</span>
+                Stesso bivio, avversario diverso. Vediamo se stavolta chiudi come chiude un
+                <b>1500</b>.
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BEAT 2 · LA PROVA DI CRESCITA ============ -->
+  <section class="band">
+    <div class="wrap reveal">
+      <div class="eyebrow honey">Beat 2 · La prova di crescita</div>
+      <h2 style="margin-top:12px;">Il numero che ti fa tornare.</h2>
+      <p class="lead" style="margin-top:14px;">
+        Gli altri ti dicono "hai fatto un errore". Noi ti facciamo vedere il giocatore che stai
+        diventando, una settimana dopo l'altra, sullo stesso pattern.
+      </p>
+    </div>
+
+    <div class="wrap reveal" style="margin-top:30px;">
+      <div class="grid grid-2" style="align-items:stretch;">
+
+        <!-- Curva nel tempo -->
+        <div class="card s2 pad-lg">
+          <div class="eyebrow muted">Pezzo in presa · trovi la mossa giusta</div>
+          <svg class="chart" viewBox="0 0 440 240" role="img" aria-label="Pezzo in presa: 19 per cento quattro settimane fa, 34 per cento oggi, target 67 per cento" style="margin-top:14px;">
+            <!-- gridlines orizzontali -->
+            <line class="grid-line" x1="44" y1="40"  x2="430" y2="40"></line>
+            <line class="grid-line" x1="44" y1="90"  x2="430" y2="90"></line>
+            <line class="grid-line" x1="44" y1="140" x2="430" y2="140"></line>
+            <line class="grid-line" x1="44" y1="190" x2="430" y2="190"></line>
+            <!-- asse y etichette -->
+            <text x="0" y="44"  font-size="10">67%</text>
+            <text x="0" y="94"  font-size="10">50%</text>
+            <text x="0" y="144" font-size="10">34%</text>
+            <text x="0" y="194" font-size="10">19%</text>
+            <!-- linea target (oro tratteggiata) -->
+            <line x1="44" y1="40" x2="430" y2="40" stroke="#f6c64a" stroke-width="1.5" stroke-dasharray="5 4"></line>
+            <text x="372" y="34" font-size="10" fill="#ffd877">un 1500</text>
+            <!-- area sotto la curva (twilight tenue) -->
+            <path d="M70 190 L210 140 L350 110 L350 220 L70 220 Z" fill="#7c5cff" fill-opacity="0.10"></path>
+            <!-- curva tua progressione -->
+            <polyline points="70,190 210,140 350,110" fill="none" stroke="#7c5cff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+            <!-- proiezione tratteggiata verso il target -->
+            <polyline points="350,110 430,40" fill="none" stroke="#a18bff" stroke-width="2" stroke-dasharray="4 4" stroke-linecap="round"></polyline>
+            <!-- punti -->
+            <circle cx="70"  cy="190" r="4.5" fill="#7c5cff"></circle>
+            <circle cx="210" cy="140" r="4.5" fill="#7c5cff"></circle>
+            <circle cx="350" cy="110" r="5.5" fill="#a18bff" stroke="#060814" stroke-width="2"></circle>
+            <!-- etichette punti -->
+            <text x="56"  y="210" font-size="10" fill="#717892">4 sett. fa</text>
+            <text x="60"  y="178" font-size="11" fill="#a18bff">19%</text>
+            <text x="196" y="160" font-size="11" fill="#a18bff">34%</text>
+            <text x="332" y="98"  font-size="11" fill="#eef0fa">oggi</text>
+            <text x="340" y="132" font-size="12" fill="#a18bff" font-weight="700">34%</text>
+          </svg>
+          <p class="soft" style="margin-top:6px; font-size:0.92rem;">
+            Hai chiuso <strong>un terzo del gap</strong> in quattro settimane. Da <span class="mono tw">19%</span>
+            a <span class="mono tw">34%</span>, verso il <span class="mono honey">67%</span> di un 1500.
+          </p>
+          <div class="nonno" style="font-size:1rem; margin-top:18px;">
+            <span class="who">Nonno legge il grafico</span>
+            Questa curva sei tu che migliori. Quattro settimane fa lasciavi il pezzo in presa quasi
+            sempre, oggi lo eviti un terzo delle volte. Non è fortuna: è la stessa cosa allenata
+            apposta. Continua e il <b>67%</b> arriva.
+          </div>
+        </div>
+
+        <!-- Ripetizione spaziata -->
+        <div class="card s2 pad-lg">
+          <div class="eyebrow">Ripetizione spaziata sui tuoi errori</div>
+          <p class="soft" style="margin-top:12px; font-size:0.95rem;">
+            Il pattern che hai mancato non sparisce. Te lo ripropongo su <strong>geometrie simili</strong>
+            (non la stessa posizione) a distanza crescente. Se lo chiudi, vai avanti. Se lo sbagli, riparte.
+          </p>
+          <div class="ladder" style="margin-top:16px;">
+            <div class="rung">
+              <span class="when">+1 g</span>
+              <span class="soft">prima ripetizione, geometria gemella</span>
+              <span class="chip good srs">chiuso</span>
+            </div>
+            <div class="rung">
+              <span class="when">+3 g</span>
+              <span class="soft">stesso tema, altra apertura</span>
+              <span class="chip good srs">chiuso</span>
+            </div>
+            <div class="rung">
+              <span class="when">+7 g</span>
+              <span class="soft">sotto pressione di tempo</span>
+              <span class="chip warn srs">da rivedere</span>
+            </div>
+            <div class="rung">
+              <span class="when">+21 g</span>
+              <span class="soft">la prova vera: lo vedi ancora?</span>
+              <span class="chip srs">in coda</span>
+            </div>
+          </div>
+          <div class="nonno" style="font-size:1rem; margin-top:18px;">
+            <span class="who">Nonno dice</span>
+            A 21 giorni torno e te lo richiedo. Se lo vedi ancora, allora <b>l'hai imparato</b>,
+            non l'hai indovinato. Quella è la differenza.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Il Quaderno come spina -->
+    <div class="wrap reveal" style="margin-top:24px;">
+      <div class="card pad-lg">
+        <div class="grid grid-2" style="align-items:center; gap:32px;">
+          <div>
+            <div class="eyebrow">Il Quaderno · la casa continua</div>
+            <h3 style="margin-top:10px;">Dove vedi il giocatore che stai diventando.</h3>
+            <p class="soft" style="margin-top:12px; font-size:0.95rem;">
+              Ogni Sessione lascia una voce: l'ancora domata, l'errore che non rifai, il pattern
+              che hai chiuso. Non lo scrivi tu, lo scrive Nonno. È la spina dorsale della retention:
+              torni perché ritrovi <strong>tutto quello che avete costruito insieme</strong>, non
+              perché un badge ti chiama.
+            </p>
+            <p class="lead tw" style="margin-top:16px;">Questo è il "non gioco senza".</p>
+          </div>
+          <div class="screen">
+            <div class="bar"><i></i><i></i><i></i></div>
+            <div class="moment-line"><span class="h">Quaderno</span> · le ultime voci</div>
+            <div class="ladder" style="margin-top:6px;">
+              <div class="rung" style="grid-template-columns:64px 1fr;">
+                <span class="when" style="font-size:0.8rem;">oggi</span>
+                <span class="soft" style="font-size:0.88rem;">Pezzo in presa: <span class="mono tw">34%</span>, +15 in 4 settimane.</span>
+              </div>
+              <div class="rung" style="grid-template-columns:64px 1fr;">
+                <span class="when" style="font-size:0.8rem;">−5 g</span>
+                <span class="soft" style="font-size:0.88rem;">Ottava traversa rivista, hai fermato la mano due volte.</span>
+              </div>
+              <div class="rung" style="grid-template-columns:64px 1fr;">
+                <span class="when" style="font-size:0.8rem;">−12 g</span>
+                <span class="soft" style="font-size:0.88rem;">Vittorie buttate: <span class="mono warn">42%</span> da posizione vinta.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BEAT 3 · PERCHÉ SI PAGA ============ -->
+  <section class="band">
+    <div class="wrap reveal">
+      <div class="eyebrow">Beat 3 · Perché si paga</div>
+      <h2 style="margin-top:12px;">Non un report una tantum. Presenza.</h2>
+      <p class="lead" style="margin-top:14px;">
+        Un'analisi la regalano tutti, una volta sola. Quello per cui si paga <span class="mono">8&nbsp;€</span>/mese
+        è che Nonno <strong>torna</strong>: ti richiama fra tre giorni, accumula il Quaderno, ti tiene
+        sullo stesso pattern finché non è tuo. Ogni tier risponde a una domanda sola: sposta il churn?
+      </p>
+    </div>
+
+    <div class="wrap reveal" style="margin-top:30px;">
+      <div class="grid grid-3" style="align-items:stretch;">
+
+        <!-- FREE -->
+        <div class="card tier">
+          <div class="between">
+            <span class="eyebrow muted">Free</span>
+            <span class="price soft">0&nbsp;€</span>
+          </div>
+          <p class="soft" style="font-size:0.9rem;">Il rapporto si stabilisce. Vedi il valore una volta.</p>
+          <ul>
+            <li><span class="mk">·</span> Ultime <span class="mono">100</span> partite analizzate</li>
+            <li><span class="mk">·</span> Le tue ancore, ordinate per upside</li>
+            <li><span class="mk">·</span> La galleria dei Momenti</li>
+          </ul>
+          <div class="churn"><b>Sul churn:</b> apre la porta. Da solo non trattiene, è la prova del valore.</div>
+        </div>
+
+        <!-- PRO -->
+        <div class="card s2 tier" style="border-color: var(--line-strong);">
+          <div class="between">
+            <span class="eyebrow">Pro</span>
+            <span class="price honey">8&nbsp;€<span class="mono soft" style="font-size:0.9rem;">/mese</span></span>
+          </div>
+          <p class="soft" style="font-size:0.9rem;">La presenza. Il Nonno completo che torna ogni giorno.</p>
+          <ul>
+            <li><span class="mk">→</span> Analisi <strong>ricorrente</strong> ("torna fra 3 giorni")</li>
+            <li><span class="mk">→</span> Nudge e richiami event-driven</li>
+            <li><span class="mk">→</span> Quaderno che si accumula nel tempo</li>
+            <li><span class="mk">→</span> Allenamento vs avversario al target (Maia)</li>
+            <li><span class="mk">→</span> Opponent intel prima della partita</li>
+          </ul>
+          <div class="churn"><b>Sul churn:</b> è IL prodotto che lo sposta. La ripetizione spaziata e il Quaderno fanno il "non gioco senza".</div>
+        </div>
+
+        <!-- COACH -->
+        <div class="card tier">
+          <div class="between">
+            <span class="eyebrow muted">Coach</span>
+            <span class="price soft">white-label</span>
+          </div>
+          <p class="soft" style="font-size:0.9rem;">Per gli allenatori umani. Il Nonno come strumento di studio.</p>
+          <ul>
+            <li><span class="mk">·</span> Dashboard multi-studente</li>
+            <li><span class="mk">·</span> Pacchetti di allenamento condivisi</li>
+            <li><span class="mk">·</span> Brand dell'allenatore sopra Nonno</li>
+          </ul>
+          <div class="churn"><b>Sul churn:</b> il churn dell'allenatore è quasi zero (è il suo lavoro). Ricavo per utente alto, retention strutturale.</div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BEAT 4 · MERCATO + UNFAIR ADVANTAGES + MOONSHOT ============ -->
+  <section class="band">
+    <div class="wrap reveal">
+      <div class="eyebrow">Beat 4 · Mercato</div>
+      <h2 style="margin-top:12px;">Il mercato in una riga.</h2>
+      <p class="lead" style="margin-top:14px;">
+        <span class="mono">40M</span> account attivi al mese su Chess.com. La fascia
+        <span class="mono">1000-1800</span>, gli amatori seri, è circa <span class="mono">8-10M</span>:
+        giocano, perdono, aprono "Game Review", leggono "Blunder", chiudono. Tornano domani.
+        Nessuno gli dice <strong>come gioca chi vogliono diventare</strong>.
+      </p>
+    </div>
+
+    <div class="wrap reveal" style="margin-top:30px;">
+      <div class="grid grid-3" style="align-items:stretch;">
+
+        <div class="card s2">
+          <div class="adv">
+            <span class="num">1</span>
+            <div>
+              <h3 style="font-size:1.1rem;">Maia, benchmark continuo</h3>
+              <p class="soft" style="margin-top:8px; font-size:0.9rem;">
+                Non un check binario sì/no. L'avversario vivente calibrato al livello che vuoi
+                diventare, posizione per posizione. E ora gira <strong>nel browser</strong>.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card s2">
+          <div class="adv">
+            <span class="num">2</span>
+            <div>
+              <h3 style="font-size:1.1rem;">Coach LLM grounded</h3>
+              <p class="soft" style="margin-top:8px; font-size:0.9rem;">
+                La voce di Nonno è ancorata a un filesystem di concetti e pattern scritti a mano.
+                Specifica, comparativa, azionabile. Non chiacchiera generica sugli scacchi.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card s2">
+          <div class="adv">
+            <span class="num">3</span>
+            <div>
+              <h3 style="font-size:1.1rem;">Difficoltà come moneta</h3>
+              <p class="soft" style="margin-top:8px; font-size:0.9rem;">
+                Ogni metrica pesata per quanto la posizione era difficile <strong>al tuo livello</strong>.
+                Conta solo l'errore evitabile. Nessuno misura così.
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="narrow reveal" style="margin-top:40px;">
+      <div class="hero-goal">
+        <div class="eyebrow honey">La moonshot · 18 mesi</div>
+        <p class="ask-line honey" style="color:var(--honey-soft); margin-top:14px;">
+          Acquisition da Chess.com, oppure <span class="mono">1M&nbsp;€</span> ARR standalone.
+        </p>
+        <p class="soft" style="margin-top:16px; font-size:0.95rem;">
+          <span class="mono">10k</span> utenti Pro × <span class="mono">8&nbsp;€</span> = <span class="mono">80k&nbsp;€</span>
+          MRR, margini lordi oltre il 70% (i costi sono LLM più hosting). La precondizione in
+          entrambi gli scenari è una sola: un prodotto che si apre 6 giorni su 7 e fa dire
+          <em>"non gioco senza"</em>.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BEAT 5 · L'ASK / COSTRUIAMO ============ -->
+  <section class="band">
+    <div class="wrap reveal">
+      <div class="eyebrow">Beat 5 · L'ask</div>
+      <h2 style="margin-top:12px;">Costruiamo. Accendiamo un oggetto alla volta.</h2>
+      <p class="lead" style="margin-top:14px;">
+        Il differenziatore non è più una roadmap: <strong>Maia gira già nel browser</strong> in
+        questa build, zero-worker. Quindi non partiamo da zero. Accendiamo gli oggetti uno dopo
+        l'altro, e il primo che si illumina è proprio quello che batte Chess.com.
+      </p>
+    </div>
+
+    <div class="wrap reveal" style="margin-top:30px;">
+      <div class="card pad-lg">
+        <div class="roadmap">
+
+          <div class="obj on">
+            <span class="led" aria-hidden="true"></span>
+            <div>
+              <h3 style="font-size:1.05rem;">Ancore + galleria Momenti</h3>
+              <p class="soft" style="margin:4px 0 0; font-size:0.9rem;">Il dato è già quasi pronto. Le viste si riaccendono con pochissimo lavoro UI.</p>
+            </div>
+            <span class="chip good">pronto</span>
+          </div>
+
+          <div class="obj now">
+            <span class="led" aria-hidden="true"></span>
+            <div>
+              <h3 style="font-size:1.05rem;">Avversario · drill_value</h3>
+              <p class="soft" style="margin:4px 0 0; font-size:0.9rem;">"Questa la trova chi vuoi diventare, tu ancora no." Ora è <strong>reale</strong>: Maia nel browser.</p>
+            </div>
+            <span class="chip tw">accendi ORA</span>
+          </div>
+
+          <div class="obj">
+            <span class="led" aria-hidden="true"></span>
+            <div>
+              <h3 style="font-size:1.05rem;">Motif tattici</h3>
+              <p class="soft" style="margin:4px 0 0; font-size:0.9rem;">Forchetta, infilata, ottava traversa: ancore vere, non solo "fase".</p>
+            </div>
+            <span class="chip">poi</span>
+          </div>
+
+          <div class="obj">
+            <span class="led" aria-hidden="true"></span>
+            <div>
+              <h3 style="font-size:1.05rem;">Storia e trend</h3>
+              <p class="soft" style="margin:4px 0 0; font-size:0.9rem;">Snapshot ripetuti nel tempo: la curva di crescita e la rating curve.</p>
+            </div>
+            <span class="chip">poi</span>
+          </div>
+
+          <div class="obj">
+            <span class="led" aria-hidden="true"></span>
+            <div>
+              <h3 style="font-size:1.05rem;">Strutture e repertorio</h3>
+              <p class="soft" style="margin:4px 0 0; font-size:0.9rem;">Le ultime due viste: dove cadi nel Caro-Kann, le strutture che ti puniscono.</p>
+            </div>
+            <span class="chip">poi</span>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="narrow reveal center" style="margin-top:48px;">
+      <p class="ask-line" style="margin:0 auto;">
+        Maia è nel browser. Il prossimo oggetto che accendiamo vale <span class="mono honey">+18</span> punti.
+        Sediamoci e costruiamolo.
+      </p>
+      <div style="margin-top:28px;">
+        <a class="btn btn-primary" href="index.html">Torna alla Copertina →</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <div class="pager">
+    <a href="02-moneta.html">
+      <span class="lbl">← Precedente</span>
+      <span class="t">La Moneta</span>
+    </a>
+    <a class="next" href="index.html">
+      <span class="lbl">Fine · ricominciamo →</span>
+      <span class="t">Torna alla Copertina</span>
+    </a>
+  </div>
+</footer>
+
+<script src="assets/pitch.js"></script>
+</body>
+</html>

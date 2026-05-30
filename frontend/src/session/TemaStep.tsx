@@ -8,6 +8,26 @@ import type { PositionRow } from "../types";
 import { BoardView } from "../components/BoardView";
 import { BoardLegend } from "../components/BoardLegend";
 
+// ---------------------------------------------------------------------------
+// Date helper
+// ---------------------------------------------------------------------------
+
+const MONTHS_IT = ['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'] as const;
+
+function formatGameDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const day = d.getDate();
+    const month = MONTHS_IT[d.getMonth()];
+    const year = d.getFullYear();
+    return `${day} ${month} ${year}`;
+  } catch {
+    return "";
+  }
+}
+
 interface TemaStepProps {
   position: PositionRow;
   patternLabel: string;  // es. "il pezzo in presa"
@@ -150,9 +170,11 @@ export function TemaStep({ position, patternLabel, onNext }: TemaStepProps) {
             Guarda la posizione
           </h3>
           <div className="text-sm text-[color:var(--color-text-soft)] mt-1">
-            {position.date && <span>{position.date}</span>}
+            {formatGameDate(position.date)}
             {position.opp_rating != null && (
-              <span> · vs <span className="font-semibold tabular-nums">{position.opp_rating}</span></span>
+              <span>
+                {" "}· vs <span className="font-semibold tabular-nums">{position.opp_rating}</span>
+              </span>
             )}
             {position.opening && (
               <span> · {position.opening}
@@ -170,6 +192,24 @@ export function TemaStep({ position, patternLabel, onNext }: TemaStepProps) {
           <div className="label-eyebrow text-[color:var(--color-brand-soft)] mb-1">Osserva</div>
           <div className="text-sm leading-relaxed">{waitingHint}</div>
         </div>
+
+        {/* Mossa precedente avversario */}
+        {position.last_opp_san && (
+          <div
+            className="rounded-xl px-4 py-3 border flex items-baseline gap-2"
+            style={{ background: "rgba(253,224,71,0.07)", borderColor: "rgba(253,224,71,0.30)" }}
+          >
+            <span className="text-sm text-[color:var(--color-text-soft)]">
+              L&apos;avversario ha appena giocato
+            </span>
+            <span
+              className="font-mono font-semibold tabular-nums"
+              style={{ color: "#fde047" }}
+            >
+              {position.last_opp_san}.
+            </span>
+          </div>
+        )}
 
         {/* Voce di Nonno */}
         <div className="space-y-3">

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>il Tavolo del Nonno · Pitch</title>
+<link rel="stylesheet" href="assets/pitch.css">
+<style>
+  /* Tocchi di copertina (solo layout, nessun colore nuovo) */
+  .cover { padding-top: clamp(48px, 9vw, 110px); }
+  .cover-title { max-width: 20ch; line-height: 1.04; }
+  .cover-title span { display: block; }
+  .cover-title .honey { color: var(--honey-soft); margin-top: 0.06em; }
+  .wordmark { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
+  .wordmark .mk { font-family: var(--font-display); font-weight: 800; font-size: 1.18rem; letter-spacing: -0.01em; color: var(--paper); }
+  .wordmark .mk b { color: var(--honey-soft); font-weight: 800; }
+  .wordmark .tg { font-size: 0.86rem; color: var(--muted); letter-spacing: 0.03em; }
+  .toc-card { display:flex; flex-direction:column; gap:14px; min-height: 260px; }
+  .toc-card .num { font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); }
+  .toc-card .go { margin-top:auto; font-weight:700; color: var(--twilight-soft); }
+  .toc-card:hover .go { color: var(--honey-soft); }
+  .pillrow { display:flex; gap:10px; flex-wrap:wrap; }
+  .verdict { font-family: var(--font-mono); font-weight:700; font-size:0.8rem; letter-spacing:0.08em; }
+</style>
+</head>
+<body>
+
+<nav class="topnav"><div class="inner">
+  <a class="brand" href="index.html">il Tavolo del <span class="o">Nonno</span></a>
+  <div class="links">
+    <a href="index.html">Copertina</a>
+    <a href="01-anima.html">L'Anima</a>
+    <a href="02-moneta.html">La Moneta</a>
+    <a href="03-prova.html">La Prova</a>
+  </div>
+</div></nav>
+
+<main>
+
+  <!-- COVER -->
+  <section class="band cover">
+    <div class="wrap stack-lg">
+      <div class="wordmark reveal">
+        <span class="mk">il Tavolo del <b>Nonno</b></span>
+        <span class="tg">il coach che si siede al tuo livello</span>
+      </div>
+
+      <div class="pillrow reveal">
+        <span class="chip tw">Re-immaginazione</span>
+        <span class="chip">Pitch di prodotto</span>
+        <span class="chip honey">2026</span>
+      </div>
+
+      <h1 class="display cover-title reveal">
+        <span>Non analizziamo le tue partite.</span>
+        <span class="honey">Ti misuriamo contro chi vuoi diventare.</span>
+      </h1>
+
+      <p class="lead reveal">
+        L'unica app che ti dice <em>come gioca uno al tuo target</em> in ogni posizione che incontri,
+        e quanto sei lontano. Non "hai sbagliato". Ma: <strong>questa la trova chi vuoi diventare, tu ancora no</strong>.
+        Posizione per posizione.
+      </p>
+
+      <div class="grid grid-2 reveal" style="align-items:stretch; margin-top:8px;">
+        <div class="nonno">
+          <span class="who">Nonno, quando ti siedi</span>
+          Oooh, eccoti. Ti ho guardato le partite. <b>1240</b> oggi, <b>1500</b> nel mirino.
+          Il problema non sono le posizioni difficili, li' fai quello che puoi. E' in quelle che POTEVI
+          chiudere: lasci il pezzo in presa <b>12</b> volte, su mosse che uno al tuo livello trovava.
+          Quello e' il tuo gap, ed e' il piu' facile da recuperare. Sediamoci.
+        </div>
+
+        <div class="hero-goal">
+          <div class="eyebrow honey">Obiettivo dichiarato</div>
+          <div style="display:flex; align-items:baseline; gap:14px; margin:14px 0 6px;">
+            <span class="mono" style="font-size:2.6rem; color:var(--paper);">1240</span>
+            <span class="muted" style="font-size:1.4rem;">&rarr;</span>
+            <span class="mono" style="font-size:2.6rem; color:var(--honey-soft);">1500</span>
+            <span class="chip" style="margin-left:auto;">rapid</span>
+          </div>
+          <div class="verdict warn">IN RITARDO, RECUPERABILE</div>
+          <p class="soft" style="margin-top:14px; font-size:0.92rem;">
+            90 giorni di deadline. Servono <span class="mono">+2.9</span>/sett., fai <span class="mono">+1.2</span>.
+            Il gap col target sul tuo campione: <span class="mono">33</span> errori evitabili. E' il numero che facciamo scendere.
+          </p>
+        </div>
+      </div>
+
+      <div class="row reveal">
+        <a class="btn btn-primary" href="01-anima.html">Sfoglia il pitch</a>
+        <span class="muted" style="font-size:0.9rem;">3 racconti &middot; 10 minuti &middot; nessun grafico decorativo</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- IL RIBALTAMENTO IN TRE COLPI -->
+  <section class="band">
+    <div class="wrap stack-lg">
+      <div class="eyebrow reveal">Il ribaltamento, in tre colpi</div>
+      <div class="grid grid-3">
+        <div class="card reveal stack">
+          <div class="stat"><span class="n tw">0.32</span><span class="k">la difficolta' e' la moneta</span></div>
+          <p class="soft" style="font-size:0.92rem;">Ogni errore pesato per quanto la posizione era difficile <em>al tuo livello</em>. "244 errori" e' rumore. "33 evitabili verso il target" agisce.</p>
+        </div>
+        <div class="card reveal stack">
+          <div class="stat"><span class="n honey">67%</span><span class="k">Maia e' l'avversario vivente</span></div>
+          <p class="soft" style="font-size:0.92rem;">Non un check si'/no. Il benchmark calibrato al livello che vuoi diventare. Un 1500 trova quella mossa il 67% delle volte, tu il 34%. E ora <strong>gira nel tuo browser</strong>.</p>
+        </div>
+        <div class="card reveal stack">
+          <div class="stat"><span class="n">una</span><span class="k">la voce e' il prodotto</span></div>
+          <p class="soft" style="font-size:0.92rem;">Nonno non e' un chatbot. E' l'interprete dei tuoi dati. Una voce sola, in tutto il prodotto, che ti dice cosa conta oggi e ti aspetta domani.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TOC: i 3 racconti -->
+  <section class="band">
+    <div class="wrap stack-lg">
+      <div class="between reveal">
+        <h2>Tre racconti.</h2>
+        <span class="muted">apri uno alla volta, in ordine</span>
+      </div>
+      <div class="grid grid-3">
+        <a class="card hover toc-card reveal" href="01-anima.html">
+          <div class="num">01</div>
+          <h3>L'Anima</h3>
+          <p class="soft" style="font-size:0.93rem;">Perche' non e' una dashboard. Il rituale, il personaggio, e la logica OOUX ribaltata: la <em>relazione</em> al centro, non gli oggetti.</p>
+          <span class="go">Entra al Tavolo &rarr;</span>
+        </a>
+        <a class="card hover toc-card reveal" href="02-moneta.html">
+          <div class="num">02</div>
+          <h3>La Moneta</h3>
+          <p class="soft" style="font-size:0.93rem;">La difficolta' come valuta, Maia come avversario, il <em>drill_value</em> reso numero. Grafici veri. Perche' nessuno fa cosi'.</p>
+          <span class="go">Vedi i numeri &rarr;</span>
+        </a>
+        <a class="card hover toc-card reveal" href="03-prova.html">
+          <div class="num">03</div>
+          <h3>La Prova</h3>
+          <p class="soft" style="font-size:0.93rem;">Il flusso "Sediamoci", la prova che stai diventando il giocatore target, il mercato e l'ask: cosa costruiamo lunedi'.</p>
+          <span class="go">Arriva in fondo &rarr;</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHIUSURA · pitch esterno -->
+  <section class="band">
+    <div class="narrow center stack-lg reveal">
+      <span class="eyebrow honey">Il tavolo e' apparecchiato</span>
+      <h2 style="max-width:22ch; margin:0 auto;">
+        Il primo coach che ti misura contro chi vuoi diventare. E te lo dimostra, settimana dopo settimana.
+      </h2>
+      <p class="lead" style="margin:0 auto;">
+        Otto, dieci milioni di amatori giocano, perdono e tornano domani senza sapere cosa allenare.
+        Noi diamo loro la risposta, piu' la prova che stanno migliorando. E il motore non e' un sogno:
+        <strong>Maia gira gia' nel browser</strong>, zero server, costo marginale vicino allo zero.
+        Manca solo riempire il tavolo.
+      </p>
+
+      <div class="grid grid-3" style="margin-top: 6px; width:100%;">
+        <div class="stat center" style="align-items:center;">
+          <span class="n tw">8-10M</span><span class="k">amatori 1000-1800 da raggiungere</span>
+        </div>
+        <div class="stat center" style="align-items:center;">
+          <span class="n honey">8&nbsp;&euro;</span><span class="k">al mese, payback sotto il mese</span>
+        </div>
+        <div class="stat center" style="align-items:center;">
+          <span class="n good">oggi</span><span class="k">Maia nel browser, non una roadmap</span>
+        </div>
+      </div>
+
+      <p class="nonno" style="border:none; padding:0; margin: 10px auto 0; max-width: 26ch; font-size: clamp(1.4rem, 3.2vw, 2rem);">
+        Il tavolo e' pronto. Manca solo sederti.
+      </p>
+      <div class="faint mono" style="font-size:0.8rem; letter-spacing:0.08em;">il Tavolo del Nonno &middot; 2026</div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <div class="pager">
+    <span class="faint" style="font-size:0.85rem;">il Tavolo del Nonno &middot; pitch interno</span>
+    <a class="next" href="01-anima.html"><span class="lbl">Capitolo 01</span><span class="t">L'Anima &rarr;</span></a>
+  </div>
+</footer>
+
+<script src="assets/pitch.js"></script>
+</body>
+</html>

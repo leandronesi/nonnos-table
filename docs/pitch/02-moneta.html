@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>La Moneta · il Tavolo del Nonno</title>
+<link rel="stylesheet" href="assets/pitch.css">
+<style>
+  /* Tocchi specifici del capitolo (nessun colore/token ridefinito) */
+  .lede-num { display:grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 720px){ .lede-num { grid-template-columns: 1fr; } }
+
+  /* griglia card-Momento: board a sinistra, lettura a destra */
+  .moment { display:grid; grid-template-columns: 220px 1fr; gap: 28px; align-items:center; }
+  @media (max-width: 720px){ .moment { grid-template-columns: 1fr; } }
+  .moment .board { width: 100%; max-width: 220px; }
+  /* caselle in evidenza dentro la mini scacchiera */
+  .board i.hl-from { background: color-mix(in srgb, var(--twilight) 38%, #2a2f4e); }
+  .board i.hl-to   { background: color-mix(in srgb, var(--honey) 30%, #161a30); }
+
+  /* etichetta di grafico (riga sopra al chart) */
+  .chart-cap { font-family: var(--font-body); font-weight:700; font-size:0.72rem; letter-spacing:0.14em; text-transform:uppercase; color: var(--muted); margin-bottom: 12px; }
+  .chart-note { font-size: 0.92rem; color: var(--paper-soft); margin-top: 14px; max-width: 60ch; }
+  .chart-note b { color: var(--honey-soft); font-weight: 700; }
+
+  /* mini riga "ancora" dentro lo screen */
+  .anchor-row { display:grid; grid-template-columns: 1fr auto; gap: 12px; align-items:center; padding: 12px 0; border-top: 1px solid var(--line); }
+  .anchor-row:first-child { border-top: none; }
+  .anchor-row .nm { font-weight: 600; color: var(--paper); }
+  .anchor-row .meta { font-size: 0.8rem; color: var(--muted); }
+  .up { font-family: var(--font-mono); font-weight: 700; color: var(--honey-soft); }
+
+  /* fascia tempo (velocità) */
+  .speed-row { display:grid; grid-template-columns: 96px 1fr 78px; gap: 14px; align-items:center; padding: 10px 0; }
+  .speed-row .tlbl { font-family: var(--font-mono); font-size: 0.82rem; color: var(--paper-soft); }
+  .speed-row .pct  { font-family: var(--font-mono); font-weight: 700; text-align: right; }
+
+  /* ply-table repertorio */
+  .ply { display:grid; grid-template-columns: 64px 1fr auto; gap: 12px; align-items:center; padding: 9px 0; border-top: 1px solid var(--line); font-size: 0.9rem; }
+  .ply:first-child { border-top: none; }
+  .ply .pp { font-family: var(--font-mono); color: var(--muted); }
+
+  .legend-mine i  { background: var(--twilight); }
+  .legend-tgt  i  { background: var(--honey); }
+  .legend-1240 i  { background: var(--twilight-soft); }
+  .legend-avoid i { background: var(--danger); }
+</style>
+</head>
+<body>
+
+<nav class="topnav"><div class="inner">
+  <a class="brand" href="index.html">il Tavolo del <span class="o">Nonno</span></a>
+  <div class="links">
+    <a href="index.html">Copertina</a>
+    <a href="01-anima.html">L'Anima</a>
+    <a href="02-moneta.html">La Moneta</a>
+    <a href="03-prova.html">La Prova</a>
+  </div>
+</div></nav>
+
+<main>
+
+  <!-- ============================================================
+       APERTURA CAPITOLO
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="reveal stack">
+        <span class="eyebrow honey">Capitolo 2 · La Moneta</span>
+        <h1>Tutti contano gli errori.<br>Noi pesiamo quelli che <span class="honey">potevi evitare</span>.</h1>
+        <p class="lead">
+          Chess.com, Aimchess, Lichess ti dicono quanti errori hai fatto, poi ti lasciano
+          interpretare. Numero grosso, zero direzione. Qui la nostra unita' di misura non e'
+          "hai sbagliato", e': <strong>questa la trova chi vuoi diventare, tu ancora no</strong>.
+          La difficolta' della posizione e' la moneta: ogni metrica pesata per quanto era
+          difficile <em>al tuo livello</em>.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       BEAT 1 · TESI: la difficolta' e' la moneta
+       Stesso campione, riletto per difficolta'. Tu vs 1240 vs 1500.
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="reveal stack" style="margin-bottom: 36px;">
+        <span class="eyebrow">La tesi</span>
+        <h2>Lo stesso campione, riletto per difficolta'</h2>
+        <p class="lead">
+          Ultime <span class="mono">100</span> partite. <span class="mono">312</span> posizioni
+          critiche. <span class="mono">61</span> errori gravi. Difficolta' media
+          <span class="mono">0.32</span>. Finora questo era un mucchio di numeri. Adesso ci mettiamo
+          accanto chi sei tu e chi vuoi diventare, <em>sullo stesso identico campione</em>.
+        </p>
+      </div>
+
+      <div class="grid grid-2 reveal" style="align-items: stretch;">
+
+        <!-- Grafico: tu vs 1240 vs 1500, stesso campione -->
+        <div class="card s2 pad-lg">
+          <div class="chart-cap">Errori sullo stesso campione di 312 posizioni</div>
+          <svg class="chart" viewBox="0 0 480 210" role="img" aria-label="Tu 61 errori, un 1240 47, un 1500 28 sullo stesso campione">
+            <!-- assi impliciti, barre orizzontali -->
+            <!-- riga TU -->
+            <text x="0" y="34" font-size="12" fill="#b6bcd6">tu, oggi · 1240</text>
+            <rect class="bar-track" x="0" y="42" width="480" height="26" rx="6"></rect>
+            <rect x="0" y="42" width="480" height="26" rx="6" fill="#7c5cff"></rect>
+            <text x="466" y="59" font-size="13" font-weight="700" fill="#eef0fa" text-anchor="end">61 errori</text>
+
+            <!-- riga un 1240 medio -->
+            <text x="0" y="98" font-size="12" fill="#b6bcd6">un 1240 medio</text>
+            <rect class="bar-track" x="0" y="106" width="480" height="26" rx="6"></rect>
+            <rect x="0" y="106" width="370" height="26" rx="6" fill="#a18bff"></rect>
+            <text x="356" y="123" font-size="13" font-weight="700" fill="#0a0d1c" text-anchor="end">47</text>
+
+            <!-- riga un 1500 (target) -->
+            <text x="0" y="162" font-size="12" fill="#ffd877">un 1500 (il tuo obiettivo)</text>
+            <rect class="bar-track" x="0" y="170" width="480" height="26" rx="6"></rect>
+            <rect class="bar-target" x="0" y="170" width="220" height="26" rx="6"></rect>
+            <text x="206" y="187" font-size="13" font-weight="700" fill="#0a0d1c" text-anchor="end">28</text>
+          </svg>
+          <div class="legend" style="margin-top:14px;">
+            <span class="legend-mine"><i></i>tu (1240)</span>
+            <span class="legend-1240"><i></i>la media al tuo punteggio</span>
+            <span class="legend-tgt"><i></i>il livello che vuoi</span>
+          </div>
+          <p class="chart-note">
+            <span class="nonno" style="border:none; padding:0; font-size:1rem; font-family:var(--font-body); font-weight:400; color:var(--paper-soft);">
+            Su queste posizioni un 1500 ne sbaglia <b>28</b>, tu <b>61</b>. La differenza,
+            <b>33 errori</b>, non sono "posizioni difficili": sono mosse che chi vuoi diventare trova.
+            Quello e' il tuo gap, ed e' il numero che facciamo scendere.</span>
+          </p>
+        </div>
+
+        <!-- Da numero vuoto a numero che agisce -->
+        <div class="card s2 pad-lg stack">
+          <div class="chart-cap">Da numero vuoto a numero che agisce</div>
+
+          <div class="between" style="align-items:center;">
+            <div class="stat">
+              <span class="n muted">244</span>
+              <span class="k">"errori evitabili" alla vecchia maniera</span>
+            </div>
+            <span class="mono muted" style="font-size:1.4rem;">&rarr;</span>
+            <div class="stat">
+              <span class="n honey">33</span>
+              <span class="k">errori evitabili verso il 1500</span>
+            </div>
+          </div>
+
+          <hr class="rule" style="margin: 18px 0;">
+
+          <p class="soft" style="max-width:none;">
+            <span class="mono">244</span> non ti dice cosa fare: non sai se sono mosse impossibili
+            o sviste banali. <span class="mono">33</span> e' azionabile: e' la distanza esatta,
+            su questo campione, fra te e chi giocava al tuo posto a <span class="honey mono">1500</span>.
+            Chiudine un terzo e l'hai gia' visto, in queste 100 partite, salire.
+          </p>
+
+          <div class="row" style="gap:10px;">
+            <span class="chip">campione fisso · 312 pos.</span>
+            <span class="chip">difficolta' media 0.32</span>
+            <span class="chip honey">gap target · 33</span>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="nonno reveal" style="margin-top: 40px;">
+        <span class="who">Nonno dice</span>
+        Il problema non sono le posizioni difficili, li' fai quello che puoi. E' in quelle che
+        <b>potevi chiudere</b>. Un mucchio da 244 non si allena. Trentatre' errori verso il 1500, si'.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       BEAT 2 · MAIA, L'AVVERSARIO VIVENTE
+       Il grafico-firma: tu 34% / un 1500 67% sulla stessa posizione.
+       Usiamo la DISTRIBUZIONE, non l'argmax.
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="reveal stack" style="margin-bottom: 36px;">
+        <span class="eyebrow">Il benchmark vivente</span>
+        <h2>Maia non e' un giudice.<br>E' l'avversario calibrato.</h2>
+        <p class="lead">
+          Stockfish dice qual e' la mossa giusta (la verita'). Maia dice
+          <strong>quante probabilita' c'erano che la trovassi tu, e che la trovasse un 1500</strong>,
+          nella stessa posizione. Non un "si'/no": una probabilita'. E' quella distribuzione il dato,
+          non il semplice "qual e' la mossa piu' probabile".
+        </p>
+      </div>
+
+      <div class="grid grid-2 reveal" style="align-items:stretch;">
+
+        <!-- Grafico-firma: tu 34% vs 1500 67% -->
+        <div class="card pad-lg">
+          <svg class="chart" viewBox="0 0 480 150" role="img" aria-label="Pezzo in presa: tu 34 percento, un 1500 67 percento">
+            <text x="0" y="16" font-size="11" fill="#717892">PEZZO IN PRESA · TROVI LA MOSSA GIUSTA</text>
+
+            <rect class="bar-track" x="0" y="38" width="480" height="28" rx="7"></rect>
+            <rect class="bar-mine"  x="0" y="38" width="163" height="28" rx="7"></rect>
+            <text x="175" y="57" font-size="14" font-weight="700" fill="#a18bff">tu 34%</text>
+
+            <rect class="bar-track" x="0" y="92" width="480" height="28" rx="7"></rect>
+            <rect class="bar-target" x="0" y="92" width="322" height="28" rx="7"></rect>
+            <text x="334" y="111" font-size="14" font-weight="700" fill="#ffd877">un 1500: 67%</text>
+
+            <!-- delta marker -->
+            <line x1="163" y1="34" x2="163" y2="124" stroke="#2a3158" stroke-width="1" stroke-dasharray="3 3"></line>
+            <line x1="322" y1="34" x2="322" y2="124" stroke="#2a3158" stroke-width="1" stroke-dasharray="3 3"></line>
+            <text x="243" y="140" font-size="11" fill="#717892" text-anchor="middle">il gap = drill_value 0.33</text>
+          </svg>
+          <p class="chart-note">
+            <span class="nonno" style="border:none; padding:0; font-size:1rem; font-family:var(--font-body); font-weight:400; color:var(--paper-soft);">
+            Su due dei tuoi pezzi in presa su tre, un 1500 muove giusto. Tu uno su tre. Non sei tu
+            che "sbagli sempre": sei tu <b>33 punti percentuali sotto</b> chi vuoi diventare, qui.</span>
+          </p>
+        </div>
+
+        <!-- La distribuzione, non l'argmax -->
+        <div class="card s2 pad-lg stack">
+          <div class="chart-cap">Perche' la distribuzione e non solo la prima mossa</div>
+          <svg class="chart" viewBox="0 0 480 168" role="img" aria-label="Distribuzione Maia delle mosse candidate, tu contro un 1500">
+            <!-- 4 candidate, due profili: mine (twilight) e target (honey) -->
+            <!-- assi -->
+            <line x1="0" y1="140" x2="480" y2="140" class="axis"></line>
+            <!-- gruppi -->
+            <!-- Txc4 (la giusta) -->
+            <rect x="20"  y="70"  width="34" height="70"  rx="3" fill="#7c5cff"></rect>
+            <rect x="58"  y="44"  width="34" height="96"  rx="3" fill="#f6c64a"></rect>
+            <text x="56" y="156" font-size="10" fill="#b6bcd6" text-anchor="middle">Txc4 (giusta)</text>
+            <!-- Cf6 -->
+            <rect x="150" y="100" width="34" height="40" rx="3" fill="#7c5cff"></rect>
+            <rect x="188" y="118" width="34" height="22" rx="3" fill="#f6c64a"></rect>
+            <text x="186" y="156" font-size="10" fill="#717892" text-anchor="middle">Cf6</text>
+            <!-- a5 -->
+            <rect x="280" y="112" width="34" height="28" rx="3" fill="#7c5cff"></rect>
+            <rect x="318" y="124" width="34" height="16" rx="3" fill="#f6c64a"></rect>
+            <text x="316" y="156" font-size="10" fill="#717892" text-anchor="middle">a5</text>
+            <!-- Dd7 -->
+            <rect x="410" y="120" width="34" height="20" rx="3" fill="#7c5cff"></rect>
+            <rect x="448" y="130" width="22" height="10" rx="3" fill="#f6c64a"></rect>
+            <text x="436" y="156" font-size="10" fill="#717892" text-anchor="middle">Dd7</text>
+          </svg>
+          <div class="legend">
+            <span class="legend-mine"><i></i>quanto e' probabile per te</span>
+            <span class="legend-tgt"><i></i>quanto per un 1500</span>
+          </div>
+          <p class="soft" style="max-width:none;">
+            Gli altri leggono solo "la mossa piu' probabile" e buttano via il resto. Noi teniamo
+            <strong>l'intera curva</strong>: la giusta e' al <span class="mono">34%</span> per te e al
+            <span class="honey mono">67%</span> per il target, ma vediamo anche dove vanno le tue mani
+            quando sbagli. E' li' che nasce ogni numero del prodotto.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       BEAT 3 · drill_value reso numero su UNA posizione concreta
+       card-Momento: mini scacchiera + lettura.
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="reveal stack" style="margin-bottom: 36px;">
+        <span class="eyebrow">Un momento, da vicino</span>
+        <h2>"Errore grave" non basta.<br>Questo era <span class="honey">evitabile al tuo livello</span>.</h2>
+        <p class="lead">
+          Prendi una posizione vera delle tue ultime 100 partite. La differenza fra un errore qualsiasi
+          e un errore che ti costa punti la dice un solo numero: <strong>drill_value</strong>, quanto piu'
+          probabile era che la trovasse chi vuoi diventare, rispetto a te.
+        </p>
+      </div>
+
+      <div class="card s2 pad-lg reveal">
+        <div class="moment">
+          <!-- mini scacchiera 8x8: alternanza l/d, due caselle evidenziate (from/to) -->
+          <div class="board" role="img" aria-label="Posizione: pezzo in presa, casa di partenza e di arrivo evidenziate">
+            <!-- riga 8 --><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i>
+            <!-- riga 7 --><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i>
+            <!-- riga 6 --><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i>
+            <!-- riga 5 --><i class="d"></i><i class="l"></i><i class="d"></i><i class="l hl-to"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i>
+            <!-- riga 4 --><i class="l"></i><i class="d"></i><i class="l hl-from"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i>
+            <!-- riga 3 --><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i>
+            <!-- riga 2 --><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i>
+            <!-- riga 1 --><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i>
+          </div>
+
+          <div class="stack">
+            <div class="row" style="gap:10px;">
+              <span class="chip tw">Pezzo in presa</span>
+              <span class="chip">vs un 1180 · mossa 24</span>
+              <span class="chip warn">pensato 6s</span>
+            </div>
+
+            <p class="soft" style="max-width:none;">
+              Avevi la torre che catturava in <span class="mono">c4</span> e chiudeva. L'hai vista in
+              <span class="mono">6</span> secondi e hai mosso altro, lasciando il pezzo in presa.
+              La verita' di Stockfish: <span class="mono">Txc4</span>. Quanto era trovabile?
+            </p>
+
+            <!-- drill_value reso esplicito -->
+            <div class="between" style="align-items:flex-end; gap: 14px; flex-wrap:wrap;">
+              <div class="stat">
+                <span class="n tw">34%</span>
+                <span class="k">la trovavi tu (p_maia_mine_top)</span>
+              </div>
+              <div class="stat">
+                <span class="n honey">67%</span>
+                <span class="k">la trova un 1500 (p_maia_target_top)</span>
+              </div>
+              <div class="stat">
+                <span class="n honey">0.33</span>
+                <span class="k">drill_value = la moneta</span>
+              </div>
+            </div>
+
+            <hr class="rule" style="margin: 6px 0;">
+
+            <p class="soft" style="max-width:none;">
+              <strong>Errore grave?</strong> Lo sarebbe per chiunque. <strong>Evitabile per te?</strong>
+              Si': un 1500 la chiude due volte su tre, e tu non sei lontano.
+              <span class="honey">drill_value 0.33</span> vuol dire: e' qui che recuperi punti, non
+              nelle posizioni dove anche il target tentenna.
+            </p>
+          </div>
+        </div>
+
+        <div class="nonno" style="margin-top: 28px;">
+          <span class="who">Nonno dice</span>
+          Questa la trova un 1500 il <b>67%</b> delle volte, tu il <b>34%</b>. Sei a meta' strada,
+          non all'inizio. Una settimana su questi e i punti arrivano. Sediamoci.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       BEAT 4 · LE VISTE RI-IMMAGINATE (mockup in .screen)
+       (a) testata Tavolo pesata · (b) bivio vs 1500 · (c) Velocita' · (d) Repertorio
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="reveal stack" style="margin-bottom: 40px;">
+        <span class="eyebrow">Le viste, ri-immaginate</span>
+        <h2>Come la moneta cambia ogni schermo</h2>
+        <p class="lead">
+          Non un'altra dashboard. Le superfici del prodotto (Tavolo, Sessione, Quaderno) lette
+          <strong>per valore evitabile verso il target</strong>, non per conteggi rumorosi.
+          Quattro assaggi.
+        </p>
+      </div>
+
+      <div class="grid grid-2" style="gap: 28px;">
+
+        <!-- (a) Testata del Tavolo pesata per difficolta' -->
+        <div class="reveal stack">
+          <h3>(a) La testata del Tavolo, pesata</h3>
+          <div class="screen">
+            <div class="bar"><i></i><i></i><i></i></div>
+            <div class="stack" style="padding: 6px 10px 12px;">
+              <div class="between">
+                <span class="eyebrow muted">Obiettivo dichiarato</span>
+                <span class="chip warn">in ritardo · recuperabile</span>
+              </div>
+              <div class="between" style="align-items:baseline;">
+                <span class="display" style="font-size: clamp(1.8rem, 5vw, 2.6rem);">
+                  da <span class="mono">1240</span> a <span class="honey mono">1500</span>
+                </span>
+                <span class="mono soft" style="font-size:0.95rem;">90 giorni</span>
+              </div>
+              <p class="soft" style="margin-top:6px; max-width:none;">
+                Non "244 errori". Il numero in testata e':
+                <strong class="honey">33 errori evitabili</strong> verso il 1500, difficolta' media
+                <span class="mono">0.32</span>. Sotto, una riga: <span class="mono">+35</span> in 90 giorni,
+                serve <span class="mono">+2.9</span>/sett, vai a <span class="mono">+1.2</span>.
+              </p>
+            </div>
+          </div>
+          <p class="chart-note">
+            <b>Nonno:</b> appena entri, in alto, non un mucchio di statistiche: la distanza dal 1500
+            e quanto e' fatta di cose tue.
+          </p>
+        </div>
+
+        <!-- (b) Gioca il bivio contro un 1500 -->
+        <div class="reveal stack">
+          <h3>(b) Gioca il bivio contro un 1500</h3>
+          <div class="screen">
+            <div class="bar"><i></i><i></i><i></i></div>
+            <div class="stack" style="padding: 6px 10px 12px;">
+              <span class="chip tw">Avversario calibrato · 1500</span>
+              <p class="soft" style="max-width:none;">
+                Riprendi la posizione del pezzo in presa. Non un puzzle astratto: <strong>la rigiochi
+                contro chi vuoi diventare</strong>, dal bivio reale che hai vissuto.
+              </p>
+              <div class="flow" style="margin-top:4px;">
+                <div class="step" style="grid-template-columns: 32px 1fr; padding:10px 0;">
+                  <span class="dot" style="width:30px;height:30px;font-size:0.85rem;">1</span>
+                  <div><strong>Trovi la mossa</strong><br><span class="muted" style="font-size:0.85rem;">senza aiuto, dalla tua posizione</span></div>
+                </div>
+                <div class="step" style="grid-template-columns: 32px 1fr; padding:10px 0;">
+                  <span class="dot honey" style="width:30px;height:30px;font-size:0.85rem;">2</span>
+                  <div><strong>Il 1500 risponde</strong><br><span class="muted" style="font-size:0.85rem;">Maia al target, non Stockfish da muro</span></div>
+                </div>
+              </div>
+              <button class="btn btn-primary" style="margin-top:8px; padding:11px 20px; font-size:0.92rem;">Gioca il bivio &rarr;</button>
+            </div>
+          </div>
+          <p class="chart-note">
+            <b>Nonno:</b> non ti faccio battere lo Stockfish, ti faccio battere il te' di domani.
+          </p>
+        </div>
+
+        <!-- (c) Velocita': barre per fascia di tempo + % evitabile -->
+        <div class="reveal stack">
+          <h3>(c) Velocita': dove la fretta ti costa</h3>
+          <div class="screen">
+            <div class="bar"><i></i><i></i><i></i></div>
+            <div class="stack" style="padding: 6px 10px 12px;">
+              <div class="chart-cap" style="margin-bottom:4px;">Errori per tempo speso sulla mossa</div>
+              <svg class="chart" viewBox="0 0 480 184" role="img" aria-label="Errori per fascia di tempo, con percentuale di errori evitabili">
+                <!-- 4 cluster barre, colore per volume errori, sotto la quota evitabile -->
+                <!-- cluster <8s -->
+                <rect x="14"  y="30"  width="86" height="86" rx="5" fill="#7c5cff"></rect>
+                <text x="57" y="22" font-size="10" fill="#b6bcd6" text-anchor="middle">&lt; 8s</text>
+                <rect x="14"  y="116" width="86" height="22" rx="4" fill="#f43f5e"></rect>
+                <text x="57" y="131" font-size="11" font-weight="700" fill="#0a0d1c" text-anchor="middle">41%</text>
+                <text x="57" y="158" font-size="9" fill="#717892" text-anchor="middle">evitabili</text>
+                <!-- cluster 8-15s -->
+                <rect x="130" y="56"  width="86" height="60" rx="5" fill="#7c5cff"></rect>
+                <text x="173" y="48" font-size="10" fill="#b6bcd6" text-anchor="middle">8 - 15s</text>
+                <rect x="130" y="116" width="60" height="22" rx="4" fill="#f43f5e"></rect>
+                <text x="160" y="131" font-size="11" font-weight="700" fill="#0a0d1c" text-anchor="middle">28%</text>
+                <!-- cluster 15-30s -->
+                <rect x="246" y="72"  width="86" height="44" rx="5" fill="#7c5cff"></rect>
+                <text x="289" y="64" font-size="10" fill="#b6bcd6" text-anchor="middle">15 - 30s</text>
+                <rect x="246" y="116" width="36" height="22" rx="4" fill="#f43f5e"></rect>
+                <text x="264" y="131" font-size="11" font-weight="700" fill="#0a0d1c" text-anchor="middle">19%</text>
+                <!-- cluster >30s -->
+                <rect x="362" y="86"  width="86" height="30" rx="5" fill="#7c5cff"></rect>
+                <text x="405" y="78" font-size="10" fill="#b6bcd6" text-anchor="middle">&gt; 30s</text>
+                <rect x="362" y="116" width="14" height="22" rx="4" fill="#f43f5e"></rect>
+                <text x="384" y="131" font-size="11" font-weight="700" fill="#717892" text-anchor="start">12%</text>
+                <!-- base -->
+                <line x1="0" y1="138" x2="480" y2="138" class="axis"></line>
+                <text x="0" y="176" font-size="10" fill="#717892">altezza barra viola = volume errori · barra rossa = quota evitabile</text>
+              </svg>
+            </div>
+          </div>
+          <p class="chart-note">
+            <b>Nonno:</b> sotto gli <span class="mono">8s</span> il <b>41%</b> degli errori era evitabile
+            al tuo livello. Oltre i <span class="mono">30s</span>, solo il <b>12%</b>: li' erano difficili
+            davvero, non colpa tua. La fretta, non gli scacchi.
+          </p>
+        </div>
+
+        <!-- (d) Repertorio pesato per valore evitabile -->
+        <div class="reveal stack">
+          <h3>(d) Repertorio, per punti persi (non per win%)</h3>
+          <div class="screen">
+            <div class="bar"><i></i><i></i><i></i></div>
+            <div class="stack" style="padding: 6px 10px 12px;">
+              <div class="between">
+                <span class="chip">Caro-Kann · nero · 14 partite</span>
+                <span class="up">11 punti persi</span>
+              </div>
+              <div class="chart-cap" style="margin-top:4px;">Punti evitabili persi, mossa per mossa</div>
+              <!-- ply table: dove si concentra la perdita -->
+              <div class="ply"><span class="pp">ply 4</span><span class="soft">teoria, tutto bene</span><span class="mono good">-0</span></div>
+              <div class="ply"><span class="pp">ply 6</span><span class="soft">struttura ancora solida</span><span class="mono">-1</span></div>
+              <div class="ply" style="background: color-mix(in srgb, var(--danger) 8%, transparent); border-radius:6px;">
+                <span class="pp" style="color:var(--danger);">ply 8</span>
+                <span class="soft">qui la struttura ti punisce</span>
+                <span class="mono bad">-7</span>
+              </div>
+              <div class="ply"><span class="pp">ply 10</span><span class="soft">strascico del ply 8</span><span class="mono">-3</span></div>
+            </div>
+          </div>
+          <p class="chart-note">
+            <b>Nonno:</b> il win% e' rumore, dipende da chi incontri. Qui guardiamo dove
+            <strong>tu</strong> perdi punti evitabili: <span class="mono">7</span> degli
+            <span class="mono">11</span> nascono al <span class="mono">ply 8</span>. Si lavora li'.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       BEAT 5 · E ORA E' REALE (hook)
+       Maia gira nel browser, zero-worker, gia' in questa build.
+       ============================================================ -->
+  <section class="band">
+    <div class="narrow">
+      <div class="reveal stack center">
+        <span class="eyebrow honey">E ora e' reale</span>
+        <h2>Il differenziatore non e' una promessa.<br>E' spedibile oggi.</h2>
+        <p class="lead" style="margin: 0 auto;">
+          La distribuzione di Maia, il benchmark calibrato al livello che vuoi diventare,
+          <strong>gira dentro il browser dell'utente</strong>. ONNX runtime su WebAssembly,
+          un Web Worker, modello in cache. <strong>Zero worker server-side</strong>, zero costo
+          per inferenza, zero attesa di backend. Gia' funzionante in questa build.
+        </p>
+        <div class="lede-num" style="margin-top: 14px; width:100%;">
+          <div class="stat center" style="align-items:center;">
+            <span class="n tw">~44<span style="font-size:1.1rem;"> MB</span></span>
+            <span class="k">modello Maia, scaricato una volta</span>
+          </div>
+          <div class="stat center" style="align-items:center;">
+            <span class="n tw">0</span>
+            <span class="k">worker server-side per l'analisi</span>
+          </div>
+          <div class="stat center" style="align-items:center;">
+            <span class="n good">oggi</span>
+            <span class="k">non roadmap: in questa build</span>
+          </div>
+        </div>
+        <p class="chart-note center" style="margin: 18px auto 0;">
+          <b>Nonno:</b> quello che ti racconto sul tuo gap col 1500, te lo calcolo qui, davanti a te,
+          senza mandare niente da nessuna parte.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       BEAT 6 · TABELLA CONFRONTO vs competitor
+       Onesti dove non siamo unici; chiari dove lo siamo.
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="reveal stack" style="margin-bottom: 32px;">
+        <span class="eyebrow">Il confronto, onesto</span>
+        <h2>Dove siamo gli unici a dire "si'"</h2>
+        <p class="lead">
+          Tante cose le fanno bene anche gli altri, e lo diciamo. Ma tre righe le fa
+          <strong>solo</strong> il Tavolo del Nonno, e sono quelle che contano: la difficolta' come moneta,
+          Maia come avversario continuo a piu' livelli, e l'allenamento dai TUOI errori graduati.
+        </p>
+      </div>
+
+      <div class="card reveal" style="padding: 8px 10px;">
+        <div class="table-scroll"><table class="cmp">
+          <thead>
+            <tr>
+              <th style="width:42%;">Cosa</th>
+              <th>Chess.com Insights</th>
+              <th>Aimchess</th>
+              <th>Lichess</th>
+              <th class="us">il Tavolo del Nonno</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Conta gli errori / ACPL</td>
+              <td class="yes">si'</td>
+              <td class="yes">si'</td>
+              <td class="yes">si'</td>
+              <td class="us">si'</td>
+            </tr>
+            <tr>
+              <td>Repertorio per apertura</td>
+              <td class="no">no</td>
+              <td class="yes">si'</td>
+              <td class="yes">base</td>
+              <td class="us">si'</td>
+            </tr>
+            <tr>
+              <td>Esercizi dai tuoi errori</td>
+              <td class="no">no</td>
+              <td class="yes">si'</td>
+              <td class="no">random</td>
+              <td class="us">si'</td>
+            </tr>
+            <tr style="background: color-mix(in srgb, var(--honey) 7%, transparent);">
+              <td><strong>ACPL pesato per difficolta'</strong></td>
+              <td class="no">no</td>
+              <td class="no">no</td>
+              <td class="no">no</td>
+              <td class="us"><span class="honey">solo noi</span></td>
+            </tr>
+            <tr style="background: color-mix(in srgb, var(--honey) 7%, transparent);">
+              <td><strong>Maia come benchmark continuo, multi-livello</strong></td>
+              <td class="no">no</td>
+              <td class="no">parziale</td>
+              <td class="no">no</td>
+              <td class="us"><span class="honey">solo noi</span></td>
+            </tr>
+            <tr style="background: color-mix(in srgb, var(--honey) 7%, transparent);">
+              <td><strong>Esercizi dai TUOI errori, graduati per difficolta'</strong></td>
+              <td class="no">no</td>
+              <td class="no">random</td>
+              <td class="no">random</td>
+              <td class="us"><span class="honey">solo noi</span></td>
+            </tr>
+          </tbody>
+        </table></div>
+      </div>
+
+      <div class="nonno reveal" style="margin-top: 36px;">
+        <span class="who">Nonno dice</span>
+        Gli altri ti mostrano i dati e ti lasciano da solo a capirli. Io ti dico
+        <b>questa la trova chi vuoi diventare, tu ancora no</b>, e ti porto li'. E' tutto qui.
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <div class="pager">
+    <a class="prev" href="01-anima.html">
+      <span class="lbl">&larr; Precedente</span>
+      <span class="t h3">L'Anima</span>
+    </a>
+    <a class="next" href="03-prova.html">
+      <span class="lbl">Successivo &rarr;</span>
+      <span class="t h3">La Prova</span>
+    </a>
+  </div>
+</footer>
+
+<script src="assets/pitch.js"></script>
+</body>
+</html>

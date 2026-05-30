@@ -1,13 +1,12 @@
-﻿import type { WeeklyTrend } from "../types";
+import type { WeeklyTrend } from "../types";
 
 /**
- * Trend a 7 giorni: confronto fra ultimi 7gg e i 7gg precedenti. Mostrato
- * a fine sessione come "ricompensa" e nella sezione sopra-piega del
- * cruscotto se la settimana è significativa.
+ * Trend a 7 giorni: confronto fra ultimi 7gg e i 7gg precedenti.
  *
- * Lettura: per ogni metrica, una freccia + numero. Verde = stai migliorando,
- * rosso = stai peggiorando. La direzione "buona" dipende dalla metrica
- * (ACPL: più basso = meglio. win_rate: più alto = meglio).
+ * Struttura a RIGHE (label a sinistra, numero mono a destra): robusta a qualsiasi
+ * larghezza, niente colonne strette che spaccano le label o troncano i valori.
+ * Stesso pattern di DecisionsCard. Verde = migliori, rosso = peggiori (la direzione
+ * "buona" dipende dalla metrica: ACPL piu' basso = meglio, win_rate piu' alto = meglio).
  */
 export function WeeklyTrendCard({ trend, title = "Settimana vs precedente" }: {
   trend: WeeklyTrend;
@@ -23,7 +22,7 @@ export function WeeklyTrendCard({ trend, title = "Settimana vs precedente" }: {
       <div className="surface surface-padded">
         <div className="label-eyebrow text-[color:var(--color-brand-soft)] mb-2">{title}</div>
         <p className="text-sm text-[color:var(--color-text-soft)]">
-          Servono almeno 3 partite per settimana per avere un confronto significativo.
+          Servono almeno 3 partite per settimana per un confronto significativo.
           Hai giocato {last.n_games} (ultimi 7gg) vs {prev.n_games} (settimana prima).
         </p>
       </div>
@@ -32,42 +31,42 @@ export function WeeklyTrendCard({ trend, title = "Settimana vs precedente" }: {
 
   return (
     <div className="surface surface-padded">
-      <div className="label-eyebrow text-[color:var(--color-brand-soft)] mb-3">{title}</div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Metric
+      <div className="label-eyebrow text-[color:var(--color-brand-soft)] mb-1">{title}</div>
+      <div className="flex flex-col">
+        <MetricRow
           label="Vittorie"
           value={`${Math.round((last.win_rate ?? 0) * 100)}%`}
           delta={d.win_rate}
-          deltaFmt={(x) => `${x > 0 ? "+" : ""}${Math.round(x * 100)}pt`}
+          deltaFmt={(x) => `${x > 0 ? "+" : ""}${Math.round(x * 100)}pp`}
           higherIsBetter
         />
-        <Metric
-          label="Precisione media"
-          value={String(last.avg_cp_loss)}
+        <MetricRow
+          label="Perdita media"
+          value={String(Math.round(last.avg_cp_loss))}
           delta={d.avg_cp_loss}
           deltaFmt={(x) => (x > 0 ? "+" : "") + Math.round(x)}
           higherIsBetter={false}
         />
-        <Metric
+        <MetricRow
           label="Errori gravi"
           value={String(last.n_blunders)}
           delta={d.n_blunders}
           deltaFmt={(x) => (x > 0 ? "+" : "") + Math.round(x)}
           higherIsBetter={false}
         />
-        <Metric
+        <MetricRow
           label="Partite"
           value={String(last.n_games)}
           delta={d.n_games}
           deltaFmt={(x) => (x > 0 ? "+" : "") + Math.round(x)}
-          higherIsBetter // più partite = più dati
+          higherIsBetter
         />
       </div>
     </div>
   );
 }
 
-function Metric({
+function MetricRow({
   label,
   value,
   delta,
@@ -82,23 +81,37 @@ function Metric({
 }) {
   const num = delta ?? 0;
   const isImprovement = num === 0 ? null : (num > 0) === higherIsBetter;
-  const tone =
+  const fg =
     isImprovement == null
-      ? { fg: "#cbd5e1" }
+      ? "var(--color-muted)"
       : isImprovement
-      ? { fg: "#86efac" }
-      : { fg: "#fda4af" };
+      ? "var(--color-ok)"
+      : "var(--color-danger)";
+
   return (
-    <div>
-      <div className="text-[10px] tracking-wider uppercase text-[color:var(--color-muted)]">{label}</div>
-      <div className="display-small mt-1 tabular-nums" style={{ color: "var(--color-text)" }}>
-        {value}
+    <div
+      className="flex items-center justify-between gap-4"
+      style={{ padding: "0.6rem 0", borderTop: "1px solid var(--color-line)" }}
+    >
+      <div className="text-sm" style={{ color: "var(--color-text-soft)" }}>
+        {label}
       </div>
-      {delta != null && (
-        <div className="text-xs mt-1 tabular-nums" style={{ color: tone.fg }}>
-          {deltaFmt(num)} {isImprovement === true ? "↑" : isImprovement === false ? "↓" : ""}
-        </div>
-      )}
+      <div className="flex items-baseline gap-2 shrink-0">
+        <span
+          className="mono tabular-nums"
+          style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--color-text)", lineHeight: 1 }}
+        >
+          {value}
+        </span>
+        {delta != null && (
+          <span
+            className="text-xs tabular-nums"
+            style={{ color: fg, minWidth: "3.4rem", textAlign: "right" }}
+          >
+            {deltaFmt(num)} {isImprovement === true ? "↑" : isImprovement === false ? "↓" : ""}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

@@ -1,0 +1,4081 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Non e' un LLM. E' un harness.</title>
+  <style>
+    /* =========================================================
+       Reset + base
+       ========================================================= */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      font-size: 18px;
+      line-height: 1.65;
+      color: #1a1a1a;
+      background: #fafaf7;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    code, pre, .mono {
+      font-family: "SF Mono", ui-monospace, "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+    }
+    h1, h2, h3, h4 {
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+      letter-spacing: -0.015em;
+      line-height: 1.2;
+    }
+
+    /* =========================================================
+       Layout: side nav + main column
+       ========================================================= */
+    .layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    /* Side nav */
+    .nav {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      padding: 48px 24px;
+      border-right: 1px solid #e5e3dc;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #c9c6bc transparent;
+    }
+    .nav::-webkit-scrollbar { width: 6px; }
+    .nav::-webkit-scrollbar-track { background: transparent; }
+    .nav::-webkit-scrollbar-thumb { background: #c9c6bc; border-radius: 3px; }
+    .nav-brand {
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #6e6a5e;
+      margin-bottom: 28px;
+    }
+    .nav ol {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .nav li {
+      margin: 0 0 14px 0;
+    }
+    .nav a {
+      display: block;
+      color: #4a4a44;
+      text-decoration: none;
+      padding: 6px 10px;
+      border-radius: 6px;
+      transition: background 160ms ease-out, color 160ms ease-out;
+    }
+    .nav a:hover { background: #efece2; color: #1a1a1a; }
+    .nav a.active { background: #1a1a1a; color: #fafaf7; }
+    .nav-part-label {
+      display: block;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #9a9685;
+      margin: 18px 10px 4px 10px;
+    }
+
+    /* Main column */
+    main {
+      padding: 0 64px;
+      max-width: 880px;
+    }
+
+    /* =========================================================
+       Hero
+       ========================================================= */
+    .hero {
+      padding: 120px 0 80px 0;
+      border-bottom: 1px solid #e5e3dc;
+      margin-bottom: 64px;
+    }
+    .hero-eyebrow {
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #6e6a5e;
+      margin-bottom: 16px;
+    }
+    .hero h1 {
+      font-size: 56px;
+      font-weight: 700;
+      margin: 0 0 24px 0;
+      letter-spacing: -0.03em;
+    }
+    .hero h1 .accent { color: #7c5cff; }
+    .hero p {
+      font-size: 22px;
+      line-height: 1.5;
+      color: #4a4a44;
+      margin: 0;
+      max-width: 640px;
+    }
+    .hero-meta {
+      margin-top: 40px;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+      font-size: 13px;
+      color: #6e6a5e;
+      display: flex;
+      gap: 24px;
+    }
+    .hero-meta span::before {
+      content: "·";
+      margin-right: 24px;
+      color: #c9c6bc;
+    }
+    .hero-meta span:first-child::before { content: none; margin-right: 0; }
+
+    /* =========================================================
+       Part divider
+       ========================================================= */
+    .part-divider {
+      padding: 80px 0 32px 0;
+      margin-top: 48px;
+      border-top: 1px solid #e5e3dc;
+    }
+    .part-divider-eyebrow {
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #9a9685;
+      margin-bottom: 12px;
+    }
+    .part-divider h2 {
+      font-size: 36px;
+      font-weight: 700;
+      margin: 0;
+      color: #1a1a1a;
+    }
+    .part-divider p {
+      margin-top: 16px;
+      color: #4a4a44;
+      font-size: 18px;
+      max-width: 600px;
+    }
+
+    /* =========================================================
+       Slide
+       ========================================================= */
+    .slide {
+      padding: 56px 0;
+      border-bottom: 1px solid #f0eee6;
+    }
+    .slide:last-of-type { border-bottom: none; }
+    .slide-num {
+      font-family: "SF Mono", ui-monospace, monospace;
+      font-size: 12px;
+      color: #9a9685;
+      letter-spacing: 0.08em;
+      margin-bottom: 16px;
+    }
+    .slide h1 {
+      font-size: 32px;
+      font-weight: 700;
+      margin: 0 0 12px 0;
+    }
+    .slide .slide-sub {
+      font-size: 20px;
+      color: #4a4a44;
+      margin: 0 0 32px 0;
+      font-style: italic;
+      max-width: 680px;
+    }
+    .slide-body {
+      max-width: 720px;
+    }
+    .slide-body p {
+      margin: 0 0 18px 0;
+    }
+    .slide-body p:last-child { margin-bottom: 0; }
+    .slide-body strong { color: #1a1a1a; font-weight: 600; }
+    .slide-body em { color: #7c5cff; font-style: normal; }
+
+    /* Lists */
+    .slide-body ul, .slide-body ol {
+      padding-left: 24px;
+      margin: 0 0 18px 0;
+    }
+    .slide-body li { margin: 6px 0; }
+
+    /* Pull-quote */
+    .pull {
+      border-left: 3px solid #7c5cff;
+      padding: 8px 0 8px 20px;
+      margin: 24px 0;
+      font-size: 22px;
+      line-height: 1.45;
+      color: #1a1a1a;
+      font-weight: 500;
+    }
+
+    /* Note box */
+    .note {
+      background: #f3f1e8;
+      padding: 16px 20px;
+      border-radius: 6px;
+      margin: 24px 0;
+      font-size: 16px;
+      color: #4a4a44;
+    }
+    .note strong { color: #1a1a1a; }
+
+    /* Code snippet */
+    .code {
+      background: #1a1a1a;
+      color: #e5e3dc;
+      padding: 20px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 1.7;
+      overflow-x: auto;
+      margin: 20px 0;
+      white-space: pre;
+      tab-size: 2;
+    }
+    .code .comment { color: #888070; }
+    .code .key { color: #7c5cff; }
+    .code .str { color: #f6c64a; }
+
+    /* Placeholder content marker */
+    .placeholder {
+      background: #fff;
+      border: 2px dashed #c9c6bc;
+      border-radius: 8px;
+      padding: 32px;
+      margin: 24px 0;
+      color: #6e6a5e;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+    }
+    .placeholder-label {
+      display: inline-block;
+      background: #1a1a1a;
+      color: #fafaf7;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .placeholder-label.accent { background: #7c5cff; }
+    .placeholder p { margin: 8px 0; }
+    .placeholder ul { margin: 8px 0; padding-left: 20px; }
+
+    /* Visualizer placeholder (slide 9 + 11) */
+    .visualizer {
+      background: #1a1a1a;
+      color: #e5e3dc;
+      border-radius: 12px;
+      padding: 48px;
+      margin: 32px 0;
+      min-height: 360px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+    .visualizer-label {
+      display: inline-block;
+      background: #7c5cff;
+      color: #fff;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    .visualizer h3 {
+      color: #fafaf7;
+      font-size: 22px;
+      margin: 0 0 16px 0;
+    }
+    .visualizer p {
+      color: #c9c6bc;
+      font-size: 15px;
+      max-width: 520px;
+      margin: 0 0 8px 0;
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    }
+    .visualizer .vz-todo {
+      margin-top: 24px;
+      padding: 12px 20px;
+      background: rgba(124, 92, 255, 0.15);
+      border-radius: 6px;
+      font-size: 13px;
+      color: #b8a8ff;
+    }
+
+    /* =========================================================
+       Slide-specific components
+       ========================================================= */
+
+    /* Mental model diagram (slide 2) */
+    .diagram-mental {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 32px 0;
+      flex-wrap: wrap;
+    }
+    .dm-box {
+      flex: 0 0 auto;
+      min-width: 100px;
+      padding: 24px 28px;
+      background: #fff;
+      border: 1px solid #1a1a1a;
+      border-radius: 8px;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+      font-weight: 600;
+      text-align: center;
+    }
+    .dm-box-opaque {
+      background: #1a1a1a;
+      color: #fafaf7;
+      font-size: 32px;
+      min-width: 140px;
+    }
+    .dm-arrow {
+      font-size: 24px;
+      color: #6e6a5e;
+    }
+
+    /* Timeline (slide 3) */
+    .timeline {
+      list-style: none;
+      padding: 0;
+      margin: 28px 0;
+      border-left: 2px solid #c9c6bc;
+    }
+    .timeline li {
+      position: relative;
+      padding: 12px 0 12px 28px;
+      margin: 0;
+    }
+    .timeline li::before {
+      content: "";
+      position: absolute;
+      left: -7px;
+      top: 22px;
+      width: 12px;
+      height: 12px;
+      background: #7c5cff;
+      border-radius: 50%;
+      border: 2px solid #fafaf7;
+    }
+    .tl-when {
+      display: block;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #7c5cff;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .tl-what {
+      display: block;
+      color: #2a2a2a;
+    }
+
+    /* Formula (slide 4) */
+    .formula {
+      font-family: "SF Mono", ui-monospace, monospace;
+      font-size: 32px;
+      text-align: center;
+      padding: 36px 24px;
+      background: #1a1a1a;
+      color: #fafaf7;
+      border-radius: 10px;
+      margin: 28px 0;
+      letter-spacing: -0.01em;
+    }
+    .formula .formula-in,
+    .formula .formula-out {
+      color: #7c5cff;
+      font-weight: 700;
+    }
+    .formula .formula-out { color: #f6c64a; }
+
+    /* Harness grid (slide 6) */
+    .harness-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin: 28px 0;
+    }
+    .hg-item {
+      padding: 20px;
+      background: #fff;
+      border: 1px solid #e5e3dc;
+      border-radius: 8px;
+      position: relative;
+    }
+    .hg-num {
+      position: absolute;
+      top: -10px;
+      left: -10px;
+      width: 28px;
+      height: 28px;
+      background: #7c5cff;
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .hg-name {
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+      font-weight: 700;
+      font-size: 16px;
+      margin-bottom: 8px;
+      color: #1a1a1a;
+    }
+    .hg-desc {
+      font-size: 14px;
+      color: #4a4a44;
+      line-height: 1.5;
+    }
+    .hg-desc code {
+      background: #f3f1e8;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 13px;
+    }
+
+    /* Analogy split (slide 7) */
+    .analogy-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 28px 0;
+    }
+    .as-half {
+      padding: 28px 24px;
+      border-radius: 10px;
+      text-align: center;
+    }
+    .as-half-engine { background: #1a1a1a; color: #fafaf7; }
+    .as-half-car { background: #7c5cff; color: #fff; }
+    .as-label {
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      opacity: 0.7;
+      margin-bottom: 8px;
+    }
+    .as-thing {
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .as-detail {
+      font-size: 15px;
+      line-height: 1.5;
+      opacity: 0.9;
+    }
+    .as-detail em {
+      color: inherit;
+      font-style: italic;
+      opacity: 1;
+    }
+    @media (max-width: 720px) {
+      .analogy-split { grid-template-columns: 1fr; }
+    }
+
+    /* Turn steps (slide 8) */
+    .turn-steps {
+      list-style: none;
+      padding: 0;
+      margin: 28px 0;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    .turn-steps li {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      padding: 16px 20px;
+      background: #fff;
+      border: 1px solid #e5e3dc;
+      border-radius: 8px;
+      margin: 0;
+    }
+    .ts-num {
+      flex: 0 0 auto;
+      font-family: "SF Mono", ui-monospace, monospace;
+      font-size: 20px;
+      font-weight: 700;
+      color: #7c5cff;
+      min-width: 44px;
+    }
+    .ts-name {
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+      font-weight: 700;
+      font-size: 16px;
+      color: #1a1a1a;
+      margin-bottom: 4px;
+    }
+    .ts-desc {
+      font-size: 15px;
+      color: #4a4a44;
+      line-height: 1.5;
+    }
+    .ts-desc code {
+      background: #f3f1e8;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 13px;
+    }
+
+    /* Recap (slide 10) */
+    .recap {
+      counter-reset: r;
+      list-style: none;
+      padding: 0;
+      margin: 28px 0;
+    }
+    .recap li {
+      counter-increment: r;
+      padding: 16px 16px 16px 56px;
+      margin: 0 0 10px 0;
+      background: #fff;
+      border: 1px solid #e5e3dc;
+      border-radius: 8px;
+      position: relative;
+    }
+    .recap li::before {
+      content: counter(r);
+      position: absolute;
+      left: 16px;
+      top: 14px;
+      width: 28px;
+      height: 28px;
+      background: #1a1a1a;
+      color: #fafaf7;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    /* "Ah" frame (slide 12) */
+    .ah-frame {
+      background: #1a1a1a;
+      color: #fafaf7;
+      padding: 64px 40px;
+      border-radius: 12px;
+      margin: 24px 0 32px 0;
+      text-align: center;
+    }
+    .ah-text {
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+      font-size: 28px;
+      font-weight: 600;
+      line-height: 1.4;
+      margin: 0;
+      color: #fafaf7;
+    }
+    .ah-emph {
+      color: #f6c64a;
+      font-weight: 700;
+    }
+
+    /* Survive list (slide 13/14) */
+    .survive-list {
+      display: grid;
+      gap: 12px;
+      margin: 28px 0;
+    }
+    .sv-item {
+      display: grid;
+      grid-template-columns: 36px 1fr;
+      grid-template-rows: auto auto;
+      gap: 4px 16px;
+      padding: 16px 20px;
+      background: #fff;
+      border: 1px solid #e5e3dc;
+      border-radius: 8px;
+      align-items: start;
+    }
+    .sv-icon {
+      grid-row: 1 / span 2;
+      grid-column: 1;
+      align-self: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+    }
+    .sv-positive .sv-icon { background: #ecf6ec; color: #2c8a3e; }
+    .sv-negative .sv-icon { background: #fbecec; color: #c4322a; }
+    .sv-name {
+      grid-row: 1; grid-column: 2;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      color: #1a1a1a;
+    }
+    .sv-desc {
+      grid-row: 2; grid-column: 2;
+      font-size: 14px;
+      color: #4a4a44;
+      line-height: 1.5;
+    }
+    .sv-desc code {
+      background: #f3f1e8;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+
+    /* =========================================================
+       VISUALIZER (slide 9 + 11) — il cuore del deck
+       ========================================================= */
+    .vz {
+      background: #1a1a1a;
+      border-radius: 14px;
+      padding: 28px;
+      margin: 28px 0;
+      color: #e5e3dc;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+    }
+    .vz-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .vz-tag {
+      display: inline-block;
+      background: #7c5cff;
+      color: #fff;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 700;
+      flex: 0 0 auto;
+    }
+    .vz-tag-accent { background: #f6c64a; color: #1a1a1a; }
+    .vz-prompt {
+      font-size: 14px;
+      color: #c9c6bc;
+      font-style: italic;
+    }
+
+    /* Stage: 2 colonne — actors a sx, filesystem a dx */
+    .vz-stage {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    /* Atmosphere layer: gradient drift + vignette */
+    .vz-atmosphere {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+    .vz-atmosphere::before {
+      content: "";
+      position: absolute;
+      inset: -40%;
+      background:
+        radial-gradient(circle at 30% 40%, rgba(124, 92, 255, 0.42), transparent 55%),
+        radial-gradient(circle at 70% 60%, rgba(246, 198, 74, 0.22), transparent 55%),
+        radial-gradient(circle at 50% 80%, rgba(124, 92, 255, 0.18), transparent 60%);
+      animation: vz-atmo-drift 14s ease-in-out infinite alternate;
+    }
+    .vz-atmosphere::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.45) 100%);
+    }
+    @keyframes vz-atmo-drift {
+      0%   { transform: translate(0, 0) rotate(0deg) scale(1); }
+      100% { transform: translate(-4%, 3%) rotate(8deg) scale(1.1); }
+    }
+
+    /* FX layer per particelle + wave (iniettato runtime) */
+    .vz-fx-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+      overflow: visible;
+    }
+    .vz-fx-flash {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center, rgba(255,255,255,0.95), rgba(255,255,255,0.6) 40%, transparent 70%);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 6;
+      mix-blend-mode: screen;
+      will-change: opacity;
+    }
+    .vz-particle-trail {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #7c5cff;
+      box-shadow: 0 0 8px rgba(124, 92, 255, 0.7);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    .vz-particle-trail-gold {
+      background: #f6c64a;
+      box-shadow: 0 0 8px rgba(246, 198, 74, 0.7);
+    }
+    .vz-particle {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #7c5cff;
+      box-shadow:
+        0 0 10px rgba(124, 92, 255, 0.95),
+        0 0 24px rgba(124, 92, 255, 0.55),
+        0 0 48px rgba(124, 92, 255, 0.25);
+      transform: translate(-50%, -50%);
+      will-change: transform, opacity;
+      pointer-events: none;
+    }
+    .vz-particle-gold {
+      background: #f6c64a;
+      box-shadow:
+        0 0 10px rgba(246, 198, 74, 0.95),
+        0 0 24px rgba(246, 198, 74, 0.55),
+        0 0 48px rgba(246, 198, 74, 0.25);
+    }
+    .vz-wave {
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 2px solid #7c5cff;
+      transform: translate(-50%, -50%);
+      will-change: transform, opacity;
+      pointer-events: none;
+    }
+    .vz-wave-gold { border-color: #f6c64a; }
+
+    .vz-actors {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-content: center;
+    }
+    .vz-actor {
+      padding: 18px 16px;
+      background: #262626;
+      border: 1px solid #333;
+      border-radius: 8px;
+      text-align: center;
+      transition:
+        background 360ms cubic-bezier(0.23, 1, 0.32, 1),
+        border-color 360ms cubic-bezier(0.23, 1, 0.32, 1),
+        opacity 360ms cubic-bezier(0.23, 1, 0.32, 1),
+        transform 480ms cubic-bezier(0.34, 1.4, 0.5, 1),
+        filter 360ms ease-out;
+      position: relative;
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      will-change: transform, box-shadow, opacity;
+    }
+    .vz-actor-name {
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 0.02em;
+      color: #c9c6bc;
+      transition: color 360ms ease-out;
+    }
+
+    /* Dim: gli inattivi quando c'e' un attore protagonista */
+    .vz-actor.dim {
+      opacity: 0.32;
+      filter: saturate(0.5);
+      transform: scale(0.97);
+    }
+
+    /* Active: protagonista del frame */
+    .vz-actor.active {
+      background: #7c5cff;
+      border-color: #9d83ff;
+      transform: translateY(-3px) scale(1.04);
+      z-index: 2;
+      animation: vz-pulse-breathe 2.2s ease-in-out infinite;
+    }
+    .vz-actor.active .vz-actor-name { color: #fff; }
+    @keyframes vz-pulse-breathe {
+      0%, 100% {
+        box-shadow:
+          0 10px 28px rgba(124, 92, 255, 0.4),
+          0 0 0 0 rgba(124, 92, 255, 0.5);
+      }
+      50% {
+        box-shadow:
+          0 16px 42px rgba(124, 92, 255, 0.55),
+          0 0 0 14px rgba(124, 92, 255, 0);
+      }
+    }
+
+    /* Thinking: brain-pattern ECG-like — dentro al box modello, ben visibile */
+    .vz-actor .vz-brain { display: none; }
+    .vz-actor.thinking .vz-brain {
+      display: block;
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 72px;
+      height: 20px;
+      overflow: hidden;
+      opacity: 1;
+    }
+    .vz-actor.thinking .vz-brain svg {
+      width: 100%;
+      height: 100%;
+      stroke: #fff;
+      stroke-width: 2;
+      fill: none;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+      filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.6));
+    }
+    .vz-actor.thinking .vz-brain svg path {
+      stroke-dasharray: 90;
+      stroke-dashoffset: 90;
+      animation: vz-brain-draw 1.8s ease-in-out infinite;
+    }
+    @keyframes vz-brain-draw {
+      0%   { stroke-dashoffset: 90;  opacity: 0.5; }
+      45%  { stroke-dashoffset: 0;   opacity: 1; }
+      55%  { stroke-dashoffset: 0;   opacity: 1; }
+      100% { stroke-dashoffset: -90; opacity: 0.5; }
+    }
+
+    /* Filesystem panel */
+    .vz-fs {
+      background: #0f0f0f;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 14px 16px;
+      position: relative;
+      transition: border-color 360ms ease-out, box-shadow 360ms ease-out;
+    }
+    .vz-fs.writing {
+      border-color: #f6c64a;
+      box-shadow:
+        0 0 0 1px rgba(246, 198, 74, 0.4),
+        0 0 28px rgba(246, 198, 74, 0.25),
+        0 0 56px rgba(246, 198, 74, 0.12);
+      animation: vz-fs-breathe 1.6s ease-in-out infinite;
+    }
+    @keyframes vz-fs-breathe {
+      0%, 100% {
+        box-shadow:
+          0 0 0 1px rgba(246, 198, 74, 0.4),
+          0 0 28px rgba(246, 198, 74, 0.25),
+          0 0 56px rgba(246, 198, 74, 0.12);
+      }
+      50% {
+        box-shadow:
+          0 0 0 1px rgba(246, 198, 74, 0.6),
+          0 0 36px rgba(246, 198, 74, 0.4),
+          0 0 72px rgba(246, 198, 74, 0.18);
+      }
+    }
+    .vz-fs-head {
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #888070;
+      margin-bottom: 12px;
+      font-weight: 700;
+    }
+    .vz-fs-tree {
+      min-height: 80px;
+      font-family: "SF Mono", ui-monospace, monospace;
+      font-size: 13px;
+    }
+    .vz-fs-empty {
+      color: #555;
+      font-style: italic;
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-size: 13px;
+    }
+    .vz-fs-cursor {
+      width: 9px;
+      height: 16px;
+      background: #f6c64a;
+      display: inline-block;
+      animation: vz-cursor-blink 0.7s steps(2) infinite;
+      box-shadow: 0 0 8px rgba(246, 198, 74, 0.6);
+    }
+    @keyframes vz-cursor-blink {
+      to { opacity: 0; }
+    }
+    .vz-fs-file {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin: 6px 0;
+    }
+    .vz-fs-file.just-changed {
+      border-color: #f6c64a;
+      box-shadow: 0 0 0 2px rgba(246, 198, 74, 0.18), 0 0 24px rgba(246, 198, 74, 0.18);
+    }
+    .vz-fs-caret {
+      display: inline-block;
+      width: 7px;
+      height: 13px;
+      background: #f6c64a;
+      vertical-align: text-bottom;
+      margin-left: 2px;
+      animation: vz-cursor-blink 0.7s steps(2) infinite;
+    }
+    .vz-fs-name {
+      display: block;
+      color: #f6c64a;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .vz-fs-content {
+      display: block;
+      color: #c9c6bc;
+      font-size: 12px;
+      white-space: pre-wrap;
+    }
+    @keyframes vz-file-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Narration */
+    .vz-narration {
+      background: #262626;
+      border-left: 3px solid #7c5cff;
+      padding: 16px 20px;
+      border-radius: 6px;
+      font-size: 15px;
+      color: #e5e3dc;
+      line-height: 1.55;
+      min-height: 70px;
+      position: relative;
+      overflow: hidden;
+      will-change: opacity, filter, transform;
+    }
+    .vz-narration.fading-out {
+      opacity: 0;
+      filter: blur(5px);
+      transform: translateY(-3px);
+      transition:
+        opacity 260ms cubic-bezier(0.4, 0, 0.2, 1),
+        filter 260ms cubic-bezier(0.4, 0, 0.2, 1),
+        transform 260ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .vz-narration.entering {
+      opacity: 0;
+      filter: blur(8px);
+      transform: translateY(6px);
+    }
+    .vz-narration.entered {
+      opacity: 1;
+      filter: blur(0);
+      transform: translateY(0);
+      transition:
+        opacity 460ms cubic-bezier(0.16, 1, 0.3, 1),
+        filter 460ms cubic-bezier(0.16, 1, 0.3, 1),
+        transform 460ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .vz-narration code {
+      background: #1a1a1a;
+      color: #f6c64a;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 13px;
+    }
+    .vz-narration strong { color: #fff; }
+    .vz-narration em {
+      color: #f6c64a;
+      font-style: italic;
+    }
+
+    /* Controls */
+    .vz-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .vz-progress {
+      font-family: "SF Mono", ui-monospace, monospace;
+      font-size: 13px;
+      color: #888070;
+      letter-spacing: 0.05em;
+    }
+    .vz-progress span:first-child {
+      color: #f6c64a;
+      font-weight: 700;
+    }
+    .vz-buttons {
+      display: flex;
+      gap: 8px;
+    }
+    .vz-btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: 1px solid #444;
+      background: #262626;
+      color: #e5e3dc;
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 160ms ease-out;
+    }
+    .vz-btn:hover { background: #333; border-color: #555; }
+    .vz-btn-primary {
+      background: #7c5cff;
+      border-color: #7c5cff;
+      color: #fff;
+    }
+    .vz-btn-primary:hover { background: #9d83ff; border-color: #9d83ff; }
+    .vz-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .vz-btn:disabled:hover {
+      background: #262626;
+      border-color: #444;
+    }
+
+    @media (max-width: 720px) {
+      .vz-stage { grid-template-columns: 1fr; }
+      .vz-actors { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* =========================================================
+       Slide 23 — la lezione + regalo finale
+       ========================================================= */
+    .slide-gift .lesson {
+      margin: 32px 0 48px 0;
+    }
+    .lesson-text {
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+      font-size: 26px;
+      font-weight: 600;
+      line-height: 1.4;
+      color: #1a1a1a;
+      margin: 0 0 24px 0;
+      letter-spacing: -0.01em;
+    }
+    .lesson-text:last-child { margin-bottom: 0; }
+    .lesson-text strong {
+      color: #7c5cff;
+      font-weight: 700;
+    }
+
+    .gift {
+      margin: 48px 0 36px 0;
+      padding: 40px 36px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #1a1a1a 0%, #2a2440 50%, #1a1a1a 100%);
+      color: #fafaf7;
+      position: relative;
+      overflow: hidden;
+    }
+    .gift::before {
+      content: "";
+      position: absolute;
+      top: -40%;
+      right: -20%;
+      width: 60%;
+      height: 180%;
+      background: radial-gradient(circle, rgba(124, 92, 255, 0.25), transparent 60%);
+      pointer-events: none;
+    }
+    .gift::after {
+      content: "";
+      position: absolute;
+      bottom: -40%;
+      left: -10%;
+      width: 50%;
+      height: 160%;
+      background: radial-gradient(circle, rgba(246, 198, 74, 0.18), transparent 60%);
+      pointer-events: none;
+    }
+    .gift > * { position: relative; z-index: 1; }
+    .gift-eyebrow {
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #f6c64a;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+    .gift-title {
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-size: 34px;
+      font-weight: 700;
+      margin: 0 0 18px 0;
+      color: #fafaf7;
+      line-height: 1.2;
+    }
+    .gift-title code {
+      background: rgba(124, 92, 255, 0.25);
+      padding: 4px 10px;
+      border-radius: 6px;
+      color: #c9b8ff;
+      font-size: 30px;
+    }
+    .gift-desc {
+      font-size: 16px;
+      color: #c9c6bc;
+      line-height: 1.6;
+      margin: 0 0 28px 0;
+      max-width: 580px;
+    }
+    .gift-desc em {
+      color: #f6c64a;
+      font-style: italic;
+    }
+
+    .gift-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 18px;
+      padding: 18px 28px;
+      background: #7c5cff;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 12px;
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      transition:
+        transform 280ms cubic-bezier(0.23, 1, 0.32, 1),
+        background 280ms ease-out,
+        box-shadow 280ms ease-out;
+      box-shadow:
+        0 8px 24px rgba(124, 92, 255, 0.45),
+        0 0 0 0 rgba(124, 92, 255, 0.6);
+      animation: gift-pulse 2.8s ease-in-out infinite;
+    }
+    @keyframes gift-pulse {
+      0%, 100% {
+        box-shadow: 0 8px 24px rgba(124, 92, 255, 0.45), 0 0 0 0 rgba(124, 92, 255, 0.6);
+      }
+      50% {
+        box-shadow: 0 12px 32px rgba(124, 92, 255, 0.55), 0 0 0 12px rgba(124, 92, 255, 0);
+      }
+    }
+    .gift-btn:hover {
+      background: #9d83ff;
+      transform: translateY(-2px);
+    }
+    .gift-btn:focus-visible {
+      outline: 2px solid #f6c64a;
+      outline-offset: 3px;
+    }
+    .gift-btn-icon {
+      font-size: 28px;
+      font-weight: 700;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .gift-btn-label {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+    }
+    .gift-btn-main {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .gift-btn-sub {
+      font-size: 12px;
+      opacity: 0.85;
+      font-weight: 400;
+    }
+    .gift-foot {
+      margin-top: 24px;
+      font-size: 14px;
+      color: #888070;
+      line-height: 1.55;
+      max-width: 580px;
+    }
+    .gift-foot em { color: #c9b8ff; font-style: italic; }
+
+    @media (max-width: 720px) {
+      .lesson-text { font-size: 20px; }
+      .gift { padding: 28px 22px; }
+      .gift-title { font-size: 26px; }
+      .gift-title code { font-size: 22px; }
+      .gift-btn { padding: 14px 20px; gap: 12px; }
+      .gift-btn-main { font-size: 15px; }
+      .gift-btn-sub { font-size: 11px; }
+    }
+
+    /* =========================================================
+       Essence formula (slide 15) — "agente = LLM + cartella"
+       ========================================================= */
+    .essence {
+      margin: 36px 0;
+      text-align: center;
+      padding: 36px 24px;
+      background: #1a1a1a;
+      color: #fafaf7;
+      border-radius: 12px;
+    }
+    .essence-formula {
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1.5;
+      letter-spacing: -0.01em;
+    }
+    .essence-eq, .essence-plus {
+      display: inline-block;
+      margin: 0 8px;
+      color: #c9c6bc;
+      font-weight: 400;
+    }
+    .essence-llm { color: #7c5cff; }
+    .essence-files { color: #f6c64a; }
+    .essence-caption {
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-size: 14px;
+      color: #c9c6bc;
+      margin-top: 14px;
+      font-style: italic;
+    }
+
+    /* =========================================================
+       Hierarchy (slide 19) — tre livelli macro/sub/skill
+       ========================================================= */
+    .hierarchy {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      margin: 32px 0;
+    }
+    .hi-level {
+      padding: 20px 24px;
+      border-radius: 10px;
+      border: 1px solid #e5e3dc;
+      background: #fff;
+      position: relative;
+      border-left: 4px solid;
+    }
+    .hi-1 { border-left-color: #7c5cff; }
+    .hi-2 { border-left-color: #b8881a; }
+    .hi-3 { border-left-color: #4f7c3a; }
+    .hi-label {
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #9a9685;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .hi-name {
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin-bottom: 4px;
+    }
+    .hi-file {
+      font-family: "SF Mono", ui-monospace, monospace;
+      font-size: 13px;
+      color: #7c5cff;
+      margin-bottom: 10px;
+    }
+    .hi-2 .hi-file { color: #b8881a; }
+    .hi-3 .hi-file { color: #4f7c3a; }
+    .hi-what {
+      font-size: 14px;
+      color: #4a4a44;
+      line-height: 1.5;
+    }
+    .hi-arrow {
+      text-align: center;
+      font-size: 22px;
+      color: #c9c6bc;
+      margin: 6px 0;
+      line-height: 1;
+    }
+
+    /* =========================================================
+       Navigation visualizer (slide 20) — agente che esplora docs/deck/
+       ========================================================= */
+    .vz-nav .vz-nav-stage {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+      position: relative;
+    }
+    .vz-nav-thoughts {
+      background: #0f0f0f;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 14px 16px;
+      min-height: 320px;
+      display: flex;
+      flex-direction: column;
+    }
+    .vz-nav-thoughts::before {
+      content: "PENSIERO DELL'AGENTE";
+      display: block;
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      color: #888070;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .vz-thought-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .vz-thought {
+      padding: 10px 12px;
+      background: #1a1a1a;
+      border-left: 3px solid #7c5cff;
+      border-radius: 4px;
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-size: 13.5px;
+      color: #e5e3dc;
+      line-height: 1.5;
+      opacity: 0;
+      transform: translateY(8px);
+      animation: vz-thought-in 360ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .vz-thought code {
+      background: #0f0f0f;
+      color: #f6c64a;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+      font-family: "SF Mono", ui-monospace, monospace;
+    }
+    .vz-thought strong { color: #fff; }
+    .vz-thought-action {
+      border-left-color: #f6c64a;
+    }
+    .vz-thought-write {
+      border-left-color: #4f7c3a;
+    }
+    @keyframes vz-thought-in {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .vz-nav-fs {
+      background: #0f0f0f;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+    .vz-fs-tree-nav {
+      font-family: "SF Mono", ui-monospace, monospace;
+      font-size: 13px;
+      color: #c9c6bc;
+    }
+    .fsn {
+      padding: 5px 8px;
+      margin: 2px 0;
+      border-radius: 4px;
+      transition: background 280ms ease-out, color 280ms ease-out;
+      cursor: default;
+    }
+    .fsn-folder > .fsn-icon { color: #888070; }
+    .fsn-children {
+      margin-left: 18px;
+      border-left: 1px dashed #2a2a2a;
+      padding-left: 8px;
+    }
+    .fsn.is-reading {
+      background: rgba(124, 92, 255, 0.18);
+      color: #c9b8ff;
+      box-shadow:
+        inset 2px 0 0 #7c5cff,
+        0 0 0 1px rgba(124, 92, 255, 0.3);
+    }
+    .fsn.is-writing {
+      background: rgba(246, 198, 74, 0.2);
+      color: #f6c64a;
+      box-shadow:
+        inset 2px 0 0 #f6c64a,
+        0 0 0 1px rgba(246, 198, 74, 0.4),
+        0 0 18px rgba(246, 198, 74, 0.3);
+      animation: vz-fsn-write-pulse 1.2s ease-in-out infinite;
+    }
+    .fsn.is-done {
+      background: rgba(79, 124, 58, 0.18);
+      color: #b3d49f;
+      box-shadow: inset 2px 0 0 #4f7c3a;
+    }
+    @keyframes vz-fsn-write-pulse {
+      0%, 100% { box-shadow: inset 2px 0 0 #f6c64a, 0 0 0 1px rgba(246, 198, 74, 0.4), 0 0 18px rgba(246, 198, 74, 0.3); }
+      50%      { box-shadow: inset 2px 0 0 #f6c64a, 0 0 0 1px rgba(246, 198, 74, 0.6), 0 0 32px rgba(246, 198, 74, 0.5); }
+    }
+    .fsn-icon {
+      display: inline-block;
+      width: 18px;
+      text-align: center;
+      margin-right: 4px;
+    }
+
+    @media (max-width: 720px) {
+      .vz-nav .vz-nav-stage { grid-template-columns: 1fr; }
+      .vz-nav-thoughts { min-height: 220px; }
+    }
+
+    /* =========================================================
+       Pilastri (slide 15-23) — accent variabile per pilastro
+       ========================================================= */
+    .slide.pillar-1 { --pillar-accent: #7c5cff; --pillar-bg: #efeaff; --pillar-deep: #4a3299; }
+    .slide.pillar-2 { --pillar-accent: #b8881a; --pillar-bg: #fff4d9; --pillar-deep: #8b6612; }
+    .slide.pillar-3 { --pillar-accent: #4f7c3a; --pillar-bg: #e8f3df; --pillar-deep: #2c4f1c; }
+
+    /* Tag pilastro sotto lo slide-num */
+    .slide.pillar-1 .slide-num::after,
+    .slide.pillar-2 .slide-num::after,
+    .slide.pillar-3 .slide-num::after {
+      content: attr(data-pillar);
+      display: inline-block;
+      margin-left: 14px;
+      padding: 2px 10px;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #fff;
+      background: var(--pillar-accent);
+      border-radius: 999px;
+      vertical-align: middle;
+    }
+
+    /* Headings dei pilastri tinti */
+    .slide.pillar-1 h1 .pillar-tint,
+    .slide.pillar-2 h1 .pillar-tint,
+    .slide.pillar-3 h1 .pillar-tint {
+      color: var(--pillar-accent);
+    }
+
+    /* Pull-quote bordo tinto */
+    .slide.pillar-1 .pull,
+    .slide.pillar-2 .pull,
+    .slide.pillar-3 .pull {
+      border-left-color: var(--pillar-accent);
+    }
+
+    .pillar-thesis {
+      margin: 28px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .pt-step {
+      background: #fff;
+      border: 1px solid #e5e3dc;
+      border-radius: 10px;
+      padding: 18px 22px;
+      font-size: 16px;
+      line-height: 1.55;
+      position: relative;
+    }
+    .slide.pillar-1 .pt-step,
+    .slide.pillar-2 .pt-step,
+    .slide.pillar-3 .pt-step {
+      border-left: 3px solid var(--pillar-accent);
+    }
+    .pt-label {
+      display: inline-block;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #7c5cff;
+      margin-right: 12px;
+      padding: 2px 8px;
+      background: #efeaff;
+      border-radius: 4px;
+    }
+    .slide.pillar-1 .pt-label,
+    .slide.pillar-2 .pt-label,
+    .slide.pillar-3 .pt-label {
+      color: var(--pillar-deep);
+      background: var(--pillar-bg);
+    }
+    .pt-step strong { color: #1a1a1a; font-weight: 700; }
+    .pt-step em { color: #4a4a44; font-style: italic; }
+    .pt-step code {
+      background: #f3f1e8;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 14px;
+    }
+    .pt-arrow {
+      text-align: center;
+      font-size: 24px;
+      color: #c9c6bc;
+      margin: 6px 0;
+      line-height: 1;
+    }
+
+    /* =========================================================
+       Anti-pattern list (slide 17, 20, 23)
+       ========================================================= */
+    .antipattern-list {
+      display: grid;
+      gap: 12px;
+      margin: 28px 0;
+    }
+    .ap-item {
+      display: grid;
+      grid-template-columns: 36px 1fr;
+      gap: 16px;
+      padding: 16px 20px;
+      background: #fff;
+      border: 1px solid #e5e3dc;
+      border-left: 3px solid #c4322a;
+      border-radius: 8px;
+    }
+    .ap-no {
+      width: 28px;
+      height: 28px;
+      background: #fbecec;
+      color: #c4322a;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+      align-self: start;
+    }
+    .ap-name {
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      color: #1a1a1a;
+      margin-bottom: 6px;
+    }
+    .ap-why {
+      font-size: 14px;
+      color: #4a4a44;
+      line-height: 1.55;
+    }
+    .ap-why code {
+      background: #f3f1e8;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    .ap-why em { color: #7c5cff; font-style: italic; }
+
+    /* =========================================================
+       Wiki flow (slide 19)
+       ========================================================= */
+    .wiki-flow {
+      list-style: none;
+      padding: 0;
+      margin: 24px 0;
+      display: grid;
+      gap: 10px;
+    }
+    .wiki-flow li {
+      display: grid;
+      grid-template-columns: 36px 1fr;
+      gap: 14px;
+      padding: 14px 18px;
+      background: #fff;
+      border: 1px solid #e5e3dc;
+      border-radius: 8px;
+    }
+    .wf-step {
+      grid-column: 1;
+      grid-row: 1 / span 2;
+      font-family: "SF Mono", ui-monospace, monospace;
+      font-size: 18px;
+      font-weight: 700;
+      color: #7c5cff;
+      align-self: center;
+    }
+    .wf-action {
+      grid-column: 2;
+      grid-row: 1;
+      font-size: 14px;
+      color: #1a1a1a;
+    }
+    .wf-action code {
+      background: #1a1a1a;
+      color: #f6c64a;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 13px;
+      margin: 0 2px;
+    }
+    .wf-result {
+      grid-column: 2;
+      grid-row: 2;
+      font-size: 14px;
+      color: #4a4a44;
+      line-height: 1.5;
+      margin-top: 4px;
+    }
+
+    /* =========================================================
+       Summary diagram (slide 24)
+       ========================================================= */
+    .summary-diagram {
+      margin: 32px 0;
+    }
+    .sd-pillars {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+    }
+    .sd-pillar {
+      padding: 24px 18px;
+      background: #fff;
+      border: 1px solid #e5e3dc;
+      border-radius: 10px;
+      text-align: center;
+    }
+    .sd-pillar:nth-child(2) {
+      background: #1a1a1a;
+      color: #fafaf7;
+      border-color: #1a1a1a;
+    }
+    .sd-pillar-author {
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #7c5cff;
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+    .sd-pillar:nth-child(2) .sd-pillar-author { color: #f6c64a; }
+    .sd-pillar-name {
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .sd-pillar-desc {
+      font-size: 13px;
+      line-height: 1.5;
+      color: #4a4a44;
+    }
+    .sd-pillar:nth-child(2) .sd-pillar-desc { color: #c9c6bc; }
+    .sd-pillar-desc em { color: #7c5cff; font-style: italic; }
+    .sd-pillar:nth-child(2) .sd-pillar-desc em { color: #f6c64a; }
+    .sd-arrows {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      margin: 8px 0;
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-size: 11px;
+      color: #9a9685;
+      text-align: center;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .sd-loop {
+      padding: 24px 20px;
+      background: #7c5cff;
+      color: #fff;
+      border-radius: 10px;
+      text-align: center;
+    }
+    .sd-loop-label {
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+      font-weight: 700;
+      font-size: 18px;
+      margin-bottom: 6px;
+    }
+    .sd-loop-desc {
+      font-family: "SF Mono", ui-monospace, monospace;
+      font-size: 12px;
+      opacity: 0.9;
+    }
+    @media (max-width: 720px) {
+      .sd-pillars, .sd-arrows { grid-template-columns: 1fr; }
+    }
+
+    /* =========================================================
+       Checklist (slide 25)
+       ========================================================= */
+    .checklist {
+      display: grid;
+      gap: 14px;
+      margin: 28px 0;
+    }
+    .cl-item {
+      display: grid;
+      grid-template-columns: 44px 1fr;
+      gap: 16px;
+      padding: 18px 22px;
+      background: #fff;
+      border: 1px solid #e5e3dc;
+      border-radius: 10px;
+    }
+    .cl-num {
+      width: 36px;
+      height: 36px;
+      background: #1a1a1a;
+      color: #fafaf7;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-weight: 700;
+      font-size: 16px;
+      align-self: start;
+    }
+    .cl-q {
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      color: #1a1a1a;
+      margin-bottom: 8px;
+      line-height: 1.45;
+    }
+    .cl-q code {
+      background: #f3f1e8;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .cl-a {
+      font-size: 14px;
+      color: #4a4a44;
+      line-height: 1.55;
+    }
+
+    /* =========================================================
+       Tour list (slide 26)
+       ========================================================= */
+    .tour-list {
+      display: grid;
+      gap: 10px;
+      margin: 28px 0;
+    }
+    .tour-item {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 16px;
+      padding: 14px 18px;
+      background: #fff;
+      border: 1px solid #e5e3dc;
+      border-radius: 8px;
+    }
+    .tour-path {
+      grid-column: 1;
+      grid-row: 1 / span 2;
+      font-family: "SF Mono", ui-monospace, monospace;
+      font-size: 12px;
+      color: #7c5cff;
+      align-self: center;
+      word-break: break-all;
+    }
+    .tour-pillar {
+      grid-column: 2;
+      grid-row: 1;
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      color: #1a1a1a;
+    }
+    .tour-desc {
+      grid-column: 2;
+      grid-row: 2;
+      font-size: 14px;
+      color: #4a4a44;
+      line-height: 1.5;
+      margin-top: 4px;
+    }
+    @media (max-width: 720px) {
+      .tour-item { grid-template-columns: 1fr; }
+      .tour-path { grid-column: 1; grid-row: 1; }
+      .tour-pillar { grid-column: 1; grid-row: 2; }
+      .tour-desc { grid-column: 1; grid-row: 3; }
+    }
+
+    .closing-line {
+      font-size: 28px;
+      font-weight: 700;
+      text-align: center;
+      margin-top: 48px;
+      color: #1a1a1a;
+    }
+    .closing-line em { color: #7c5cff; font-style: italic; }
+
+    /* =========================================================
+       Footer
+       ========================================================= */
+    footer {
+      padding: 80px 0 120px 0;
+      border-top: 1px solid #e5e3dc;
+      margin-top: 64px;
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      font-size: 13px;
+      color: #6e6a5e;
+    }
+
+    /* =========================================================
+       Progress bar
+       ========================================================= */
+    .progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: #7c5cff;
+      width: 0%;
+      z-index: 100;
+      transition: width 80ms linear;
+    }
+
+    /* =========================================================
+       Hamburger button — visibile solo su mobile
+       ========================================================= */
+    .nav-toggle {
+      display: none;
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      z-index: 60;
+      width: 44px;
+      height: 44px;
+      border: 1px solid #1a1a1a;
+      background: #fafaf7;
+      border-radius: 8px;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+      padding: 0;
+    }
+    .nav-toggle-icon {
+      position: relative;
+      width: 20px;
+      height: 14px;
+    }
+    .nav-toggle-icon::before,
+    .nav-toggle-icon::after,
+    .nav-toggle-icon span {
+      content: "";
+      position: absolute;
+      left: 0;
+      width: 20px;
+      height: 2px;
+      background: #1a1a1a;
+      border-radius: 1px;
+      transition: transform 300ms cubic-bezier(0.23, 1, 0.32, 1), opacity 200ms ease-out;
+    }
+    .nav-toggle-icon::before { top: 0; }
+    .nav-toggle-icon span { top: 6px; }
+    .nav-toggle-icon::after { top: 12px; }
+
+    .nav-toggle.is-open .nav-toggle-icon::before {
+      transform: translateY(6px) rotate(45deg);
+    }
+    .nav-toggle.is-open .nav-toggle-icon span {
+      opacity: 0;
+    }
+    .nav-toggle.is-open .nav-toggle-icon::after {
+      transform: translateY(-6px) rotate(-45deg);
+    }
+
+    /* Backdrop overlay quando nav mobile e' aperta */
+    .nav-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(26, 26, 26, 0.4);
+      z-index: 45;
+      opacity: 0;
+      transition: opacity 280ms ease-out;
+    }
+    .nav-backdrop.is-open {
+      display: block;
+      opacity: 1;
+    }
+
+    /* =========================================================
+       Tablet / mobile (sotto 960px)
+       ========================================================= */
+    @media (max-width: 960px) {
+      .layout { grid-template-columns: 1fr; }
+
+      /* Nav diventa overlay top-anchored che scende dall'alto */
+      .nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        height: 100vh;
+        z-index: 50;
+        background: #fafaf7;
+        transform: translateY(-100%);
+        transition: transform 380ms cubic-bezier(0.23, 1, 0.32, 1);
+        padding: 80px 28px 40px 28px;
+        border-right: none;
+        border-bottom: none;
+        overflow-y: auto;
+      }
+      .nav.is-open {
+        transform: translateY(0);
+        box-shadow: 0 12px 36px rgba(0,0,0,0.18);
+      }
+
+      /* Hamburger sempre visibile su mobile */
+      .nav-toggle { display: flex; }
+
+      /* Main column padding */
+      main { padding: 0 22px; max-width: 100%; }
+
+      /* Hero scale */
+      .hero { padding: 80px 0 48px 0; margin-bottom: 40px; }
+      .hero h1 { font-size: 40px; }
+      .hero p { font-size: 18px; }
+      .hero-meta { gap: 14px; font-size: 12px; flex-wrap: wrap; }
+      .hero-meta span::before { margin-right: 14px; }
+
+      /* Part divider + slide */
+      .part-divider { padding: 56px 0 24px 0; margin-top: 32px; }
+      .part-divider h2 { font-size: 28px; }
+      .slide { padding: 40px 0; }
+      .slide h1 { font-size: 26px; }
+      .slide .slide-sub { font-size: 17px; }
+      .pull { font-size: 19px; padding: 6px 0 6px 16px; }
+
+      /* Formula */
+      .formula { font-size: 22px; padding: 28px 16px; }
+
+      /* Mental model diagram (slide 2) */
+      .diagram-mental { gap: 10px; flex-wrap: wrap; justify-content: center; }
+      .dm-box { padding: 14px 18px; font-size: 14px; min-width: 80px; }
+      .dm-box-opaque { font-size: 24px; min-width: 100px; }
+
+      /* Timeline (slide 3) */
+      .tl-when { font-size: 11px; }
+      .tl-what { font-size: 15px; }
+
+      /* Code snippet */
+      .code { font-size: 12.5px; padding: 16px 18px; }
+
+      /* Visualizer su tablet */
+      .vz { padding: 20px; }
+      .vz-header { gap: 10px; }
+      .vz-prompt { font-size: 13px; }
+      .vz-actors { gap: 8px; }
+      .vz-actor { padding: 14px 10px; min-height: 56px; }
+      .vz-actor-name { font-size: 13px; }
+      .vz-narration { font-size: 14px; padding: 14px 16px; min-height: 60px; }
+      .vz-fs { padding: 12px 14px; }
+      .vz-fs-tree { font-size: 12px; }
+      .vz-controls { gap: 10px; }
+      .vz-btn { padding: 7px 12px; font-size: 12.5px; }
+
+      /* Ah frame */
+      .ah-frame { padding: 40px 22px; }
+      .ah-text { font-size: 20px; }
+
+      /* Pilastri thesis */
+      .pt-step { font-size: 15px; padding: 16px 18px; }
+      .pt-label { font-size: 10px; padding: 2px 6px; }
+
+      /* Anti-pattern + checklist + tour */
+      .ap-item, .cl-item { padding: 14px 16px; }
+      .ap-name, .cl-q { font-size: 14px; }
+      .ap-why, .cl-a { font-size: 13.5px; }
+
+      /* Closing */
+      .closing-line { font-size: 22px; }
+    }
+
+    /* =========================================================
+       Smartphone piccoli (sotto 560px)
+       ========================================================= */
+    @media (max-width: 560px) {
+      main { padding: 0 16px; }
+      .hero { padding: 72px 0 36px 0; }
+      .hero h1 { font-size: 30px; }
+      .hero p { font-size: 16px; }
+      .hero-eyebrow { font-size: 11px; }
+
+      .part-divider h2 { font-size: 24px; }
+      .slide h1 { font-size: 22px; }
+      .slide .slide-sub { font-size: 15px; }
+      .pull { font-size: 17px; }
+
+      .formula { font-size: 18px; padding: 22px 12px; }
+
+      /* Visualizer: layout verticale (actors stack 2x2 piu' stretto, fs sotto) */
+      .vz { padding: 16px; }
+      .vz-actors { grid-template-columns: 1fr 1fr; gap: 6px; }
+      .vz-actor { padding: 10px 6px; min-height: 48px; }
+      .vz-actor-name { font-size: 12px; }
+      .vz-narration { font-size: 13px; padding: 12px 14px; }
+      .vz-fs { padding: 10px 12px; }
+      .vz-fs-head { font-size: 10px; }
+      .vz-fs-tree { font-size: 11.5px; min-height: 60px; }
+      .vz-btn { padding: 6px 10px; font-size: 11.5px; }
+      .vz-progress { font-size: 11px; }
+
+      .ah-text { font-size: 17px; }
+      .ah-frame { padding: 32px 16px; }
+
+      /* Diagram + survive list */
+      .sd-pillar-name { font-size: 19px; }
+      .sd-pillar-desc { font-size: 12px; }
+      .sd-loop-label { font-size: 15px; }
+
+      .closing-line { font-size: 19px; margin-top: 36px; }
+    }
+
+    /* =========================================================
+       Print
+       ========================================================= */
+    @media print {
+      .nav, .progress, footer { display: none; }
+      .layout { grid-template-columns: 1fr; }
+      main { padding: 0; max-width: 100%; }
+      .slide { page-break-after: always; padding: 24px 0; border: none; }
+      body { font-size: 14px; }
+      .visualizer { border: 1px solid #c9c6bc; background: #fff; color: #1a1a1a; }
+      .visualizer h3, .visualizer p { color: #1a1a1a; }
+    }
+  </style>
+</head>
+<body>
+  <div class="progress" id="progress"></div>
+
+  <!-- Hamburger toggle (mobile) -->
+  <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Apri il menu di navigazione" aria-controls="nav-main" aria-expanded="false">
+    <span class="nav-toggle-icon"><span></span></span>
+  </button>
+  <div class="nav-backdrop" id="nav-backdrop"></div>
+
+  <div class="layout">
+
+    <!-- =====================================================
+         SIDE NAV
+         ===================================================== -->
+    <aside class="nav" id="nav-main">
+      <div class="nav-brand">Il deck</div>
+      <ol>
+        <li><a href="#top">Apertura</a></li>
+
+        <li><span class="nav-part-label">Parte 0 — Preambolo</span></li>
+        <li><a href="#s1">01. Il malinteso</a></li>
+        <li><a href="#s2">02. Il modello mentale comune</a></li>
+        <li><a href="#s3">03. Perche' e' obsoleto</a></li>
+
+        <li><span class="nav-part-label">Parte 1 — Harness</span></li>
+        <li><a href="#s4">04. Decomposizione</a></li>
+        <li><a href="#s5">05. LLM nudo</a></li>
+        <li><a href="#s6">06. Cos'e' un harness</a></li>
+        <li><a href="#s7">07. Analogia motore/auto</a></li>
+
+        <li><span class="nav-part-label">Parte 2 — Il loop</span></li>
+        <li><a href="#s8">08. Anatomia di un turno</a></li>
+        <li><a href="#s9">09. Visualizer · turno 1</a></li>
+        <li><a href="#s10">10. Recap del turno</a></li>
+        <li><a href="#s11">11. Visualizer · turno 2</a></li>
+        <li><a href="#s12">12. L'"ah" moment</a></li>
+        <li><a href="#s13">13. Cosa sopravvive</a></li>
+        <li><a href="#s14">14. Cosa NON sopravvive</a></li>
+
+        <li><span class="nav-part-label">Parte 3 — Tolta la fuffa</span></li>
+        <li><a href="#s15">15. Cosa resta</a></li>
+        <li><a href="#s16">16. La macroistruzione</a></li>
+        <li><a href="#s17">17. Le sub-istruzioni</a></li>
+        <li><a href="#s18">18. Le skill</a></li>
+
+        <li><span class="nav-part-label">Parte 4 — Mettere insieme</span></li>
+        <li><a href="#s19">19. Lo stesso pattern</a></li>
+        <li><a href="#s20">20. Vediamolo in azione</a></li>
+        <li><a href="#s21">21. Le 4 domande</a></li>
+        <li><a href="#s22">22. L'esempio e' il deck</a></li>
+        <li><a href="#s23">23. La lezione + regalo</a></li>
+      </ol>
+    </aside>
+
+    <!-- =====================================================
+         MAIN COLUMN
+         ===================================================== -->
+    <main>
+<header class="hero" id="top">
+        <div class="hero-eyebrow">Un deck su come si usa Claude oggi</div>
+        <h1>Non e' un LLM.<br>E' un <span class="accent">harness</span>.</h1>
+        <p>
+          Quello che chiami "ChatGPT" o "Claude" non e' un modello che risponde
+          a una domanda. E' un loop agentico che usa un modello come componente.
+          Capire la differenza cambia tutto: cosa puoi fargli fare, come lo
+          istruisci, dove vive la sua memoria.
+        </p>
+        <div class="hero-meta">
+          <span>26 slide</span>
+          <span>~45 min con commento</span>
+          <span>Italiano</span>
+        </div>
+      </header>
+
+      <!-- ====== PARTE 0 ====== -->
+      <section class="part-divider">
+        <div class="part-divider-eyebrow">Parte 0</div>
+        <h2>Preambolo — il modello mentale che hai oggi</h2>
+        <p>Prima di spiegare cosa Claude e', dobbiamo demolire cosa pensi che sia.</p>
+      </section>
+
+      <!-- SLIDE 1 -->
+      <section class="slide" id="s1">
+        <div class="slide-num">01 / 26</div>
+        <h1>Il malinteso</h1>
+        <p class="slide-sub">Quando dici "ChatGPT" o "Claude", cosa pensi?</p>
+        <div class="slide-body">
+          <p>Provo a indovinare. Pensi a una specie di interlocutore intelligente
+            a cui fai una domanda e che ti risponde. Forse lo immagini come
+            "Google ma piu' smart", forse come un assistente, forse come un
+            tizio dietro una tendina che legge e scrive.</p>
+          <p>Tutte e tre le immagini hanno una cosa in comune: <strong>l'AI e'
+            un'entita' che sta li' e risponde</strong>. Tu chiedi, lei risponde.
+            Botta e risposta.</p>
+          <p>Questa immagine era corretta nel 2023. Oggi e' uno dei piu' grandi
+            equivoci che ci siano. E spiega perche' la maggior parte delle
+            persone non capisce cosa stia succedendo davvero nell'industria AI
+            negli ultimi diciotto mesi.</p>
+          <div class="pull">
+            Quello che chiami "AI" oggi <em>non e'</em> il modello.
+            E' tutto quello che gli sta intorno.
+          </div>
+          <p>Questo deck e' la decostruzione, slide per slide, di quell'immagine.
+            Alla fine avrai un modello mentale nuovo. E vedrai un sacco di cose
+            che prima non vedevi.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 2 -->
+      <section class="slide" id="s2">
+        <div class="slide-num">02 / 26</div>
+        <h1>Il modello mentale che tutti hanno</h1>
+        <p class="slide-sub">Tu → "scatola magica" → risposta.</p>
+        <div class="slide-body">
+          <p>Disegniamolo. Tre box in fila:</p>
+          <div class="diagram-mental">
+            <div class="dm-box">Tu</div>
+            <div class="dm-arrow">→</div>
+            <div class="dm-box dm-box-opaque">?</div>
+            <div class="dm-arrow">→</div>
+            <div class="dm-box">Risposta</div>
+          </div>
+          <p>Il box in mezzo e' opaco. Nessuno guarda dentro, perche' tanto
+            "e' l'AI". L'unica cosa che conta e' che dentro succede qualcosa
+            di intelligente e fuori esce una risposta che ha senso.</p>
+          <p>E' un modello che funziona benissimo per UNA domanda alla volta:
+            "Scrivimi una mail, riassumi questo testo, traducimi questo paragrafo."
+            Botta-risposta, fine.</p>
+          <p>Ma non spiega niente di cio' che Claude, Cursor, Devin, ChatGPT con
+            Code Interpreter fanno davvero. Non spiega perche' un'AI puo'
+            <strong>scrivere codice in un repo, aprirti un terminale, eseguire
+            comandi, leggere file, fare commit</strong>. Quella roba non e' una
+            risposta. E' azione persistente nel mondo. E richiede un modello
+            mentale diverso.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 3 -->
+      <section class="slide" id="s3">
+        <div class="slide-num">03 / 26</div>
+        <h1>Perche' questo modello e' gia' obsoleto</h1>
+        <p class="slide-sub">In 24 mesi siamo passati da text-completion ad agente.</p>
+        <div class="slide-body">
+          <p>Guarda la traiettoria:</p>
+          <ol class="timeline">
+            <li>
+              <span class="tl-when">Fine 2022</span>
+              <span class="tl-what"><strong>ChatGPT 1.0.</strong> Domanda → risposta. Una chat. Niente memoria, niente tool, niente accesso a file. Lo "scatola magica" e' un'immagine ragionevole.</span>
+            </li>
+            <li>
+              <span class="tl-when">2023</span>
+              <span class="tl-what"><strong>Function calling, plugin, Code Interpreter.</strong> Il modello inizia a poter <em>chiamare strumenti esterni</em>. Da li' non e' piu' "una scatola che risponde". E' un agente che <em>decide cosa fare</em>.</span>
+            </li>
+            <li>
+              <span class="tl-when">2024</span>
+              <span class="tl-what"><strong>Cursor, Aider, Claude Code, Devin.</strong> Nascono i primi IDE-agent. Il prodotto non e' piu' "una chat" — e' un harness che gira intorno a un modello, gestisce un filesystem, esegue codice, fa commit git.</span>
+            </li>
+            <li>
+              <span class="tl-when">2025 → oggi</span>
+              <span class="tl-what"><strong>Computer Use, agent SDK, MCP.</strong> Lo standard dell'industria e' che l'harness e' il prodotto. Il modello e' un componente intercambiabile — usi Claude o Gemini o GPT, l'harness sopra resta lo stesso.</span>
+            </li>
+          </ol>
+          <div class="pull">
+            Nessun prodotto AI competitivo oggi e' "solo un modello".
+            Tutti sono harness.
+          </div>
+          <p>Quando dici "uso ChatGPT", stai usando un harness che chiama un
+            modello. Quando dici "uso Claude Code", stai usando un harness
+            diverso che chiama lo stesso tipo di modello. La differenza tra i
+            prodotti sta quasi tutta nell'harness, non nel modello.</p>
+        </div>
+      </section>
+
+<!-- ====== PARTE 1 ====== -->
+      <section class="part-divider">
+        <div class="part-divider-eyebrow">Parte 1</div>
+        <h2>La verita': un harness intorno a un LLM</h2>
+        <p>Decomponiamo. Cosa fa il modello da solo, cosa fa l'harness, e perche'
+          tutto il valore vive nel secondo.</p>
+      </section>
+
+      <!-- SLIDE 4 -->
+      <section class="slide" id="s4">
+        <div class="slide-num">04 / 26</div>
+        <h1>Decomposizione minima</h1>
+        <p class="slide-sub">Il modello e' una funzione pura. Punto.</p>
+        <div class="slide-body">
+          <p>Cominciamo dal cuore. Cos'e' davvero un LLM?</p>
+          <div class="formula">
+            LLM(<span class="formula-in">testo</span>) → <span class="formula-out">testo</span>
+          </div>
+          <p>E' una funzione matematica. Le dai del testo in input, ti restituisce
+            del testo in output. <strong>Fine.</strong> Non ha memoria fra una
+            chiamata e l'altra. Non sa che ora e'. Non puo' aprire file, navigare
+            internet, eseguire codice. Non sa nemmeno di essere stato chiamato.</p>
+          <p>Ogni volta che la chiami, parte da zero, legge cio' che le dai, e
+            sputa fuori una continuazione di testo statisticamente plausibile.</p>
+          <div class="note">
+            <strong>Implicazione che disorienta.</strong> Tutta la "magia" che vedi
+            quando usi Claude Code — leggere file, scrivere file, eseguire test,
+            tenere conto di cosa hai detto 10 messaggi fa — <em>non e' nel modello</em>.
+            E' costruita sopra. Da qualcun altro.
+          </div>
+          <p>Quel qualcun altro e' l'harness. E nelle prossime slide vediamo
+            esattamente cosa fa.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 5 -->
+      <section class="slide" id="s5">
+        <div class="slide-num">05 / 26</div>
+        <h1>L'LLM "nudo", dal vivo</h1>
+        <p class="slide-sub">Una chiamata API raw. Niente harness. Niente trucchi.</p>
+        <div class="slide-body">
+          <p>Per capire <em>davvero</em> quanto sia limitato un modello senza
+            harness, guarda una chiamata API vera:</p>
+          <div class="code"><span class="comment"># Tutto qui. Niente altro.</span>
+response = anthropic.messages.create(
+    model=<span class="str">"claude-opus-4-7"</span>,
+    messages=[
+        {<span class="key">"role"</span>: <span class="str">"user"</span>,
+         <span class="key">"content"</span>: <span class="str">"Ciao, ti chiami Mario."</span>}
+    ]
+)
+
+<span class="comment"># 5 minuti dopo, nuova chiamata. Il modello non sa nulla del turno prima.</span>
+response = anthropic.messages.create(
+    model=<span class="str">"claude-opus-4-7"</span>,
+    messages=[
+        {<span class="key">"role"</span>: <span class="str">"user"</span>,
+         <span class="key">"content"</span>: <span class="str">"Come ti chiami?"</span>}
+    ]
+)
+<span class="comment"># → "Sono Claude, un assistente di Anthropic." (NON "Mario")</span></div>
+          <p>Per fargli "ricordare" che si chiama Mario, devi rispedirgli
+            <strong>tutto il passato</strong> ogni volta. Per fargli leggere un
+            file, devi essere tu a incollarne il contenuto nel prompt. Per
+            fargli eseguire codice — scordatelo, non puo' eseguire niente.</p>
+          <p>Un LLM nudo e' essenzialmente un <strong>autocomplete grosso</strong>.
+            Bravissimo. Ma per il 90% dei task reali — ricordare, agire,
+            persistere — e' impotente da solo.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 6 -->
+      <section class="slide" id="s6">
+        <div class="slide-num">06 / 26</div>
+        <h1>Cos'e' un harness</h1>
+        <p class="slide-sub">L'impalcatura che trasforma un modello in un agente.</p>
+        <div class="slide-body">
+          <p>Un harness e' un <strong>programma normale</strong> (in Python, in
+            TypeScript, in Rust — non importa) che gira intorno al modello e
+            gli fornisce cinque cose che da solo non ha:</p>
+          <div class="harness-grid">
+            <div class="hg-item">
+              <div class="hg-num">1</div>
+              <div class="hg-name">Loop</div>
+              <div class="hg-desc">Chiama il modello in ciclo, non una sola volta. Decide quando fermarsi.</div>
+            </div>
+            <div class="hg-item">
+              <div class="hg-num">2</div>
+              <div class="hg-name">Tool registry</div>
+              <div class="hg-desc">Funzioni che il modello puo' invocare: <code>read_file</code>, <code>write_file</code>, <code>bash</code>, <code>edit_file</code>, ecc.</div>
+            </div>
+            <div class="hg-item">
+              <div class="hg-num">3</div>
+              <div class="hg-name">Filesystem</div>
+              <div class="hg-desc">Uno spazio reale su disco dove il modello legge e scrive stato.</div>
+            </div>
+            <div class="hg-item">
+              <div class="hg-num">4</div>
+              <div class="hg-name">Memoria di sessione</div>
+              <div class="hg-desc">La history dei turni: cosa tu hai detto, cosa il modello ha risposto, cosa i tool hanno restituito.</div>
+            </div>
+            <div class="hg-item">
+              <div class="hg-num">5</div>
+              <div class="hg-name">Hook lifecycle</div>
+              <div class="hg-desc">Punti di intercettazione per logica deterministica: validazione invarianti, audit, log.</div>
+            </div>
+          </div>
+          <p>Prodotti che conosci sono tutti harness diversi: <strong>Claude Code</strong>,
+            <strong>Cursor</strong>, <strong>Aider</strong>, <strong>ChatGPT Desktop con MCP</strong>,
+            <strong>Devin</strong>, <strong>Replit Agent</strong>. Cambia l'harness, cambia
+            l'esperienza — anche se sotto c'e' lo stesso modello.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 7 -->
+      <section class="slide" id="s7">
+        <div class="slide-num">07 / 26</div>
+        <h1>L'analogia</h1>
+        <p class="slide-sub">Il modello e' il motore. L'harness e' l'auto.</p>
+        <div class="slide-body">
+          <p>Le analogie zoppicano sempre, ma questa funziona bene perche'
+            ti permette di vedere subito dove sta il valore.</p>
+          <div class="analogy-split">
+            <div class="as-half as-half-engine">
+              <div class="as-label">Il motore</div>
+              <div class="as-thing">LLM</div>
+              <div class="as-detail">Potente, sofisticato, costoso da costruire.
+                Da solo non ti porta da nessuna parte.</div>
+            </div>
+            <div class="as-half as-half-car">
+              <div class="as-label">L'auto</div>
+              <div class="as-thing">Harness</div>
+              <div class="as-detail">Chassis, trasmissione, volante, cruscotto,
+                freni. <em>Tutto cio'</em> che rende il motore guidabile.</div>
+            </div>
+          </div>
+          <p>Quando dici "guido una Ferrari", non stai parlando solo del motore.
+            Stai parlando di sospensioni, aerodinamica, cambio, sedili — di
+            tutto il pacchetto che ti permette di portarlo a 300 all'ora senza
+            morire. Il motore conta, certo. Ma il valore di <em>guida</em> sta
+            in come tutto il resto gli sta intorno.</p>
+          <div class="pull">
+            Il modello (LLM) e' un componente, neanche il piu' costoso. Il
+            valore di prodotto sta nell'harness. Per questo Anthropic, OpenAI,
+            Cursor, Replit stanno investendo li' — non sui modelli base.
+          </div>
+          <p>Adesso che sappiamo che esiste l'harness, vediamo <strong>come gira
+            dentro</strong>. Questa e' la parte interessante.</p>
+        </div>
+      </section>
+
+<!-- ====== PARTE 2 ====== -->
+      <section class="part-divider">
+        <div class="part-divider-eyebrow">Parte 2</div>
+        <h2>Il loop runtime — il cuore</h2>
+        <p>Questa e' la parte importante. Se Mimmo capisce solo questa parte,
+          ha gia' capito l'80%.</p>
+      </section>
+
+      <!-- SLIDE 8 -->
+      <section class="slide" id="s8">
+        <div class="slide-num">08 / 26</div>
+        <h1>Anatomia di un turno</h1>
+        <p class="slide-sub">Cosa succede dall'istante in cui premi Invio.</p>
+        <div class="slide-body">
+          <p>Quando scrivi qualcosa a Claude Code e premi Invio, non parte UNA
+            chiamata al modello. Partono <strong>tanti micro-step</strong>
+            coordinati dall'harness. Ecco la sequenza canonica:</p>
+          <ol class="turn-steps">
+            <li>
+              <div class="ts-num">01</div>
+              <div class="ts-body">
+                <div class="ts-name">Input</div>
+                <div class="ts-desc">Tu scrivi una richiesta. L'harness la cattura.</div>
+              </div>
+            </li>
+            <li>
+              <div class="ts-num">02</div>
+              <div class="ts-body">
+                <div class="ts-name">Assembly</div>
+                <div class="ts-desc">L'harness costruisce il prompt completo: regole di sistema + tool disponibili + history dei turni precedenti + il tuo messaggio.</div>
+              </div>
+            </li>
+            <li>
+              <div class="ts-num">03</div>
+              <div class="ts-body">
+                <div class="ts-name">Modello pensa</div>
+                <div class="ts-desc">Chiamata API. Il modello produce un "thought" e (di solito) una <code>tool_call</code> — chiede di eseguire qualcosa.</div>
+              </div>
+            </li>
+            <li>
+              <div class="ts-num">04</div>
+              <div class="ts-body">
+                <div class="ts-name">Tool exec</div>
+                <div class="ts-desc">L'harness intercetta la <code>tool_call</code> ed esegue davvero l'azione: legge un file, esegue un comando, fa una HTTP request.</div>
+              </div>
+            </li>
+            <li>
+              <div class="ts-num">05</div>
+              <div class="ts-body">
+                <div class="ts-name">Result</div>
+                <div class="ts-desc">Il risultato del tool viene formattato e rispedito al modello come nuovo messaggio.</div>
+              </div>
+            </li>
+            <li>
+              <div class="ts-num">06</div>
+              <div class="ts-body">
+                <div class="ts-name">Modello decide</div>
+                <div class="ts-desc">Il modello legge il risultato e decide: altro tool, o ho finito? Se altro tool, torna al passo 3. Se ho finito, vai al 7.</div>
+              </div>
+            </li>
+            <li>
+              <div class="ts-num">07</div>
+              <div class="ts-body">
+                <div class="ts-name">Output</div>
+                <div class="ts-desc">L'harness mostra a te il messaggio finale. Il turno e' completo.</div>
+              </div>
+            </li>
+          </ol>
+          <p>Questa e' la struttura. Nelle prossime due slide la vediamo
+            <strong>girare dal vivo</strong>.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 9 — VISUALIZER TURNO 1 -->
+      <section class="slide" id="s9">
+        <div class="slide-num">09 / 26</div>
+        <h1>Un turno, dal vivo</h1>
+        <p class="slide-sub">Step-by-step. Premi avanti, guarda cosa succede.</p>
+        <div class="slide-body">
+          <div class="vz" id="vz1" data-turn="1">
+            <div class="vz-header">
+              <span class="vz-tag">Turno 1</span>
+              <span class="vz-prompt" id="vz1-prompt">Tu: "crea un file note.md con dentro 'ciao mondo'"</span>
+            </div>
+            <div class="vz-stage">
+              <div class="vz-actors">
+                <div class="vz-actor" data-actor="user"><div class="vz-actor-name">Tu</div></div>
+                <div class="vz-actor" data-actor="harness"><div class="vz-actor-name">Harness</div></div>
+                <div class="vz-actor" data-actor="model"><div class="vz-actor-name">Modello</div></div>
+                <div class="vz-actor" data-actor="tools"><div class="vz-actor-name">Tools</div></div>
+              </div>
+              <div class="vz-fs">
+                <div class="vz-fs-head">Filesystem</div>
+                <div class="vz-fs-tree" id="vz1-fs"><div class="vz-fs-empty">(vuoto)</div></div>
+              </div>
+            </div>
+            <div class="vz-narration" id="vz1-narration">
+              Premi <strong>Step ▶</strong> per cominciare. Vedrai un turno
+              completo, dall'input al file scritto sul disco.
+            </div>
+            <div class="vz-controls">
+              <div class="vz-progress">
+                <span id="vz1-step">0</span> / <span id="vz1-total">7</span>
+              </div>
+              <div class="vz-buttons">
+                <button class="vz-btn" data-vz="vz1" data-action="reset">Reset</button>
+                <button class="vz-btn vz-btn-primary" data-vz="vz1" data-action="next">Step ▶</button>
+                <button class="vz-btn" data-vz="vz1" data-action="play">▶ Auto</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 10 -->
+      <section class="slide" id="s10">
+        <div class="slide-num">10 / 26</div>
+        <h1>Cosa abbiamo appena visto?</h1>
+        <p class="slide-sub">Quattro fatti che spesso restano sotto traccia.</p>
+        <div class="slide-body">
+          <ol class="recap">
+            <li><strong>Il modello non ha eseguito niente.</strong> Ha solo
+              <em>chiesto</em> all'harness di eseguire. La separazione e' netta:
+              il modello propone, l'harness dispone.</li>
+            <li><strong>L'harness ha eseguito il tool</strong> e ha rispedito il
+              risultato al modello come nuovo messaggio.</li>
+            <li><strong>Il modello ha deciso autonomamente di fermarsi.</strong>
+              Nessuno gli ha detto "ok ora basta" — ha capito da solo che il
+              compito era finito.</li>
+            <li><strong>Il filesystem ora ha un file in piu'.</strong>
+              <em>Questa</em> e' l'unica cosa che resta dopo che il turno e'
+              finito.</li>
+          </ol>
+          <div class="pull">
+            La "memoria" del modello dura un turno. Quello che resta tra i turni
+            e' solo cio' che e' stato scritto sul filesystem.
+          </div>
+          <p>Tieni a mente questo punto. Adesso vediamo cosa succede al turno
+            <em>successivo</em>, quando il modello deve "ricordarsi" qualcosa
+            di prima.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 11 — VISUALIZER TURNO 2 -->
+      <section class="slide" id="s11">
+        <div class="slide-num">11 / 26</div>
+        <h1>Lo stesso visualizer, un turno dopo</h1>
+        <p class="slide-sub">Il modello "ricomincia da capo", ma il disco e' cambiato.</p>
+        <div class="slide-body">
+          <p>Tu scrivi una <em>seconda</em> richiesta: <strong>"aggiungi una
+            riga a note.md che dica 'arrivederci'"</strong>. Il modello viene
+            chiamato di nuovo, con la testa vuota. Cosa fa?</p>
+          <div class="vz" id="vz2" data-turn="2">
+            <div class="vz-header">
+              <span class="vz-tag vz-tag-accent">Turno 2</span>
+              <span class="vz-prompt" id="vz2-prompt">Tu: "aggiungi una riga 'arrivederci' a note.md"</span>
+            </div>
+            <div class="vz-stage">
+              <div class="vz-actors">
+                <div class="vz-actor" data-actor="user"><div class="vz-actor-name">Tu</div></div>
+                <div class="vz-actor" data-actor="harness"><div class="vz-actor-name">Harness</div></div>
+                <div class="vz-actor" data-actor="model"><div class="vz-actor-name">Modello</div></div>
+                <div class="vz-actor" data-actor="tools"><div class="vz-actor-name">Tools</div></div>
+              </div>
+              <div class="vz-fs">
+                <div class="vz-fs-head">Filesystem</div>
+                <div class="vz-fs-tree" id="vz2-fs">
+                  <div class="vz-fs-file">
+                    <span class="vz-fs-name">note.md</span>
+                    <span class="vz-fs-content">"ciao mondo"</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="vz-narration" id="vz2-narration">
+              Stato iniziale: il file <code>note.md</code> esiste gia' (dal turno 1).
+              Il modello pero' <em>non lo sa</em>. Premi <strong>Step ▶</strong> e
+              guarda cosa fa per scoprirlo.
+            </div>
+            <div class="vz-controls">
+              <div class="vz-progress">
+                <span id="vz2-step">0</span> / <span id="vz2-total">9</span>
+              </div>
+              <div class="vz-buttons">
+                <button class="vz-btn" data-vz="vz2" data-action="reset">Reset</button>
+                <button class="vz-btn vz-btn-primary" data-vz="vz2" data-action="next">Step ▶</button>
+                <button class="vz-btn" data-vz="vz2" data-action="play">▶ Auto</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 12 -->
+      <section class="slide" id="s12">
+        <div class="slide-num">12 / 26</div>
+        <h1>L'"ah" moment</h1>
+        <p class="slide-sub">Tutto il resto del deck e' una conseguenza di questa frase.</p>
+        <div class="slide-body">
+          <div class="ah-frame">
+            <p class="ah-text">
+              Il modello non sa nulla di te tra un turno e il successivo.<br>
+              L'unica cosa che sopravvive<br>
+              <span class="ah-emph">e' cio' che e' scritto sul filesystem.</span>
+            </p>
+          </div>
+          <p>Questa frase sembra banale. Non lo e'.</p>
+          <p>Ti chiarisce di colpo perche' Claude Code ti chiede di scrivere
+            un <code>CLAUDE.md</code>. Perche' Cursor ha le rules. Perche' i tre
+            pilastri che vedremo dopo (Van Clieff, Karpathy, Skills) <em>non sono
+            opinioni</em> — sono conseguenze logiche.</p>
+          <p>Se il modello dimentica tutto tra un turno e l'altro, e l'unica
+            cosa che sopravvive sono i file, allora <strong>tutto il design di
+            un agente diventa design di filesystem</strong>. Come organizzi i
+            file, cosa scrivi dentro, come il modello li trova: e' qui che si
+            decide se il tuo agente funziona o no.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 13 -->
+      <section class="slide" id="s13">
+        <div class="slide-num">13 / 26</div>
+        <h1>Cosa sopravvive a un turno</h1>
+        <p class="slide-sub">L'inventario di cio' che persiste.</p>
+        <div class="slide-body">
+          <p>Concretamente, alla fine di un turno, cosa rimane in vita? Tre cose:</p>
+          <div class="survive-list">
+            <div class="sv-item sv-positive">
+              <div class="sv-icon">✓</div>
+              <div class="sv-name">I file sul disco</div>
+              <div class="sv-desc">Tutto cio' che il modello (o tu) avete scritto con
+                <code>write_file</code> / <code>edit_file</code>. Persistente fino a
+                cancellazione esplicita.</div>
+            </div>
+            <div class="sv-item sv-positive">
+              <div class="sv-icon">✓</div>
+              <div class="sv-name">La history della conversazione</div>
+              <div class="sv-desc">La sequenza di messaggi (utente, modello, tool result)
+                della sessione corrente. Vive in memoria dell'harness, viene
+                rimandata al modello ogni turno.</div>
+            </div>
+            <div class="sv-item sv-positive">
+              <div class="sv-icon">✓</div>
+              <div class="sv-name">Gli artefatti esterni</div>
+              <div class="sv-desc">Commit git pushati, file caricati su un servizio,
+                processi avviati. Tutto cio' che ha "lasciato traccia" fuori
+                dall'agente.</div>
+            </div>
+          </div>
+          <p>Tutto qui. Nient'altro.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 14 -->
+      <section class="slide" id="s14">
+        <div class="slide-num">14 / 26</div>
+        <h1>Cosa NON sopravvive</h1>
+        <p class="slide-sub">L'elenco di cio' che svanisce ad ogni turno.</p>
+        <div class="slide-body">
+          <p>Quattro cose che la gente <em>pensa</em> persistano, ma non persistono:</p>
+          <div class="survive-list">
+            <div class="sv-item sv-negative">
+              <div class="sv-icon">✗</div>
+              <div class="sv-name">Il "ragionamento interno" del modello</div>
+              <div class="sv-desc">Quello che il modello "ha pensato" senza
+                scriverlo. Sparisce. Se vuoi che resti, deve essere parte
+                dell'output testuale o di un file.</div>
+            </div>
+            <div class="sv-item sv-negative">
+              <div class="sv-icon">✗</div>
+              <div class="sv-name">Variabili in memoria del programma</div>
+              <div class="sv-desc">Oggetti Python, stati di applicazione,
+                cache in-process. Se rilanci l'harness, addio.</div>
+            </div>
+            <div class="sv-item sv-negative">
+              <div class="sv-icon">✗</div>
+              <div class="sv-name">Decisioni prese ma non documentate</div>
+              <div class="sv-desc">"Stavolta uso questo pattern" — se non
+                lo scrivi su un file, il modello al turno dopo non lo sa
+                e potrebbe fare scelte opposte.</div>
+            </div>
+            <div class="sv-item sv-negative">
+              <div class="sv-icon">✗</div>
+              <div class="sv-name">Contesto temporaneo mai esplicitato</div>
+              <div class="sv-desc">"L'utente ha detto qualcosa di importante
+                tre turni fa." Se non sta nei messaggi visibili, e nessuno
+                l'ha scritto su disco, sparisce alla prossima sessione.</div>
+            </div>
+          </div>
+          <div class="note">
+            <strong>Implicazione pratica.</strong> Se vuoi che il modello
+            "ricordi" qualcosa <em>tra sessioni</em>, devi scriverlo da qualche
+            parte che lui rileggera'. Non basta dirglielo in chat. Per questo
+            esistono i file <code>CLAUDE.md</code>, le rules in Cursor, le
+            skill, le wiki: <em>sono i posti dove la memoria sopravvive</em>.
+          </div>
+        </div>
+      </section>
+
+<!-- ====== PARTE 3 ====== -->
+      <section class="part-divider">
+        <div class="part-divider-eyebrow">Parte 3</div>
+        <h2>Tolta la fuffa, cosa resta</h2>
+        <p>Niente patterns accademici, niente dogmi. Solo cio' che hai
+          davvero bisogno di sapere per leggere un agente.</p>
+      </section>
+
+      <!-- SLIDE 15 -->
+      <section class="slide" id="s15">
+        <div class="slide-num">15 / 23</div>
+        <h1>Cosa resta, tolta la fuffa</h1>
+        <p class="slide-sub">Niente framework, niente "agentic". Una cosa sola.</p>
+        <div class="slide-body">
+          <p>L'industria intorno agli agent ha prodotto un sacco di parole:
+            "agentic framework", "orchestration layer", "tool calling
+            architecture", "multi-agent system", "ReAct", "CoT", "MCP".
+            La verita' sotto e' molto piu' piccola di tutto questo.</p>
+          <div class="essence">
+            <div class="essence-formula">
+              Un agente <span class="essence-eq">=</span>
+              <span class="essence-llm">un LLM</span>
+              <span class="essence-plus">+</span>
+              <span class="essence-files">una cartella di istruzioni</span>
+            </div>
+            <p class="essence-caption">Punto. Tutto il resto sono parole.</p>
+          </div>
+          <p>Quando un agent funziona bene, e' perche' la cartella delle
+            istruzioni e' organizzata bene. Quando funziona male, e' perche'
+            la cartella e' un casino. Non e' piu' complicato di cosi'.</p>
+          <p>Nelle prossime tre slide ti faccio vedere com'e' fatta dentro
+            quella cartella. Tre tipi di file, livelli di profondita' diversi,
+            stesso principio.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 16 -->
+      <section class="slide" id="s16">
+        <div class="slide-num">16 / 23</div>
+        <h1>La macroistruzione — il file "fuori"</h1>
+        <p class="slide-sub">Un solo file, in cima. Dice al modello chi e', cosa fa, dove andare a cercare il resto.</p>
+        <div class="slide-body">
+          <p>Apri la cartella di qualunque agente serio e troverai, alla
+            radice, un file che si chiama tipicamente <code>CLAUDE.md</code>
+            (per Claude Code), <code>.cursorrules</code> (per Cursor), o
+            <code>AGENT.md</code>. E' la <strong>macroistruzione</strong>:
+            il primo file che il modello legge appena parte una sessione.</p>
+          <p>Cosa contiene? Solo tre cose:</p>
+          <ul>
+            <li><strong>Identita'.</strong> Chi sei. Su quale progetto stai lavorando. Con quale tono.</li>
+            <li><strong>Vincoli.</strong> Le poche regole che valgono sempre, indipendentemente dal task.</li>
+            <li><strong>Mappa.</strong> Dove vivono le istruzioni piu' specifiche. "Per X vai in <code>spec/</code>. Per Y vai in <code>skills/</code>."</li>
+          </ul>
+          <p>E' come quando entri in un'azienda nuova e ti danno il
+            "<em>manualetto del nuovo arrivato</em>": chi siamo, cosa
+            facciamo, e dove trovare i documenti specifici.</p>
+          <div class="note">
+            <strong>Esempio concreto.</strong> Il <code>CLAUDE.md</code> del deck
+            che stai guardando — sta in <code>docs/deck/CLAUDE.md</code> — e'
+            lungo 80 righe. Dentro c'e' la palette, la voce, dove vivono le
+            slide. Quando un agent lavora sul deck, lo legge per primo. Tutto qui.
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 17 -->
+      <section class="slide" id="s17">
+        <div class="slide-num">17 / 23</div>
+        <h1>Le sub-istruzioni — le cartelle dentro</h1>
+        <p class="slide-sub">Il file root rimanda a sotto-cartelle. Ognuna ha file specifici, caricati solo quando serve.</p>
+        <div class="slide-body">
+          <p>Non e' realistico avere TUTTO dentro <code>CLAUDE.md</code>. Sarebbe
+            lungo 5000 righe, illeggibile, e il modello si perderebbe nel
+            rumore. Quindi la macroistruzione delega: <em>"per la voce vai in
+            <code>spec/voice.md</code>. Per i requisiti di prodotto, in
+            <code>spec/product.md</code>. Per chi e' il lettore, in
+            <code>spec/audience.md</code>."</em></p>
+          <div class="code">docs/deck/
+├── CLAUDE.md            <span class="comment"># macroistruzione (il "fuori")</span>
+├── spec/                <span class="comment"># sub-istruzioni di contesto</span>
+│   ├── product.md       <span class="comment">#   cos'e' il deck</span>
+│   ├── audience.md      <span class="comment">#   chi e' Mimmo</span>
+│   └── voice.md         <span class="comment">#   tono, regole copy</span>
+├── content/             <span class="comment"># il contenuto vero</span>
+└── ...</div>
+          <p>Il modello, quando il task richiede contesto specifico, va a leggere
+            quei file. Quando non serve, li ignora. <strong>E' navigazione, non
+            ricerca</strong> — il modello sa dove andare perche' la
+            macroistruzione glielo ha detto.</p>
+          <p>La cosa interessante: questa struttura non e' un'invenzione tecnica.
+            <em>E' una biblioteca</em>. Indice in cima, sezioni dentro, schede
+            piu' dettagliate ancora dentro. Cervello umano e cervello LLM
+            navigano informazioni nello stesso modo.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 18 -->
+      <section class="slide" id="s18">
+        <div class="slide-num">18 / 23</div>
+        <h1>Le skill — istruzioni di comportamento</h1>
+        <p class="slide-sub">Caso speciale di sub-istruzione: come comportarsi in una situazione specifica.</p>
+        <div class="slide-body">
+          <p>A volte non basta dire al modello "<em>che voce usare</em>" o
+            "<em>cos'e' il prodotto</em>". Devi spiegargli <strong>come
+            comportarsi</strong> davanti a un certo tipo di task. Queste
+            istruzioni speciali si chiamano <strong>skill</strong>.</p>
+          <p>Una skill e' un file (di solito <code>SKILL.md</code>) dentro una
+            sotto-cartella dedicata. Contiene:</p>
+          <ul>
+            <li><strong>Quando si attiva</strong> (in linguaggio naturale, non keyword)</li>
+            <li><strong>Cosa deve fare il modello</strong> in quella situazione</li>
+            <li><strong>Esempi buoni e cattivi</strong></li>
+          </ul>
+          <p>Il modello carica la skill <strong>solo</strong> quando il contesto
+            la richiede. Le altre volte non occupa spazio.</p>
+          <div class="note">
+            <strong>Esempio concreto.</strong> Il visualizer cinematografico che
+            hai visto a slide 9 e 11 e' stato costruito seguendo una skill
+            chiamata <code>motion-reel</code>, in
+            <code>docs/deck/skills/motion-reel/SKILL.md</code>. Dentro c'e'
+            scritto: <em>"quando devi animare il visualizer del deck, usa
+            particelle vere, trail veri, glow pulsante, niente transition CSS
+            basic"</em>. Il modello, quando ha scritto le animazioni, ha letto
+            quel file e si e' comportato di conseguenza.
+          </div>
+          <p>Quindi: <strong>la skill e' una sub-istruzione un po' piu'
+            specializzata</strong>. Stesso pattern di prima, livello diverso.</p>
+        </div>
+      </section>
+
+<!-- ====== PARTE 4 ====== -->
+      <section class="part-divider">
+        <div class="part-divider-eyebrow">Parte 4</div>
+        <h2>Mettere insieme</h2>
+        <p>Stesso pattern a tre livelli. Lo vediamo all'opera. E poi i bagagli per portarsi via il punto.</p>
+      </section>
+
+      <!-- SLIDE 19 -->
+      <section class="slide" id="s19">
+        <div class="slide-num">19 / 23</div>
+        <h1>Lo stesso pattern, ovunque</h1>
+        <p class="slide-sub">Macroistruzione, sub-istruzione, skill: tre livelli, una sola logica.</p>
+        <div class="slide-body">
+          <p>Quando guardi una cartella-agente fatta bene, vedi sempre la
+            stessa struttura. Cambia il dominio (codice, marketing, supporto
+            cliente, ricerca), cambia la dimensione (5 file o 500), ma il
+            principio non cambia:</p>
+          <div class="hierarchy">
+            <div class="hi-level hi-1">
+              <div class="hi-label">Livello 1 — fuori</div>
+              <div class="hi-name">Macroistruzione</div>
+              <div class="hi-file">CLAUDE.md</div>
+              <div class="hi-what">Identita', vincoli, mappa di dove sta il resto.</div>
+            </div>
+            <div class="hi-arrow">↓</div>
+            <div class="hi-level hi-2">
+              <div class="hi-label">Livello 2 — dentro</div>
+              <div class="hi-name">Sub-istruzioni</div>
+              <div class="hi-file">spec/*.md, wiki/*.md, docs/*.md</div>
+              <div class="hi-what">Contesto specifico: chi e' il lettore, com'e' fatto il prodotto, ecc.</div>
+            </div>
+            <div class="hi-arrow">↓</div>
+            <div class="hi-level hi-3">
+              <div class="hi-label">Livello 3 — dentro ancora</div>
+              <div class="hi-name">Skill</div>
+              <div class="hi-file">skills/&lt;nome&gt;/SKILL.md</div>
+              <div class="hi-what">Come comportarsi in una situazione specifica.</div>
+            </div>
+          </div>
+          <div class="pull">
+            Niente magia. Niente framework. Cartelle, file, e un LLM che li legge
+            nell'ordine giusto.
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 20 — NAVIGATION VISUALIZER -->
+      <section class="slide" id="s20">
+        <div class="slide-num">20 / 23</div>
+        <h1>Vediamolo in azione</h1>
+        <p class="slide-sub">L'agente riceve un input. Naviga la cartella. Modifica un file.</p>
+        <div class="slide-body">
+          <p>Simulazione vera: ti chiedo all'agente del deck di <strong>aggiungere
+            una nota alla slide 5</strong>. Guarda dove va a leggere prima di
+            scrivere.</p>
+          <div class="vz vz-nav" id="vznav">
+            <div class="vz-header">
+              <span class="vz-tag">Navigazione agente</span>
+              <span class="vz-prompt" id="vznav-prompt">Utente: "aggiungi una nota alla slide 5 sul fatto che l'LLM nudo non puo' fare HTTP request"</span>
+            </div>
+            <div class="vz-nav-stage">
+              <div class="vz-nav-thoughts" id="vznav-thoughts">
+                <div class="vz-thought-list" id="vznav-thought-list"></div>
+              </div>
+              <div class="vz-nav-fs">
+                <div class="vz-fs-head">docs/deck/</div>
+                <div class="vz-fs-tree-nav" id="vznav-tree">
+                  <div class="fsn" data-path="CLAUDE.md">
+                    <span class="fsn-icon">📄</span> CLAUDE.md
+                  </div>
+                  <div class="fsn fsn-folder" data-path="spec/">
+                    <span class="fsn-icon">📁</span> spec/
+                    <div class="fsn-children">
+                      <div class="fsn" data-path="spec/product.md"><span class="fsn-icon">📄</span> product.md</div>
+                      <div class="fsn" data-path="spec/audience.md"><span class="fsn-icon">📄</span> audience.md</div>
+                      <div class="fsn" data-path="spec/voice.md"><span class="fsn-icon">📄</span> voice.md</div>
+                    </div>
+                  </div>
+                  <div class="fsn fsn-folder" data-path="content/">
+                    <span class="fsn-icon">📁</span> content/
+                    <div class="fsn-children">
+                      <div class="fsn" data-path="content/00-preambolo.html"><span class="fsn-icon">📄</span> 00-preambolo.html</div>
+                      <div class="fsn" data-path="content/01-harness.html"><span class="fsn-icon">📄</span> 01-harness.html</div>
+                      <div class="fsn" data-path="content/02-loop.html"><span class="fsn-icon">📄</span> 02-loop.html</div>
+                      <div class="fsn" data-path="content/03-pilastri.html"><span class="fsn-icon">📄</span> 03-pilastri.html</div>
+                      <div class="fsn" data-path="content/04-insieme.html"><span class="fsn-icon">📄</span> 04-insieme.html</div>
+                    </div>
+                  </div>
+                  <div class="fsn fsn-folder" data-path="skills/">
+                    <span class="fsn-icon">📁</span> skills/
+                    <div class="fsn-children">
+                      <div class="fsn" data-path="skills/motion-reel/SKILL.md"><span class="fsn-icon">📄</span> motion-reel/SKILL.md</div>
+                    </div>
+                  </div>
+                  <div class="fsn" data-path="build.py"><span class="fsn-icon">🐍</span> build.py</div>
+                </div>
+              </div>
+            </div>
+            <div class="vz-controls">
+              <div class="vz-progress">
+                <span id="vznav-step">0</span> / <span id="vznav-total">8</span>
+              </div>
+              <div class="vz-buttons">
+                <button class="vz-btn" data-vz="vznav" data-action="reset">Reset</button>
+                <button class="vz-btn vz-btn-primary" data-vz="vznav" data-action="next">Step ▶</button>
+                <button class="vz-btn" data-vz="vznav" data-action="play">▶ Auto</button>
+              </div>
+            </div>
+          </div>
+          <p>Nota: il modello <strong>non sa dove sia la slide 5 a priori</strong>.
+            Lo capisce leggendo la mappa nel <code>CLAUDE.md</code>, e poi
+            seguendo i puntatori. Stesso pattern di un essere umano che apre
+            un libro che non ha mai letto.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 21 -->
+      <section class="slide" id="s21">
+        <div class="slide-num">21 / 23</div>
+        <h1>Le quattro domande da portarsi via</h1>
+        <p class="slide-sub">Se ti capitera' di guardare la cartella di un agente, falle.</p>
+        <div class="slide-body">
+          <p>Operative. Niente teoria. Quando guardi la cartella di un agente
+            (tuo o di altri), o quando ne stai progettando uno, queste sono
+            le domande da farti:</p>
+          <div class="checklist">
+            <div class="cl-item">
+              <div class="cl-num">1</div>
+              <div class="cl-body">
+                <div class="cl-q">C'e' un file root che fa da macroistruzione?</div>
+                <div class="cl-a">Se no, l'agent non sa da dove cominciare a leggere. <strong>Aggiungilo.</strong></div>
+              </div>
+            </div>
+            <div class="cl-item">
+              <div class="cl-num">2</div>
+              <div class="cl-body">
+                <div class="cl-q">Il file root rimanda chiaramente alle sotto-cartelle?</div>
+                <div class="cl-a">"Per X vai in Y." Se la mappa manca, il modello non navighera' e finira' per inventare. <strong>Scrivila esplicita.</strong></div>
+              </div>
+            </div>
+            <div class="cl-item">
+              <div class="cl-num">3</div>
+              <div class="cl-body">
+                <div class="cl-q">Le sub-istruzioni sono brevi e mirate?</div>
+                <div class="cl-a">Un file con 30 righe e' meglio di tre file con 200. Il modello legge piu' veloce. <strong>Tagliare.</strong></div>
+              </div>
+            </div>
+            <div class="cl-item">
+              <div class="cl-num">4</div>
+              <div class="cl-body">
+                <div class="cl-q">Stai chiedendo al modello di FARE qualcosa che e' meglio fare in Python?</div>
+                <div class="cl-a">Calcoli deterministici, regex, validazione: Python. Il modello propone, Python verifica. <strong>"LLM giocatore, Python referee."</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 22 -->
+      <section class="slide" id="s22">
+        <div class="slide-num">22 / 23</div>
+        <h1>L'esempio e' questo deck</h1>
+        <p class="slide-sub">Te lo dico solo adesso: il deck stesso e' la cartella che ti ho appena descritto.</p>
+        <div class="slide-body">
+          <p>Hai appena guardato 21 slide. Adesso il twist.</p>
+          <p>Questo deck non l'ho scritto tutto da solo. L'ho costruito
+            <strong>conversando con un agente</strong>, e l'agente ha lavorato
+            su una cartella organizzata <em>esattamente</em> come ti ho appena
+            spiegato.</p>
+          <div class="pull">
+            La struttura che hai visto nel navigation visualizer non e' un
+            esempio simulato. <em>E' questa cartella.</em>
+          </div>
+          <p>Quando vorrai, apri <code>docs/deck/</code> nel file system. Quello
+            che trovi e' lo specchio di quello che ti ho raccontato:</p>
+          <ul>
+            <li><strong><code>CLAUDE.md</code></strong> — la macroistruzione</li>
+            <li><strong><code>spec/</code></strong> — le sub-istruzioni di contesto</li>
+            <li><strong><code>skills/motion-reel/</code></strong> — la skill che ha guidato il visualizer</li>
+            <li><strong><code>content/</code></strong> — il contenuto vero del deck</li>
+            <li><strong><code>build.py</code></strong> — il "Python referee" che concatena tutto</li>
+            <li><strong><code>dist/index.html</code></strong> — quello che stai guardando in questo momento</li>
+          </ul>
+          <div class="pull">
+            Il deck si spiega da solo, perche' il deck <em>e'</em> cio' che spiega.
+          </div>
+          <p>Manca solo una cosa. Vai avanti.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 23 -->
+      <section class="slide slide-gift" id="s23">
+        <div class="slide-num">23 / 23</div>
+        <h1>La lezione che ti porti via</h1>
+        <p class="slide-sub">E un regalo per cominciare.</p>
+        <div class="slide-body">
+          <div class="lesson">
+            <p class="lesson-text">
+              Non hai bisogno di sapere usare l'IA, per usarla.
+            </p>
+            <p class="lesson-text">
+              Hai bisogno di sapere come funziona un <strong>sistema di
+              cartelle</strong>, e cosa vuoi <strong>costruire</strong>,
+              e dove ti serve una mano.
+            </p>
+            <p class="lesson-text">
+              All'IA puoi sempre chiedere di aiutarti a definire il prodotto
+              giusto, e di costruirti le cartelle nell'ordine giusto.
+            </p>
+          </div>
+
+          <div class="gift">
+            <div class="gift-eyebrow">Hai bisogno di un cheat sheet?</div>
+            <h2 class="gift-title">Scarica questo <code>CLAUDE.md</code></h2>
+            <p class="gift-desc">
+              E' la tua prima, unica, vera, grande skill. E' il regalo che
+              ti faccio. Dentro c'e' tutto quello che il deck ti ha appena
+              spiegato, ma scritto in modo che <em>Claude lo legga al
+              tuo posto</em>. Mettilo nella cartella del tuo prossimo
+              progetto, e parti gia' nel modo giusto.
+            </p>
+            <a class="gift-btn" id="gift-download" href="CLAUDE.md" download="CLAUDE.md">
+              <span class="gift-btn-icon">↓</span>
+              <span class="gift-btn-label">
+                <span class="gift-btn-main">Scarica CLAUDE.md</span>
+                <span class="gift-btn-sub">file di testo, ~3 KB · da mettere nella radice del tuo progetto</span>
+              </span>
+            </a>
+            <p class="gift-foot">
+              Aprilo. Leggilo. Modifica la sezione "Il mio progetto" con cosa
+              vuoi costruire. Poi apri Claude Code in quella cartella, scrivi
+              <em>"ciao"</em>, e fai partire la prima conversazione vera della
+              tua vita con un agente.
+            </p>
+          </div>
+
+          <p class="closing-line">Fine. <em>Grazie.</em></p>
+        </div>
+      </section>
+
+      <footer>
+        <p>Deck v0.3 (cinematic motion) — Mygotham / chess_coach · <span class="mono">docs/deck/dist/index.html</span></p>
+        <p>Single-file HTML, generato da <code>build.py</code>. Sorgenti modulari in <code>docs/deck/content/</code>.</p>
+      </footer>
+
+    </main>
+  </div>
+
+  <script>
+    // Gift payload: contenuto di CLAUDE.md embedded nel deck stesso,
+    // cosi' il deck e' autocontenuto e funziona spedito come singolo file.
+    window.__GIFT_MD = "# CLAUDE.md \u2014 il mio modo di lavorare con te\n\n> Caro Claude, **leggi questo file per intero prima di rispondere alla\n> prima domanda della sessione.** E' la macroistruzione del mio lavoro\n> con te. Quello che leggi qui vince su quello che ti diro' in chat,\n> se mai ci sara' un conflitto.\n\n## Chi sono\n\nSono al mio primo uso vero di un agente. Ho appena capito una cosa che\ncambia tutto: tu non sei una chat one-shot tipo \"scrivimi una mail in\n3 secondi\". Sei un **agente con stato persistente sul filesystem**.\nLa cartella in cui vivi e' la tua spina dorsale. Questo file e' la mappa.\n\nSo che funzioni cosi':\n\n- **Un LLM (tu) + una cartella di istruzioni (questa)** = un agente\n- **Macroistruzione (questo file)** \u2192 sub-istruzioni in `spec/` \u2192 file\n  di lavoro specifici in altre sotto-cartelle\n- Tu **navighi** la cartella, non cerchi. Vai dove ti rimando esplicito.\n- Il **filesystem e' la memoria**: tu dimentichi tutto tra un turno e\n  l'altro, ma quello che scrivi sul disco sopravvive.\n\nLavoro nelle relazioni con investitori. Usero' questa cartella per\npreparare presentazioni, analisi su aziende e settori, brief per\nriunioni, ragionamenti scritti, note di call. Non scrivo codice.\nIl mio \"deliverable\" e' un documento, una nota, una struttura di\npensiero che regga davanti a persone intelligenti.\n\n## Cosa voglio che tu faccia\n\n### 1. Prima il pensiero, poi la struttura, poi il documento\n\nNon scrivermi mai un deliverable completo al primo turno. Anche se sembra\novvio cosa serve.\n\nIl primo turno serve per **capire cosa ho bisogno di fare**. Aiutami\na metterlo per iscritto in un file mirato (es. `note/<argomento>.md` o\n`presentazioni/<cliente>/brief.md`). Solo dopo che il pensiero esiste,\nparliamo di come articolarlo. Solo dopo che la struttura esiste,\nscriviamo il deliverable vero.\n\n### 2. Strutturiamo la cartella nel modo giusto\n\nQuando arrivera' il momento di organizzare, proponimi sempre una\nversione **minima** prima. Esempio canonico per il mio mondo:\n\n```\ninvestor-work/\n\u251c\u2500\u2500 CLAUDE.md            <- questo file\n\u251c\u2500\u2500 spec/\n\u2502   \u251c\u2500\u2500 chi-sono.md      <- background, fondi/settori su cui lavoro\n\u2502   \u2514\u2500\u2500 stile.md         <- come scrivo, registro, vincoli editoriali\n\u251c\u2500\u2500 aziende/             <- una sotto-cartella per ogni azienda che seguo\n\u2502   \u2514\u2500\u2500 <azienda>/\n\u2502       \u251c\u2500\u2500 pitch.md\n\u2502       \u251c\u2500\u2500 financials.md\n\u2502       \u2514\u2500\u2500 note-call-<data>.md\n\u251c\u2500\u2500 presentazioni/       <- deck e brief per riunioni\n\u2502   \u2514\u2500\u2500 <data>-<cliente>/\n\u2514\u2500\u2500 analisi/             <- studi di settore, comparable, tesi\n    \u2514\u2500\u2500 <argomento>.md\n```\n\nNiente sotto-cartelle a meno che non sappiamo a cosa serviranno.\nCrescere incrementale. **Mai partire grossi.**\n\n### 3. Quando sto per chiederti la cosa sbagliata, FERMATI e dimmelo\n\nEsempi di richieste che probabilmente faro' io stesso senza pensarci,\ne che voglio che tu intercetti:\n\n- **\"Scrivimi una presentazione per X.\"** Senza contesto, senza obiettivi,\n  senza audience definita. \u2192 FERMATI. Prima chiedimi: chi e' l'audience,\n  cosa devono pensare alla fine, su cosa decidere, quanto tempo abbiamo.\n  Poi struttura, poi contenuto.\n- **\"Dammi un'analisi di settore.\"** Sintetica, generica, da Wikipedia.\n  \u2192 NO. Chiedimi: quale tesi stiamo verificando, quali aziende contano,\n  da quali fonti dobbiamo partire. Niente analisi senza taglio.\n- **\"Riassumimi questo PDF.\"** Senza scopo. \u2192 Chiedimi prima cosa devo\n  cercare dentro. Riassumere senza chiave di lettura significa perdere\n  cio' che conta e tenere cio' che e' generico.\n- **\"Inventati dei numeri plausibili.\"** Mai. Se non hai un dato,\n  scrivi <code>[dato da verificare]</code> e segnalalo separatamente\n  nei tuoi note. Non e' tollerabile che un investor relator presenti\n  numeri non verificati.\n- **\"Fammi tutto in una chat.\"** No: aiutami a SCRIVERE su file. Cosi'\n  posso tornarci sopra, riprendere il filo, condividerlo con colleghi\n  senza fare copia-incolla mille volte.\n\n### 4. Quando ti chiedo qualcosa che mi si ritorcera' contro, non assecondarmi\n\nSe prevedi che cio' che ti chiedo non reggera' davanti a un investitore\nintelligente, **dimmelo**. *\"Capisco la richiesta, pero' la tesi cosi'\nposta ha tre punti deboli: X, Y, Z. Vuoi che proviamo a riformularla\nprima di andare avanti?\"* Poi decidiamo.\n\nNon essere passivo. Non darmi ragione per default. Sei piu' bravo di\nme a vedere dove un argomento traballa.\n\n### 5. Stile di lavoro\n\n- **Italiano**, sempre. Termini finanziari inglesi (LBO, EV/EBITDA,\n  cap table, term sheet) sono ok cosi' come sono.\n- **Frasi corte. Mai paragrafi-fiume.** Le persone che leggeranno i miei\n  documenti hanno fretta.\n- **Mai em-dash** (\u2014). Usa virgole, parentesi, due punti.\n- **Niente corporate-fluff**: \"in un mercato sempre piu' competitivo\",\n  \"facendo leva su sinergie\", \"best-in-class\", \"win-win\". Buttali.\n- Quando proponi una struttura di documento, mostrala come **indice\n  numerato breve** prima del contenuto. Cosi' decidiamo lo scheletro\n  prima di riempirlo.\n- Quando proponi una struttura di cartelle, mostrala come **albero\n  ASCII**.\n\n### 6. Quando aggiungiamo qualcosa, aggiorniamo prima questo file\n\nSe aggiungiamo una nuova sotto-cartella (es. `due-diligence/`), una\nnuova convenzione di nomi, o una nuova \"skill\" (vedi sotto), **aggiorna\nquesto `CLAUDE.md` aggiungendo una riga nella mappa**. Cosi' al\nprossimo turno ti orienti subito.\n\nLo stesso vale per il contesto stabile: chi sono, su cosa lavoro,\ncon quale tono. Scriviamolo in `spec/chi-sono.md` e `spec/stile.md`.\nIl filesystem e' la memoria \u2014 se non ce lo scriviamo, lo dimenticherai.\n\n### 7. Le skill, quando servono\n\nSe mi accorgo che certe situazioni ricorrenti meritano un'istruzione\ndedicata (es. \"come strutturare un brief per riunione con LP\", \"come\npreparare una nota di settore\"), facciamo una **skill**: un file\n`skills/<nome>/SKILL.md` con scritto cosa fare in quella situazione\nspecifica. Tu la leggerai automaticamente quando il task la richiede.\n\nNiente JSON di configurazione, niente keyword di trigger. Solo prosa\nistruttiva, esempi buoni e cattivi.\n\n## Mappa della cartella (per ora)\n\n```\n.\n\u251c\u2500\u2500 CLAUDE.md              <- sei qui\n\u2514\u2500\u2500 spec/                  <- da creare al primo task vero\n    \u251c\u2500\u2500 chi-sono.md        <-   background, focus, fondi/aziende che seguo\n    \u2514\u2500\u2500 stile.md           <-   come scrivo, vincoli editoriali, anti-pattern\n```\n\nVuoto. La riempiremo insieme. Una sotto-cartella alla volta, una skill\nalla volta. Niente in piu' del necessario.\n\n## Cosa mi serve oggi\n\n> *Sostituisci questa sezione con una descrizione di cosa devi fare oggi.\n> Bastano 3-5 righe. Non serve essere preciso \u2014 Claude ti aiutera' a\n> tirarne fuori il pensiero strutturato.*\n\n(qui scrivo cosa ho bisogno di fare oggi)\n\n---\n\n## Cosa fai adesso, al primo turno\n\n1. **Hai gia' letto questo file.** Bene.\n2. **Salutami brevemente.** Dimmi che hai letto e capito.\n3. **Se sopra ho scritto cosa mi serve oggi**, fammi 3-5 domande mirate\n   per capire meglio. Non scrivere il deliverable. Non scrivere la\n   struttura. Solo domande.\n4. **Se sopra non c'e' ancora niente**, chiedimi: *\"Come ti posso aiutare?\n   Anche solo un'idea grezza in due righe va bene.\"*\n5. **Quando avro' risposto**, aiutami a metterlo in un file mirato\n   (es. `note/<argomento>.md` per cominciare). E poi vediamo insieme\n   come si articola il documento o la cartella che serve.\n\nNiente deliverable oggi al primo turno. Prima il pensiero, poi la\nstruttura, poi il documento.\n";
+  </script>
+  <script>
+    // =========================================================
+    // Progress bar
+    // =========================================================
+    (function () {
+      const bar = document.getElementById('progress');
+      function update() {
+        const h = document.documentElement;
+        const scrolled = h.scrollTop;
+        const max = h.scrollHeight - h.clientHeight;
+        const pct = max > 0 ? (scrolled / max) * 100 : 0;
+        bar.style.width = pct + '%';
+      }
+      window.addEventListener('scroll', update, { passive: true });
+      window.addEventListener('resize', update);
+      update();
+    })();
+
+    // =========================================================
+    // Active section highlight in side nav
+    // =========================================================
+    (function () {
+      const links = document.querySelectorAll('.nav a[href^="#"]');
+      const map = new Map();
+      links.forEach(a => {
+        const id = a.getAttribute('href').slice(1);
+        const el = document.getElementById(id);
+        if (el) map.set(el, a);
+      });
+      const observer = new IntersectionObserver(entries => {
+        entries.forEach(e => {
+          const link = map.get(e.target);
+          if (!link) return;
+          if (e.isIntersecting) {
+            links.forEach(l => l.classList.remove('active'));
+            link.classList.add('active');
+          }
+        });
+      }, { rootMargin: '-40% 0px -55% 0px', threshold: 0 });
+      map.forEach((_, el) => observer.observe(el));
+    })();
+
+    // =========================================================
+    // Gift download — usa il payload embeddato (window.__GIFT_MD) per generare
+    // il download del CLAUDE.md anche quando il deck e' spedito come singolo
+    // file HTML, senza il file CLAUDE.md a fianco.
+    // =========================================================
+    (function () {
+      const btn = document.getElementById('gift-download');
+      if (!btn) return;
+
+      btn.addEventListener('click', (e) => {
+        const md = window.__GIFT_MD;
+        if (!md || typeof md !== 'string' || md.length === 0) {
+          // Fallback: lascia che il browser segua href="CLAUDE.md" relativo
+          return;
+        }
+        e.preventDefault();
+        const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'CLAUDE.md';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+      });
+    })();
+
+    // =========================================================
+    // Hamburger nav toggle (mobile)
+    // =========================================================
+    (function () {
+      const toggle = document.getElementById('nav-toggle');
+      const nav = document.getElementById('nav-main');
+      const backdrop = document.getElementById('nav-backdrop');
+      if (!toggle || !nav || !backdrop) return;
+
+      function open() {
+        toggle.classList.add('is-open');
+        nav.classList.add('is-open');
+        backdrop.classList.add('is-open');
+        toggle.setAttribute('aria-expanded', 'true');
+        document.body.style.overflow = 'hidden';
+      }
+      function close() {
+        toggle.classList.remove('is-open');
+        nav.classList.remove('is-open');
+        backdrop.classList.remove('is-open');
+        toggle.setAttribute('aria-expanded', 'false');
+        document.body.style.overflow = '';
+      }
+      function toggleNav() {
+        if (nav.classList.contains('is-open')) close();
+        else open();
+      }
+
+      toggle.addEventListener('click', toggleNav);
+      backdrop.addEventListener('click', close);
+
+      // Chiudi quando l'utente seleziona una voce della nav
+      nav.querySelectorAll('a[href^="#"]').forEach(link => {
+        link.addEventListener('click', () => close());
+      });
+
+      // Chiudi con Escape
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && nav.classList.contains('is-open')) close();
+      });
+
+      // Se l'utente ridimensiona oltre il breakpoint mentre la nav e' aperta,
+      // chiudila per evitare stato inconsistente
+      window.addEventListener('resize', () => {
+        if (window.innerWidth > 960 && nav.classList.contains('is-open')) close();
+      });
+    })();
+
+    // =========================================================
+    // VISUALIZER — il cuore del deck (v0.2 — reel-grade motion)
+    // Due istanze (vz1 turno 1, vz2 turno 2). Stessa engine.
+    //
+    // Vedi skills/motion-reel/SKILL.md per principi e anti-pattern.
+    // =========================================================
+    (function () {
+
+      // ====== Timing canonico (musical) ======
+      const T = {
+        particleTravel: 750,    // ms
+        waveExpand:     800,
+        typewriter:     32,     // ms per char
+        fileSlideIn:    420,
+        stateTransition: 420,
+        interStep:      280,
+        autoPlayPace:   2600,   // pausa tra step in auto-play
+      };
+
+      const EASE = {
+        outQuart:  'cubic-bezier(0.23, 1, 0.32, 1)',
+        outExpo:   'cubic-bezier(0.16, 1, 0.3, 1)',
+        overshoot: 'cubic-bezier(0.34, 1.5, 0.5, 1)',
+        smooth:    'cubic-bezier(0.4, 0, 0.2, 1)',
+      };
+
+      // ====== Step turno 1: filesystem vuoto → file creato ======
+      const TURN_1_STEPS = [
+        {
+          actors: ['user'],
+          transitions: [],
+          thinking: [],
+          fs: 'empty',
+          narr: '<strong>1. Input.</strong> Tu scrivi la richiesta. L\'harness la cattura.',
+        },
+        {
+          actors: ['harness'],
+          transitions: [{ type: 'particle', from: 'user', to: 'harness' }],
+          thinking: [],
+          fs: 'empty',
+          narr: '<strong>2. Assembly.</strong> L\'harness costruisce il prompt completo: regole di sistema, lista tool disponibili, history (vuota), il tuo messaggio. Tutto in un unico blob che parte verso il modello.',
+        },
+        {
+          actors: ['model'],
+          transitions: [{ type: 'particle', from: 'harness', to: 'model' }],
+          thinking: ['model'],
+          fs: 'empty',
+          narr: '<strong>3. Modello pensa.</strong> Riceve il prompt, lo legge, decide cosa fare. Non scrive ancora nulla — sta solo "pensando".',
+        },
+        {
+          actors: ['model'],
+          transitions: [],
+          thinking: [],
+          fs: 'empty',
+          narr: '<strong>4. Tool call.</strong> Il modello produce: <code>write_file(path="note.md", content="ciao mondo")</code>. Non sta eseguendo — sta solo <em>chiedendo</em> all\'harness di farlo.',
+        },
+        {
+          actors: ['tools'],
+          transitions: [
+            { type: 'wave',     from: 'model', to: 'tools', color: 'gold' },
+            { type: 'particle', from: 'model', to: 'tools', color: 'gold' },
+            { type: 'particle', from: 'tools', to: 'fs',    color: 'gold', delay: 200 },
+          ],
+          thinking: [],
+          fs: [{ name: 'note.md', content: '"ciao mondo"', changed: true, animate: 'typewrite' }],
+          narr: '<strong>5. Tool exec.</strong> L\'harness intercetta la chiamata e la esegue davvero: <em>crea il file</em> sul disco.',
+        },
+        {
+          actors: ['model'],
+          transitions: [{ type: 'particle', from: 'fs', to: 'model', color: 'gold' }],
+          thinking: ['model'],
+          fs: [{ name: 'note.md', content: '"ciao mondo"' }],
+          narr: '<strong>6. Result + decisione.</strong> Il modello viene richiamato con il risultato del tool ("ok, fatto"). Decide: ho finito.',
+        },
+        {
+          actors: ['user'],
+          transitions: [{ type: 'particle', from: 'model', to: 'user' }],
+          thinking: [],
+          fs: [{ name: 'note.md', content: '"ciao mondo"' }],
+          narr: '<strong>7. Output.</strong> L\'harness restituisce a te: <em>"Fatto. Ho creato note.md con dentro \'ciao mondo\'."</em> Il turno e\' completo.',
+        },
+      ];
+
+      // ====== Step turno 2: file esiste → letto → modificato ======
+      const TURN_2_STEPS = [
+        {
+          actors: ['user'],
+          transitions: [],
+          thinking: [],
+          fs: [{ name: 'note.md', content: '"ciao mondo"' }],
+          narr: '<strong>1. Input.</strong> Tu scrivi: "aggiungi una riga \'arrivederci\' a note.md". Nota: il modello non sa cosa contiene il file. Era un altro turno.',
+        },
+        {
+          actors: ['harness'],
+          transitions: [{ type: 'particle', from: 'user', to: 'harness' }],
+          thinking: [],
+          fs: [{ name: 'note.md', content: '"ciao mondo"' }],
+          narr: '<strong>2. Assembly.</strong> L\'harness costruisce il nuovo prompt. Niente di magico: gli passa il tuo messaggio nuovo + l\'history del turno 1 (incluse le tool_call gia\' fatte).',
+        },
+        {
+          actors: ['model'],
+          transitions: [{ type: 'particle', from: 'harness', to: 'model' }],
+          thinking: ['model'],
+          fs: [{ name: 'note.md', content: '"ciao mondo"' }],
+          narr: '<strong>3. Modello pensa.</strong> Realizza: <em>"per aggiungere una riga devo prima sapere cosa c\'e\' dentro il file"</em>. Quindi <strong>chiede di leggerlo</strong>.',
+        },
+        {
+          actors: ['model'],
+          transitions: [],
+          thinking: [],
+          fs: [{ name: 'note.md', content: '"ciao mondo"' }],
+          narr: '<strong>4. Tool call (read).</strong> Il modello produce: <code>read_file(path="note.md")</code>. Vuole vedere il contenuto attuale.',
+        },
+        {
+          actors: ['tools'],
+          transitions: [
+            { type: 'wave',     from: 'model', to: 'tools', color: 'gold' },
+            { type: 'particle', from: 'model', to: 'tools', color: 'gold' },
+            { type: 'particle', from: 'tools', to: 'fs',    color: 'gold', delay: 180 },
+          ],
+          thinking: [],
+          fs: [{ name: 'note.md', content: '"ciao mondo"', highlight: true }],
+          narr: '<strong>5. Tool exec (read).</strong> L\'harness legge il file dal disco e rispedisce il contenuto al modello: <code>"ciao mondo"</code>.',
+        },
+        {
+          actors: ['model'],
+          transitions: [{ type: 'particle', from: 'fs', to: 'model', color: 'gold' }],
+          thinking: ['model'],
+          fs: [{ name: 'note.md', content: '"ciao mondo"' }],
+          narr: '<strong>6. Modello ricompone.</strong> Adesso sa cosa c\'e\' dentro. Costruisce il nuovo contenuto: <code>"ciao mondo\\narrivederci"</code>.',
+        },
+        {
+          actors: ['model'],
+          transitions: [],
+          thinking: [],
+          fs: [{ name: 'note.md', content: '"ciao mondo"' }],
+          narr: '<strong>7. Tool call (write).</strong> Il modello produce: <code>write_file(path="note.md", content="ciao mondo\\narrivederci")</code>.',
+        },
+        {
+          actors: ['tools'],
+          transitions: [
+            { type: 'wave',     from: 'model', to: 'tools', color: 'gold' },
+            { type: 'particle', from: 'model', to: 'tools', color: 'gold' },
+            { type: 'particle', from: 'tools', to: 'fs',    color: 'gold', delay: 180 },
+          ],
+          thinking: [],
+          fs: [{ name: 'note.md', content: '"ciao mondo"\n"arrivederci"', changed: true, animate: 'typewrite' }],
+          narr: '<strong>8. Tool exec (write).</strong> L\'harness sovrascrive il file con il nuovo contenuto.',
+        },
+        {
+          actors: ['user'],
+          transitions: [{ type: 'particle', from: 'model', to: 'user' }],
+          thinking: [],
+          fs: [{ name: 'note.md', content: '"ciao mondo"\n"arrivederci"' }],
+          narr: '<strong>9. Output.</strong> "Fatto. Ho aggiunto la riga \'arrivederci\' al file." Turno completo.',
+        },
+      ];
+
+      // ====== Helpers ======
+      const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
+      function center(el, refRect) {
+        const r = el.getBoundingClientRect();
+        return {
+          x: r.left + r.width / 2 - refRect.left,
+          y: r.top + r.height / 2 - refRect.top,
+        };
+      }
+
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      }
+
+      // ====== LoopVisualizer ======
+      class LoopVisualizer {
+        constructor(rootId, steps, initialFs) {
+          this.root = document.getElementById(rootId);
+          if (!this.root) return;
+
+          this.rootId = rootId;
+          this.steps = steps;
+          this.initialFs = initialFs;
+          this.stepIndex = 0;
+          this.isAnimating = false;
+          this.autoPlayTimer = null;
+
+          this.stage = this.root.querySelector('.vz-stage');
+          this.actors = Array.from(this.root.querySelectorAll('.vz-actor'));
+          this.fsTree = this.root.querySelector(`#${rootId}-fs`);
+          this.fsPanel = this.root.querySelector('.vz-fs');
+          this.narrEl = this.root.querySelector(`#${rootId}-narration`);
+          this.stepCountEl = this.root.querySelector(`#${rootId}-step`);
+          this.totalEl = this.root.querySelector(`#${rootId}-total`);
+          this.totalEl.textContent = this.steps.length;
+          this.initialNarration = this.narrEl.innerHTML;
+
+          // Inietta atmosphere layer (background drift + vignette) PRIMA di tutto
+          this.atmosphere = document.createElement('div');
+          this.atmosphere.className = 'vz-atmosphere';
+          this.stage.insertBefore(this.atmosphere, this.stage.firstChild);
+
+          // Inietta FX layer (particles + wave) + flash overlay
+          this.fxLayer = document.createElement('div');
+          this.fxLayer.className = 'vz-fx-layer';
+          this.stage.appendChild(this.fxLayer);
+
+          this.flashLayer = document.createElement('div');
+          this.flashLayer.className = 'vz-fx-flash';
+          this.stage.appendChild(this.flashLayer);
+
+          // Brain pattern (sostituisce i 3 dots) negli attori
+          this.actors.forEach(a => {
+            if (a.querySelector('.vz-brain')) return;
+            const brain = document.createElement('span');
+            brain.className = 'vz-brain';
+            brain.innerHTML = '<svg viewBox="0 0 56 14" preserveAspectRatio="none">' +
+              '<path d="M0 7 L8 7 L12 2 L16 12 L20 4 L24 10 L28 7 L36 7 L40 3 L44 11 L48 7 L56 7" />' +
+              '</svg>';
+            a.appendChild(brain);
+          });
+
+          this.renderInitial();
+          this.preShowFadeIn();
+        }
+
+        // ===== Pre-show: scena nera, attori entrano in cascata =====
+        preShowFadeIn() {
+          // Quando la scena entra in viewport, anima staggered entry.
+          // IntersectionObserver per partire solo quando visibile (non in background).
+          const stage = this.stage;
+          const actors = this.actors;
+          // Stato iniziale "dietro le quinte"
+          stage.style.opacity = '0';
+          actors.forEach((a, i) => {
+            a.style.opacity = '0';
+            a.style.transform = 'translateY(12px) scale(0.96)';
+          });
+
+          const reveal = () => {
+            stage.animate(
+              [{ opacity: 0 }, { opacity: 1 }],
+              { duration: 600, easing: EASE.outExpo, fill: 'forwards' }
+            );
+            stage.style.opacity = '';
+
+            actors.forEach((a, i) => {
+              setTimeout(() => {
+                a.animate(
+                  [{ opacity: 0, transform: 'translateY(12px) scale(0.96)' },
+                   { opacity: 1, transform: 'translateY(0) scale(1)' }],
+                  { duration: 520, easing: EASE.outQuart, fill: 'forwards' }
+                );
+                a.style.opacity = '';
+                a.style.transform = '';
+              }, 120 + i * 110);
+            });
+          };
+
+          if ('IntersectionObserver' in window) {
+            const obs = new IntersectionObserver((entries) => {
+              entries.forEach(e => {
+                if (e.isIntersecting) {
+                  reveal();
+                  obs.disconnect();
+                }
+              });
+            }, { threshold: 0.3 });
+            obs.observe(this.root);
+          } else {
+            // Fallback: parte subito
+            setTimeout(reveal, 100);
+          }
+        }
+
+        actorEl(role) {
+          if (role === 'fs') return this.fsPanel;
+          return this.root.querySelector(`.vz-actor[data-actor="${role}"]`);
+        }
+
+        setActorStates(active = [], thinking = []) {
+          const hasActive = active.length > 0;
+          this.actors.forEach(a => {
+            const role = a.getAttribute('data-actor');
+            a.classList.toggle('active', active.includes(role));
+            a.classList.toggle('thinking', thinking.includes(role));
+            a.classList.toggle('dim', hasActive && !active.includes(role));
+          });
+        }
+
+        renderInitial() {
+          this.renderFs(this.initialFs);
+          this.setActorStates([], []);
+          this.stepCountEl.textContent = 0;
+        }
+
+        renderFs(fs) {
+          if (fs === 'empty' || !fs) {
+            this.fsTree.innerHTML = '<div class="vz-fs-empty">(vuoto)</div>';
+            return;
+          }
+          this.fsTree.innerHTML = fs.map(f => `
+            <div class="vz-fs-file ${f.changed || f.highlight ? 'just-changed' : ''}">
+              <span class="vz-fs-name">${escapeHtml(f.name)}</span>
+              <span class="vz-fs-content">${escapeHtml(f.content)}</span>
+            </div>
+          `).join('');
+        }
+
+        // ===== Particle: punto luminoso CON TRAIL che viaggia da from a to =====
+        async particle(fromEl, toEl, opts = {}) {
+          const layerRect = this.fxLayer.getBoundingClientRect();
+          const start = center(fromEl, layerRect);
+          const end = center(toEl, layerRect);
+          const isGold = opts.color === 'gold';
+
+          // Particle principale
+          const el = document.createElement('div');
+          el.className = 'vz-particle' + (isGold ? ' vz-particle-gold' : '');
+          el.style.left = start.x + 'px';
+          el.style.top = start.y + 'px';
+          this.fxLayer.appendChild(el);
+
+          // Fade in
+          el.animate(
+            [{ opacity: 0, transform: 'translate(-50%, -50%) scale(0.4)' },
+             { opacity: 1, transform: 'translate(-50%, -50%) scale(1)' }],
+            { duration: 160, easing: EASE.outQuart, fill: 'forwards' }
+          );
+
+          // Trail: 5 puntini secondari sparati con ritardo crescente, opacita' calante.
+          // Ogni trail "insegue" la particle viaggiando con un offset temporale.
+          const TRAIL_COUNT = 5;
+          const TRAIL_DELAY = 55;
+          for (let i = 0; i < TRAIL_COUNT; i++) {
+            const t = document.createElement('div');
+            t.className = 'vz-particle-trail' + (isGold ? ' vz-particle-trail-gold' : '');
+            t.style.left = start.x + 'px';
+            t.style.top = start.y + 'px';
+            const fadeFactor = 1 - (i + 1) / (TRAIL_COUNT + 1);
+            t.style.opacity = String(fadeFactor * 0.65);
+            t.style.width = (10 - i * 1.2) + 'px';
+            t.style.height = (10 - i * 1.2) + 'px';
+            this.fxLayer.appendChild(t);
+
+            setTimeout(() => {
+              t.animate(
+                [{ left: start.x + 'px', top: start.y + 'px' },
+                 { left: end.x + 'px',   top: end.y + 'px' }],
+                { duration: T.particleTravel, easing: EASE.outQuart, fill: 'forwards' }
+              );
+              setTimeout(() => {
+                t.animate(
+                  [{ opacity: parseFloat(t.style.opacity) },
+                   { opacity: 0 }],
+                  { duration: 220, fill: 'forwards' }
+                ).finished.then(() => t.remove());
+              }, T.particleTravel);
+            }, (i + 1) * TRAIL_DELAY);
+          }
+
+          // Travel della particle principale
+          const travel = el.animate(
+            [{ left: start.x + 'px', top: start.y + 'px' },
+             { left: end.x + 'px',   top: end.y + 'px' }],
+            { duration: T.particleTravel, easing: EASE.outQuart, fill: 'forwards' }
+          );
+          await travel.finished;
+
+          // Burst sull'arrivo
+          await el.animate(
+            [{ opacity: 1, transform: 'translate(-50%, -50%) scale(1)' },
+             { opacity: 0, transform: 'translate(-50%, -50%) scale(2.6)' }],
+            { duration: 260, easing: EASE.outQuart, fill: 'forwards' }
+          ).finished;
+
+          el.remove();
+        }
+
+        // ===== Flash: lampo bianco brevissimo sullo stage =====
+        async flash() {
+          const anim = this.flashLayer.animate(
+            [{ opacity: 0 }, { opacity: 0.55 }, { opacity: 0 }],
+            { duration: 240, easing: EASE.outExpo, fill: 'forwards' }
+          );
+          await anim.finished;
+        }
+
+        // ===== Wave: onda concentrica con flash + onde multiple sfasate =====
+        async wave(fromEl, _toEl, opts = {}) {
+          const layerRect = this.fxLayer.getBoundingClientRect();
+          const origin = center(fromEl, layerRect);
+          const isGold = opts.color === 'gold';
+
+          // Flash bianco sullo stage in concomitanza dell'inizio della wave
+          this.flash();
+
+          // 3 onde sfasate per profondita' sonica visiva
+          const waves = [
+            { delay: 0,   maxScale: 6,   startOpacity: 0.95 },
+            { delay: 110, maxScale: 4.5, startOpacity: 0.7 },
+            { delay: 220, maxScale: 3,   startOpacity: 0.45 },
+          ];
+
+          const promises = waves.map(w => new Promise(resolve => {
+            setTimeout(() => {
+              const el = document.createElement('div');
+              el.className = 'vz-wave' + (isGold ? ' vz-wave-gold' : '');
+              el.style.left = origin.x + 'px';
+              el.style.top = origin.y + 'px';
+              this.fxLayer.appendChild(el);
+
+              el.animate(
+                [{ transform: 'translate(-50%, -50%) scale(0.4)', opacity: w.startOpacity },
+                 { transform: `translate(-50%, -50%) scale(${w.maxScale})`, opacity: 0 }],
+                { duration: T.waveExpand, easing: EASE.outExpo, fill: 'forwards' }
+              ).finished.then(() => {
+                el.remove();
+                resolve();
+              });
+            }, w.delay);
+          }));
+          await Promise.all(promises);
+        }
+
+        // ===== Typewriter: scrive il testo carattere per carattere =====
+        async typewriter(el, text, perChar = T.typewriter) {
+          el.textContent = '';
+          const caret = document.createElement('span');
+          caret.className = 'vz-fs-caret';
+          el.appendChild(caret);
+          for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            const tn = document.createTextNode(ch);
+            el.insertBefore(tn, caret);
+            await wait(perChar);
+          }
+          await wait(260);
+          caret.remove();
+        }
+
+        // ===== File slide-in: il file entra con overshoot + typing del contenuto =====
+        async fileSlideIn(file) {
+          this.fsTree.innerHTML = `
+            <div class="vz-fs-file just-changed" style="opacity:0;transform:translateY(14px) scale(0.96)">
+              <span class="vz-fs-name">${escapeHtml(file.name)}</span>
+              <span class="vz-fs-content" data-typetarget></span>
+            </div>
+          `;
+          const fileEl = this.fsTree.querySelector('.vz-fs-file');
+          await fileEl.animate(
+            [{ opacity: 0, transform: 'translateY(14px) scale(0.96)' },
+             { opacity: 1, transform: 'translateY(0) scale(1)' }],
+            { duration: T.fileSlideIn, easing: EASE.overshoot, fill: 'forwards' }
+          ).finished;
+
+          const target = fileEl.querySelector('[data-typetarget]');
+          await this.typewriter(target, file.content);
+        }
+
+        // ===== Esegui le transitions di uno step (coreografia con delay) =====
+        async runTransitions(transitions) {
+          const promises = transitions.map(async (t) => {
+            if (t.delay) await wait(t.delay);
+            const from = this.actorEl(t.from);
+            const to = this.actorEl(t.to);
+            if (!from || !to) return;
+            if (t.type === 'particle') await this.particle(from, to, { color: t.color });
+            else if (t.type === 'wave') await this.wave(from, to, { color: t.color });
+          });
+          await Promise.all(promises);
+        }
+
+        // ===== Cinematic narration swap (fade+blur out, masked reveal in) =====
+        async swapNarration(html) {
+          // Fade out old
+          this.narrEl.classList.add('fading-out');
+          await wait(260);
+          // Replace content
+          this.narrEl.innerHTML = html;
+          this.narrEl.classList.remove('fading-out');
+          // Force reflow trick — riporta in stato "entering" e poi "entered"
+          this.narrEl.classList.add('entering');
+          // eslint-disable-next-line no-unused-expressions
+          void this.narrEl.offsetWidth;
+          this.narrEl.classList.remove('entering');
+          this.narrEl.classList.add('entered');
+          await wait(460);
+          this.narrEl.classList.remove('entered');
+        }
+
+        // ===== Render dello step idx (1-based) — choreografato =====
+        async goToStep(idx) {
+          if (this.isAnimating) return;
+          if (idx < 0 || idx > this.steps.length) return;
+
+          this.isAnimating = true;
+          this.stepIndex = idx;
+          this.stepCountEl.textContent = idx;
+
+          if (idx === 0) {
+            this.renderInitial();
+            this.narrEl.innerHTML = this.initialNarration;
+            this.isAnimating = false;
+            this.updateButtons();
+            return;
+          }
+
+          const step = this.steps[idx - 1];
+
+          // 1. Cinematic swap della narrazione (fade out vecchio, blur in nuovo) —
+          //    parte in parallelo agli stati attori
+          const narrPromise = this.swapNarration(step.narr);
+
+          // 2. 80ms di respiro prima di accendere gli stati visivi
+          await wait(80);
+          this.setActorStates(step.actors, step.thinking);
+
+          // 3. Esegui le transitions di motion (wave/particle/trail)
+          await this.runTransitions(step.transitions || []);
+
+          // 4. Filesystem update — con glow ambient se stiamo scrivendo
+          const animatedFile = Array.isArray(step.fs)
+            ? step.fs.find(f => f.animate === 'typewrite')
+            : null;
+          if (animatedFile) {
+            this.fsPanel.classList.add('writing');
+            await this.fileSlideIn(animatedFile);
+            // Lascia il glow per 600ms dopo che il typing finisce
+            setTimeout(() => this.fsPanel.classList.remove('writing'), 600);
+          } else {
+            this.renderFs(step.fs);
+          }
+
+          // Aspetta che la narration finisca di fade-in se ancora in volo
+          await narrPromise;
+
+          this.isAnimating = false;
+          this.updateButtons();
+        }
+
+        nextStep() {
+          if (this.isAnimating) return;
+          if (this.stepIndex < this.steps.length) {
+            this.goToStep(this.stepIndex + 1);
+          }
+        }
+
+        reset() {
+          this.stopAutoPlay();
+          this.fxLayer.innerHTML = '';
+          this.stepIndex = 0;
+          this.renderInitial();
+          this.narrEl.innerHTML = this.initialNarration;
+          this.stepCountEl.textContent = 0;
+          this.updateButtons();
+        }
+
+        toggleAutoPlay() {
+          if (this.autoPlayTimer) this.stopAutoPlay();
+          else this.startAutoPlay();
+        }
+
+        startAutoPlay() {
+          if (this.stepIndex >= this.steps.length) return;
+          this.autoPlayTimer = true;
+          this.updatePlayButton(true);
+          const tick = async () => {
+            if (!this.autoPlayTimer) return;
+            if (this.stepIndex >= this.steps.length) {
+              this.stopAutoPlay();
+              return;
+            }
+            await this.goToStep(this.stepIndex + 1);
+            if (!this.autoPlayTimer) return;
+            this.autoPlayTimer = setTimeout(tick, T.autoPlayPace);
+          };
+          this.autoPlayTimer = setTimeout(tick, 100);
+        }
+
+        stopAutoPlay() {
+          if (this.autoPlayTimer && this.autoPlayTimer !== true) {
+            clearTimeout(this.autoPlayTimer);
+          }
+          this.autoPlayTimer = null;
+          this.updatePlayButton(false);
+        }
+
+        updateButtons() {
+          const nextBtn = document.querySelector(`[data-vz="${this.rootId}"][data-action="next"]`);
+          const playBtn = document.querySelector(`[data-vz="${this.rootId}"][data-action="play"]`);
+          const done = this.stepIndex >= this.steps.length;
+          if (nextBtn) {
+            nextBtn.disabled = done;
+            nextBtn.textContent = done ? 'Fine' : 'Step ▶';
+          }
+          if (playBtn) {
+            playBtn.disabled = done;
+          }
+        }
+
+        updatePlayButton(playing) {
+          const playBtn = document.querySelector(`[data-vz="${this.rootId}"][data-action="play"]`);
+          if (playBtn) {
+            playBtn.textContent = playing ? '⏸ Stop' : '▶ Auto';
+          }
+        }
+      }
+
+      // =========================================================
+      // FsNavVisualizer — l'agente che naviga la cartella docs/deck/
+      // =========================================================
+      const NAV_STEPS = [
+        {
+          thought: '<strong>Input ricevuto.</strong> L\'utente vuole modificare la <em>slide 5</em>. Pero\' non so dove sta. Apro la macroistruzione per orientarmi.',
+          reads: 'CLAUDE.md',
+        },
+        {
+          thought: '<strong>Letto <code>CLAUDE.md</code>.</strong> Mi dice: <em>"le slide vivono in <code>content/</code>, una parte per file. Per il tono usa <code>spec/voice.md</code>."</em>',
+          reads: 'CLAUDE.md',
+        },
+        {
+          thought: '<strong>Prima il tono.</strong> Leggo <code>spec/voice.md</code> per scrivere nel registro giusto.',
+          reads: 'spec/voice.md',
+        },
+        {
+          thought: '<strong>Voice.md mi dice:</strong> italiano colloquiale, frasi corte, niente em-dash, niente "ovviamente". Ok, lo applico.',
+          reads: 'spec/voice.md',
+          action: true,
+        },
+        {
+          thought: '<strong>Adesso devo trovare la slide 5.</strong> La slide 5 vive nella Parte 1 (slides 4-7). File giusto: <code>content/01-harness.html</code>.',
+          reads: 'content/01-harness.html',
+        },
+        {
+          thought: '<strong>Apro <code>content/01-harness.html</code>.</strong> Trovo il blocco <code>&lt;!-- SLIDE 5 --&gt;</code> e identifico dove aggiungere la nota.',
+          reads: 'content/01-harness.html',
+          action: true,
+        },
+        {
+          thought: '<strong>Scrivo la modifica.</strong> Aggiungo una <code>&lt;div class="note"&gt;</code> con il testo richiesto. Tono coerente con voice.md.',
+          writes: 'content/01-harness.html',
+        },
+        {
+          thought: '<strong>Eseguo <code>build.py</code>.</strong> Concatena content + assets + template in <code>dist/index.html</code>. Fatto. L\'utente vedra\' la modifica al prossimo refresh.',
+          done: 'content/01-harness.html',
+        },
+      ];
+
+      class FsNavVisualizer {
+        constructor(rootId, steps) {
+          this.root = document.getElementById(rootId);
+          if (!this.root) return;
+
+          this.rootId = rootId;
+          this.steps = steps;
+          this.stepIndex = 0;
+          this.isAnimating = false;
+          this.autoPlayTimer = null;
+
+          this.thoughtList = this.root.querySelector(`#${rootId}-thought-list`);
+          this.tree = this.root.querySelector(`#${rootId}-tree`);
+          this.stepCountEl = this.root.querySelector(`#${rootId}-step`);
+          this.totalEl = this.root.querySelector(`#${rootId}-total`);
+          this.totalEl.textContent = this.steps.length;
+          this.fsnEls = new Map();
+          this.tree.querySelectorAll('.fsn').forEach(el => {
+            const path = el.getAttribute('data-path');
+            if (path) this.fsnEls.set(path, el);
+          });
+        }
+
+        clearStates() {
+          this.fsnEls.forEach(el => {
+            el.classList.remove('is-reading', 'is-writing', 'is-done');
+          });
+        }
+
+        setReading(path) {
+          this.clearStates();
+          const el = this.fsnEls.get(path);
+          if (el) el.classList.add('is-reading');
+        }
+        setWriting(path) {
+          this.clearStates();
+          const el = this.fsnEls.get(path);
+          if (el) el.classList.add('is-writing');
+        }
+        setDone(path) {
+          this.clearStates();
+          const el = this.fsnEls.get(path);
+          if (el) el.classList.add('is-done');
+        }
+
+        addThought(html, kind) {
+          const el = document.createElement('div');
+          el.className = 'vz-thought';
+          if (kind === 'action') el.classList.add('vz-thought-action');
+          if (kind === 'write') el.classList.add('vz-thought-write');
+          el.innerHTML = html;
+          this.thoughtList.appendChild(el);
+          // Scroll to bottom
+          requestAnimationFrame(() => {
+            el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          });
+        }
+
+        async goToStep(idx) {
+          if (this.isAnimating) return;
+          if (idx < 0 || idx > this.steps.length) return;
+          this.isAnimating = true;
+          this.stepIndex = idx;
+          this.stepCountEl.textContent = idx;
+
+          if (idx === 0) {
+            this.thoughtList.innerHTML = '';
+            this.clearStates();
+            this.isAnimating = false;
+            this.updateButtons();
+            return;
+          }
+
+          const step = this.steps[idx - 1];
+          const kind = step.writes ? 'write' : step.action ? 'action' : 'read';
+          this.addThought(step.thought, kind);
+          await wait(120);
+          if (step.writes) this.setWriting(step.writes);
+          else if (step.done) this.setDone(step.done);
+          else if (step.reads) this.setReading(step.reads);
+
+          await wait(400);
+          this.isAnimating = false;
+          this.updateButtons();
+        }
+
+        nextStep() {
+          if (this.isAnimating) return;
+          if (this.stepIndex < this.steps.length) this.goToStep(this.stepIndex + 1);
+        }
+
+        reset() {
+          this.stopAutoPlay();
+          this.stepIndex = 0;
+          this.thoughtList.innerHTML = '';
+          this.clearStates();
+          this.stepCountEl.textContent = 0;
+          this.updateButtons();
+        }
+
+        toggleAutoPlay() {
+          if (this.autoPlayTimer) this.stopAutoPlay();
+          else this.startAutoPlay();
+        }
+
+        startAutoPlay() {
+          if (this.stepIndex >= this.steps.length) return;
+          this.autoPlayTimer = true;
+          this.updatePlayButton(true);
+          const tick = async () => {
+            if (!this.autoPlayTimer) return;
+            if (this.stepIndex >= this.steps.length) {
+              this.stopAutoPlay();
+              return;
+            }
+            await this.goToStep(this.stepIndex + 1);
+            if (!this.autoPlayTimer) return;
+            this.autoPlayTimer = setTimeout(tick, 2400);
+          };
+          this.autoPlayTimer = setTimeout(tick, 100);
+        }
+
+        stopAutoPlay() {
+          if (this.autoPlayTimer && this.autoPlayTimer !== true) {
+            clearTimeout(this.autoPlayTimer);
+          }
+          this.autoPlayTimer = null;
+          this.updatePlayButton(false);
+        }
+
+        updateButtons() {
+          const nextBtn = document.querySelector(`[data-vz="${this.rootId}"][data-action="next"]`);
+          const playBtn = document.querySelector(`[data-vz="${this.rootId}"][data-action="play"]`);
+          const done = this.stepIndex >= this.steps.length;
+          if (nextBtn) {
+            nextBtn.disabled = done;
+            nextBtn.textContent = done ? 'Fine' : 'Step ▶';
+          }
+          if (playBtn) playBtn.disabled = done;
+        }
+
+        updatePlayButton(playing) {
+          const playBtn = document.querySelector(`[data-vz="${this.rootId}"][data-action="play"]`);
+          if (playBtn) playBtn.textContent = playing ? '⏸ Stop' : '▶ Auto';
+        }
+      }
+
+      // ====== Bootstrap ======
+      function init() {
+        const vz1 = new LoopVisualizer('vz1', TURN_1_STEPS, 'empty');
+        const vz2 = new LoopVisualizer('vz2', TURN_2_STEPS, [{ name: 'note.md', content: '"ciao mondo"' }]);
+        const vznav = new FsNavVisualizer('vznav', NAV_STEPS);
+
+        const instances = { vz1, vz2, vznav };
+
+        document.addEventListener('click', (e) => {
+          const btn = e.target.closest('.vz-btn');
+          if (!btn) return;
+          const vzId = btn.getAttribute('data-vz');
+          const action = btn.getAttribute('data-action');
+          const vz = instances[vzId];
+          if (!vz) return;
+
+          if (action === 'next') {
+            vz.stopAutoPlay();
+            vz.nextStep();
+          } else if (action === 'reset') {
+            vz.reset();
+          } else if (action === 'play') {
+            vz.toggleAutoPlay();
+          }
+        });
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+</body>
+</html>

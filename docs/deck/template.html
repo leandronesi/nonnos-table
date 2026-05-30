@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Non e' un LLM. E' un harness.</title>
+  <style>
+{{CSS}}
+  </style>
+</head>
+<body>
+  <div class="progress" id="progress"></div>
+
+  <!-- Hamburger toggle (mobile) -->
+  <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Apri il menu di navigazione" aria-controls="nav-main" aria-expanded="false">
+    <span class="nav-toggle-icon"><span></span></span>
+  </button>
+  <div class="nav-backdrop" id="nav-backdrop"></div>
+
+  <div class="layout">
+
+    <!-- =====================================================
+         SIDE NAV
+         ===================================================== -->
+    <aside class="nav" id="nav-main">
+      <div class="nav-brand">Il deck</div>
+      <ol>
+        <li><a href="#top">Apertura</a></li>
+
+        <li><span class="nav-part-label">Parte 0 — Preambolo</span></li>
+        <li><a href="#s1">01. Il malinteso</a></li>
+        <li><a href="#s2">02. Il modello mentale comune</a></li>
+        <li><a href="#s3">03. Perche' e' obsoleto</a></li>
+
+        <li><span class="nav-part-label">Parte 1 — Harness</span></li>
+        <li><a href="#s4">04. Decomposizione</a></li>
+        <li><a href="#s5">05. LLM nudo</a></li>
+        <li><a href="#s6">06. Cos'e' un harness</a></li>
+        <li><a href="#s7">07. Analogia motore/auto</a></li>
+
+        <li><span class="nav-part-label">Parte 2 — Il loop</span></li>
+        <li><a href="#s8">08. Anatomia di un turno</a></li>
+        <li><a href="#s9">09. Visualizer · turno 1</a></li>
+        <li><a href="#s10">10. Recap del turno</a></li>
+        <li><a href="#s11">11. Visualizer · turno 2</a></li>
+        <li><a href="#s12">12. L'"ah" moment</a></li>
+        <li><a href="#s13">13. Cosa sopravvive</a></li>
+        <li><a href="#s14">14. Cosa NON sopravvive</a></li>
+
+        <li><span class="nav-part-label">Parte 3 — Tolta la fuffa</span></li>
+        <li><a href="#s15">15. Cosa resta</a></li>
+        <li><a href="#s16">16. La macroistruzione</a></li>
+        <li><a href="#s17">17. Le sub-istruzioni</a></li>
+        <li><a href="#s18">18. Le skill</a></li>
+
+        <li><span class="nav-part-label">Parte 4 — Mettere insieme</span></li>
+        <li><a href="#s19">19. Lo stesso pattern</a></li>
+        <li><a href="#s20">20. Vediamolo in azione</a></li>
+        <li><a href="#s21">21. Le 4 domande</a></li>
+        <li><a href="#s22">22. L'esempio e' il deck</a></li>
+        <li><a href="#s23">23. La lezione + regalo</a></li>
+      </ol>
+    </aside>
+
+    <!-- =====================================================
+         MAIN COLUMN
+         ===================================================== -->
+    <main>
+{{CONTENT}}
+
+      <footer>
+        <p>Deck v0.3 (cinematic motion) — Mygotham / chess_coach · <span class="mono">docs/deck/dist/index.html</span></p>
+        <p>Single-file HTML, generato da <code>build.py</code>. Sorgenti modulari in <code>docs/deck/content/</code>.</p>
+      </footer>
+
+    </main>
+  </div>
+
+  <script>
+    // Gift payload: contenuto di CLAUDE.md embedded nel deck stesso,
+    // cosi' il deck e' autocontenuto e funziona spedito come singolo file.
+    window.__GIFT_MD = {{GIFT_MD_JSON}};
+  </script>
+  <script>
+{{JS}}
+  </script>
+</body>
+</html>

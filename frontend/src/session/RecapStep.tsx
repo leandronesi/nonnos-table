@@ -61,7 +61,7 @@ export function RecapStep({ session, streak, trendWeekly, coachSession, onClose 
     <div className="max-w-3xl mx-auto py-10">
       <div className="text-center">
         <div className="label-eyebrow text-[color:var(--color-brand-soft)]">Sessione completata</div>
-        <h2 className="display-medium mt-3 recap-headline">Bravo — <span className="recap-points-num">+{pointsAnim}</span> punti</h2>
+        <h2 className="display-medium mt-3 recap-headline">Bravo, <span className="recap-points-num">+{pointsAnim}</span> punti</h2>
         <div className="text-sm text-[color:var(--color-text-soft)] mt-2">
           {drillsTotal} posizioni  -  {bivi}/{session.bivi.length} bivi  -  1 partita  - {" "}
           {durationMin != null ? `${durationMin} min` : ""}

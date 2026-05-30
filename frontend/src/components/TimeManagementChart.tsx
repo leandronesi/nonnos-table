@@ -48,7 +48,7 @@ export function TimeManagementChart({
 
   return (
     <div className="surface surface-padded">
-      <div className="h-[320px]">
+      <div className="h-[320px]" role="img" aria-label="Grafico tempo rimasto vs errori">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 30, right: 24, left: 0, bottom: 4 }}>
             <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
@@ -275,7 +275,7 @@ function RichTooltip({ active, payload }: { active?: boolean; payload?: TooltipP
   if (!active || !payload || payload.length === 0) return null;
   const p = payload[0].payload;
   return (
-    <div className="rounded-lg border border-[color:var(--color-line-strong)] bg-[color:var(--color-surface-2)] px-3 py-2.5 shadow-2xl min-w-[200px]">
+    <div className="rounded-lg border border-[color:var(--color-line-strong)] bg-[color:var(--color-surface-2)] px-3 py-2.5 min-w-[200px]">
       <div className="text-[10px] font-mono uppercase tracking-widest text-[color:var(--color-muted)] mb-1.5">
         Tempo rimasto: {p.bucket}
       </div>

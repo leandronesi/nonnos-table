@@ -9,8 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
     "chess.js": "^1.0.0-beta.8",
     "lucide-react": "^1.16.0",
+    "onnxruntime-web": "^1.23.0",
     "react": "^19.0.0",
     "react-chessboard": "^5.0.0",
     "react-dom": "^19.0.0",

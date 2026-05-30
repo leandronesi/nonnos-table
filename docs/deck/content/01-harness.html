@@ -1,0 +1,150 @@
+<!-- ====== PARTE 1 ====== -->
+      <section class="part-divider">
+        <div class="part-divider-eyebrow">Parte 1</div>
+        <h2>La verita': un harness intorno a un LLM</h2>
+        <p>Decomponiamo. Cosa fa il modello da solo, cosa fa l'harness, e perche'
+          tutto il valore vive nel secondo.</p>
+      </section>
+
+      <!-- SLIDE 4 -->
+      <section class="slide" id="s4">
+        <div class="slide-num">04 / 26</div>
+        <h1>Decomposizione minima</h1>
+        <p class="slide-sub">Il modello e' una funzione pura. Punto.</p>
+        <div class="slide-body">
+          <p>Cominciamo dal cuore. Cos'e' davvero un LLM?</p>
+          <div class="formula">
+            LLM(<span class="formula-in">testo</span>) → <span class="formula-out">testo</span>
+          </div>
+          <p>E' una funzione matematica. Le dai del testo in input, ti restituisce
+            del testo in output. <strong>Fine.</strong> Non ha memoria fra una
+            chiamata e l'altra. Non sa che ora e'. Non puo' aprire file, navigare
+            internet, eseguire codice. Non sa nemmeno di essere stato chiamato.</p>
+          <p>Ogni volta che la chiami, parte da zero, legge cio' che le dai, e
+            sputa fuori una continuazione di testo statisticamente plausibile.</p>
+          <div class="note">
+            <strong>Implicazione che disorienta.</strong> Tutta la "magia" che vedi
+            quando usi Claude Code — leggere file, scrivere file, eseguire test,
+            tenere conto di cosa hai detto 10 messaggi fa — <em>non e' nel modello</em>.
+            E' costruita sopra. Da qualcun altro.
+          </div>
+          <p>Quel qualcun altro e' l'harness. E nelle prossime slide vediamo
+            esattamente cosa fa.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 5 -->
+      <section class="slide" id="s5">
+        <div class="slide-num">05 / 26</div>
+        <h1>L'LLM "nudo", dal vivo</h1>
+        <p class="slide-sub">Una chiamata API raw. Niente harness. Niente trucchi.</p>
+        <div class="slide-body">
+          <p>Per capire <em>davvero</em> quanto sia limitato un modello senza
+            harness, guarda una chiamata API vera:</p>
+          <div class="code"><span class="comment"># Tutto qui. Niente altro.</span>
+response = anthropic.messages.create(
+    model=<span class="str">"claude-opus-4-7"</span>,
+    messages=[
+        {<span class="key">"role"</span>: <span class="str">"user"</span>,
+         <span class="key">"content"</span>: <span class="str">"Ciao, ti chiami Mario."</span>}
+    ]
+)
+
+<span class="comment"># 5 minuti dopo, nuova chiamata. Il modello non sa nulla del turno prima.</span>
+response = anthropic.messages.create(
+    model=<span class="str">"claude-opus-4-7"</span>,
+    messages=[
+        {<span class="key">"role"</span>: <span class="str">"user"</span>,
+         <span class="key">"content"</span>: <span class="str">"Come ti chiami?"</span>}
+    ]
+)
+<span class="comment"># → "Sono Claude, un assistente di Anthropic." (NON "Mario")</span></div>
+          <p>Per fargli "ricordare" che si chiama Mario, devi rispedirgli
+            <strong>tutto il passato</strong> ogni volta. Per fargli leggere un
+            file, devi essere tu a incollarne il contenuto nel prompt. Per
+            fargli eseguire codice — scordatelo, non puo' eseguire niente.</p>
+          <p>Un LLM nudo e' essenzialmente un <strong>autocomplete grosso</strong>.
+            Bravissimo. Ma per il 90% dei task reali — ricordare, agire,
+            persistere — e' impotente da solo.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 6 -->
+      <section class="slide" id="s6">
+        <div class="slide-num">06 / 26</div>
+        <h1>Cos'e' un harness</h1>
+        <p class="slide-sub">L'impalcatura che trasforma un modello in un agente.</p>
+        <div class="slide-body">
+          <p>Un harness e' un <strong>programma normale</strong> (in Python, in
+            TypeScript, in Rust — non importa) che gira intorno al modello e
+            gli fornisce cinque cose che da solo non ha:</p>
+          <div class="harness-grid">
+            <div class="hg-item">
+              <div class="hg-num">1</div>
+              <div class="hg-name">Loop</div>
+              <div class="hg-desc">Chiama il modello in ciclo, non una sola volta. Decide quando fermarsi.</div>
+            </div>
+            <div class="hg-item">
+              <div class="hg-num">2</div>
+              <div class="hg-name">Tool registry</div>
+              <div class="hg-desc">Funzioni che il modello puo' invocare: <code>read_file</code>, <code>write_file</code>, <code>bash</code>, <code>edit_file</code>, ecc.</div>
+            </div>
+            <div class="hg-item">
+              <div class="hg-num">3</div>
+              <div class="hg-name">Filesystem</div>
+              <div class="hg-desc">Uno spazio reale su disco dove il modello legge e scrive stato.</div>
+            </div>
+            <div class="hg-item">
+              <div class="hg-num">4</div>
+              <div class="hg-name">Memoria di sessione</div>
+              <div class="hg-desc">La history dei turni: cosa tu hai detto, cosa il modello ha risposto, cosa i tool hanno restituito.</div>
+            </div>
+            <div class="hg-item">
+              <div class="hg-num">5</div>
+              <div class="hg-name">Hook lifecycle</div>
+              <div class="hg-desc">Punti di intercettazione per logica deterministica: validazione invarianti, audit, log.</div>
+            </div>
+          </div>
+          <p>Prodotti che conosci sono tutti harness diversi: <strong>Claude Code</strong>,
+            <strong>Cursor</strong>, <strong>Aider</strong>, <strong>ChatGPT Desktop con MCP</strong>,
+            <strong>Devin</strong>, <strong>Replit Agent</strong>. Cambia l'harness, cambia
+            l'esperienza — anche se sotto c'e' lo stesso modello.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 7 -->
+      <section class="slide" id="s7">
+        <div class="slide-num">07 / 26</div>
+        <h1>L'analogia</h1>
+        <p class="slide-sub">Il modello e' il motore. L'harness e' l'auto.</p>
+        <div class="slide-body">
+          <p>Le analogie zoppicano sempre, ma questa funziona bene perche'
+            ti permette di vedere subito dove sta il valore.</p>
+          <div class="analogy-split">
+            <div class="as-half as-half-engine">
+              <div class="as-label">Il motore</div>
+              <div class="as-thing">LLM</div>
+              <div class="as-detail">Potente, sofisticato, costoso da costruire.
+                Da solo non ti porta da nessuna parte.</div>
+            </div>
+            <div class="as-half as-half-car">
+              <div class="as-label">L'auto</div>
+              <div class="as-thing">Harness</div>
+              <div class="as-detail">Chassis, trasmissione, volante, cruscotto,
+                freni. <em>Tutto cio'</em> che rende il motore guidabile.</div>
+            </div>
+          </div>
+          <p>Quando dici "guido una Ferrari", non stai parlando solo del motore.
+            Stai parlando di sospensioni, aerodinamica, cambio, sedili — di
+            tutto il pacchetto che ti permette di portarlo a 300 all'ora senza
+            morire. Il motore conta, certo. Ma il valore di <em>guida</em> sta
+            in come tutto il resto gli sta intorno.</p>
+          <div class="pull">
+            Il modello (LLM) e' un componente, neanche il piu' costoso. Il
+            valore di prodotto sta nell'harness. Per questo Anthropic, OpenAI,
+            Cursor, Replit stanno investendo li' — non sui modelli base.
+          </div>
+          <p>Adesso che sappiamo che esiste l'harness, vediamo <strong>come gira
+            dentro</strong>. Questa e' la parte interessante.</p>
+        </div>
+      </section>

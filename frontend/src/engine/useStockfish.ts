@@ -159,7 +159,22 @@ export function useStockfish(): StockfishApi {
         };
 
         return new Promise<EvalResult>((resolve) => {
-          pendingResolveRef.current = resolve;
+          let settled = false;
+          const finish = (r: EvalResult) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            pendingResolveRef.current = null;
+            resolve(r);
+          };
+          // Timeout di sicurezza: se l'engine non risponde (worker piantato o
+          // tab in background) risolvi con la valutazione PARZIALE invece di
+          // restare appeso per sempre (era una causa del freeze nel drill).
+          const timer = setTimeout(() => {
+            try { w.postMessage("stop"); } catch { /* ignore */ }
+            finish({ ...currentEvalRef.current });
+          }, 15000);
+          pendingResolveRef.current = (r) => finish(r);
           w.postMessage("ucinewgame");
           w.postMessage(`setoption name MultiPV value ${multiPV}`);
           w.postMessage(`setoption name Skill Level value ${skill}`);

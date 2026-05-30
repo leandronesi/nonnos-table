@@ -191,10 +191,14 @@ jobs:
         working-directory: frontend
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
+          # Senza queste due il bundle pubblicato parte con config Supabase vuota
+          # → app morta (auth/db/storage falliscono). Aggiungile come repo secrets.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
 
       # GitHub Pages non gestisce SPA routing nativamente: senza 404.html, hit
-      # diretto su /Mygotham/cruscotto -> 404. Soluzione standard: copia
+      # diretto su /<repo>/onboarding -> 404. Soluzione standard: copia
       # index.html come 404.html, GH Pages serve 404 e React Router risolve.
       - name: SPA fallback for gh-pages (copy index.html as 404.html)
         working-directory: frontend

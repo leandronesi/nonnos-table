@@ -5,7 +5,6 @@ import { BoardView } from "./BoardView";
 import { PlayerCard } from "./PlayerCard";
 import { WeeklyTrendCard } from "./WeeklyTrendCard";
 import { DecisionsCard } from "./DecisionsCard";
-import { SpeedVsErrorsChart } from "./SpeedVsErrorsChart";
 import { TacticalBreakdownCard } from "./TacticalBreakdownCard";
 import { BlindSpotsList } from "./BlindSpotsList";
 import { DiagnosisList } from "./DiagnosisList";
@@ -400,12 +399,6 @@ function DatiTab({ pm }: { pm: PlayerModel }) {
           <DiagnosisList diagnoses={pm.diagnoses} />
         </section>
       )}
-      {pm.time_management?.spent_vs_accuracy && pm.time_management.spent_vs_accuracy.length > 0 && (
-        <section className="quaderno-section">
-          <div className="quaderno-eyebrow">Velocità della mossa vs errori</div>
-          <SpeedVsErrorsChart data={pm.time_management.spent_vs_accuracy} />
-        </section>
-      )}
     </div>
   );
 }
@@ -483,7 +476,7 @@ function RepertorioTab({ pm }: { pm: PlayerModel }) {
     <div className="quaderno-tab-body">
       {hasRepertoire ? (
         <section className="quaderno-section">
-          <div className="quaderno-eyebrow">Aperture deboli — le posizioni che ti fregano</div>
+          <div className="quaderno-eyebrow">Aperture deboli: le posizioni che ti fregano</div>
           <div className="space-y-6">
             {pm.repertoire_black && pm.repertoire_black.length > 0 && (
               <div>

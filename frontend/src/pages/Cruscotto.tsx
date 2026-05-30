@@ -6,7 +6,6 @@ import { WeeklyFocusCard } from "../components/WeeklyFocusCard";
 import { DiagnosisList } from "../components/DiagnosisList";
 import { DecisionsCard } from "../components/DecisionsCard";
 import { TimeManagementChart } from "../components/TimeManagementChart";
-import { SpeedVsErrorsChart } from "../components/SpeedVsErrorsChart";
 import { TacticalBreakdownCard } from "../components/TacticalBreakdownCard";
 import { BlindSpotsList } from "../components/BlindSpotsList";
 import { Glossary } from "../components/Glossary";
@@ -19,7 +18,7 @@ import { maiaLevelForGoal } from "../coaching";
  */
 export function Cruscotto({ pm }: { pm: PlayerModel }) {
   return (
-    <PageShell title="Profilo" subtitle="Tempo, fasi, decisioni — tutto quello che ti racconta come giochi">
+    <PageShell title="Profilo" subtitle="Tempo, fasi, decisioni: tutto quello che ti racconta come giochi">
       <CruscottoBody pm={pm} />
     </PageShell>
   );
@@ -102,16 +101,6 @@ export function CruscottoBody({ pm }: { pm: PlayerModel }) {
         <TimeManagementChart time_management={pm.time_management} tilt={pm.tilt} />
       </Section>
 
-      {/* VELOCITA` MOSSA */}
-      <Section
-        id="speed"
-        index="07"
-        eyebrow="Velocita` della mossa"
-        title="Sbagli perché muovi in fretta?"
-        sub="Tempo speso sulla singola mossa, non tempo rimasto. La barra mostra quanti errori MAIA target avrebbe evitato."
-      >
-        <SpeedVsErrorsChart data={pm.time_management.spent_vs_accuracy} />
-      </Section>
 
       <div id="glossary" className="mt-16">
         <div className="label-eyebrow mb-3">Riferimenti</div>
