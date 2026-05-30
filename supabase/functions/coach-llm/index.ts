@@ -72,6 +72,12 @@ interface PositionExample {
   best_uci: string | null;
   cp_loss: number;
   fen_before: string;
+  // Strumenti della voce di Nonno (opzionali: degradano se assenti).
+  spent_seconds?: number | null;     // tempo speso sulla mossa (da PGN [%clk])
+  time_state?: string | null;        // "zeitnot" | "rushed" | "long_think" | "normal"
+  state_before?: string | null;      // "winning" | "equalish" | "losing"
+  p_maia_mine_top?: number | null;   // prob. che al MIO livello si trovi la mossa giusta
+  p_maia_target_top?: number | null; // prob. al livello TARGET
 }
 
 interface Aggregates {
@@ -271,31 +277,59 @@ function renderExamples(examples: PositionExample[] | undefined): string {
     .slice(0, 8)
     .map((e) => {
       const best = e.best_uci ? `il motore preferiva ${e.best_uci}` : "c'era di meglio";
-      return `- [${e.phase}, mossa ${moveNumber(e.ply)}, ${e.color === "white" ? "Bianco" : "Nero"}] hai giocato ${e.san} (${e.played_uci}); ${best}; perdita ~${Math.round(e.cp_loss)}cp. FEN: ${e.fen_before}`;
+      const parts: string[] = [
+        `[${e.phase}, mossa ${moveNumber(e.ply)}, ${e.color === "white" ? "Bianco" : "Nero"}] hai giocato ${e.san} (${e.played_uci}); ${best}; perdita ~${Math.round(e.cp_loss)}cp`,
+      ];
+      // Tic: tempo speso sulla mossa.
+      if (e.spent_seconds != null) {
+        const z =
+          e.time_state === "zeitnot" ? " (in zeitnot)" :
+          e.time_state === "rushed" ? " (di fretta)" :
+          e.time_state === "long_think" ? " (dopo lungo pensiero)" : "";
+        parts.push(`tempo speso ${Math.round(e.spent_seconds)}s${z}`);
+      }
+      if (e.state_before === "winning") parts.push("eri in vantaggio");
+      // Tic: confronto Maia mine vs target (quando disponibile).
+      if (e.p_maia_mine_top != null && e.p_maia_mine_top > 0) {
+        parts.push(`al tuo livello la mossa giusta la trova ~1 su ${Math.max(1, Math.round(1 / e.p_maia_mine_top))}`);
+      }
+      if (e.p_maia_target_top != null && e.p_maia_target_top > 0) {
+        parts.push(`al livello target ~1 su ${Math.max(1, Math.round(1 / e.p_maia_target_top))}`);
+      }
+      return "- " + parts.join("; ") + `. FEN: ${e.fen_before}`;
     })
     .join("\n");
   return `
 
-ESEMPI CONCRETI (tue mosse dove hai perso più valore — usa QUESTI, non inventare posizioni):
+ESEMPI CONCRETI (tue mosse reali — usa QUESTI, non inventare posizioni):
 ${lines}
 
-Quando descrivi un'ancora, ancorala a uno di questi esempi (la fase e cosa è successo). NON inventare posizioni o motivi diversi da questi.`;
+Questi dati per-mossa sono i tuoi STRUMENTI di voce: il tempo speso ("in 8 secondi"), il confronto col tuo livello ("1 su 8 al tuo livello"), se eri in vantaggio. Usali SOLO dove ci sono e sono veri per quella partita. NON inventare posizioni o numeri.`;
 }
 
 async function callOpenAi(ctx: CoachContext, agg: Aggregates): Promise<unknown> {
-  const systemPrompt = `Sei Nonno, il coach di scacchi del giocatore. Hai una voce calma, asciutta, con un'esperienza vissuta. NON usi metafore zuccherose. Parli al "tu", in italiano. Sei FATTUALE: ogni cosa che dici deve essere ancorata ai numeri e agli esempi che ti do. Non inventi pattern di cui non hai evidenza.
+  const systemPrompt = `Sei Nonno, il coach di scacchi del giocatore. Una voce sola: calma, asciutta, esperienza vissuta. Parli al "tu", in italiano scacchistico vero. Sei FATTUALE: ogni cosa ancorata ai numeri e agli esempi che ti do. Non inventi pattern senza evidenza.
 
-Il tuo obiettivo qui: leggere gli aggregati di un giocatore e produrre un Coach Brief strutturato in JSON.
+Obiettivo: leggere gli aggregati e produrre un Coach Brief in JSON.
 
-Regole hard:
-- Le percentuali nel JSON le scrivi così come sono nei dati, non le interpreti.
-- Per "top_3_freni" identifichi le 3 ANCORE: gli ambiti in cui il giocatore perde più valore rispetto al suo target. Usa sempre la parola "ancora/ancore", mai "freno/freni". Ogni ancora ha un evidence (numero specifico O un esempio concreto dalle posizioni) e un next_step (azione concreta per la settimana).
-- Se hai ESEMPI CONCRETI, citane almeno uno dentro gli evidence: "in una partita col Nero, in finale, hai giocato X invece di Y".
-- "voice_message" è 2-3 frasi tue, in italiano, voce di Nonno. NO emoji. NO "Allora vediamo!" o frasi da animatore. Asciutto.
-- "one_line_diagnosis" è UNA frase che riassume l'ancora principale. Diretta. Es: "Ti fai male in finale, soprattutto quando hai i pezzi minori."
-- "weekly_focus" è cosa allenare questa settimana dati i ${ctx.weekly_minutes} minuti disponibili.
+LA TUA VOCE-FIRMA (tre strumenti — usali SOLO dove il dato c'è ed è vero per QUESTO giocatore, mai a forza):
+1. Il tempo sulla mossa: "hai mosso in 8 secondi", "ci hai pensato 40 secondi e hai mosso comunque quella". (dai campi tempo degli esempi)
+2. Il confronto col TUO livello, non col computer: "al tuo livello la trovano 1 su 8, per chi vuoi diventare era più chiara". (dai campi Maia, quando presenti)
+3. Se eri in vantaggio e l'hai lasciata andare, dillo.
+L'ancora principale è DIVERSA per ogni giocatore: per uno è il tempo, per un altro un finale, per un altro un pezzo in presa. Di' quella VERA per lui, non quella che suona meglio.
 
-Output: SOLO il JSON.`;
+DIVIETI (riscrivi se stai per usarli):
+- Mai "blunder", "hanging piece", "inaccuracy", "accuracy" nel testo che legge l'utente. Italiano vero: "pezzo in presa", "errore grave" (in voce: "ci hai regalato il pezzo"), "mediogioco", "finale", "ottava traversa".
+- Mai "freno/freni": si dice ANCORA/ANCORE, espresse in upside ("lasciala e sali verso il target"), mai come colpa.
+- Niente em-dash. Niente emoji. Niente "Allora vediamo!" o toni da animatore. Niente percentuali di accuratezza.
+
+CAMPI JSON:
+- "voice_message": È IL PRIMO COLPO, la prima cosa che il giocatore legge. 2-3 frasi tue: la cosa più vera e specifica che hai visto, citando UN tic concreto se c'è (un esempio reale: fase, cosa è successo, il tempo o il confronto col tuo livello). Deve sentire che l'hai guardato davvero, non un report generico.
+- "one_line_diagnosis": UNA frase, l'ancora principale, diretta. Es: "Quando arrivi in finale con un pedone in più, non lo converti."
+- "top_3_freni": le 3 ANCORE (dove perdi più valore rispetto al target). Ognuna: evidence (numero specifico O esempio concreto dagli ESEMPI) + next_step (azione per la settimana). Nel testo usa sempre "ancora".
+- "weekly_focus": cosa allenare questa settimana dati i ${ctx.weekly_minutes} minuti.
+
+Le percentuali numeriche le riporti come sono, non le interpreti. Output: SOLO il JSON.`;
 
   const userPrompt = `Giocatore: ${ctx.chess_com_username}
 Target: ${ctx.goal_rating} ${ctx.goal_time_class}, in ${ctx.goal_horizon_weeks} settimane${ctx.goal_deadline ? `\nDeadline obiettivo: ${ctx.goal_deadline}` : ""}
