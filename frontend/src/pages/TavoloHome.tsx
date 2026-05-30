@@ -20,6 +20,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { useOnboardingRun } from "../pipeline/OnboardingRunContext";
 import { downloadJson, quadernoPath } from "../auth/storage";
 import { PRODUCT_NAME } from "../coaching";
 import { runRefresh, runFullReanalyze } from "../pipeline/orchestrator";
@@ -409,6 +410,7 @@ function CadutaCard({ caduta }: { caduta: PositionExample }) {
 export function TavoloHome() {
   const { user, profile, refreshProfile } = useAuth();
   const nav = useNavigate();
+  const { dataVersion } = useOnboardingRun();
 
   const [pmLite, setPmLite] = useState<PlayerModelLite | null>(null);
   const [aggregates, setAggregates] = useState<Aggregates | null>(null);
@@ -436,7 +438,9 @@ export function TavoloHome() {
       }
     })();
     return () => { cancelled = true; };
-  }, [user]);
+    // dataVersion: si incrementa quando il background finisce, forza reload dati
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, dataVersion]);
 
   async function handleRefresh() {
     if (!profile) return;

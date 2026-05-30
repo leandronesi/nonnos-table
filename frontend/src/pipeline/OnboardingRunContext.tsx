@@ -40,6 +40,12 @@ interface OnboardingRunCtx {
   backgroundRunning: boolean;
   /** True quando il coaching finale (su 100 partite) è completato. */
   backgroundDone: boolean;
+  /**
+   * Contatore monotono che si incrementa ogni volta che il background finisce.
+   * TavoloHome lo mette nelle deps del suo useEffect per ricaricare i dati
+   * senza window.location.reload().
+   */
+  dataVersion: number;
 }
 
 const Ctx = createContext<OnboardingRunCtx | null>(null);
@@ -51,6 +57,7 @@ export function OnboardingRunProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [firstBatchReady, setFirstBatchReady] = useState(false);
   const [backgroundDone, setBackgroundDone] = useState(false);
+  const [dataVersion, setDataVersion] = useState(0);
 
   // backgroundRunning: il secondo lotto è partito ma non ancora finito.
   // Lo deriviamo: firstBatchReady è true, backgroundDone è false.
@@ -79,7 +86,9 @@ export function OnboardingRunProvider({ children }: { children: ReactNode }) {
   }, [refreshProfile]);
 
   const handleBackgroundDone = useCallback(() => {
-    if (!cancelledRef.current) setBackgroundDone(true);
+    if (cancelledRef.current) return;
+    setBackgroundDone(true);
+    setDataVersion((v) => v + 1);
   }, []);
 
   useEffect(() => {
@@ -106,7 +115,7 @@ export function OnboardingRunProvider({ children }: { children: ReactNode }) {
 
   return (
     <Ctx.Provider
-      value={{ progress, error, firstBatchReady, backgroundRunning, backgroundDone }}
+      value={{ progress, error, firstBatchReady, backgroundRunning, backgroundDone, dataVersion }}
     >
       {children}
     </Ctx.Provider>

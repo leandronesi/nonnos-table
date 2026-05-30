@@ -14,6 +14,7 @@ import { MaiaTest } from "./pages/MaiaTest";
 import { AppShell } from "./components/AppShell";
 import { PRODUCT_NAME } from "./coaching";
 import { IncontroPreview } from "./pages/dev/IncontroPreview";
+import { SecondaBattutaPopup } from "./components/SecondaBattutaPopup";
 
 /**
  * Root router multi-utente per Nonno's Table.
@@ -78,6 +79,8 @@ export function App() {
       {/* OnboardingRunProvider vede useAuth e sopravvive alle route changes */}
       <OnboardingRunProvider>
       <BrowserRouter basename={basename}>
+        {/* Popup globale: seconda battuta di Nonno al completamento del background */}
+        <SecondaBattutaPopup />
         <Routes>
           {/* Pubbliche */}
           <Route path="/login" element={<Login />} />
