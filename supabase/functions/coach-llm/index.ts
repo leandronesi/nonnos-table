@@ -250,7 +250,7 @@ function fallbackBrief(agg: Aggregates, ctx: CoachContext): CoachBrief {
   const ranked = phases.slice().sort((a, b) => b[1].blunder_pct - a[1].blunder_pct);
   const worst = ranked[0];
   return {
-    one_line_diagnosis: `Il tuo freno principale è ${worst[0]}: è dove lasci più valore sulla scacchiera.`,
+    one_line_diagnosis: `La tua ancora principale è ${worst[0]}: è dove lasci più valore sulla scacchiera.`,
     top_3_freni: ranked.slice(0, 3).map(([name, p]) => ({
       title: `Errori in ${name}`,
       evidence: `${p.blunder_pct.toFixed(1)}% di blunder su ${p.moves} mosse (cp loss medio ${p.avg_cp_loss.toFixed(0)}).`,
@@ -279,7 +279,7 @@ function renderExamples(examples: PositionExample[] | undefined): string {
 ESEMPI CONCRETI (tue mosse dove hai perso più valore — usa QUESTI, non inventare posizioni):
 ${lines}
 
-Quando descrivi un freno, ancoralo a uno di questi esempi (la fase e cosa è successo). NON inventare posizioni o motivi diversi da questi.`;
+Quando descrivi un'ancora, ancorala a uno di questi esempi (la fase e cosa è successo). NON inventare posizioni o motivi diversi da questi.`;
 }
 
 async function callOpenAi(ctx: CoachContext, agg: Aggregates): Promise<unknown> {
@@ -289,10 +289,10 @@ Il tuo obiettivo qui: leggere gli aggregati di un giocatore e produrre un Coach 
 
 Regole hard:
 - Le percentuali nel JSON le scrivi così come sono nei dati, non le interpreti.
-- Per "top_3_freni" identifichi i 3 ambiti in cui il giocatore perde più valore rispetto al suo target. Ogni freno ha un evidence (numero specifico O un esempio concreto dalle posizioni) e un next_step (azione concreta per la settimana).
+- Per "top_3_freni" identifichi le 3 ANCORE: gli ambiti in cui il giocatore perde più valore rispetto al suo target. Usa sempre la parola "ancora/ancore", mai "freno/freni". Ogni ancora ha un evidence (numero specifico O un esempio concreto dalle posizioni) e un next_step (azione concreta per la settimana).
 - Se hai ESEMPI CONCRETI, citane almeno uno dentro gli evidence: "in una partita col Nero, in finale, hai giocato X invece di Y".
 - "voice_message" è 2-3 frasi tue, in italiano, voce di Nonno. NO emoji. NO "Allora vediamo!" o frasi da animatore. Asciutto.
-- "one_line_diagnosis" è UNA frase che riassume il freno principale. Diretta. Es: "Ti fai male in finale, soprattutto quando hai i pezzi minori."
+- "one_line_diagnosis" è UNA frase che riassume l'ancora principale. Diretta. Es: "Ti fai male in finale, soprattutto quando hai i pezzi minori."
 - "weekly_focus" è cosa allenare questa settimana dati i ${ctx.weekly_minutes} minuti disponibili.
 
 Output: SOLO il JSON.`;
@@ -400,19 +400,19 @@ function renderJournalEntry(
 ): string {
   const today = new Date().toISOString().slice(0, 10);
   return `
-## ${today} — Sessione
+## ${today} · Sessione
 
 ${brief.voice_message}
 
 **Diagnosi in una frase:**
 ${brief.one_line_diagnosis}
 
-**Tre freni che ho visto** (su ${agg.games_analyzed} partite, ${ctx.goal_time_class}):
+**Tre ancore che ho visto** (su ${agg.games_analyzed} partite, ${ctx.goal_time_class}):
 
 ${brief.top_3_freni
   .map(
     (f, i) =>
-      `${i + 1}. **${f.title}** — ${f.evidence}\n   _Prossimo passo:_ ${f.next_step}`
+      `${i + 1}. **${f.title}**: ${f.evidence}\n   _Prossimo passo:_ ${f.next_step}`
   )
   .join("\n\n")}
 
@@ -420,6 +420,6 @@ ${brief.top_3_freni
 ${brief.weekly_focus}
 
 ---
-_— Nonno_
+_Nonno_
 `;
 }
