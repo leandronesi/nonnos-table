@@ -108,7 +108,7 @@ export function Landing() {
             <div className="public-session-card">
               <span className="public-panel-label">Oggi al tavolo</span>
               <strong>Pezzo in presa</strong>
-              <p>La mossa di fretta in cui lasci il pezzo. La rivediamo insieme.</p>
+              <p>Perdi un pezzo muovendo in meno di 8 secondi. Calma. Respira, prima di muovere.</p>
             </div>
 
             <div className="public-board-card">
