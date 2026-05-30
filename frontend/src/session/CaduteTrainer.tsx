@@ -19,6 +19,7 @@ import { Chess } from "chess.js";
 import type { PositionExample } from "../pipeline/aggregate";
 import { BoardView } from "../components/BoardView";
 import { BoardLegend } from "../components/BoardLegend";
+import { useBoardFit } from "../components/useBoardFit";
 import { useStockfish } from "../engine/useStockfish";
 import { uciToArrow, uciToSan, cpToPawns } from "../pages/quaderno/boardArrows";
 
@@ -104,7 +105,7 @@ function PhaseIndicator({ phase, totalPositions }: { phase: TrainerPhase; totalP
     return null;
   }
   return (
-    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "1.5rem" }}>
+    <div style={{ display: "flex", gap: "0.4rem", alignItems: "center", marginBottom: "1.5rem", flexWrap: "wrap" }}>
       {phases.map((p, i) => {
         const isActive = p.key === phase;
         const isDone =
@@ -159,6 +160,7 @@ function PhaseGuarda({
   onNext: () => void;
 }) {
   const [idx, setIdx] = useState(0);
+  const fit = useBoardFit({ min: 232, max: 380 });
   const pos = positions[idx];
   if (!pos) return null;
 
@@ -181,17 +183,20 @@ function PhaseGuarda({
         Costruisci il riconoscimento.
       </p>
 
-      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "1.5rem", alignItems: "start" }}>
+      {/* key={idx} re-mounts → phase-enter animation fires on each carousel step */}
+      <div key={idx} className="trainer-phase-layout phase-enter">
         {/* Board */}
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "center" }}>
-          <BoardView
-            fen={pos.fen_before}
-            resetKey={`guarda:${idx}:${pos.fen_before}`}
-            orientation={orientation}
-            size={380}
-            draggable={false}
-            arrows={arrows}
-          />
+          <div ref={fit.ref} style={{ width: "100%", maxWidth: fit.max }}>
+            <BoardView
+              fen={pos.fen_before}
+              resetKey={`guarda:${idx}:${pos.fen_before}`}
+              orientation={orientation}
+              size={fit.size}
+              draggable={false}
+              arrows={arrows}
+            />
+          </div>
           <BoardLegend items={[
             ...(oppArrow ? [{ color: "#fde047", label: "mossa avversario" }] : []),
             { color: "#34d399", label: "mossa giusta" },
@@ -305,6 +310,7 @@ function InteractivePuzzle({
   onNext,
 }: InteractivePuzzleProps) {
   const sf = useStockfish();
+  const fit = useBoardFit({ min: 232, max: 380 });
   const [displayFen, setDisplayFen] = useState<string | null>(null);
   const [evaluating, setEvaluating] = useState(false);
   const evaluatingRef = useRef(false);
@@ -466,24 +472,26 @@ function InteractivePuzzle({
   };
 
   return (
-    <div>
+    <div key={puzzleKey} className="phase-enter">
       <div className="tt-eyebrow" style={{ marginBottom: "0.5rem", color: "var(--color-muted)" }}>
         {phaseLabel} · {posIndex + 1} / {posTotal}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "1.5rem", alignItems: "start" }}>
+      <div className="trainer-phase-layout">
         {/* Board */}
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "center" }}>
-          <BoardView
-            fen={displayFen ?? baseFen}
-            resetKey={`${puzzleKey}:${attempts}`}
-            orientation={orientation}
-            size={380}
-            draggable={!evaluating && (verdict === null || verdict === "wrong")}
-            onPieceDrop={onDrop}
-            arrows={arrows}
-            highlights={highlights}
-          />
+          <div ref={fit.ref} style={{ width: "100%", maxWidth: fit.max }}>
+            <BoardView
+              fen={displayFen ?? baseFen}
+              resetKey={`${puzzleKey}:${attempts}`}
+              orientation={orientation}
+              size={fit.size}
+              draggable={!evaluating && (verdict === null || verdict === "wrong")}
+              onPieceDrop={onDrop}
+              arrows={arrows}
+              highlights={highlights}
+            />
+          </div>
           <BoardLegend items={(() => {
             if (verdict !== null) return [
               ...(oppArrow ? [{ color: "#fde047", label: "mossa avversario" }] : []),

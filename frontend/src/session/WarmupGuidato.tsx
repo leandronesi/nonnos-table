@@ -14,6 +14,7 @@ import { Chess } from "chess.js";
 import type { PositionRow } from "../types";
 import { BoardView } from "../components/BoardView";
 import { BoardLegend } from "../components/BoardLegend";
+import { useBoardFit } from "../components/useBoardFit";
 import { useStockfish, type EvalResult } from "../engine/useStockfish";
 import { turnFromFen } from "../chess-utils";
 import { cpToPawns } from "../pages/quaderno/boardArrows";
@@ -149,6 +150,7 @@ export function PositionPuzzle({
   onVerdict,
 }: PositionPuzzleProps) {
   const sf = useStockfish();
+  const fit = useBoardFit({ min: 232, max: 460 });
   const [verdict, setVerdict] = useState<DrillVerdict | null>(null);
   const [cpLoss, setCpLoss] = useState<number | null>(null);
   const [playedSan, setPlayedSan] = useState<string | null>(null);
@@ -312,12 +314,12 @@ export function PositionPuzzle({
     <div className="position-puzzle grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-10 items-start">
       {/* Board + legenda */}
       <div className="flex flex-col items-center gap-2">
-        <div className="sess-board-frame">
+        <div ref={fit.ref} className="sess-board-frame" style={{ width: "100%", maxWidth: fit.max }}>
           <BoardView
             fen={displayFen || baseFen}
             resetKey={`${puzzleKey}:${attempts}`}
             orientation={orientation}
-            size={460}
+            size={fit.size}
             draggable={!evaluating && (verdict === null || false)}
             onPieceDrop={onDrop}
             highlights={highlights}
