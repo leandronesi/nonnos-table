@@ -23,6 +23,7 @@ import { analysisPath } from "../auth/storage";
 import type { GameRow } from "../auth/db.types";
 import { createStockfishPool, StockfishEngine } from "./stockfishWorker";
 import { FREE_GAME_CAP } from "./config";
+import type { MotifOccurrence, TransferMotifType } from "../types";
 
 const DEPTH = 12;
 const TH_INACC = 50;
@@ -104,6 +105,17 @@ export interface GameAnalysis {
    * null per partite daily/correspondence o senza TimeControl header.
    */
   time_control_base_seconds: number | null;
+  /**
+   * Pattern-occurrence records for EVERY critical player position (§7.2 BUILD.md).
+   *
+   * "Critical" = a player move that we fully evaluated (all analyzed moves).
+   * Motif is classified heuristically via chess.js geometry from the best move.
+   * `handled` = cp_loss < HANDLED_CP_THRESHOLD (50): the player dealt with the situation.
+   *
+   * Used by aggregate.ts to compute transfer metrics (faced/handled/rate).
+   * Absent on old analysis files (treated as [] in aggregate).
+   */
+  motif_occurrences?: MotifOccurrence[];
 }
 
 function classify(cpLoss: number): MoveCategory {
@@ -157,6 +169,244 @@ function detectHungPiece(fenAfter: string): boolean {
     if (recaptures.length === 0) return true; // hang pulito
   }
   return false;
+}
+
+// ── Transfer motif detection (§7.2 BUILD.md) ─────────────────────────────────
+//
+// HEURISTIC: all classifications use chess.js geometry only — no deep engine
+// look-ahead beyond what Stockfish already gave us (bestMoveUci). This means:
+//   - "hanging_piece" may miss defended-but-en-prise captures (SEE needed for
+//     precision), and may misclassify exchange sacrifices. Conservative approach.
+//   - "fork" counts double attacks after the best move on pieces of value >= minor
+//     or the king. May over-count in positions with multiple threats already present.
+//   - "back_rank" checks only static geometry (rank 1/8 weakness + queen/rook line)
+//     — it won't see multi-move back-rank combinations.
+// All of this is declared and acceptable: "affrontato {motif}" is approximate.
+
+const HANDLED_CP_THRESHOLD = 50; // cp_loss < 50 → the player handled the situation
+
+/**
+ * Returns the piece value (pawn=1, minor=3, rook=5, queen=9) for a piece letter.
+ * King is 100 to make it always count as a target.
+ */
+function pieceValue(piece: string): number {
+  const vals: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 100 };
+  return vals[piece.toLowerCase()] ?? 0;
+}
+
+/**
+ * detectHangingPieceMotif — HEURISTIC.
+ *
+ * The motif is present when the best move (bestMoveUci) IS a capture that wins
+ * material (captured piece value > moving piece value / piece is free) OR when a
+ * player piece on the board is attacked and under-defended (attackers > defenders)
+ * and the best move saves it.
+ *
+ * fenBefore: position before the player's move (player to move).
+ * bestMoveUci: Stockfish best move UCI (e.g. "e5d6").
+ * playerColor: "white" | "black".
+ */
+function detectHangingPieceMotif(
+  fenBefore: string,
+  bestMoveUci: string | null,
+  playerColor: "white" | "black",
+): boolean {
+  if (!bestMoveUci || bestMoveUci.length < 4) return false;
+  let c: Chess;
+  try { c = new Chess(fenBefore); } catch { return false; }
+
+  const fromSq = bestMoveUci.slice(0, 2);
+  const toSq   = bestMoveUci.slice(2, 4);
+
+  // --- Heuristic A: best move is a capture that wins material ---
+  const targetPiece = c.get(toSq as Parameters<typeof c.get>[0]);
+  if (targetPiece && targetPiece.color !== (playerColor === "white" ? "w" : "b")) {
+    // There IS an enemy piece on the target square → it's a capture.
+    const capVal  = pieceValue(targetPiece.type);
+    if (capVal >= 3) {
+      // It's at least a minor piece. Check if it's defended: simulate the capture
+      // and see if opponent can recapture on the same square.
+      let c2: Chess;
+      try { c2 = new Chess(fenBefore); } catch { return false; }
+      try { c2.move({ from: fromSq, to: toSq, promotion: "q" }); } catch { return false; }
+      const recaps = c2.moves({ verbose: true }).filter(
+        (m: any) => (m.to as string) === toSq && m.captured
+      );
+      if (recaps.length === 0) {
+        // Piece is free (undefended) — hanging_piece.
+        return true;
+      }
+      // Defended, but check if we gain material (moving piece value < captured piece).
+      const movingPiece = c.get(fromSq as Parameters<typeof c.get>[0]);
+      if (movingPiece && pieceValue(movingPiece.type) < capVal) {
+        return true; // favourable exchange — material gain
+      }
+    }
+  }
+
+  // --- Heuristic B: one of our pieces is attacked and under-defended, and the
+  //     best move saves it (best move's from-square is NOT the hanging piece itself
+  //     but we check if any of our pieces is hanging right now). ---
+  const ourColor = playerColor === "white" ? "w" : "b";
+  const oppColor = playerColor === "white" ? "b" : "w";
+  const board = c.board();
+  for (const row of board) {
+    for (const sq of row) {
+      if (!sq || sq.color !== ourColor) continue;
+      if (sq.type === "k") continue; // king handled separately (check detection)
+      const val = pieceValue(sq.type);
+      if (val < 3) continue; // only minor pieces and above
+
+      // Count attackers (opponent pieces attacking this square).
+      const attackers = c.attackers(sq.square as Parameters<typeof c.attackers>[0], oppColor);
+      if (attackers.length === 0) continue;
+
+      // Count defenders (our pieces defending this square, excluding the piece itself).
+      const defenders = c.attackers(sq.square as Parameters<typeof c.attackers>[0], ourColor);
+      // Under-defended: more attackers than defenders, or completely undefended.
+      if (attackers.length > defenders.length) {
+        // Our piece is under-defended — hanging_piece motif (save scenario).
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * detectForkMotif — HEURISTIC.
+ *
+ * After the best move is played, the moved piece attacks 2+ valuable targets
+ * (pieces of value >= minor OR the king) simultaneously. This is the canonical
+ * double-attack / fork pattern.
+ *
+ * fenBefore: position before the player's move.
+ * bestMoveUci: Stockfish best move UCI.
+ * playerColor: "white" | "black".
+ */
+function detectForkMotif(
+  fenBefore: string,
+  bestMoveUci: string | null,
+  playerColor: "white" | "black",
+): boolean {
+  if (!bestMoveUci || bestMoveUci.length < 4) return false;
+
+  const fromSq = bestMoveUci.slice(0, 2);
+  const toSq   = bestMoveUci.slice(2, 4);
+
+  // Simulate the best move.
+  let c2: Chess;
+  try { c2 = new Chess(fenBefore); } catch { return false; }
+  try { c2.move({ from: fromSq, to: toSq, promotion: "q" }); } catch { return false; }
+
+  // After the move, find what the moved piece (now on toSq) attacks.
+  const ourColorChess = playerColor === "white" ? "w" : "b";
+  const oppColor = playerColor === "white" ? "b" : "w";
+  const board2 = c2.board();
+  let valuableTargets = 0;
+
+  for (const row of board2) {
+    for (const sq of row) {
+      if (!sq || sq.color !== oppColor) continue;
+      const val = pieceValue(sq.type);
+      if (val < 3 && sq.type !== "k") continue; // only minors+, or king
+
+      // Is this target square attacked by our piece that just moved?
+      const attackers = c2.attackers(sq.square as Parameters<typeof c2.attackers>[0], ourColorChess);
+      // attackers is Square[] — check if toSq (as Square) is in the list.
+      if ((attackers as string[]).includes(toSq)) {
+        valuableTargets++;
+      }
+    }
+  }
+
+  return valuableTargets >= 2;
+}
+
+/**
+ * detectBackRankMotif — HEURISTIC.
+ *
+ * The best move gives check on the opponent's back rank (rank 1 for black,
+ * rank 8 for white), or threatens mate there (queen/rook on the last rank with
+ * the king trapped). We detect two cases:
+ *   A) The best move directly gives check and lands on the opponent's last rank.
+ *   B) The best move places a queen or rook on the opponent's back rank with
+ *      the opponent's king also on that rank (back-rank mate threat).
+ *
+ * fenBefore: position before the player's move.
+ * bestMoveUci: Stockfish best move UCI.
+ * playerColor: "white" | "black".
+ */
+function detectBackRankMotif(
+  fenBefore: string,
+  bestMoveUci: string | null,
+  playerColor: "white" | "black",
+): boolean {
+  if (!bestMoveUci || bestMoveUci.length < 4) return false;
+  let c: Chess;
+  try { c = new Chess(fenBefore); } catch { return false; }
+
+  const fromSq = bestMoveUci.slice(0, 2);
+  const toSq   = bestMoveUci.slice(2, 4);
+
+  // Opponent's back rank: rank 1 for black king, rank 8 for white king.
+  const oppBackRank = playerColor === "white" ? "8" : "1";
+
+  // Case A: the destination square is on the opponent's back rank.
+  if (toSq[1] === oppBackRank) {
+    // Simulate the move and check if it gives check (in check = back-rank attack).
+    let c2: Chess;
+    try { c2 = new Chess(fenBefore); } catch { return false; }
+    try { c2.move({ from: fromSq, to: toSq, promotion: "q" }); } catch { return false; }
+    if (c2.inCheck()) return true;
+  }
+
+  // Case B: best move places a heavy piece (Q/R) on the opponent's back rank and
+  // the opponent's king is also on that rank (trapped → back-rank weakness).
+  const movingPiece = c.get(fromSq as Parameters<typeof c.get>[0]);
+  if (movingPiece && (movingPiece.type === "q" || movingPiece.type === "r")) {
+    if (toSq[1] === oppBackRank) {
+      // Check if opponent's king is on their back rank.
+      const oppColor = playerColor === "white" ? "b" : "w";
+      const board = c.board();
+      for (const row of board) {
+        for (const sq of row) {
+          if (sq && sq.color === oppColor && sq.type === "k") {
+            if (sq.square[1] === oppBackRank) return true;
+          }
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * classifyOccurrenceMotif — main entry point.
+ *
+ * Classifies the motif for a critical position given the position's FEN
+ * (before the player's move) and the Stockfish best move UCI.
+ *
+ * HEURISTIC ORDER (first match wins):
+ *   1. back_rank   — specific and high-value; checked first.
+ *   2. fork        — double attack after best move.
+ *   3. hanging_piece — material win / save hanging piece.
+ *   4. none        — positional / quiet move, no clear tactic.
+ *
+ * Returns "none" when bestMoveUci is null (position not evaluated).
+ */
+function classifyOccurrenceMotif(
+  fenBefore: string,
+  bestMoveUci: string | null,
+  playerColor: "white" | "black",
+): TransferMotifType {
+  if (!bestMoveUci) return "none";
+  if (detectBackRankMotif(fenBefore, bestMoveUci, playerColor)) return "back_rank";
+  if (detectForkMotif(fenBefore, bestMoveUci, playerColor)) return "fork";
+  if (detectHangingPieceMotif(fenBefore, bestMoveUci, playerColor)) return "hanging_piece";
+  return "none";
 }
 
 /**
@@ -385,6 +635,9 @@ export async function analyzeGame(
     endgame: { moves: 0, blunders: 0, mistakes: 0, inaccuracies: 0, cpLossSum: 0 },
   };
 
+  // Transfer: motif occurrences for every analyzed player position (§7.2).
+  const motifOccurrences: MotifOccurrence[] = [];
+
   const playerSide: "w" | "b" = playerColor === "white" ? "w" : "b";
 
   // Traccia l'ultima mossa applicata (player o avversario) per estrarre
@@ -515,6 +768,19 @@ export async function analyzeGame(
     // Aggiorna lastApplied con la mossa del player appena analizzata.
     lastApplied = { from: mv.from, to: mv.to, san: mv.san };
 
+    // ── Transfer: occurrence detection for this position (§7.2 BUILD.md) ──────
+    // Classify the motif of the BEST MOVE (not the played move) heuristically.
+    // Register for ALL analyzed positions (not only errors).
+    {
+      const occMotif = classifyOccurrenceMotif(fenBefore, evalBefore.bestMoveUci, playerColor);
+      motifOccurrences.push({
+        motif: occMotif,
+        handled: cpLoss < HANDLED_CP_THRESHOLD,
+        played_at: game.played_at,
+        phase,
+      });
+    }
+
     totalCpLoss += cpLoss;
     totalPlayerMoves++;
     const p = byPhase[phase];
@@ -574,6 +840,7 @@ export async function analyzeGame(
       },
     },
     moves: analyzed,
+    motif_occurrences: motifOccurrences,
   };
 
   return summary;

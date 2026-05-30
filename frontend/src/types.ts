@@ -1,5 +1,62 @@
 ﻿// Tipi del player model v2 — sostituisce types v1.
 
+// ── Transfer — pattern-occurrence detection (§7.2-7.3 BUILD.md) ──────────────
+
+/**
+ * Tactical motif for a critical position decision.
+ *
+ * HEURISTIC (chess.js geometry): classification is approximate.
+ * "faced {motif}" means "the best move involved this motif" — not that the
+ * player definitely recognised it. Declared honestly in comments.
+ */
+export type TransferMotifType = "hanging_piece" | "fork" | "back_rank" | "none";
+
+/**
+ * One recorded occurrence of a motif at a critical position.
+ *
+ * Registered for EVERY critical player position, not only errors.
+ * `handled` = true iff cp_loss < HANDLED_CP_THRESHOLD (currently 50).
+ *   - "handled" only from real cp_loss — never inflated.
+ */
+export interface MotifOccurrence {
+  motif: TransferMotifType;
+  /** True iff the player's move had cp_loss < 50 (handled the situation). */
+  handled: boolean;
+  /** ISO date-time of the game (played_at from GameAnalysis). */
+  played_at: string;
+  phase: "opening" | "middlegame" | "endgame";
+}
+
+/**
+ * Per-motif transfer metrics for a time window (or overall).
+ *
+ * `rate` = handled / faced.
+ * `rate` is null when `faced < MIN_FACED_FOR_RATE` (currently 3) — "insufficient data".
+ * Never inflated: if data is sparse we report null, not a fabricated rate.
+ */
+export interface TransferMotifStat {
+  motif: TransferMotifType;
+  faced: number;
+  handled: number;
+  /** handled / faced, null if faced < MIN_FACED_FOR_RATE. */
+  rate: number | null;
+}
+
+/**
+ * Full transfer metrics for a run: recent window (<=28d), prior window (29..56d),
+ * and overall (all analysed games).
+ *
+ * Windowing is by played_at (game date) relative to the most recent game date.
+ */
+export interface TransferAggregates {
+  /** Overall across all analysed games. */
+  overall: TransferMotifStat[];
+  /** Recent window: games played_at <= 28d from the most recent game. */
+  recent: TransferMotifStat[];
+  /** Prior window: games played_at in [29d..56d] from the most recent game. */
+  prior: TransferMotifStat[];
+}
+
 // ── Storia temporale (§2.1-2.3 BUILD.md) ─────────────────────────────────────
 
 /**
@@ -65,6 +122,14 @@ export interface HistorySnapshot {
     target_pct: number | null;
     rating_upside: number;
   }>;
+  /**
+   * Compact transfer metrics at this snapshot (§7.3 BUILD.md).
+   * Overall only (no windowing in snapshot — windows are recalculated live from occurrences).
+   * undefined for old snapshots written before this field was added.
+   */
+  transfer?: {
+    by_motif: TransferMotifStat[];
+  };
 }
 
 /** File persistito su Storage: quaderno/history.json. */

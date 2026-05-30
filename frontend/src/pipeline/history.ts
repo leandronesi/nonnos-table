@@ -19,6 +19,7 @@ import type {
   Milestone,
   MilestoneType,
   GoalProgress,
+  TransferMotifStat,
 } from "../types";
 import type { Goal } from "../types";
 import type { Aggregates } from "./aggregate";
@@ -360,6 +361,15 @@ export function buildSnapshot(
     };
   });
 
+  // Transfer snapshot: compact overall by_motif (no windowing — windows are
+  // recalculated live from the raw occurrences in aggregates).
+  // Use undefined when transfer data is not available (old analysis files).
+  let transferSnap: HistorySnapshot["transfer"] | undefined;
+  if (aggregates.transfer) {
+    const byMotif: TransferMotifStat[] = aggregates.transfer.overall.map((s) => ({ ...s }));
+    transferSnap = { by_motif: byMotif };
+  }
+
   return {
     captured_at: now.toISOString(),
     week_iso: toWeekIso(now),
@@ -384,5 +394,6 @@ export function buildSnapshot(
       avoidable_share: mw?.avoidable_share ?? null,
     },
     anchors: anchorSlices,
+    transfer: transferSnap,
   };
 }
