@@ -850,12 +850,20 @@ export async function runAnalyze(opts: {
   userId: string;
   jobId: string;
   onProgress?: (done: number, total: number) => void;
+  /**
+   * Se presente, lavora solo su una fetta della quota ordinata per recenza.
+   * `offset` e `limit` si applicano DOPO aver costruito la quota completa
+   * (FREE_GAME_CAP partite più recenti, ordinate DESC), così le fette sono
+   * sempre stabili e non si sovrappongono tra le due chiamate.
+   *
+   * Il progress emesso è ASSOLUTO (0..total dell'intera quota), non relativo
+   * alla fetta: così rimane monotono attraverso le due chiamate successive.
+   * `done` = done_pre_fetta + completate_in_questa_fetta.
+   * `total` = dimensione dell'intera quota (non della fetta).
+   */
+  range?: { offset: number; limit: number };
 }): Promise<void> {
-  const { userId, jobId, onProgress } = opts;
-  await supabase
-    .from("ingest_jobs")
-    .update({ status: "analyzing" })
-    .eq("id", jobId);
+  const { userId, jobId, onProgress, range } = opts;
 
   // Quota free = le FREE_GAME_CAP partite PIÙ RECENTI, a prescindere dallo
   // stato. È stabile: ri-eseguendo (resume/retry) ri-puntiamo SEMPRE alle
@@ -869,9 +877,25 @@ export async function runAnalyze(opts: {
     .limit(FREE_GAME_CAP);
 
   const quota = recentGames ?? [];
+  // total è sempre la dimensione TOTALE della quota (non della fetta), così
+  // il progress è monotono 0→total attraverso le due chiamate.
   const total = quota.length;
-  const toDo = quota.filter((g) => g.analysis_status !== "done");
-  let done = quota.length - toDo.length;
+
+  // Fetta di lavoro: se range è presente, operiamo su quota[offset..offset+limit].
+  const slice = range ? quota.slice(range.offset, range.offset + range.limit) : quota;
+
+  // done_base: partite già 'done' FUORI dalla fetta corrente (per monotonia).
+  // Se non c'è range (run completo), done_base = 0 e contiamo tutto in slice.
+  const doneOutsideSlice = range
+    ? quota.filter((g, idx) => idx < range.offset && g.analysis_status === "done").length +
+      quota.filter(
+        (g, idx) =>
+          idx >= range.offset + range.limit && g.analysis_status === "done"
+      ).length
+    : 0;
+
+  const toDo = slice.filter((g) => g.analysis_status !== "done");
+  let done = doneOutsideSlice + (slice.length - toDo.length);
   onProgress?.(done, total);
 
   // Spin up a pool of N workers (at most 4, leaving 1 core for the main thread).

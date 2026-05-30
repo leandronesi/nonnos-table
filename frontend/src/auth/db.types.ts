@@ -19,6 +19,9 @@ export type IngestJobStatus =
   | "queued"
   | "fetching"
   | "analyzing"
+  | "analyzing_first"
+  | "coaching_first"
+  | "analyzing_rest"
   | "coaching"
   | "done"
   | "error";

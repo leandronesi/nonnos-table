@@ -10,6 +10,9 @@
  */
 export const FREE_GAME_CAP = 100;
 
+/** Prima fetta di analisi: le N partite più recenti → aggregate+coach parziale rapido. */
+export const FIRST_BATCH_SIZE = 20;
+
 /** Quante posizioni-esempio (mosse peggiori) passiamo al coach LLM. */
 export const MAX_COACH_EXAMPLES = 8;
 
