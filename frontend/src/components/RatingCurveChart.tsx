@@ -25,6 +25,8 @@ import type { RatingPoint, Goal } from "../types";
 interface Props {
   ratingCurve: Record<string, RatingPoint[]>;
   goal: Goal;
+  /** Total games in rating_curve for the active time_class — shown as "su N partite" */
+  totalGames?: number;
 }
 
 const RESULT_COLOR: Record<string, string> = {
@@ -37,6 +39,7 @@ export function RatingCurveChart({ ratingCurve, goal }: Props) {
   const available = Object.keys(ratingCurve).filter((k) => ratingCurve[k].length > 0);
   const initial = available.includes(goal.time_class) ? goal.time_class : available[0] || "";
   const [tc, setTc] = useState(initial);
+  const curveCount = (ratingCurve[tc] || []).length;
 
   const data = useMemo(() => {
     const pts = ratingCurve[tc] || [];
@@ -60,6 +63,9 @@ export function RatingCurveChart({ ratingCurve, goal }: Props) {
         <div>
           <div className="label-eyebrow">Elo atteso · rolling 5 + 20</div>
           <h3 className="section-title mt-1">Sto migliorando?</h3>
+          <p className="section-sub mt-0.5" style={{ fontSize: "0.72rem", color: "var(--color-muted)" }}>
+            Performance recente vs Elo ufficiale{curveCount > 0 ? ` · su ${curveCount} partite` : ""}
+          </p>
         </div>
         {available.length > 1 && (
           <div className="segment">
@@ -71,35 +77,35 @@ export function RatingCurveChart({ ratingCurve, goal }: Props) {
           </div>
         )}
       </div>
-      <p className="section-sub mb-4">
-        Linea viola = rating ufficiale (laggy, assorbe lento). Linea gialla = performance
-        rating rolling 5 partite (volatile, dice "stai andando bene ADESSO"). Linea verde
-        = rolling 20 (trend medio). Se rolling 20 sta sopra il rating, il rating sale di
-        suo. {showTarget && `Linea tratteggiata = target ${goal.target}.`}
-      </p>
 
       {last && (
         <div className="flex flex-wrap gap-2 mb-4">
-          <Pill label="Rating ora" value={last.rating ?? "—"} color="var(--color-brand-soft)" />
-          <Pill label="Perf rolling 5" value={last.perf_5 ?? "—"} color="#facc15" />
-          <Pill label="Perf rolling 20" value={last.perf_20 ?? "—"} color="#34d399" />
+          <Pill label="Rating ora" value={last.rating != null ? Math.round(last.rating) : "—"} color="var(--color-brand-soft)" />
+          <Pill label="Perf rolling 5" value={last.perf_5 != null ? Math.round(last.perf_5) : "—"} color="#facc15" />
+          <Pill label="Perf rolling 20" value={last.perf_20 != null ? Math.round(last.perf_20) : "—"} color="#34d399" />
           {last.rating != null && last.perf_20 != null && (
             <Pill
               label="Gap rating ↔ perf-20"
-              value={`${last.perf_20 - last.rating >= 0 ? "+" : ""}${last.perf_20 - last.rating}`}
+              value={`${Math.round(last.perf_20 - last.rating) >= 0 ? "+" : ""}${Math.round(last.perf_20 - last.rating)}`}
               color={last.perf_20 - last.rating >= 0 ? "#34d399" : "#f43f5e"}
             />
           )}
         </div>
       )}
 
-      <div className="h-[360px]">
+      <div className="h-[360px]" role="img" aria-label="Grafico curva di rating">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 20, right: 80, left: 0, bottom: 0 }}>
             <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="date" tickLine={false} axisLine={{ stroke: "var(--color-line)" }} minTickGap={48} />
             <YAxis tickLine={false} axisLine={false} domain={["dataMin - 60", "dataMax + 60"]} width={50} />
-            <Tooltip content={<RichTooltip />} />
+            <Tooltip
+              content={<RichTooltip />}
+              contentStyle={{ background: "transparent", border: "none", padding: 0, color: "var(--color-text)" }}
+              itemStyle={{ color: "var(--color-text)" }}
+              labelStyle={{ color: "var(--color-muted)" }}
+              wrapperStyle={{ outline: "none" }}
+            />
             <Legend
               wrapperStyle={{ paddingTop: 8 }}
               formatter={(v) =>
@@ -137,7 +143,7 @@ function RichTooltip({ active, payload }: { active?: boolean; payload?: TooltipP
   if (!active || !payload || payload.length === 0) return null;
   const p = payload[0].payload;
   return (
-    <div className="rounded-lg border border-[color:var(--color-line-strong)] bg-[color:var(--color-surface-2)] px-3 py-2 shadow-2xl min-w-[200px]">
+    <div className="rounded-lg border border-[color:var(--color-line-strong)] bg-[color:var(--color-surface-2)] px-3 py-2 min-w-[200px]">
       <div className="text-[10px] font-mono uppercase tracking-widest text-[color:var(--color-muted)] mb-1.5">
         {p.date}
       </div>
@@ -208,7 +214,7 @@ function LastPointLabels({ data, xAxisMap, yAxisMap }: any) {
           <circle cx={x} cy={it.y} r={4.5} fill={it.color} stroke="#0b0d18" strokeWidth={2} />
           <g transform={`translate(${x + 10},${it.y})`}>
             <rect x={0} y={-10} width={50} height={20} rx={4} fill={it.color} opacity={0.18} />
-            <text x={6} y={4} fontSize={11} fill={it.color} fontWeight={700}>{it.v}</text>
+            <text x={6} y={4} fontSize={11} fill={it.color} fontWeight={700}>{Math.round(it.v as number)}</text>
           </g>
         </g>
       ))}

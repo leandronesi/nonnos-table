@@ -159,8 +159,9 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 /**
  * Ring achievement (Apple Fitness style).
  * Usa SVG con arco percentuale + numero del rating in mezzo.
+ * Exported as named export for reuse (TavoloHome etc.).
  */
-function GoalRing({
+export function GoalRing({
   progress,
   current,
   target,

@@ -218,7 +218,7 @@ export function GuidedSession({ pm, onClose }: Props) {
             <h2 className="display-medium">{introDescription}</h2>
             <p className="text-[color:var(--color-text-soft)] leading-relaxed">
               4 fasi: prima il tema (guardi), poi warm-up guidato, drill libero, e una partita contro un
-              avversario <strong>{maiaLevel} {timeClass}</strong> — il livello che hai dichiarato come obiettivo.
+              avversario <strong>{maiaLevel} {timeClass}</strong>, il livello che hai dichiarato come obiettivo.
               Tutte le posizioni vengono dalle tue partite reali.
             </p>
             <button onClick={handleIntroDone} className="btn btn-primary btn-lg">

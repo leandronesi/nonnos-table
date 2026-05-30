@@ -5,6 +5,32 @@ Documento canonico. Quando una decisione di prodotto è incerta, si torna qui.
 
 ---
 
+## 0. Aggiornamento 2026-05-29 — evoluzione del modello
+
+Due decisioni del PO che EVOLVONO questo manifesto. Dove confliggono con §5, §6 e la regola §11.4, prevale quanto segue.
+
+### 0.1 "Ancore", non "freni"
+
+Il cuore non è una lista di debolezze (colpa), ma le tue **ancore**: ciò che ti tiene fermo al tuo livello. Il framing guarda in avanti: ogni ancora si esprime con l'UPSIDE, "lasciala e sali verso X", non "qui sbagli". L'unità resta quella della Vision (pattern, posizioni, comportamenti, pesati per difficoltà Maia e relativi al target), ma nome ed espressione sono motivazionali: quanto guadagni se la molli.
+
+### 0.2 Dati esposti, Nonno è l'interprete (non il narratore)
+
+Si abbandona il "Nonno + 1 bottone, tutti i dati dietro 📓" (§5-6, regola §11.4). Il **dato e i grafici sono il protagonista** (esponi il valore). **Nonno è un di cui**: il layer che ti aiuta a LEGGERE i dati su richiesta. Clicchi un grafico che non capisci, lui ti dice cosa vuol dire e cosa farci. On-demand, non un monologo che fa da cancello.
+
+### 0.3 Flusso della Sessione: guardo → Nonno aiuta → gioco da solo → partita
+
+La Sessione e' una progressione pedagogica (io guardo, facciamo insieme, faccio da solo, gioco), NON solo review passivo. I drill attivi TORNANO. Quattro fasi:
+1. **Guardo + Nonno parla**: rivedo la posizione, Nonno la commenta (tempo, "1 su 10 al tuo livello", mossa d'attesa). Passivo.
+2. **Nonno mi aiuta**: trovo la mossa con l'aiuto di Nonno (hint visivo, casa di partenza). Guidato.
+3. **Gioco da solo**: trovo la mossa senza aiuto. Drill.
+4. **Partita**: gioco contro Maia al target, da una mia posizione vissuta.
+
+### 0.4 Note di prodotto
+
+Il resto del manifesto (lessico §17, le 3 firme §10, il loop temporale §13) resta valido. Cambiano il PESO di Nonno (da protagonista a interprete CHE PERO' ti accoglie con un racconto all'ingresso, §6) e il NOME del cuore (ancore).
+
+---
+
 ## 1. Cosa è il prodotto, in una frase
 
 > Un **tavolo quotidiano** con un nonno scacchista che ti conosce attraverso
@@ -202,11 +228,11 @@ una lista `waiting_moves` per le posizioni dove ha senso.
    Mai "Il giocatore ha fatto X" / "Stato attuale" / "Profilo".
 3. **1 sola CTA per schermo.** Mai 2-3 bottoni affiancati. Mai "Salta",
    "Tutorial", "Aiuto" visibili.
-4. **Tutti i dati sono dietro UNA icona** (📓 Quaderno). Niente card
-   affiancate sul Tavolo. Niente backstage in vista. Numeri sì, ma
-   nascosti — eccezione: i numeri concreti che Nonno cita nel review
-   (tempo, "1 su 8 al tuo livello"). Sono ammessi lì perché sono
-   **argomento del coach**, non statistiche di sé stessi.
+4. **[SUPERATO da §0.2 il 2026-05-29]** La regola originale diceva "tutti
+   i dati dietro UNA icona 📓". Ora vale l'opposto: **i dati e i grafici
+   sono esposti** (esponi il valore) e **Nonno è l'interprete a richiesta**
+   che te li spiega quando ci clicchi. Resta vero che la voce di Nonno cita
+   numeri concreti (tempo, "1 su 8 al tuo livello") come argomento del coach.
 5. **Lui ti convoca, tu non cerchi.** Niente menu di scelta tipo
    "Pattern / Profilo / Trainer". Il prodotto ti porta dove ti deve
    portare.

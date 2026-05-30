@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>L'Anima · il Tavolo del Nonno</title>
+  <link rel="stylesheet" href="assets/pitch.css">
+  <style>
+    /* ---- tocchi specifici del capitolo (mai ridefinire token) ---- */
+
+    /* HERO: il tavolo nella sera */
+    .anima-hero { padding-top: clamp(48px, 8vw, 96px); }
+    .anima-hero .display { max-width: 18ch; }
+
+    /* IL RIBALTAMENTO · due mondi affiancati, stesso dato */
+    .flip { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: stretch; position: relative; }
+    .flip .vs {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      z-index: 2; width: 46px; height: 46px; border-radius: var(--r-pill);
+      display: grid; place-items: center; background: var(--s3);
+      border: 1px solid var(--line-strong);
+      font-family: var(--font-mono); font-weight: 700; font-size: 0.78rem; color: var(--muted);
+    }
+    @media (max-width: 820px){ .flip { grid-template-columns: 1fr; } .flip .vs { position: static; transform: none; margin: 2px auto; } }
+
+    /* il muro freddo: griglia di numeri che competono (volutamente piatta e muta) */
+    .cold-wall { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border-radius: var(--r-sm); overflow: hidden; }
+    .cold-wall div { background: var(--s1); padding: 12px 10px; }
+    .cold-wall .cv { font-family: var(--font-mono); font-weight: 700; font-size: 1.3rem; color: var(--paper-soft); line-height: 1.1; }
+    .cold-wall .ck { font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); margin-top: 3px; }
+
+    /* mappa-oggetti OOUX */
+    .ooux-map { width: 100%; height: auto; display: block; }
+    .ooux-map .obj rect { fill: var(--s2); stroke: var(--line-strong); }
+    .ooux-map .obj text { fill: var(--paper-soft); font-family: var(--font-body); font-weight: 600; }
+    .ooux-map .edge { stroke: var(--line-strong); fill: none; }
+    .ooux-map .edge-label { fill: var(--muted); font-family: var(--font-mono); font-size: 9px; }
+    /* la relazione-spina: Momento -> Obiettivo, in oro (e' il drill_value, lega al target) */
+    .ooux-map .spine { stroke: var(--honey); stroke-width: 2.4; }
+    .ooux-map .spine-label { fill: var(--honey-soft); font-family: var(--font-mono); font-weight: 700; font-size: 10px; }
+    .ooux-map .node-momento rect { stroke: var(--twilight); }
+    .ooux-map .node-obiettivo rect { stroke: var(--honey); fill: color-mix(in srgb, var(--honey) 8%, var(--s2)); }
+    .ooux-map .node-obiettivo text { fill: var(--honey-soft); }
+    .ooux-map .node-momento text { fill: var(--paper); }
+
+    /* le 3 superfici come 3 momenti del rituale */
+    .surfaces .card { display: flex; flex-direction: column; gap: 14px; }
+    .surfaces .moment-k { font-family: var(--font-mono); font-weight: 700; font-size: 0.78rem; color: var(--muted); }
+    .surfaces .hush { font-size: 0.82rem; color: var(--faint); margin-top: auto; padding-top: 8px; }
+
+    .chart-note { font-size: 0.82rem; color: var(--paper-soft); margin-top: 12px; max-width: 60ch; }
+    .chart-note .who { color: var(--twilight-soft); font-weight: 700; }
+  </style>
+</head>
+<body>
+
+<nav class="topnav"><div class="inner">
+  <a class="brand" href="index.html">il Tavolo del <span class="o">Nonno</span></a>
+  <div class="links">
+    <a href="index.html">Copertina</a>
+    <a href="01-anima.html">L'Anima</a>
+    <a href="02-moneta.html">La Moneta</a>
+    <a href="03-prova.html">La Prova</a>
+  </div>
+</div></nav>
+
+<main>
+
+  <!-- ============================================================
+       1. HERO · il rituale, il North Star, la voce che accoglie
+       ============================================================ -->
+  <section class="band anima-hero">
+    <div class="wrap">
+      <div class="reveal stack-lg">
+        <span class="eyebrow">Capitolo 1 · L'Anima</span>
+        <h1 class="display">Non e' una dashboard. E' un tavolo a cui ti siedi la sera.</h1>
+        <p class="lead">
+          Apri l'app da solo, dopo cena. La lampada e' accesa. Qualcuno ti aspettava:
+          ti ha gia' guardato le partite, ha gia' scelto cosa conta stasera. Non ti
+          riempie di grafici, ti parla. Quindici minuti, e poi torni domani.
+        </p>
+
+        <div class="nonno">
+          <span class="who">Nonno dice</span>
+          Oooh, eccoti. Ti ho guardato le partite. <b>1240</b> oggi, <b>1500</b> nel mirino.
+          Il problema non sono le posizioni difficili, li' fai quello che puoi. E' in quelle
+          che POTEVI chiudere: lasci il pezzo in presa <b>12</b> volte, su mosse che uno al tuo
+          livello trovava. Un <b>1500</b>, li', non sbaglia. Quello e' il tuo gap, ed e' il piu'
+          facile da recuperare. Una settimana su questo e i punti arrivano. Sediamoci.
+        </div>
+
+        <div class="row">
+          <button class="btn btn-primary" type="button">Sediamoci&nbsp;&rarr;</button>
+          <span class="mono muted">3 momenti · 1 partita · 15 minuti</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       1b. CHI E' NONNO · la figura che ti insegna e si mette al tuo
+           livello. Il nome del prodotto. (l'anima)
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="grid grid-2" style="align-items: center; gap: 44px;">
+        <div class="reveal stack">
+          <span class="eyebrow">Chi e' Nonno</span>
+          <h2 class="h2">Un nonno non ti allena. Si siede accanto, e ti insegna.</h2>
+          <p class="lead">
+            Ha imparato il gioco decenni fa, ha visto diecimila partite. Quando ti siedi non si
+            mette in cattedra: <strong>si china sulla scacchiera e si mette al tuo livello</strong>.
+            Ti mostra dove guardare, aspetta mentre pensi, non ti giudica. Ti insegna guardando
+            le <em>tue</em> partite, non gli scacchi in generale.
+          </p>
+          <p class="soft">
+            Per questo si chiama <strong>il Tavolo del Nonno</strong>. Non "dashboard", non "trainer".
+            Un tavolo: il posto dove, la sera, qualcuno piu' avanti di te si siede vicino e, senza
+            fretta, ti porta un passo piu' in la'.
+          </p>
+        </div>
+
+        <div class="reveal">
+          <div class="card s2 pad-lg stack">
+            <span class="eyebrow honey">"Si mette al tuo livello" non e' un modo di dire</span>
+            <p class="soft" style="max-width:none;">
+              Quando Nonno ti fa rigiocare un bivio contro un <span class="honey mono">1500</span>,
+              quel 1500 e' <strong>Maia calibrata</strong>: una macchina che gioca DAVVERO come uno
+              del tuo livello, con le sue esitazioni, non un motore che ti annienta. Il nonno che si
+              china sulla scacchiera e la tecnologia che lo rende possibile fanno la stessa, identica
+              cosa: <strong>incontrarti dove sei</strong>, e portarti dove puoi arrivare.
+            </p>
+            <div class="row" style="gap:10px;">
+              <span class="chip">non un motore che ti schiaccia</span>
+              <span class="chip honey">un avversario al tuo livello</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       2. IL RIBALTAMENTO · da "i tuoi errori" a "quanto sei lontano
+          da chi vuoi diventare". Confronto fianco-a-fianco.
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="reveal narrow center stack" style="margin-bottom: 44px;">
+        <span class="eyebrow">Il ribaltamento</span>
+        <h2 class="h2">Gli altri ti mostrano gli errori. Noi ti diciamo quanto sei lontano da chi vuoi diventare, posizione per posizione.</h2>
+        <p class="lead" style="margin: 0 auto;">
+          Stesso dato grezzo, due mondi. A sinistra il muro freddo: numeri che competono
+          per la tua attenzione e ti lasciano solo a interpretarli. A destra il Tavolo:
+          una voce, e <strong>un solo edge</strong> che conta oggi.
+        </p>
+      </div>
+
+      <div class="reveal flip">
+        <!-- SINISTRA: la dashboard fredda degli altri -->
+        <div class="card">
+          <div class="between" style="margin-bottom: 16px;">
+            <span class="eyebrow muted">Le insights degli altri</span>
+            <span class="chip">Accuracy 71%</span>
+          </div>
+          <div class="cold-wall" aria-label="muro di numeri freddi">
+            <div><div class="cv">61</div><div class="ck">mistakes + blunders</div></div>
+            <div><div class="cv">312</div><div class="ck">critical positions</div></div>
+            <div><div class="cv">0.32</div><div class="ck">avg difficulty</div></div>
+            <div><div class="cv">58%</div><div class="ck">conversion</div></div>
+            <div><div class="cv">31%</div><div class="ck">save rate</div></div>
+            <div><div class="cv">4.8%</div><div class="ck">midgame error</div></div>
+            <div><div class="cv">1.2%</div><div class="ck">opening error</div></div>
+            <div><div class="cv">2.1%</div><div class="ck">endgame error</div></div>
+            <div><div class="cv">42%</div><div class="ck">blow rate</div></div>
+          </div>
+          <p class="chart-note muted">
+            Nove numeri veri. Tutti corretti. Nessuno ti dice da dove cominciare stasera.
+            Sei tu a dover capire. E quindi non torni.
+          </p>
+        </div>
+
+        <span class="vs mono">vs</span>
+
+        <!-- DESTRA: il Tavolo. La voce + UN edge che conta. -->
+        <div class="card s2">
+          <div class="between" style="margin-bottom: 16px;">
+            <span class="eyebrow">Il Tavolo</span>
+            <span class="chip tw">oggi conta una cosa</span>
+          </div>
+
+          <div class="nonno" style="font-size: 1.15rem;">
+            <span class="who">Nonno dice</span>
+            Lasci il <b>pezzo in presa</b> dodici volte. Tu lo eviti il <b>34%</b>,
+            un <b>1500</b> il <b>67%</b>. E' la tua ancora piu' facile da mollare:
+            <b>+18</b> punti se ci lavori una settimana.
+          </div>
+
+          <svg class="chart" viewBox="0 0 400 96" role="img" aria-label="Pezzo in presa: tu 34 percento, un 1500 il 67 percento" style="margin-top: 18px;">
+            <text x="0" y="12" font-size="10">PEZZO IN PRESA · trovi la mossa giusta</text>
+            <rect class="bar-track" x="0" y="22" width="400" height="20" rx="6"></rect>
+            <rect class="bar-mine"  x="0" y="22" width="136" height="20" rx="6"></rect>
+            <text x="146" y="37" font-size="11" fill="#a18bff">tu 34%</text>
+            <rect class="bar-track" x="0" y="56" width="400" height="20" rx="6"></rect>
+            <rect class="bar-target" x="0" y="56" width="268" height="20" rx="6"></rect>
+            <text x="278" y="71" font-size="11" fill="#ffd877">un 1500: 67%</text>
+          </svg>
+          <p class="chart-note">
+            <span class="who">Nonno:</span> la barra viola sei tu oggi, l'oro e' dove arrivi.
+            Quella distanza ha un prezzo in punti, e questa volta sai da dove partire.
+          </p>
+        </div>
+      </div>
+
+      <p class="reveal center mono muted" style="margin-top: 28px;">
+        61 errori &rarr; 33 evitabili &rarr; 1 ancora da mollare per prima. Sottrazione, non accumulo.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       3. NONNO, IL PERSONAGGIO · la voce e' il prodotto
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="grid grid-2" style="align-items: start; gap: 40px;">
+        <div class="reveal stack">
+          <span class="eyebrow">Il personaggio</span>
+          <h2 class="h2">La voce e' il prodotto.</h2>
+          <p class="lead">
+            Nonno non e' un chatbot e non improvvisa. E' un <strong>interprete dei tuoi dati</strong>:
+            ti parla in seconda persona, caldo ma diretto, e cita i numeri dentro il discorso,
+            non accanto. Ti accoglie, ti da' la frustata gentile quando serve, e ti rimanda
+            su con un perche'.
+          </p>
+          <p class="soft">
+            Tre cose, e nient'altro, lo distinguono da qualsiasi insights tool:
+            <strong>il tempo che hai speso</strong> sulla mossa, <strong>il confronto con chi vuoi diventare</strong>
+            (tu vs un 1500 su quella posizione esatta), e il consiglio della <strong>mossa di attesa</strong>
+            quando la mossa giusta era davvero troppo difficile per te. Niente colpa: solo la verita',
+            misurata.
+          </p>
+          <div class="row">
+            <span class="chip tw">seconda persona, sempre TU</span>
+            <span class="chip">una sola voce</span>
+            <span class="chip">cita i tuoi numeri</span>
+          </div>
+        </div>
+
+        <div class="reveal stack-lg">
+          <!-- accoglienza -->
+          <div class="nonno">
+            <span class="who">Nonno · accoglienza</span>
+            Oooh, eccoti. Oggi rivediamo tre momenti delle tue ultime partite. Niente di
+            difficile, roba tua. Poi una partita contro un <b>1500</b>, e ti lascio andare.
+          </div>
+          <!-- la frustata gentile -->
+          <div class="nonno">
+            <span class="who">Nonno · la frustata gentile</span>
+            Hai mosso in <b>8</b> secondi. Su quelle mosse, il <b>41%</b> dei tuoi errori
+            erano evitabili. Non e' che non li vedi: e' che non ti fermi. Respira, e guarda
+            ancora.
+          </div>
+          <!-- l'incoraggiamento, ancorato al dato di crescita -->
+          <div class="nonno">
+            <span class="who">Nonno · l'incoraggiamento</span>
+            Quattro settimane fa il pezzo in presa lo evitavi il <b>19%</b> delle volte.
+            Oggi <b>34%</b>. Hai gia' chiuso un terzo del gap verso il <b>67%</b>. Stai
+            andando. Continua cosi'.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       4. LA LOGICA OOUX RIBALTATA E SPIATTELLATA
+          La relazione-spina al centro: Momento x Obiettivo = drill_value
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="reveal narrow center stack" style="margin-bottom: 40px;">
+        <span class="eyebrow">La logica, spiattellata</span>
+        <h2 class="h2">Il colpo di genio non e' un oggetto al centro. E' una relazione.</h2>
+        <p class="lead" style="margin: 0 auto;">
+          Tutti costruiscono attorno a un sostantivo (la partita, l'errore). Noi mettiamo al
+          centro un <strong>legame</strong>: ogni Momento, incrociato col tuo Obiettivo, diventa un
+          numero, <strong>il drill_value</strong>. Tutti gli oggetti e i loro legami sono visibili in
+          un colpo d'occhio, niente nascosto dietro un'icona.
+        </p>
+      </div>
+
+      <div class="reveal card s2 pad-lg">
+        <div class="map-scroll"><svg class="ooux-map" viewBox="0 0 920 470" role="img"
+             aria-label="Mappa dei nove oggetti e delle loro relazioni. L'arco evidenziato in oro lega Momento e Obiettivo: e' il drill value.">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#2a3158"></path>
+            </marker>
+            <marker id="arrow-gold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#f6c64a"></path>
+            </marker>
+          </defs>
+
+          <!-- ===== archi (sotto i nodi) ===== -->
+          <!-- Partita -> Momento : ha molti -->
+          <line class="edge" x1="158" y1="120" x2="300" y2="200" marker-end="url(#arrow)"></line>
+          <text class="edge-label" x="200" y="153">ha molti</text>
+          <!-- Partita -> Apertura : in -->
+          <line class="edge" x1="120" y1="148" x2="120" y2="316" marker-end="url(#arrow)"></line>
+          <text class="edge-label" x="74" y="238">in</text>
+          <!-- Apertura -> Momento : genera -->
+          <line class="edge" x1="178" y1="346" x2="300" y2="246" marker-end="url(#arrow)"></line>
+          <text class="edge-label" x="196" y="312">genera</text>
+          <!-- Momento -> Struttura : dentro -->
+          <line class="edge" x1="386" y1="252" x2="386" y2="328" marker-end="url(#arrow)"></line>
+          <text class="edge-label" x="396" y="296">dentro</text>
+          <!-- Struttura -> Apertura : nasce da -->
+          <line class="edge" x1="320" y1="360" x2="216" y2="360" marker-end="url(#arrow)"></line>
+          <text class="edge-label" x="232" y="380">nasce da</text>
+          <!-- Freno -> Momento : istanza di -->
+          <line class="edge" x1="600" y1="150" x2="452" y2="206" marker-end="url(#arrow)"></line>
+          <text class="edge-label" x="500" y="166">istanza di</text>
+          <!-- Avversario/Maia -> spina : calibra (entra nel calcolo) -->
+          <line class="edge" x1="640" y1="346" x2="568" y2="300" marker-end="url(#arrow)"></line>
+          <text class="edge-label" x="566" y="346">calibra</text>
+          <!-- Sessione -> Momento : rivede / rigioca -->
+          <line class="edge" x1="386" y1="116" x2="386" y2="196" marker-end="url(#arrow)"></line>
+          <text class="edge-label" x="396" y="160">rivede</text>
+          <!-- Sessione -> Quaderno : scrive -->
+          <line class="edge" x1="452" y1="92" x2="734" y2="92" marker-end="url(#arrow)"></line>
+          <text class="edge-label" x="560" y="80">scrive voci</text>
+
+          <!-- ===== LA SPINA: Momento x Obiettivo = drill_value (oro) ===== -->
+          <line class="spine" x1="452" y1="224" x2="734" y2="224" marker-end="url(#arrow-gold)"></line>
+          <text class="spine-label" x="500" y="214">x OBIETTIVO = drill_value</text>
+          <text class="spine-label" x="500" y="246" fill="#717892" font-weight="400">p(target la trova) &minus; p(tu la trovi)</text>
+
+          <!-- ===== nodi (oggetti) ===== -->
+          <!-- Partita -->
+          <g class="obj">
+            <rect x="40" y="92" width="120" height="48" rx="10"></rect>
+            <text x="100" y="121" text-anchor="middle" font-size="13">Partita</text>
+          </g>
+          <!-- Apertura -->
+          <g class="obj">
+            <rect x="40" y="316" width="120" height="48" rx="10"></rect>
+            <text x="100" y="345" text-anchor="middle" font-size="13">Apertura</text>
+          </g>
+          <!-- Struttura -->
+          <g class="obj">
+            <rect x="320" y="336" width="132" height="48" rx="10"></rect>
+            <text x="386" y="365" text-anchor="middle" font-size="13">Struttura</text>
+          </g>
+          <!-- Sessione -->
+          <g class="obj">
+            <rect x="320" y="68" width="132" height="48" rx="10"></rect>
+            <text x="386" y="97" text-anchor="middle" font-size="13">Sessione</text>
+          </g>
+          <!-- Freno (Ancora) -->
+          <g class="obj">
+            <rect x="600" y="102" width="148" height="48" rx="10"></rect>
+            <text x="674" y="125" text-anchor="middle" font-size="13">Ancora</text>
+            <text x="674" y="140" text-anchor="middle" font-size="9" fill="#717892">debolezza ricorrente</text>
+          </g>
+          <!-- Avversario / Maia -->
+          <g class="obj">
+            <rect x="600" y="346" width="180" height="56" rx="10"></rect>
+            <text x="690" y="370" text-anchor="middle" font-size="13">Avversario</text>
+            <text x="690" y="387" text-anchor="middle" font-size="9" fill="#717892">Maia, calibrata al target</text>
+          </g>
+          <!-- Quaderno -->
+          <g class="obj">
+            <rect x="734" y="68" width="146" height="48" rx="10"></rect>
+            <text x="807" y="97" text-anchor="middle" font-size="13">Quaderno</text>
+          </g>
+
+          <!-- MOMENTO (protagonista, bordo twilight) -->
+          <g class="obj node-momento">
+            <rect x="300" y="196" width="152" height="56" rx="11"></rect>
+            <text x="376" y="220" text-anchor="middle" font-size="14" font-weight="700">Momento</text>
+            <text x="376" y="238" text-anchor="middle" font-size="9" fill="#a18bff">la posizione critica, l'atomo</text>
+          </g>
+          <!-- OBIETTIVO (oro, fine della spina) -->
+          <g class="obj node-obiettivo">
+            <rect x="734" y="196" width="146" height="56" rx="11"></rect>
+            <text x="807" y="220" text-anchor="middle" font-size="14" font-weight="700">Obiettivo</text>
+            <text x="807" y="238" text-anchor="middle" font-size="9">1500 in 90 giorni</text>
+          </g>
+        </svg></div>
+
+        <p class="chart-note" style="margin-top: 18px;">
+          <span class="who">Nonno:</span> guarda l'arco d'oro. Ogni posizione che hai vissuto,
+          messa accanto a dove vuoi arrivare, diventa un solo numero: quanto quella mossa ti separa
+          dal 1500. Non e' "hai sbagliato", e': questa la trova chi vuoi diventare, tu ancora no.
+          Tutto il resto del prodotto e' appeso a quel filo.
+        </p>
+      </div>
+
+      <div class="reveal grid grid-3" style="margin-top: 24px;">
+        <div class="stat">
+          <span class="n tw">9</span>
+          <span class="k">oggetti, tutti in vista</span>
+        </div>
+        <div class="stat">
+          <span class="n honey">1</span>
+          <span class="k">relazione-spina al centro</span>
+        </div>
+        <div class="stat">
+          <span class="n">0</span>
+          <span class="k">valore nascosto dietro icone</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       5. LE 3 SUPERFICI come 3 momenti del rituale (teaser)
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="reveal narrow center stack" style="margin-bottom: 40px;">
+        <span class="eyebrow">Il rituale, in tre momenti</span>
+        <h2 class="h2">Tre superfici, un solo gesto della sera.</h2>
+        <p class="lead" style="margin: 0 auto;">
+          Non un menu di pagine scollegate. Tre momenti dello stesso rituale: cosa conta oggi,
+          dove ti alleni, e la casa dove ritrovi tutto. Il dettaglio arriva nei prossimi capitoli.
+        </p>
+      </div>
+
+      <div class="reveal surfaces grid grid-3">
+        <!-- TAVOLO -->
+        <div class="card">
+          <span class="moment-k">01 · l'ingresso</span>
+          <h3>Tavolo</h3>
+          <p class="soft">Oggi, cosa conta. La voce di Nonno, l'anello dell'Obiettivo, e
+            la mossa che ti e' costata di piu'. Da qui ti tuffi in ogni oggetto.</p>
+          <div class="row"><span class="chip tw">Sediamoci</span></div>
+          <span class="hush">la priorita', detta forte</span>
+        </div>
+        <!-- SESSIONE -->
+        <div class="card">
+          <span class="moment-k">02 · l'allenamento</span>
+          <h3>Sessione</h3>
+          <p class="soft">Guardo e Nonno parla, Nonno mi aiuta, gioco da solo, gioco la
+            partita contro un 1500 da una mia posizione vissuta. Quattro fasi, sulle TUE posizioni.</p>
+          <div class="row"><span class="chip">3 momenti · 1 partita</span></div>
+          <span class="hush">il loop attivo, ~15 minuti</span>
+        </div>
+        <!-- QUADERNO -->
+        <div class="card">
+          <span class="moment-k">03 · la casa continua</span>
+          <h3>Quaderno</h3>
+          <p class="soft">La memoria navigabile, prima classe e non nascosta: la tua
+            evoluzione, le cadute, il repertorio. Da un'Ancora arrivi ai suoi Momenti, da un
+            Momento alla sua Struttura.</p>
+          <div class="row"><span class="chip">Evoluzione · Cadute · Storia</span></div>
+          <span class="hush">la continuita', sussurrata</span>
+        </div>
+      </div>
+
+      <p class="reveal center mono muted" style="margin-top: 28px;">
+        Tavolo (oggi) &rarr; Sessione (allena) &rarr; Quaderno (ritrova). E domani si ricomincia.
+      </p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <div class="pager">
+    <a href="index.html" class="prev">
+      <span class="lbl">&larr; Precedente</span>
+      <span class="t mono">Copertina</span>
+    </a>
+    <a href="02-moneta.html" class="next">
+      <span class="lbl">Successivo &rarr;</span>
+      <span class="t mono">La Moneta</span>
+    </a>
+  </div>
+</footer>
+
+<script src="assets/pitch.js"></script>
+</body>
+</html>

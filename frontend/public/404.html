@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Nonno's Table</title>
+  <script>
+    // GH Pages SPA redirect (Rafgraph trick).
+    // Salva il path richiesto in sessionStorage e ricarica index.html, che
+    // poi recupera il path e fa replaceState al router. Necessario perché
+    // GH Pages serve un 404 reale per i deep link client-side.
+    (function () {
+      var l = window.location;
+      sessionStorage.setItem("nonno_spa_redirect", l.pathname + l.search + l.hash);
+      // Ricarica l'index del repo (l'ultimo segmento di pathname è la "pagina"
+      // 404 fittizia; risaliamo al base path).
+      var base = l.pathname.split("/").slice(0, 2).join("/") + "/";
+      l.replace(l.origin + base);
+    })();
+  </script>
+</head>
+<body>
+  Redirecting…
+</body>
+</html>

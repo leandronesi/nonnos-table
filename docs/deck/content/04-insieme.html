@@ -1,0 +1,239 @@
+<!-- ====== PARTE 4 ====== -->
+      <section class="part-divider">
+        <div class="part-divider-eyebrow">Parte 4</div>
+        <h2>Mettere insieme</h2>
+        <p>Stesso pattern a tre livelli. Lo vediamo all'opera. E poi i bagagli per portarsi via il punto.</p>
+      </section>
+
+      <!-- SLIDE 19 -->
+      <section class="slide" id="s19">
+        <div class="slide-num">19 / 23</div>
+        <h1>Lo stesso pattern, ovunque</h1>
+        <p class="slide-sub">Macroistruzione, sub-istruzione, skill: tre livelli, una sola logica.</p>
+        <div class="slide-body">
+          <p>Quando guardi una cartella-agente fatta bene, vedi sempre la
+            stessa struttura. Cambia il dominio (codice, marketing, supporto
+            cliente, ricerca), cambia la dimensione (5 file o 500), ma il
+            principio non cambia:</p>
+          <div class="hierarchy">
+            <div class="hi-level hi-1">
+              <div class="hi-label">Livello 1 — fuori</div>
+              <div class="hi-name">Macroistruzione</div>
+              <div class="hi-file">CLAUDE.md</div>
+              <div class="hi-what">Identita', vincoli, mappa di dove sta il resto.</div>
+            </div>
+            <div class="hi-arrow">↓</div>
+            <div class="hi-level hi-2">
+              <div class="hi-label">Livello 2 — dentro</div>
+              <div class="hi-name">Sub-istruzioni</div>
+              <div class="hi-file">spec/*.md, wiki/*.md, docs/*.md</div>
+              <div class="hi-what">Contesto specifico: chi e' il lettore, com'e' fatto il prodotto, ecc.</div>
+            </div>
+            <div class="hi-arrow">↓</div>
+            <div class="hi-level hi-3">
+              <div class="hi-label">Livello 3 — dentro ancora</div>
+              <div class="hi-name">Skill</div>
+              <div class="hi-file">skills/&lt;nome&gt;/SKILL.md</div>
+              <div class="hi-what">Come comportarsi in una situazione specifica.</div>
+            </div>
+          </div>
+          <div class="pull">
+            Niente magia. Niente framework. Cartelle, file, e un LLM che li legge
+            nell'ordine giusto.
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 20 — NAVIGATION VISUALIZER -->
+      <section class="slide" id="s20">
+        <div class="slide-num">20 / 23</div>
+        <h1>Vediamolo in azione</h1>
+        <p class="slide-sub">L'agente riceve un input. Naviga la cartella. Modifica un file.</p>
+        <div class="slide-body">
+          <p>Simulazione vera: ti chiedo all'agente del deck di <strong>aggiungere
+            una nota alla slide 5</strong>. Guarda dove va a leggere prima di
+            scrivere.</p>
+          <div class="vz vz-nav" id="vznav">
+            <div class="vz-header">
+              <span class="vz-tag">Navigazione agente</span>
+              <span class="vz-prompt" id="vznav-prompt">Utente: "aggiungi una nota alla slide 5 sul fatto che l'LLM nudo non puo' fare HTTP request"</span>
+            </div>
+            <div class="vz-nav-stage">
+              <div class="vz-nav-thoughts" id="vznav-thoughts">
+                <div class="vz-thought-list" id="vznav-thought-list"></div>
+              </div>
+              <div class="vz-nav-fs">
+                <div class="vz-fs-head">docs/deck/</div>
+                <div class="vz-fs-tree-nav" id="vznav-tree">
+                  <div class="fsn" data-path="CLAUDE.md">
+                    <span class="fsn-icon">📄</span> CLAUDE.md
+                  </div>
+                  <div class="fsn fsn-folder" data-path="spec/">
+                    <span class="fsn-icon">📁</span> spec/
+                    <div class="fsn-children">
+                      <div class="fsn" data-path="spec/product.md"><span class="fsn-icon">📄</span> product.md</div>
+                      <div class="fsn" data-path="spec/audience.md"><span class="fsn-icon">📄</span> audience.md</div>
+                      <div class="fsn" data-path="spec/voice.md"><span class="fsn-icon">📄</span> voice.md</div>
+                    </div>
+                  </div>
+                  <div class="fsn fsn-folder" data-path="content/">
+                    <span class="fsn-icon">📁</span> content/
+                    <div class="fsn-children">
+                      <div class="fsn" data-path="content/00-preambolo.html"><span class="fsn-icon">📄</span> 00-preambolo.html</div>
+                      <div class="fsn" data-path="content/01-harness.html"><span class="fsn-icon">📄</span> 01-harness.html</div>
+                      <div class="fsn" data-path="content/02-loop.html"><span class="fsn-icon">📄</span> 02-loop.html</div>
+                      <div class="fsn" data-path="content/03-pilastri.html"><span class="fsn-icon">📄</span> 03-pilastri.html</div>
+                      <div class="fsn" data-path="content/04-insieme.html"><span class="fsn-icon">📄</span> 04-insieme.html</div>
+                    </div>
+                  </div>
+                  <div class="fsn fsn-folder" data-path="skills/">
+                    <span class="fsn-icon">📁</span> skills/
+                    <div class="fsn-children">
+                      <div class="fsn" data-path="skills/motion-reel/SKILL.md"><span class="fsn-icon">📄</span> motion-reel/SKILL.md</div>
+                    </div>
+                  </div>
+                  <div class="fsn" data-path="build.py"><span class="fsn-icon">🐍</span> build.py</div>
+                </div>
+              </div>
+            </div>
+            <div class="vz-controls">
+              <div class="vz-progress">
+                <span id="vznav-step">0</span> / <span id="vznav-total">8</span>
+              </div>
+              <div class="vz-buttons">
+                <button class="vz-btn" data-vz="vznav" data-action="reset">Reset</button>
+                <button class="vz-btn vz-btn-primary" data-vz="vznav" data-action="next">Step ▶</button>
+                <button class="vz-btn" data-vz="vznav" data-action="play">▶ Auto</button>
+              </div>
+            </div>
+          </div>
+          <p>Nota: il modello <strong>non sa dove sia la slide 5 a priori</strong>.
+            Lo capisce leggendo la mappa nel <code>CLAUDE.md</code>, e poi
+            seguendo i puntatori. Stesso pattern di un essere umano che apre
+            un libro che non ha mai letto.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 21 -->
+      <section class="slide" id="s21">
+        <div class="slide-num">21 / 23</div>
+        <h1>Le quattro domande da portarsi via</h1>
+        <p class="slide-sub">Se ti capitera' di guardare la cartella di un agente, falle.</p>
+        <div class="slide-body">
+          <p>Operative. Niente teoria. Quando guardi la cartella di un agente
+            (tuo o di altri), o quando ne stai progettando uno, queste sono
+            le domande da farti:</p>
+          <div class="checklist">
+            <div class="cl-item">
+              <div class="cl-num">1</div>
+              <div class="cl-body">
+                <div class="cl-q">C'e' un file root che fa da macroistruzione?</div>
+                <div class="cl-a">Se no, l'agent non sa da dove cominciare a leggere. <strong>Aggiungilo.</strong></div>
+              </div>
+            </div>
+            <div class="cl-item">
+              <div class="cl-num">2</div>
+              <div class="cl-body">
+                <div class="cl-q">Il file root rimanda chiaramente alle sotto-cartelle?</div>
+                <div class="cl-a">"Per X vai in Y." Se la mappa manca, il modello non navighera' e finira' per inventare. <strong>Scrivila esplicita.</strong></div>
+              </div>
+            </div>
+            <div class="cl-item">
+              <div class="cl-num">3</div>
+              <div class="cl-body">
+                <div class="cl-q">Le sub-istruzioni sono brevi e mirate?</div>
+                <div class="cl-a">Un file con 30 righe e' meglio di tre file con 200. Il modello legge piu' veloce. <strong>Tagliare.</strong></div>
+              </div>
+            </div>
+            <div class="cl-item">
+              <div class="cl-num">4</div>
+              <div class="cl-body">
+                <div class="cl-q">Stai chiedendo al modello di FARE qualcosa che e' meglio fare in Python?</div>
+                <div class="cl-a">Calcoli deterministici, regex, validazione: Python. Il modello propone, Python verifica. <strong>"LLM giocatore, Python referee."</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 22 -->
+      <section class="slide" id="s22">
+        <div class="slide-num">22 / 23</div>
+        <h1>L'esempio e' questo deck</h1>
+        <p class="slide-sub">Te lo dico solo adesso: il deck stesso e' la cartella che ti ho appena descritto.</p>
+        <div class="slide-body">
+          <p>Hai appena guardato 21 slide. Adesso il twist.</p>
+          <p>Questo deck non l'ho scritto tutto da solo. L'ho costruito
+            <strong>conversando con un agente</strong>, e l'agente ha lavorato
+            su una cartella organizzata <em>esattamente</em> come ti ho appena
+            spiegato.</p>
+          <div class="pull">
+            La struttura che hai visto nel navigation visualizer non e' un
+            esempio simulato. <em>E' questa cartella.</em>
+          </div>
+          <p>Quando vorrai, apri <code>docs/deck/</code> nel file system. Quello
+            che trovi e' lo specchio di quello che ti ho raccontato:</p>
+          <ul>
+            <li><strong><code>CLAUDE.md</code></strong> — la macroistruzione</li>
+            <li><strong><code>spec/</code></strong> — le sub-istruzioni di contesto</li>
+            <li><strong><code>skills/motion-reel/</code></strong> — la skill che ha guidato il visualizer</li>
+            <li><strong><code>content/</code></strong> — il contenuto vero del deck</li>
+            <li><strong><code>build.py</code></strong> — il "Python referee" che concatena tutto</li>
+            <li><strong><code>dist/index.html</code></strong> — quello che stai guardando in questo momento</li>
+          </ul>
+          <div class="pull">
+            Il deck si spiega da solo, perche' il deck <em>e'</em> cio' che spiega.
+          </div>
+          <p>Manca solo una cosa. Vai avanti.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 23 -->
+      <section class="slide slide-gift" id="s23">
+        <div class="slide-num">23 / 23</div>
+        <h1>La lezione che ti porti via</h1>
+        <p class="slide-sub">E un regalo per cominciare.</p>
+        <div class="slide-body">
+          <div class="lesson">
+            <p class="lesson-text">
+              Non hai bisogno di sapere usare l'IA, per usarla.
+            </p>
+            <p class="lesson-text">
+              Hai bisogno di sapere come funziona un <strong>sistema di
+              cartelle</strong>, e cosa vuoi <strong>costruire</strong>,
+              e dove ti serve una mano.
+            </p>
+            <p class="lesson-text">
+              All'IA puoi sempre chiedere di aiutarti a definire il prodotto
+              giusto, e di costruirti le cartelle nell'ordine giusto.
+            </p>
+          </div>
+
+          <div class="gift">
+            <div class="gift-eyebrow">Hai bisogno di un cheat sheet?</div>
+            <h2 class="gift-title">Scarica questo <code>CLAUDE.md</code></h2>
+            <p class="gift-desc">
+              E' la tua prima, unica, vera, grande skill. E' il regalo che
+              ti faccio. Dentro c'e' tutto quello che il deck ti ha appena
+              spiegato, ma scritto in modo che <em>Claude lo legga al
+              tuo posto</em>. Mettilo nella cartella del tuo prossimo
+              progetto, e parti gia' nel modo giusto.
+            </p>
+            <a class="gift-btn" id="gift-download" href="CLAUDE.md" download="CLAUDE.md">
+              <span class="gift-btn-icon">↓</span>
+              <span class="gift-btn-label">
+                <span class="gift-btn-main">Scarica CLAUDE.md</span>
+                <span class="gift-btn-sub">file di testo, ~3 KB · da mettere nella radice del tuo progetto</span>
+              </span>
+            </a>
+            <p class="gift-foot">
+              Aprilo. Leggilo. Modifica la sezione "Il mio progetto" con cosa
+              vuoi costruire. Poi apri Claude Code in quella cartella, scrivi
+              <em>"ciao"</em>, e fai partire la prima conversazione vera della
+              tua vita con un agente.
+            </p>
+          </div>
+
+          <p class="closing-line">Fine. <em>Grazie.</em></p>
+        </div>
+      </section>

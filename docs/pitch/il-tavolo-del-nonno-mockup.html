@@ -1,0 +1,1548 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>il Tavolo del Nonno &middot; Mockup homepage e contenuto</title>
+<style>
+:root {
+  --bg: #060814;
+  --bg-2: #0a0d1c;
+  --surface: #0f1325;
+  --surface-2: #161a30;
+  --surface-3: #1c2138;
+  --line: #1e2440;
+  --line-strong: #2a3158;
+  --paper: #eef0fa;
+  --paper-soft: #b6bcd6;
+  --muted: #717892;
+  --faint: #4a5070;
+  --twilight: #7c5cff;
+  --twilight-soft: #a18bff;
+  --honey: #f6c64a;
+  --honey-soft: #ffd877;
+  --wood: #33231a;
+  --wood-soft: #5a3b25;
+  --felt: #1f5a45;
+  --felt-soft: #2b765b;
+  --good: #34d399;
+  --warn: #f5a524;
+  --danger: #f43f5e;
+  --font-display: "Inter Tight", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+  --maxw: 1180px;
+  --r: 8px;
+  --r-lg: 14px;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background:
+    radial-gradient(900px 520px at 82% 0%, rgba(246, 198, 74, 0.09), transparent 58%),
+    radial-gradient(760px 460px at 12% 8%, rgba(124, 92, 255, 0.10), transparent 56%),
+    var(--bg);
+  color: var(--paper);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.55;
+  letter-spacing: 0;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font: inherit; }
+p { margin: 0; max-width: 68ch; }
+strong { color: var(--paper); font-weight: 750; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.soft { color: var(--paper-soft); }
+.muted { color: var(--muted); }
+.faint { color: var(--faint); }
+.honey { color: var(--honey-soft); }
+.tw { color: var(--twilight-soft); }
+.good { color: var(--good); }
+.warn { color: var(--warn); }
+.danger { color: var(--danger); }
+
+.wrap {
+  width: min(var(--maxw), calc(100% - 40px));
+  margin: 0 auto;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(10, 13, 28, 0.86);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+.topbar .inner {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-weight: 850;
+  letter-spacing: -0.01em;
+}
+.brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(135deg, rgba(246, 198, 74, 0.22), rgba(124, 92, 255, 0.18)),
+    var(--surface-2);
+  border: 1px solid rgba(246, 198, 74, 0.30);
+  color: var(--honey-soft);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+.nav {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nav a {
+  padding: 7px 11px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--paper-soft);
+  font-size: 0.84rem;
+  font-weight: 650;
+}
+.nav a:hover { border-color: var(--line-strong); color: var(--paper); }
+
+.btn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 10px;
+  padding: 0 20px;
+  border: 1px solid transparent;
+  font-weight: 760;
+}
+.btn-primary {
+  color: var(--paper);
+  background: var(--twilight);
+}
+.btn-ghost {
+  color: var(--paper-soft);
+  border-color: var(--line-strong);
+  background: transparent;
+}
+
+.eyebrow {
+  font-size: 0.72rem;
+  font-weight: 780;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--twilight-soft);
+}
+.eyebrow.honey { color: var(--honey-soft); }
+.eyebrow.muted { color: var(--muted); }
+
+.section {
+  border-top: 1px solid var(--line);
+  padding: clamp(54px, 8vw, 96px) 0;
+}
+.section:first-of-type { border-top: none; }
+.section-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 430px);
+  gap: 28px;
+  align-items: end;
+  margin-bottom: 28px;
+}
+.section h2,
+.section h1 {
+  margin: 10px 0 0;
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+.section h1 {
+  max-width: 11ch;
+  font-size: clamp(3.4rem, 10vw, 7.8rem);
+  line-height: 0.88;
+  font-weight: 900;
+}
+.section h2 {
+  max-width: 18ch;
+  font-size: clamp(2rem, 5vw, 4rem);
+  line-height: 0.96;
+  font-weight: 880;
+}
+.lead {
+  color: var(--paper-soft);
+  font-size: clamp(1.05rem, 2vw, 1.25rem);
+  line-height: 1.55;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 27px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--paper-soft);
+  font-size: 0.68rem;
+  font-weight: 780;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.chip.honey {
+  color: var(--honey-soft);
+  background: rgba(246, 198, 74, 0.12);
+}
+.chip.tw {
+  color: var(--twilight-soft);
+  background: rgba(124, 92, 255, 0.14);
+}
+.chip.good {
+  color: var(--good);
+  background: rgba(52, 211, 153, 0.12);
+}
+
+.mock-note {
+  padding: 14px 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r);
+  color: var(--paper-soft);
+  font-size: 0.88rem;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+/* Homepage */
+.hero {
+  min-height: calc(100vh - 58px);
+  display: grid;
+  align-items: center;
+  padding: clamp(46px, 7vw, 78px) 0;
+}
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(360px, 1.08fr);
+  gap: clamp(28px, 5vw, 68px);
+  align-items: center;
+}
+.hero-copy {
+  min-width: 0;
+}
+.hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 22px;
+  color: var(--paper-soft);
+}
+.hero h1 span {
+  display: block;
+  color: var(--honey-soft);
+}
+.hero-line {
+  margin-top: 24px;
+  max-width: 44ch;
+}
+.hero-actions {
+  margin-top: 30px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.trust-line {
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.05em;
+}
+
+.table-scene {
+  position: relative;
+  min-height: 620px;
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  overflow: hidden;
+  background:
+    radial-gradient(420px 300px at 70% 12%, rgba(246, 198, 74, 0.22), transparent 62%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 34%),
+    var(--bg-2);
+}
+.wall-line {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent 0 49.6%, rgba(255,255,255,0.04) 49.6% 50.4%, transparent 50.4%),
+    linear-gradient(180deg, transparent 0 64%, rgba(246,198,74,0.10) 64.1%, transparent 64.4%);
+  opacity: 0.45;
+}
+.lamp {
+  position: absolute;
+  top: 34px;
+  right: 92px;
+  width: 150px;
+  height: 210px;
+}
+.lamp:before {
+  content: "";
+  position: absolute;
+  left: 72px;
+  top: 74px;
+  width: 2px;
+  height: 106px;
+  background: rgba(246, 198, 74, 0.45);
+}
+.lamp-shade {
+  position: absolute;
+  top: 0;
+  left: 22px;
+  width: 106px;
+  height: 66px;
+  clip-path: polygon(24% 0, 76% 0, 100% 100%, 0 100%);
+  background: linear-gradient(180deg, #ffd877, #8f622e);
+  border: 1px solid rgba(246, 198, 74, 0.40);
+}
+.lamp-glow {
+  position: absolute;
+  top: 38px;
+  left: -90px;
+  width: 330px;
+  height: 330px;
+  background: radial-gradient(circle, rgba(246, 198, 74, 0.20), rgba(246, 198, 74, 0.06) 42%, transparent 68%);
+}
+.desk {
+  position: absolute;
+  left: -5%;
+  right: -5%;
+  bottom: -48px;
+  height: 285px;
+  border-radius: 50% 50% 0 0 / 26% 26% 0 0;
+  background:
+    repeating-linear-gradient(8deg, rgba(255,255,255,0.026) 0 1px, transparent 1px 16px),
+    linear-gradient(180deg, var(--wood-soft), var(--wood) 46%, #18110e);
+  border-top: 1px solid rgba(246, 198, 74, 0.22);
+}
+.scene-board {
+  position: absolute;
+  width: min(48%, 320px);
+  left: 8%;
+  bottom: 82px;
+  transform: rotate(-4deg);
+}
+.scene-notebook {
+  position: absolute;
+  width: min(33%, 238px);
+  right: 10%;
+  bottom: 112px;
+  transform: rotate(3deg);
+}
+.scene-target {
+  position: absolute;
+  left: 12%;
+  top: 68px;
+  width: min(48%, 310px);
+}
+
+.target-card,
+.notebook,
+.target-panel,
+.app-panel,
+.content-panel,
+.comparison-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: rgba(15, 19, 37, 0.92);
+}
+.target-card {
+  padding: 18px;
+  border-color: rgba(246, 198, 74, 0.30);
+  background:
+    radial-gradient(220px 120px at 92% 0%, rgba(246, 198, 74, 0.15), transparent 58%),
+    var(--surface-2);
+}
+.target-card .row,
+.target-panel .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.rating-pair {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 12px;
+  font-family: var(--font-mono);
+  font-weight: 850;
+}
+.rating-pair .now { font-size: 2.1rem; color: var(--paper); }
+.rating-pair .arrow { color: var(--muted); }
+.rating-pair .goal { font-size: 2.35rem; color: var(--honey-soft); }
+
+.board-art {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background:
+    conic-gradient(from 90deg, #2d3459 90deg, #151a31 0 180deg, #2d3459 0 270deg, #151a31 0)
+    0 0 / 25% 25%;
+}
+.board-art:after {
+  content: "";
+  position: absolute;
+  inset: 37.5% 50% auto 37.5%;
+  width: 12.5%;
+  height: 12.5%;
+  background: rgba(246, 198, 74, 0.26);
+  outline: 2px solid rgba(246, 198, 74, 0.70);
+}
+.piece {
+  position: absolute;
+  left: calc(var(--x) * 12.5% + 1.85%);
+  top: calc(var(--y) * 12.5% + 1.85%);
+  width: 8.8%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: clamp(0.54rem, 1vw, 0.78rem);
+  font-weight: 900;
+  line-height: 1;
+}
+.piece.w { background: #e9dfca; color: #12141f; }
+.piece.b { background: #20243b; color: #e8ecff; border: 1px solid rgba(255,255,255,0.16); }
+.move-arrow {
+  position: absolute;
+  left: 47.5%;
+  top: 44.5%;
+  width: 19.5%;
+  height: 3px;
+  background: var(--honey);
+  transform: rotate(-37deg);
+  transform-origin: left center;
+  border-radius: 999px;
+}
+.move-arrow:after {
+  content: "";
+  position: absolute;
+  right: -2px;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  border-top: 3px solid var(--honey);
+  border-right: 3px solid var(--honey);
+  transform: rotate(45deg);
+}
+.board-caption {
+  margin-top: 12px;
+  display: grid;
+  gap: 7px;
+  color: var(--paper-soft);
+  font-size: 0.84rem;
+}
+.value-row {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr) 58px;
+  gap: 8px;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+.bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+.bar span {
+  display: block;
+  height: 100%;
+  width: var(--w);
+  border-radius: inherit;
+  background: var(--c);
+}
+
+.notebook {
+  padding: 18px;
+  background:
+    linear-gradient(90deg, rgba(246,198,74,0.08), transparent 2px),
+    linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.02)),
+    #161827;
+}
+.notebook-lines {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+.note-line {
+  min-height: 11px;
+  border-radius: 999px;
+  background: rgba(238, 240, 250, 0.16);
+}
+.note-line.short { width: 64%; }
+.note-line.mid { width: 82%; }
+.note-stamp {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 0.8rem;
+  color: var(--paper-soft);
+}
+
+/* Target picker */
+.target-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(320px, 1.08fr);
+  gap: 24px;
+  align-items: stretch;
+}
+.target-panel {
+  padding: clamp(22px, 4vw, 36px);
+  background:
+    radial-gradient(360px 220px at 90% 0%, rgba(246, 198, 74, 0.14), transparent 62%),
+    var(--surface-2);
+  border-color: rgba(246, 198, 74, 0.27);
+}
+.target-panel h3,
+.app-panel h3,
+.content-panel h3,
+.comparison-panel h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+}
+.rating-select {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+.rating-option {
+  min-height: 76px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.025);
+  color: var(--paper-soft);
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+.rating-option strong {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 1.2rem;
+}
+.rating-option small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.rating-option.selected {
+  border-color: rgba(246, 198, 74, 0.55);
+  background: rgba(246, 198, 74, 0.10);
+}
+.target-summary {
+  margin-top: 22px;
+  display: grid;
+  gap: 12px;
+}
+.summary-row {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 12px;
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+}
+.summary-row:first-child { border-top: none; }
+.summary-row .k {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 760;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+}
+.summary-row .v {
+  color: var(--paper-soft);
+}
+
+.wire-stack {
+  display: grid;
+  gap: 14px;
+}
+.wire-strip {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: rgba(255,255,255,0.018);
+}
+.wire-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--surface-3);
+  color: var(--twilight-soft);
+  font-family: var(--font-mono);
+  font-weight: 850;
+}
+
+/* Product mockups */
+.app-shell-mock {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  min-height: 740px;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  background: var(--bg-2);
+}
+.side {
+  padding: 20px 14px;
+  border-right: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(246,198,74,0.05), transparent 30%),
+    var(--bg);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.side-nav {
+  display: grid;
+  gap: 5px;
+}
+.side-nav a {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--paper-soft);
+  font-size: 0.86rem;
+  font-weight: 680;
+}
+.side-nav a.active {
+  background: rgba(124,92,255,0.12);
+  color: var(--paper);
+  border: 1px solid rgba(124,92,255,0.26);
+}
+.side-target {
+  margin-top: auto;
+  padding: 14px;
+  border: 1px solid rgba(246,198,74,0.26);
+  border-radius: var(--r);
+  background: rgba(246,198,74,0.07);
+}
+.app-main {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+}
+.app-top {
+  min-height: 64px;
+  padding: 0 22px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.app-top-title {
+  font-family: var(--font-display);
+  font-weight: 820;
+  letter-spacing: -0.01em;
+}
+.app-content {
+  padding: 24px;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+.app-hero {
+  position: relative;
+  min-height: 280px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+  gap: 22px;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background:
+    radial-gradient(420px 240px at 82% 6%, rgba(246,198,74,0.12), transparent 58%),
+    linear-gradient(180deg, rgba(255,255,255,0.024), transparent),
+    var(--surface);
+  padding: 24px;
+}
+.app-hero h3 {
+  max-width: 13ch;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  line-height: 0.95;
+  margin-top: 16px;
+}
+.nonno {
+  margin-top: 18px;
+  max-width: 52ch;
+  padding-left: 18px;
+  border-left: 2px solid var(--twilight);
+  color: var(--paper-soft);
+  font-family: var(--font-display);
+  font-size: 1.16rem;
+  line-height: 1.45;
+  font-weight: 620;
+}
+.nonno .who {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--twilight-soft);
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 760;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.today-box {
+  align-self: stretch;
+  padding: 18px;
+  border: 1px solid rgba(246,198,74,0.24);
+  border-radius: var(--r);
+  background: rgba(246,198,74,0.07);
+}
+.today-box h4,
+.anchor-list h4 {
+  margin: 0 0 12px;
+  font-size: 0.78rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.today-main {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.42rem;
+  line-height: 1.14;
+  color: var(--paper);
+}
+.today-meta {
+  margin-top: 14px;
+  display: grid;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--paper-soft);
+}
+.app-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+  gap: 16px;
+}
+.app-panel {
+  padding: 20px;
+  min-width: 0;
+}
+.anchor-list {
+  display: grid;
+  gap: 0;
+}
+.anchor-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 0;
+  border-top: 1px solid var(--line);
+}
+.anchor-row:first-of-type { border-top: none; }
+.anchor-rank {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--twilight-soft);
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 0.78rem;
+}
+.anchor-row b {
+  display: block;
+  font-size: 0.94rem;
+  line-height: 1.22;
+}
+.anchor-row small {
+  color: var(--muted);
+}
+.goal-meter {
+  display: grid;
+  gap: 16px;
+}
+.goal-meter .big {
+  font-family: var(--font-mono);
+  font-size: 3rem;
+  line-height: 1;
+  font-weight: 880;
+  color: var(--honey-soft);
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(330px, 420px) minmax(0, 1fr);
+  gap: 20px;
+}
+.content-panel {
+  padding: 20px;
+}
+.content-panel.board-pane {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+}
+.content-panel.board-pane .board-art {
+  width: min(100%, 360px);
+}
+.moment-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.move-callout {
+  margin-top: 16px;
+  padding: 15px;
+  border-radius: var(--r);
+  border: 1px solid rgba(246,198,74,0.26);
+  background: rgba(246,198,74,0.08);
+}
+.move-callout .move {
+  display: block;
+  margin-top: 5px;
+  color: var(--honey-soft);
+  font-family: var(--font-mono);
+  font-size: 1.7rem;
+  font-weight: 880;
+}
+.reason-list {
+  margin-top: 16px;
+  display: grid;
+  gap: 10px;
+}
+.reason {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.reason:first-child { border-top: none; }
+.reason i {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--twilight-soft);
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+.session-steps {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.step-pill {
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  color: var(--paper-soft);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+.step-pill.active {
+  border-color: rgba(124,92,255,0.42);
+  color: var(--twilight-soft);
+  background: rgba(124,92,255,0.10);
+}
+
+.quaderno-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+  gap: 16px;
+}
+.timeline {
+  display: grid;
+  gap: 0;
+}
+.journal-row {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr);
+  gap: 14px;
+  padding: 15px 0;
+  border-top: 1px solid var(--line);
+}
+.journal-row:first-child { border-top: none; }
+.journal-row time {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+.trend-chart {
+  height: 220px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, transparent 24%, rgba(255,255,255,0.04) 24.4%, transparent 24.8%),
+    linear-gradient(180deg, transparent 49%, rgba(255,255,255,0.04) 49.4%, transparent 49.8%),
+    linear-gradient(180deg, transparent 74%, rgba(255,255,255,0.04) 74.4%, transparent 74.8%),
+    rgba(255,255,255,0.018);
+  position: relative;
+  overflow: hidden;
+}
+.trend-chart svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.compare-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.comparison-panel {
+  padding: 20px;
+}
+.comparison-panel.good-panel {
+  border-color: rgba(246,198,74,0.24);
+  background: rgba(246,198,74,0.055);
+}
+.comparison-panel ul {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+.comparison-panel li {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--paper-soft);
+}
+.comparison-panel li:first-child { border-top: none; padding-top: 0; }
+
+.mobile-preview {
+  width: min(100%, 380px);
+  margin: 0 auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 28px;
+  background: #050713;
+  padding: 13px;
+}
+.mobile-screen {
+  min-height: 640px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  display: grid;
+  grid-template-rows: auto minmax(0,1fr) auto;
+}
+.mobile-head,
+.mobile-tabs {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+.mobile-body {
+  padding: 18px;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+.mobile-tabs {
+  border-top: 1px solid var(--line);
+  border-bottom: none;
+}
+.mobile-tabs span {
+  flex: 1;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+.mobile-tabs .active { color: var(--twilight-soft); }
+
+@media (max-width: 980px) {
+  .hero-grid,
+  .target-layout,
+  .section-head,
+  .content-grid,
+  .quaderno-grid,
+  .compare-row {
+    grid-template-columns: 1fr;
+  }
+  .table-scene { min-height: 570px; }
+  .app-shell-mock { grid-template-columns: 1fr; }
+  .side { display: none; }
+  .app-hero,
+  .app-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .wrap { width: min(100% - 28px, var(--maxw)); }
+  .nav { display: none; }
+  .hero { min-height: auto; }
+  .table-scene { min-height: 520px; }
+  .scene-target { left: 7%; top: 34px; width: 86%; }
+  .scene-board { width: 64%; left: 8%; bottom: 82px; }
+  .scene-notebook { width: 44%; right: 6%; bottom: 72px; }
+  .lamp { right: 18px; top: 118px; transform: scale(0.78); transform-origin: top right; }
+  .rating-select,
+  .session-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .summary-row,
+  .wire-strip,
+  .anchor-row,
+  .journal-row {
+    grid-template-columns: 1fr;
+  }
+  .app-content { padding: 14px; }
+  .app-top { padding: 0 14px; }
+  .topbar .inner { min-height: 54px; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap inner">
+    <a href="#homepage" class="brand" aria-label="il Tavolo del Nonno">
+      <span class="brand-mark">N</span>
+      <span>il Tavolo del <span class="honey">Nonno</span></span>
+    </a>
+    <nav class="nav" aria-label="Mockup">
+      <a href="#homepage">Homepage</a>
+      <a href="#target">Target ELO</a>
+      <a href="#tavolo">Tavolo</a>
+      <a href="#sessione">Sessione</a>
+      <a href="#quaderno">Quaderno</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section id="homepage" class="hero">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <div class="hero-kicker">
+          <span class="chip honey">Mockup homepage</span>
+          <span class="trust-line">wireframe ad alta fedelta'</span>
+        </div>
+        <h1>il Tavolo <span>del Nonno</span></h1>
+        <p class="lead hero-line">
+          Scegli il livello che vuoi diventare. Nonno guarda le tue partite e ti dice
+          cosa vede un <strong>1500 rapid</strong> che tu ancora non vedi.
+        </p>
+        <p class="soft" style="margin-top:18px;">
+          Non e' una review con la mossa migliore. E' un tavolo di lavoro:
+          target ELO, gap evitabile, allenamento sulle tue posizioni, richiamo nel Quaderno.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#target">Crea il tuo Tavolo</a>
+          <a class="btn btn-ghost" href="#sessione">Guarda un Momento</a>
+          <span class="trust-line">beta su invito &middot; Chess.com import</span>
+        </div>
+      </div>
+
+      <div class="table-scene" aria-label="Mockup del tavolo con lampada, scacchiera e quaderno">
+        <div class="wall-line"></div>
+        <div class="lamp-glow"></div>
+        <div class="lamp"><div class="lamp-shade"></div></div>
+        <div class="desk"></div>
+
+        <div class="scene-target target-card">
+          <div class="row">
+            <span class="eyebrow honey">Il tuo target</span>
+            <span class="chip">rapid</span>
+          </div>
+          <div class="rating-pair">
+            <span class="now">1240</span>
+            <span class="arrow">&rarr;</span>
+            <span class="goal">1500</span>
+          </div>
+          <p class="soft" style="margin-top:10px; font-size:0.9rem;">
+            Tutta l'app si calibra su questo numero.
+          </p>
+        </div>
+
+        <div class="scene-board">
+          <div class="board-art">
+            <span class="piece w" style="--x:4;--y:6;">K</span>
+            <span class="piece w" style="--x:3;--y:4;">P</span>
+            <span class="piece w" style="--x:2;--y:3;">B</span>
+            <span class="piece b" style="--x:2;--y:2;">K</span>
+            <span class="piece b" style="--x:3;--y:3;">B</span>
+            <span class="piece b" style="--x:5;--y:2;">N</span>
+            <span class="move-arrow"></span>
+          </div>
+          <div class="board-caption target-card" style="padding:12px; border-radius:10px;">
+            <strong>La mossa e' solo la prova.</strong>
+            <div class="value-row">
+              <span>tu</span>
+              <span class="bar"><span style="--w:34%;--c:var(--twilight);"></span></span>
+              <span>34%</span>
+            </div>
+            <div class="value-row">
+              <span>1500</span>
+              <span class="bar"><span style="--w:67%;--c:var(--honey);"></span></span>
+              <span class="honey">67%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="scene-notebook notebook">
+          <span class="eyebrow muted">Quaderno</span>
+          <div class="notebook-lines">
+            <span class="note-line"></span>
+            <span class="note-line mid"></span>
+            <span class="note-line short"></span>
+          </div>
+          <div class="note-stamp">
+            <span class="mono honey">+18</span> punti possibili se chiudi "pezzo in presa".
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="target">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow honey">Prima scelta, non dettaglio</span>
+          <h2>Scegli chi vuoi diventare.</h2>
+        </div>
+        <p class="lead">
+          Questo deve apparire prima di qualsiasi report. Senza target, il prodotto torna a essere
+          "analisi partite". Con il target, ogni dato ha una direzione.
+        </p>
+      </div>
+
+      <div class="target-layout">
+        <div class="target-panel">
+          <div class="row">
+            <span class="eyebrow honey">Obiettivo ELO</span>
+            <span class="chip honey">step 1</span>
+          </div>
+          <h3 style="margin-top:12px;">A che tavolo vuoi sederti tra 90 giorni?</h3>
+          <div class="rating-select" aria-label="Scelta target rating">
+            <div class="rating-option"><span><strong>1300</strong><small>stabile</small></span></div>
+            <div class="rating-option"><span><strong>1400</strong><small>ambizioso</small></span></div>
+            <div class="rating-option selected"><span><strong>1500</strong><small>scelto</small></span></div>
+            <div class="rating-option"><span><strong>1700</strong><small>lungo</small></span></div>
+          </div>
+          <div class="target-summary">
+            <div class="summary-row">
+              <span class="k">oggi</span>
+              <span class="v"><span class="mono">1240</span> rapid su Chess.com</span>
+            </div>
+            <div class="summary-row">
+              <span class="k">target</span>
+              <span class="v"><span class="mono honey">1500</span> rapid entro 90 giorni</span>
+            </div>
+            <div class="summary-row">
+              <span class="k">Nonno misura</span>
+              <span class="v">le mosse che un 1500 trova e tu no, pesate per difficolta'.</span>
+            </div>
+          </div>
+          <div style="margin-top:22px;">
+            <a class="btn btn-primary" href="#tavolo">Sediamoci</a>
+          </div>
+        </div>
+
+        <div class="wire-stack">
+          <div class="wire-strip">
+            <span class="wire-icon">1</span>
+            <div>
+              <strong>Importa le partite.</strong>
+              <p class="muted">Chess.com e storico recente. Non si parte da quiz generici.</p>
+            </div>
+            <span class="chip">input</span>
+          </div>
+          <div class="wire-strip">
+            <span class="wire-icon">2</span>
+            <div>
+              <strong>Confronta col target.</strong>
+              <p class="muted">"Tu 34%, 1500 67%" diventa la metrica primaria.</p>
+            </div>
+            <span class="chip honey">core</span>
+          </div>
+          <div class="wire-strip">
+            <span class="wire-icon">3</span>
+            <div>
+              <strong>Allena il gap evitabile.</strong>
+              <p class="muted">Momenti simili, richiamo nel tempo, Quaderno.</p>
+            </div>
+            <span class="chip tw">loop</span>
+          </div>
+          <div class="mock-note">
+            Copy da evitare: "analizziamo le tue partite". Copy utile:
+            <strong>"Scegli un ELO target. Nonno misura cosa vede quel giocatore che tu ancora non vedi."</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="tavolo">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">Mockup contenuto 01</span>
+          <h2>Il Tavolo: home post-login.</h2>
+        </div>
+        <p class="lead">
+          Deve sembrare app, non landing. Un posto familiare, con una cosa da fare oggi,
+          il target sempre visibile e l'identita' del tavolo ancora presente.
+        </p>
+      </div>
+
+      <div class="app-shell-mock">
+        <aside class="side">
+          <a class="brand" href="#tavolo">
+            <span class="brand-mark">N</span>
+            <span>il Tavolo<br><span class="honey">del Nonno</span></span>
+          </a>
+          <nav class="side-nav" aria-label="App">
+            <a class="active" href="#tavolo"><span class="mono">01</span> Tavolo</a>
+            <a href="#sessione"><span class="mono">02</span> Sessione</a>
+            <a href="#quaderno"><span class="mono">03</span> Quaderno</a>
+          </nav>
+          <div class="side-target">
+            <span class="eyebrow honey">Obiettivo</span>
+            <div class="rating-pair" style="margin-top:8px;">
+              <span class="now" style="font-size:1.25rem;">1240</span>
+              <span class="arrow">&rarr;</span>
+              <span class="goal" style="font-size:1.45rem;">1500</span>
+            </div>
+            <p class="muted" style="font-size:0.78rem; margin-top:8px;">rapid &middot; 90 giorni</p>
+          </div>
+        </aside>
+
+        <div class="app-main">
+          <div class="app-top">
+            <div>
+              <div class="app-top-title">Buonasera, Luca.</div>
+              <div class="muted" style="font-size:0.82rem;">Il Tavolo e' pronto. Una cosa sola oggi.</div>
+            </div>
+            <span class="chip honey">target 1500 rapid</span>
+          </div>
+
+          <div class="app-content">
+            <div class="app-hero">
+              <div>
+                <span class="eyebrow">Oggi al tavolo</span>
+                <h3>Sediamoci su pezzo in presa.</h3>
+                <div class="nonno">
+                  <span class="who">Nonno dice</span>
+                  Non ti porto dieci grafici. Ti porto la cosa che ti costa piu' punti verso
+                  <strong class="honey">1500</strong>: vedi il pezzo, poi molli la mano troppo presto.
+                </div>
+                <div style="margin-top:22px;">
+                  <a class="btn btn-primary" href="#sessione">Sediamoci al Tavolo</a>
+                </div>
+              </div>
+              <div class="today-box">
+                <h4>Sessione di oggi</h4>
+                <div class="today-main">12 minuti, 6 Momenti, una sola ancora.</div>
+                <div class="today-meta">
+                  <span><span class="mono honey">+18</span> punti potenziali</span>
+                  <span>Tu: <span class="mono">34%</span> &middot; 1500: <span class="mono honey">67%</span></span>
+                  <span>Richiamo previsto: <span class="mono">+3 giorni</span></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="app-grid">
+              <div class="app-panel">
+                <div class="anchor-list">
+                  <h4>Le tue 3 ancore verso 1500</h4>
+                  <div class="anchor-row">
+                    <span class="anchor-rank">1</span>
+                    <span><b>Pezzo in presa</b><small>Gap target 33 punti percentuali</small></span>
+                    <span class="chip honey">+18</span>
+                  </div>
+                  <div class="anchor-row">
+                    <span class="anchor-rank">2</span>
+                    <span><b>Finali vinti buttati</b><small>Non chiudi posizioni gia' vinte</small></span>
+                    <span class="chip honey">+11</span>
+                  </div>
+                  <div class="anchor-row">
+                    <span class="anchor-rank">3</span>
+                    <span><b>Ottava traversa</b><small>Pattern visto tardi</small></span>
+                    <span class="chip honey">+7</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="app-panel goal-meter">
+                <span class="eyebrow honey">Rotta</span>
+                <div>
+                  <div class="big">21%</div>
+                  <p class="soft">del gap verso 1500 gia' chiuso sulle ultime 4 settimane.</p>
+                </div>
+                <div class="bar" style="height:10px;"><span style="--w:21%;--c:var(--honey);"></span></div>
+                <p class="muted" style="font-size:0.84rem;">Il numero importante non e' il rating di oggi. E' quanto del gap target stai chiudendo.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="sessione">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">Mockup contenuto 02</span>
+          <h2>Il Momento: qui si vende il valore.</h2>
+        </div>
+        <p class="lead">
+          La scacchiera visibile serve, ma non e' il prodotto. Il prodotto e' la frase:
+          "questa e' una mossa da 1500, a te manca ancora, quindi la alleniamo".
+        </p>
+      </div>
+
+      <div class="content-grid">
+        <div class="content-panel board-pane">
+          <span class="eyebrow muted" style="justify-self:start;">Posizione 3 di 6</span>
+          <div class="board-art" style="margin-top:16px;">
+            <span class="piece w" style="--x:4;--y:6;">K</span>
+            <span class="piece w" style="--x:3;--y:4;">P</span>
+            <span class="piece w" style="--x:2;--y:3;">B</span>
+            <span class="piece b" style="--x:2;--y:2;">K</span>
+            <span class="piece b" style="--x:3;--y:3;">B</span>
+            <span class="piece b" style="--x:5;--y:2;">N</span>
+            <span class="move-arrow"></span>
+          </div>
+          <div class="move-callout" style="width:min(100%,360px);">
+            <span class="eyebrow honey">Mossa target</span>
+            <span class="move">dxc5</span>
+            <p class="soft">Non e' "la soluzione". E' la prova del gap.</p>
+          </div>
+        </div>
+
+        <div class="content-panel">
+          <div class="moment-head">
+            <div>
+              <span class="eyebrow">Pezzo in presa</span>
+              <h3 style="margin-top:8px;">Il 1500 vede il pezzo prima di calcolare il resto.</h3>
+            </div>
+            <span class="chip honey">+18 punti</span>
+          </div>
+
+          <div class="comparison-panel good-panel" style="padding:16px;">
+            <div class="value-row">
+              <span>tu</span>
+              <span class="bar"><span style="--w:34%;--c:var(--twilight);"></span></span>
+              <span>34%</span>
+            </div>
+            <div class="value-row" style="margin-top:10px;">
+              <span>1500</span>
+              <span class="bar"><span style="--w:67%;--c:var(--honey);"></span></span>
+              <span class="honey">67%</span>
+            </div>
+          </div>
+
+          <div class="nonno" style="font-size:1.08rem;">
+            <span class="who">Nonno spiega</span>
+            Chess.com ti dice che <strong>dxc5</strong> era meglio. Io ti dico perche' conta:
+            e' una mossa che il tuo prossimo livello trova spesso. Questa non la studiamo per la
+            posizione, la studiamo per il giocatore che vuoi diventare.
+          </div>
+
+          <div class="reason-list">
+            <div class="reason">
+              <i>1</i>
+              <p><strong>Errore evitabile.</strong> Non era tattica da maestro: era alla tua portata.</p>
+            </div>
+            <div class="reason">
+              <i>2</i>
+              <p><strong>Gap col target.</strong> Il 1500 non e' perfetto, ma qui vede molto piu' spesso.</p>
+            </div>
+            <div class="reason">
+              <i>3</i>
+              <p><strong>Richiamo.</strong> Tra 3 giorni torna una geometria simile, non la stessa foto.</p>
+            </div>
+          </div>
+
+          <div class="session-steps">
+            <span class="step-pill active">Guarda</span>
+            <span class="step-pill">Scegli</span>
+            <span class="step-pill">Spiega</span>
+            <span class="step-pill">Richiama</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="quaderno">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow">Mockup contenuto 03</span>
+          <h2>Il Quaderno: retention senza badge.</h2>
+        </div>
+        <p class="lead">
+          Qui non accumuli report. Accumuli una storia: cosa Nonno ti aveva detto,
+          cosa hai rivisto, quanto sei piu' vicino al target.
+        </p>
+      </div>
+
+      <div class="quaderno-grid">
+        <div class="content-panel">
+          <div class="moment-head">
+            <div>
+              <span class="eyebrow muted">Ultime voci</span>
+              <h3 style="margin-top:8px;">Le cose che avete costruito insieme.</h3>
+            </div>
+            <span class="chip honey">1500 rapid</span>
+          </div>
+          <div class="timeline">
+            <div class="journal-row">
+              <time>oggi</time>
+              <p><strong>Pezzo in presa.</strong> Hai fermato la mano 4 volte su 6. Il gap target scende da <span class="mono">33</span> a <span class="mono honey">29</span>.</p>
+            </div>
+            <div class="journal-row">
+              <time>-3 g</time>
+              <p><strong>Prima geometria gemella.</strong> Hai visto la cattura, ma dopo 18 secondi. Nonno la rimette in coda.</p>
+            </div>
+            <div class="journal-row">
+              <time>-9 g</time>
+              <p><strong>Partita persa da posizione vinta.</strong> Finale semplice, fretta. Target 1500: qui chiude piu' spesso.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="content-panel">
+          <span class="eyebrow honey">Curva verso target</span>
+          <div class="trend-chart" style="margin-top:14px;">
+            <svg viewBox="0 0 420 220" role="img" aria-label="Curva del gap verso target">
+              <line x1="36" y1="40" x2="392" y2="40" stroke="#f6c64a" stroke-width="1.5" stroke-dasharray="5 5"></line>
+              <text x="306" y="30" fill="#ffd877" font-family="JetBrains Mono, monospace" font-size="11">1500 pace</text>
+              <path d="M44 176 C 120 156, 134 132, 190 126 S 292 98, 368 70" fill="none" stroke="#7c5cff" stroke-width="4" stroke-linecap="round"></path>
+              <circle cx="44" cy="176" r="5" fill="#7c5cff"></circle>
+              <circle cx="190" cy="126" r="5" fill="#7c5cff"></circle>
+              <circle cx="368" cy="70" r="6" fill="#a18bff" stroke="#060814" stroke-width="3"></circle>
+              <text x="38" y="198" fill="#717892" font-family="JetBrains Mono, monospace" font-size="11">33 gap</text>
+              <text x="336" y="94" fill="#a18bff" font-family="JetBrains Mono, monospace" font-size="11">29 gap</text>
+            </svg>
+          </div>
+          <p class="soft" style="margin-top:14px;">
+            La promessa settimanale: non "hai fatto esercizi", ma "stai diventando piu' simile
+            al giocatore che hai scelto".
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="diff">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <span class="eyebrow honey">Sintesi per Claude Code</span>
+          <h2>Cosa cambia rispetto alla roba IA generated.</h2>
+        </div>
+        <p class="lead">
+          Le sezioni sotto sono intenzionali: aiutano a tradurre il mockup in implementazione
+          senza perdere il valore centrale.
+        </p>
+      </div>
+
+      <div class="compare-row">
+        <div class="comparison-panel">
+          <span class="eyebrow muted">Non basta</span>
+          <h3>Analisi partite con board bella.</h3>
+          <ul>
+            <li>La scacchiera con mossa corretta sembra Game Review.</li>
+            <li>Il nome "il Tavolo del Nonno" resta piccolo, quasi nascosto.</li>
+            <li>Il copy parla di analisi, non di trasformazione verso un target.</li>
+            <li>I numeri sono report, non direzione.</li>
+          </ul>
+        </div>
+        <div class="comparison-panel good-panel">
+          <span class="eyebrow honey">Da vendere</span>
+          <h3>Target ELO come motore narrativo.</h3>
+          <ul>
+            <li>Homepage: brand grande, tavolo/lampada/scacchiera/quaderno come identita'.</li>
+            <li>Onboarding: "Scegli chi vuoi diventare" prima di tutto.</li>
+            <li>Home app: una sessione oggi, target sempre visibile.</li>
+            <li>Momento: "tu vs 1500" prima della mossa, richiamo nel Quaderno dopo.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div style="margin-top:24px;" class="mobile-preview" aria-label="Anteprima mobile">
+        <div class="mobile-screen">
+          <div class="mobile-head">
+            <strong>il Tavolo</strong>
+            <span class="chip honey">1500</span>
+          </div>
+          <div class="mobile-body">
+            <span class="eyebrow">Oggi</span>
+            <h3 style="margin:0; font-family:var(--font-display); font-size:2.4rem; line-height:0.98;">Sediamoci su pezzo in presa.</h3>
+            <div class="today-box">
+              <h4>Una cosa sola</h4>
+              <p class="today-main">6 Momenti contro il tuo target.</p>
+              <p class="soft" style="margin-top:10px;">Tu <span class="mono">34%</span>, 1500 <span class="mono honey">67%</span>.</p>
+            </div>
+            <a class="btn btn-primary" href="#sessione">Sediamoci</a>
+          </div>
+          <div class="mobile-tabs">
+            <span class="active">Tavolo</span>
+            <span>Sessione</span>
+            <span>Quaderno</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

@@ -16,11 +16,14 @@ const STORAGE_KEY = "chesspath_theme";
 
 export function detectInitialTheme(): Theme {
   if (typeof window === "undefined") return "dark";
+  // Nocturnal product by design (DESIGN.md: "il giocatore apre l'app la sera").
+  // Dark IS the brand identity, so it is the default. We honor an explicit user
+  // choice (saved), but we do NOT auto-follow the OS into light, which would make
+  // the Tavolo read like a generic bright dashboard.
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY);
     if (saved === "dark" || saved === "light") return saved;
   } catch { /* ignore */ }
-  if (window.matchMedia?.("(prefers-color-scheme: light)").matches) return "light";
   return "dark";
 }
 

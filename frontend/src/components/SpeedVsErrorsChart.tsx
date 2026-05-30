@@ -3,9 +3,9 @@ import {
   CartesianGrid,
   Cell,
   ComposedChart,
-  LabelList,
   Legend,
   Line,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -13,238 +13,188 @@ import {
 } from "recharts";
 import type { SpentBucket } from "../types";
 
+/** % errori evitabili per fascia di tempo, da aggregates.maia_weighted.spent_vs_avoidable. */
+export interface AvoidableByTime {
+  key: string;
+  errors: number;
+  avoidable: number;
+}
+
 /**
- * Chart "quanti errori faccio quando muovo TROPPO IN FRETTA".
- *
- * Asse X: tempo SPESO sulla mossa (NON tempo rimasto sull'orologio).
- * Linea viola: ACPL medio. Barre rosa→verde: error rate (% mosse con mistake/blunder).
- *
- * La domanda a cui risponde: "le mie mosse istantanee sono mosse cattive?"
+ * "Sbagli perche' muovi in fretta?" — il grafico originale: per fascia di tempo
+ * SPESO sulla mossa, le barre = % mosse-errore, la linea = ACPL (precisione).
+ * SOTTO ogni cluster: la % di errori EVITABILI al tuo livello (Maia), quando
+ * disponibile. Cosi' il tempo e' letto INSIEME alla difficolta':
+ * tanti evitabili sulle mosse veloci = corri su posizioni che potevi risolvere.
  */
-export function SpeedVsErrorsChart({ data }: { data: SpentBucket[] }) {
-  if (!data || data.length === 0) {
-    return (
-      <div className="surface surface-padded">
-        <p className="text-[color:var(--color-text-soft)]">
-          Niente dati di tempo per-mossa (i PGN più vecchi non avevano i tag [%clk]).
-        </p>
-      </div>
-    );
-  }
-  // Colore barra in base all'ACPL del bucket: alto=rosso (problema), basso=verde (ok).
-  // NON in base al tempo, per evitare il bias visivo del racconto canonico
-  // "veloce=cattivo" quando i dati del singolo giocatore possono dire l'opposto.
-  function colorForAcpl(acpl: number): string {
-    if (acpl >= 130) return "#f43f5e";  // rosso
-    if (acpl >= 100) return "#fb923c";  // arancio
-    if (acpl >= 80) return "#f5a524";   // ambra
-    if (acpl >= 65) return "#facc15";   // giallo
-    return "#34d399";                   // verde (ACPL < 65 = sweet spot)
-  }
+export function SpeedVsErrorsChart({
+  data,
+  avoidable,
+}: {
+  data: SpentBucket[];
+  avoidable?: AvoidableByTime[];
+}) {
+  if (!data || data.length === 0) return null;
 
-  // Tabella dati con percentuali per LabelList
-  const enriched = data.map((d) => ({
-    ...d,
-    error_pct: Math.round(d.error_rate * 100),
-  }));
+  const avoidMap = new Map<string, AvoidableByTime>();
+  for (const a of avoidable ?? []) avoidMap.set(a.key, a);
 
-  // Confronto: quanto è ACPL sulle mosse istantanee vs le mosse lunghe.
-  // Se fast < slow (cioè la riga "rapide" ha ACPL minore) significa che NON
-  // sbagli di più quando muovi in fretta — semplicemente passi più tempo
-  // sulle posizioni difficili, ed è lì che sbagli.
-  const fast = data.find((d) => d.key === "lt_1s");
-  const slow = data.find((d) => d.key === "gt_30s");
-  let interpretation: { label: string; tone: "good" | "bad" | "mute"; sub: string } | null = null;
-  if (fast && slow) {
-    if (fast.avg_cp_loss > slow.avg_cp_loss + 20) {
-      interpretation = {
-        label: "Sì, muovi troppo veloce",
-        tone: "bad",
-        sub: `Le mosse <1s costano +${Math.round(fast.avg_cp_loss - slow.avg_cp_loss)} ACPL rispetto a quelle riflessive.`,
-      };
-    } else if (slow.avg_cp_loss > fast.avg_cp_loss + 20) {
-      interpretation = {
-        label: "No, pensi solo nelle posizioni difficili",
-        tone: "mute",
-        sub: `Le mosse rapide hanno ACPL ${Math.round(fast.avg_cp_loss)} (basso). Quelle lunghe ${Math.round(slow.avg_cp_loss)} (alto). Vuol dire che spendi tempo sulle posizioni complesse — è lì che sbagli, non perché muovi veloce.`,
-      };
-    } else {
-      interpretation = {
-        label: "Precisione costante",
-        tone: "mute",
-        sub: "ACPL simile a tutte le velocità.",
-      };
-    }
+  const rows = data.map((b) => {
+    const av = avoidMap.get(b.key);
+    const avoidPct = av && av.errors > 0 ? Math.round((av.avoidable / av.errors) * 100) : null;
+    return {
+      bucket: b.bucket,
+      key: b.key,
+      error_pct: Math.round((b.error_rate ?? 0) * 100),
+      acpl: Math.round(b.avg_cp_loss ?? 0),
+      avoidPct,
+      avoidCount: av ? `${av.avoidable}/${av.errors}` : null,
+    };
+  });
+
+  const hasAvoidable = rows.some((r) => r.avoidPct != null);
+
+  function barColor(errPct: number): string {
+    if (errPct >= 35) return "#fb923c"; // arancio
+    if (errPct >= 22) return "#f5a524"; // ambra
+    return "#facc15"; // giallo
   }
 
   return (
     <div className="surface surface-padded">
-      <div className="flex items-baseline justify-between gap-3 mb-2 flex-wrap">
-        <div>
-          <div className="label-eyebrow">Velocità della mossa</div>
-          <h3 className="section-title mt-1">Sbagli perché muovi in fretta?</h3>
-        </div>
-        {interpretation && (
-          <div className="text-right max-w-md">
-            <div className="label-eyebrow text-[10px]">Verdetto</div>
-            <div className={`display-small mt-1 ${interpretation.tone === "bad" ? "text-rose-300" : interpretation.tone === "good" ? "text-emerald-300" : "text-slate-200"}`}>
-              {interpretation.label}
-            </div>
-          </div>
-        )}
-      </div>
-      <p className="section-sub mb-2">
-        Tempo SPESO sulla singola mossa (≠ tempo rimasto sull'orologio). Asse Y: <b>ACPL alto = mossa peggiore</b>.
+      <div className="label-eyebrow">Velocità della mossa</div>
+      <h3 className="section-title mt-1">Sbagli perché muovi in fretta?</h3>
+      <p className="section-sub mb-4">
+        Tempo speso sulla singola mossa (non il tempo rimasto sull'orologio). Linea ACPL: piu' alta,
+        mossa peggiore.{hasAvoidable ? " Sotto ogni fascia: quanti di quegli errori erano evitabili al tuo livello." : ""}
       </p>
-      {interpretation && (
-        <p className="text-sm text-[color:var(--color-text-soft)] mb-5 leading-relaxed max-w-3xl">
-          {interpretation.sub}
-        </p>
-      )}
 
-      <div className="h-[300px]">
+      <div className="h-[260px]" role="img" aria-label="Grafico velocità mossa vs errori">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={enriched} margin={{ top: 24, right: 24, left: 0, bottom: 0 }}>
+          <ComposedChart data={rows} margin={{ top: 24, right: 12, left: 0, bottom: 0 }}>
             <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="bucket" tickLine={false} axisLine={{ stroke: "var(--color-line)" }} />
-            <YAxis yAxisId="left" tickLine={false} axisLine={false} width={50} label={{ value: "ACPL", angle: -90, position: "insideLeft", fill: "var(--color-muted)", fontSize: 11 }} />
-            <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} width={50} domain={[0, "auto"]} label={{ value: "% mosse errore", angle: 90, position: "insideRight", fill: "var(--color-muted)", fontSize: 11 }} />
+            <XAxis
+              dataKey="bucket"
+              tickLine={false}
+              axisLine={{ stroke: "var(--color-line)" }}
+              tick={{ fontFamily: "var(--font-mono)", fontSize: 11, fill: "var(--color-muted)" }}
+            />
+            <YAxis
+              yAxisId="acpl"
+              tickLine={false}
+              axisLine={false}
+              width={36}
+              tick={{ fontFamily: "var(--font-mono)", fontSize: 10, fill: "var(--color-muted)" }}
+            />
+            <YAxis
+              yAxisId="err"
+              orientation="right"
+              tickLine={false}
+              axisLine={false}
+              width={40}
+              domain={[0, 100]}
+              tickFormatter={(v: number) => `${v}%`}
+              tick={{ fontFamily: "var(--font-mono)", fontSize: 10, fill: "var(--color-muted)" }}
+            />
             <Tooltip
+              cursor={{ fill: "rgba(255,255,255,0.03)" }}
               formatter={(value: number, name: string) => {
-                if (name === "avg_cp_loss") return [value, "ACPL"];
-                if (name === "error_pct") return [`${value}%`, "Mosse errore"];
+                if (name === "error_pct") return [`${value}%`, "Errori"];
+                if (name === "acpl") return [value, "ACPL"];
                 return [value, name];
               }}
+              labelFormatter={(label: string) => `Tempo: ${label}`}
+              contentStyle={{
+                background: "var(--color-surface-2)",
+                border: "1px solid var(--color-line)",
+                borderRadius: "6px",
+                fontFamily: "var(--font-mono)",
+                fontSize: "0.75rem",
+                color: "var(--color-text)",
+              }}
+              itemStyle={{ color: "var(--color-text)" }}
+              labelStyle={{ color: "var(--color-muted)" }}
             />
             <Legend
-              formatter={(v) =>
-                v === "avg_cp_loss" ? "ACPL (precisione)" : v === "error_pct" ? "Errori (% mosse)" : v
-              }
+              verticalAlign="bottom"
+              height={28}
+              formatter={(v: string) => (v === "error_pct" ? "Errori (% mosse)" : "ACPL (precisione)")}
+              wrapperStyle={{ fontSize: "0.72rem", fontFamily: "var(--font-mono)" }}
             />
-            <Bar yAxisId="right" dataKey="error_pct" name="error_pct" radius={[6, 6, 0, 0]}>
-              {enriched.map((d) => (
-                <Cell key={d.key} fill={colorForAcpl(d.avg_cp_loss)} />
+            <Bar yAxisId="err" dataKey="error_pct" name="error_pct" radius={[6, 6, 0, 0]} maxBarSize={64}>
+              {rows.map((r) => (
+                <Cell key={r.key} fill={barColor(r.error_pct)} />
               ))}
               <LabelList
                 dataKey="error_pct"
                 position="top"
-                content={(props: { x?: number | string; y?: number | string; width?: number | string; value?: number | string }) => {
-                  const x = Number(props.x ?? 0);
-                  const y = Number(props.y ?? 0);
-                  const width = Number(props.width ?? 0);
-                  const value = props.value;
-                  if (value == null) return null;
-                  return (
-                    <text
-                      x={x + width / 2}
-                      y={y - 6}
-                      textAnchor="middle"
-                      fontSize={11}
-                      fontFamily="var(--font-mono)"
-                      fontWeight={700}
-                      fill="#ffffff"
-                      stroke="#0a0c18"
-                      strokeWidth={3}
-                      paintOrder="stroke"
-                      strokeLinejoin="round"
-                    >
-                      {value}%
-                    </text>
-                  );
-                }}
+                formatter={(v: number) => `${v}%`}
+                fill="var(--color-text)"
+                fontSize={12}
+                fontFamily="var(--font-mono)"
+                fontWeight={700}
               />
             </Bar>
             <Line
-              yAxisId="left"
+              yAxisId="acpl"
               type="monotone"
-              dataKey="avg_cp_loss"
-              name="avg_cp_loss"
+              dataKey="acpl"
+              name="acpl"
               stroke="var(--color-brand-soft)"
               strokeWidth={2.5}
-              dot={{ r: 5, fill: "var(--color-brand-soft)", strokeWidth: 0 }}
+              dot={{ r: 4, fill: "var(--color-brand-soft)", stroke: "var(--color-bg)", strokeWidth: 2 }}
             >
               <LabelList
-                dataKey="avg_cp_loss"
+                dataKey="acpl"
                 position="top"
-                content={(props: { x?: number | string; y?: number | string; value?: number | string }) => {
-                  const x = Number(props.x ?? 0);
-                  const y = Number(props.y ?? 0);
-                  const value = props.value;
-                  if (value == null) return null;
-                  return (
-                    <text
-                      x={x}
-                      y={y - 10}
-                      textAnchor="middle"
-                      fontSize={11}
-                      fontFamily="var(--font-mono)"
-                      fontWeight={600}
-                      fill="#cfc6ff"
-                      stroke="#0a0c18"
-                      strokeWidth={3}
-                      paintOrder="stroke"
-                      strokeLinejoin="round"
-                    >
-                      {value}
-                    </text>
-                  );
-                }}
+                fill="var(--color-brand-soft)"
+                fontSize={11}
+                fontFamily="var(--font-mono)"
+                fontWeight={700}
               />
             </Line>
           </ComposedChart>
         </ResponsiveContainer>
       </div>
 
-      <AvoidabilityStrip data={data} />
-    </div>
-  );
-}
-
-/**
- * Strip "evitabili dal target" per bucket. Risponde all'angolo Maia:
- * di tutti gli errori che hai fatto in questo bucket, quanti il 1600 li
- * avrebbe evitati con >40% di probabilita`?
- *
- * Alto = errori "stupidi" che si possono allenare. Basso = errori
- * oggettivamente difficili (anche un target ci cade), quindi meno drillable.
- */
-function AvoidabilityStrip({ data }: { data: SpentBucket[] }) {
-  const anyAvoidable = data.some((d) => (d.avoidable_errors ?? 0) > 0);
-  if (!anyAvoidable) return null;
-  return (
-    <div className="mt-5 pt-4 border-t border-[color:var(--color-line)]">
-      <div className="label-eyebrow text-[10px] mb-2">Di questi errori, quanti evitabili dal target (1600)?</div>
-      <div className="grid grid-cols-5 gap-2">
-        {data.map((d) => {
-          const share = d.avoidable_share ?? 0;
-          const pct = Math.round(share * 100);
-          const tone =
-            pct >= 25 ? { fg: "#fda4af", bg: "rgba(244,63,94,0.10)", border: "rgba(244,63,94,0.30)" }
-            : pct >= 15 ? { fg: "#fcd34d", bg: "rgba(251,191,36,0.10)", border: "rgba(251,191,36,0.30)" }
-            : { fg: "#86efac", bg: "rgba(52,211,153,0.08)", border: "rgba(52,211,153,0.25)" };
-          return (
-            <div
-              key={d.key}
-              className="rounded-lg p-2 text-center"
-              style={{ background: tone.bg, border: `1px solid ${tone.border}` }}
-            >
-              <div className="text-[10px] text-[color:var(--color-muted)] tracking-wider uppercase">
-                {d.bucket}
+      {/* SOTTO ogni cluster: % errori evitabili (Maia). Allineato alle barre. */}
+      {hasAvoidable && (
+        <div className="flex mt-1" style={{ paddingLeft: 36, paddingRight: 40 }}>
+          {rows.map((r) => (
+            <div key={r.key} className="flex-1 text-center min-w-0">
+              <div
+                className="font-mono font-bold tabular-nums"
+                style={{
+                  fontSize: "1rem",
+                  lineHeight: 1,
+                  color:
+                    r.avoidPct == null
+                      ? "var(--color-faint)"
+                      : r.avoidPct >= 50
+                      ? "var(--color-danger)"
+                      : "var(--color-text-soft)",
+                }}
+              >
+                {r.avoidPct != null ? `${r.avoidPct}%` : "—"}
               </div>
-              <div className="text-lg font-bold tabular-nums mt-0.5" style={{ color: tone.fg }}>
-                {pct}%
-              </div>
-              <div className="text-[10px] text-[color:var(--color-muted)] tabular-nums">
-                {d.avoidable_errors}/{d.errors}
+              <div
+                className="font-mono"
+                style={{ fontSize: "0.55rem", letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-muted)", marginTop: "0.15rem" }}
+              >
+                evitabili{r.avoidCount ? ` ${r.avoidCount}` : ""}
               </div>
             </div>
-          );
-        })}
-      </div>
-      <div className="text-[11px] text-[color:var(--color-muted)] mt-3 leading-relaxed">
-        Avoidable = posizioni dove il target Maia trova la mossa giusta con
-        &gt;40% probabilita`. Alto = errore "stupido", drillable.
-      </div>
+          ))}
+        </div>
+      )}
+
+      {hasAvoidable && (
+        <div className="mt-3 text-[11px] leading-relaxed" style={{ color: "var(--color-muted)" }}>
+          Evitabili = mosse che un giocatore al tuo livello (Maia) trovava. Tante evitabili sulle mosse
+          veloci = stai correndo su posizioni che potevi risolvere. Poche sulle mosse lente = erano
+          difficili davvero, non colpa tua.
+        </div>
+      )}
     </div>
   );
 }

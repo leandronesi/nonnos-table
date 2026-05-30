@@ -1,0 +1,114 @@
+<header class="hero" id="top">
+        <div class="hero-eyebrow">Un deck su come si usa Claude oggi</div>
+        <h1>Non e' un LLM.<br>E' un <span class="accent">harness</span>.</h1>
+        <p>
+          Quello che chiami "ChatGPT" o "Claude" non e' un modello che risponde
+          a una domanda. E' un loop agentico che usa un modello come componente.
+          Capire la differenza cambia tutto: cosa puoi fargli fare, come lo
+          istruisci, dove vive la sua memoria.
+        </p>
+        <div class="hero-meta">
+          <span>26 slide</span>
+          <span>~45 min con commento</span>
+          <span>Italiano</span>
+        </div>
+      </header>
+
+      <!-- ====== PARTE 0 ====== -->
+      <section class="part-divider">
+        <div class="part-divider-eyebrow">Parte 0</div>
+        <h2>Preambolo — il modello mentale che hai oggi</h2>
+        <p>Prima di spiegare cosa Claude e', dobbiamo demolire cosa pensi che sia.</p>
+      </section>
+
+      <!-- SLIDE 1 -->
+      <section class="slide" id="s1">
+        <div class="slide-num">01 / 26</div>
+        <h1>Il malinteso</h1>
+        <p class="slide-sub">Quando dici "ChatGPT" o "Claude", cosa pensi?</p>
+        <div class="slide-body">
+          <p>Provo a indovinare. Pensi a una specie di interlocutore intelligente
+            a cui fai una domanda e che ti risponde. Forse lo immagini come
+            "Google ma piu' smart", forse come un assistente, forse come un
+            tizio dietro una tendina che legge e scrive.</p>
+          <p>Tutte e tre le immagini hanno una cosa in comune: <strong>l'AI e'
+            un'entita' che sta li' e risponde</strong>. Tu chiedi, lei risponde.
+            Botta e risposta.</p>
+          <p>Questa immagine era corretta nel 2023. Oggi e' uno dei piu' grandi
+            equivoci che ci siano. E spiega perche' la maggior parte delle
+            persone non capisce cosa stia succedendo davvero nell'industria AI
+            negli ultimi diciotto mesi.</p>
+          <div class="pull">
+            Quello che chiami "AI" oggi <em>non e'</em> il modello.
+            E' tutto quello che gli sta intorno.
+          </div>
+          <p>Questo deck e' la decostruzione, slide per slide, di quell'immagine.
+            Alla fine avrai un modello mentale nuovo. E vedrai un sacco di cose
+            che prima non vedevi.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 2 -->
+      <section class="slide" id="s2">
+        <div class="slide-num">02 / 26</div>
+        <h1>Il modello mentale che tutti hanno</h1>
+        <p class="slide-sub">Tu → "scatola magica" → risposta.</p>
+        <div class="slide-body">
+          <p>Disegniamolo. Tre box in fila:</p>
+          <div class="diagram-mental">
+            <div class="dm-box">Tu</div>
+            <div class="dm-arrow">→</div>
+            <div class="dm-box dm-box-opaque">?</div>
+            <div class="dm-arrow">→</div>
+            <div class="dm-box">Risposta</div>
+          </div>
+          <p>Il box in mezzo e' opaco. Nessuno guarda dentro, perche' tanto
+            "e' l'AI". L'unica cosa che conta e' che dentro succede qualcosa
+            di intelligente e fuori esce una risposta che ha senso.</p>
+          <p>E' un modello che funziona benissimo per UNA domanda alla volta:
+            "Scrivimi una mail, riassumi questo testo, traducimi questo paragrafo."
+            Botta-risposta, fine.</p>
+          <p>Ma non spiega niente di cio' che Claude, Cursor, Devin, ChatGPT con
+            Code Interpreter fanno davvero. Non spiega perche' un'AI puo'
+            <strong>scrivere codice in un repo, aprirti un terminale, eseguire
+            comandi, leggere file, fare commit</strong>. Quella roba non e' una
+            risposta. E' azione persistente nel mondo. E richiede un modello
+            mentale diverso.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 3 -->
+      <section class="slide" id="s3">
+        <div class="slide-num">03 / 26</div>
+        <h1>Perche' questo modello e' gia' obsoleto</h1>
+        <p class="slide-sub">In 24 mesi siamo passati da text-completion ad agente.</p>
+        <div class="slide-body">
+          <p>Guarda la traiettoria:</p>
+          <ol class="timeline">
+            <li>
+              <span class="tl-when">Fine 2022</span>
+              <span class="tl-what"><strong>ChatGPT 1.0.</strong> Domanda → risposta. Una chat. Niente memoria, niente tool, niente accesso a file. Lo "scatola magica" e' un'immagine ragionevole.</span>
+            </li>
+            <li>
+              <span class="tl-when">2023</span>
+              <span class="tl-what"><strong>Function calling, plugin, Code Interpreter.</strong> Il modello inizia a poter <em>chiamare strumenti esterni</em>. Da li' non e' piu' "una scatola che risponde". E' un agente che <em>decide cosa fare</em>.</span>
+            </li>
+            <li>
+              <span class="tl-when">2024</span>
+              <span class="tl-what"><strong>Cursor, Aider, Claude Code, Devin.</strong> Nascono i primi IDE-agent. Il prodotto non e' piu' "una chat" — e' un harness che gira intorno a un modello, gestisce un filesystem, esegue codice, fa commit git.</span>
+            </li>
+            <li>
+              <span class="tl-when">2025 → oggi</span>
+              <span class="tl-what"><strong>Computer Use, agent SDK, MCP.</strong> Lo standard dell'industria e' che l'harness e' il prodotto. Il modello e' un componente intercambiabile — usi Claude o Gemini o GPT, l'harness sopra resta lo stesso.</span>
+            </li>
+          </ol>
+          <div class="pull">
+            Nessun prodotto AI competitivo oggi e' "solo un modello".
+            Tutti sono harness.
+          </div>
+          <p>Quando dici "uso ChatGPT", stai usando un harness che chiama un
+            modello. Quando dici "uso Claude Code", stai usando un harness
+            diverso che chiama lo stesso tipo di modello. La differenza tra i
+            prodotti sta quasi tutta nell'harness, non nel modello.</p>
+        </div>
+      </section>

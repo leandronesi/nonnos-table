@@ -1,0 +1,129 @@
+<!-- ====== PARTE 3 ====== -->
+      <section class="part-divider">
+        <div class="part-divider-eyebrow">Parte 3</div>
+        <h2>Tolta la fuffa, cosa resta</h2>
+        <p>Niente patterns accademici, niente dogmi. Solo cio' che hai
+          davvero bisogno di sapere per leggere un agente.</p>
+      </section>
+
+      <!-- SLIDE 15 -->
+      <section class="slide" id="s15">
+        <div class="slide-num">15 / 23</div>
+        <h1>Cosa resta, tolta la fuffa</h1>
+        <p class="slide-sub">Niente framework, niente "agentic". Una cosa sola.</p>
+        <div class="slide-body">
+          <p>L'industria intorno agli agent ha prodotto un sacco di parole:
+            "agentic framework", "orchestration layer", "tool calling
+            architecture", "multi-agent system", "ReAct", "CoT", "MCP".
+            La verita' sotto e' molto piu' piccola di tutto questo.</p>
+          <div class="essence">
+            <div class="essence-formula">
+              Un agente <span class="essence-eq">=</span>
+              <span class="essence-llm">un LLM</span>
+              <span class="essence-plus">+</span>
+              <span class="essence-files">una cartella di istruzioni</span>
+            </div>
+            <p class="essence-caption">Punto. Tutto il resto sono parole.</p>
+          </div>
+          <p>Quando un agent funziona bene, e' perche' la cartella delle
+            istruzioni e' organizzata bene. Quando funziona male, e' perche'
+            la cartella e' un casino. Non e' piu' complicato di cosi'.</p>
+          <p>Nelle prossime tre slide ti faccio vedere com'e' fatta dentro
+            quella cartella. Tre tipi di file, livelli di profondita' diversi,
+            stesso principio.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 16 -->
+      <section class="slide" id="s16">
+        <div class="slide-num">16 / 23</div>
+        <h1>La macroistruzione — il file "fuori"</h1>
+        <p class="slide-sub">Un solo file, in cima. Dice al modello chi e', cosa fa, dove andare a cercare il resto.</p>
+        <div class="slide-body">
+          <p>Apri la cartella di qualunque agente serio e troverai, alla
+            radice, un file che si chiama tipicamente <code>CLAUDE.md</code>
+            (per Claude Code), <code>.cursorrules</code> (per Cursor), o
+            <code>AGENT.md</code>. E' la <strong>macroistruzione</strong>:
+            il primo file che il modello legge appena parte una sessione.</p>
+          <p>Cosa contiene? Solo tre cose:</p>
+          <ul>
+            <li><strong>Identita'.</strong> Chi sei. Su quale progetto stai lavorando. Con quale tono.</li>
+            <li><strong>Vincoli.</strong> Le poche regole che valgono sempre, indipendentemente dal task.</li>
+            <li><strong>Mappa.</strong> Dove vivono le istruzioni piu' specifiche. "Per X vai in <code>spec/</code>. Per Y vai in <code>skills/</code>."</li>
+          </ul>
+          <p>E' come quando entri in un'azienda nuova e ti danno il
+            "<em>manualetto del nuovo arrivato</em>": chi siamo, cosa
+            facciamo, e dove trovare i documenti specifici.</p>
+          <div class="note">
+            <strong>Esempio concreto.</strong> Il <code>CLAUDE.md</code> del deck
+            che stai guardando — sta in <code>docs/deck/CLAUDE.md</code> — e'
+            lungo 80 righe. Dentro c'e' la palette, la voce, dove vivono le
+            slide. Quando un agent lavora sul deck, lo legge per primo. Tutto qui.
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 17 -->
+      <section class="slide" id="s17">
+        <div class="slide-num">17 / 23</div>
+        <h1>Le sub-istruzioni — le cartelle dentro</h1>
+        <p class="slide-sub">Il file root rimanda a sotto-cartelle. Ognuna ha file specifici, caricati solo quando serve.</p>
+        <div class="slide-body">
+          <p>Non e' realistico avere TUTTO dentro <code>CLAUDE.md</code>. Sarebbe
+            lungo 5000 righe, illeggibile, e il modello si perderebbe nel
+            rumore. Quindi la macroistruzione delega: <em>"per la voce vai in
+            <code>spec/voice.md</code>. Per i requisiti di prodotto, in
+            <code>spec/product.md</code>. Per chi e' il lettore, in
+            <code>spec/audience.md</code>."</em></p>
+          <div class="code">docs/deck/
+├── CLAUDE.md            <span class="comment"># macroistruzione (il "fuori")</span>
+├── spec/                <span class="comment"># sub-istruzioni di contesto</span>
+│   ├── product.md       <span class="comment">#   cos'e' il deck</span>
+│   ├── audience.md      <span class="comment">#   chi e' Mimmo</span>
+│   └── voice.md         <span class="comment">#   tono, regole copy</span>
+├── content/             <span class="comment"># il contenuto vero</span>
+└── ...</div>
+          <p>Il modello, quando il task richiede contesto specifico, va a leggere
+            quei file. Quando non serve, li ignora. <strong>E' navigazione, non
+            ricerca</strong> — il modello sa dove andare perche' la
+            macroistruzione glielo ha detto.</p>
+          <p>La cosa interessante: questa struttura non e' un'invenzione tecnica.
+            <em>E' una biblioteca</em>. Indice in cima, sezioni dentro, schede
+            piu' dettagliate ancora dentro. Cervello umano e cervello LLM
+            navigano informazioni nello stesso modo.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 18 -->
+      <section class="slide" id="s18">
+        <div class="slide-num">18 / 23</div>
+        <h1>Le skill — istruzioni di comportamento</h1>
+        <p class="slide-sub">Caso speciale di sub-istruzione: come comportarsi in una situazione specifica.</p>
+        <div class="slide-body">
+          <p>A volte non basta dire al modello "<em>che voce usare</em>" o
+            "<em>cos'e' il prodotto</em>". Devi spiegargli <strong>come
+            comportarsi</strong> davanti a un certo tipo di task. Queste
+            istruzioni speciali si chiamano <strong>skill</strong>.</p>
+          <p>Una skill e' un file (di solito <code>SKILL.md</code>) dentro una
+            sotto-cartella dedicata. Contiene:</p>
+          <ul>
+            <li><strong>Quando si attiva</strong> (in linguaggio naturale, non keyword)</li>
+            <li><strong>Cosa deve fare il modello</strong> in quella situazione</li>
+            <li><strong>Esempi buoni e cattivi</strong></li>
+          </ul>
+          <p>Il modello carica la skill <strong>solo</strong> quando il contesto
+            la richiede. Le altre volte non occupa spazio.</p>
+          <div class="note">
+            <strong>Esempio concreto.</strong> Il visualizer cinematografico che
+            hai visto a slide 9 e 11 e' stato costruito seguendo una skill
+            chiamata <code>motion-reel</code>, in
+            <code>docs/deck/skills/motion-reel/SKILL.md</code>. Dentro c'e'
+            scritto: <em>"quando devi animare il visualizer del deck, usa
+            particelle vere, trail veri, glow pulsante, niente transition CSS
+            basic"</em>. Il modello, quando ha scritto le animazioni, ha letto
+            quel file e si e' comportato di conseguenza.
+          </div>
+          <p>Quindi: <strong>la skill e' una sub-istruzione un po' piu'
+            specializzata</strong>. Stesso pattern di prima, livello diverso.</p>
+        </div>
+      </section>

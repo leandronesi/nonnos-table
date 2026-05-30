@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Chess } from "chess.js";
 import { BoardView } from "../components/BoardView";
 import { BoardLegend } from "../components/BoardLegend";
@@ -8,7 +8,7 @@ import { useStockfish } from "../engine/useStockfish";
 import { turnFromFen } from "../chess-utils";
 import type { PlayResult } from "./store";
 import type { CoachSession } from "../types";
-import { stockfishSkillForMaiaLevel, maiaLabel, sessionFallbackLine, timeClassLabel } from "../coaching";
+import { stockfishSkillForMaiaLevel, sessionFallbackLine, timeClassLabel } from "../coaching";
 
 interface Props {
   startFen: string;             // posizione di partenza (di solito da un turning point)
@@ -34,6 +34,105 @@ interface PendingSureCheck {
   to: string;
   phrase: string;
   threatSquare: string;
+}
+
+// ---------------------------------------------------------------------------
+// Hint system — Nonno in partita (§6.8 BUILD.md)
+// ---------------------------------------------------------------------------
+
+const HINT_TIMER_MS = 12000; // ~12s idle prima che Nonno offra l'indizio
+
+// Tier 1 phrases — "dove guardare", mai la mossa
+const HINT_T1_TACTICAL = [
+  "Aspetta. Qui c'e' qualcosa. Guarda le catture e i pezzi scoperti.",
+  "Prima di muovere: c'e' un guadagno materiale disponibile. Lo vedi?",
+  "Fermati un secondo. Controlla se puoi prendere qualcosa.",
+];
+const HINT_T1_UNDER_ATTACK = [
+  "Occhio prima di muovere: un tuo pezzo e' sotto tiro.",
+  "Aspetta. Conta gli attaccanti sul tuo pezzo. Piu' di quanti difensori hai?",
+  "Fermati: qualcosa di tuo e' in pericolo. Guarda bene.",
+];
+const HINT_T1_QUIET = [
+  "Niente di forzato. Migliora il pezzo che sta peggio, o porta un pezzo verso il suo re.",
+  "Posizione tranquilla. Non cercare il capolavoro: gioca la mossa piu' solida che vedi.",
+  "Non c'e' niente di immediato. Centralizza, poi pensa a dove vuoi andare.",
+];
+
+// Tier 2 prompt — "parti da qui"
+const HINT_T2_PHRASES = [
+  "Parti da li'.",
+  "Il pezzo che cerchi parte da quella casa.",
+  "Da quella casa si muove la mossa giusta.",
+];
+
+// ---------------------------------------------------------------------------
+// Position analysis for hint: uses chess.js only (sync, no engine needed)
+// ---------------------------------------------------------------------------
+
+type MomentKind = "tactical" | "under_attack" | "quiet";
+
+function analyzePosition(fen: string, myColor: "white" | "black"): MomentKind {
+  try {
+    const b = new Chess(fen);
+    const legalMoves = b.moves({ verbose: true });
+
+    // 1. Check if any of my legal moves is a capture (tactical opportunity)
+    const hasCaptureAvailable = legalMoves.some((m) => m.captured);
+    if (hasCaptureAvailable) return "tactical";
+
+    // 2. Check if any of my pieces is attacked and undefended
+    // We flip the board to the opponent's turn and see what they can take
+    // (quick heuristic: look for any capturing move available for the opponent
+    // by examining the current position from the other side)
+    const fenParts = fen.split(" ");
+    const oppTurn = myColor === "white" ? "b" : "w";
+    // Build a fen where it's the opponent's turn to see what they can capture
+    const oppFen = [fenParts[0], oppTurn, ...fenParts.slice(2)].join(" ");
+    try {
+      const bOpp = new Chess(oppFen);
+      const oppMoves = bOpp.moves({ verbose: true });
+      const oppCanCapture = oppMoves.some((m) => m.captured);
+      if (oppCanCapture) return "under_attack";
+    } catch { /* fallback to quiet */ }
+
+    return "quiet";
+  } catch {
+    return "quiet";
+  }
+}
+
+// Extract the from-square of a UCI move string
+function uciFrom(uci: string): string | null {
+  if (!uci || uci.length < 4) return null;
+  const sq = uci.slice(0, 2);
+  return /^[a-h][1-8]$/.test(sq) ? sq : null;
+}
+
+// Convert UCI to SAN in a given position
+function uciToSan(fen: string, uci: string): string | null {
+  if (!uci || uci.length < 4) return null;
+  try {
+    const b = new Chess(fen);
+    const from = uci.slice(0, 2);
+    const to = uci.slice(2, 4);
+    const promo = uci.length > 4 ? uci[4] : undefined;
+    const mv = b.move({ from, to, promotion: promo || "q" } as never);
+    return mv ? mv.san : null;
+  } catch { return null; }
+}
+
+interface HintState {
+  tier: 1 | 2 | 3;
+  text: string;
+  /** Square to highlight for Tier 2 (from-square of best move) */
+  hintSquare: string | null;
+  /** Arrow for Tier 3: from → to */
+  hintArrow: { from: string; to: string } | null;
+  /** Waiting move SAN to show at Tier 3 if position is too hard */
+  waitingSan: string | null;
+  /** True while the engine is computing */
+  loading: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -134,6 +233,12 @@ export function PlayStep({
   const [coachInline, setCoachInline] = useState<string | null>(null);
   const engineTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Hint system state
+  const [hint, setHint] = useState<HintState | null>(null);
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track fen at the time the hint was requested to avoid stale results
+  const hintFenRef = useRef<string>("");
+
   // EvalBar state — score dal POV BIANCO
   const [evalScore, setEvalScore] = useState<number | null>(null);
   const [evalMate, setEvalMate] = useState<number | null>(null);
@@ -152,6 +257,164 @@ export function PlayStep({
     const t = setTimeout(() => setCoachInline(null), 4500);
     return () => clearTimeout(t);
   }, [coachInline]);
+
+  // ---------------------------------------------------------------------------
+  // Hint: computeHint — calcola il Tier 1 (+ engine async per Tier 2/3)
+  // ---------------------------------------------------------------------------
+  const computeHint = useCallback(async (currentFen: string, tier: 1 | 2 | 3) => {
+    const moment = analyzePosition(currentFen, myColor);
+
+    if (tier === 1) {
+      let text: string;
+      if (moment === "tactical") text = pickRandom(HINT_T1_TACTICAL);
+      else if (moment === "under_attack") text = pickRandom(HINT_T1_UNDER_ATTACK);
+      else text = pickRandom(HINT_T1_QUIET);
+
+      setHint({ tier: 1, text, hintSquare: null, hintArrow: null, waitingSan: null, loading: false });
+      return;
+    }
+
+    // Tier 2 or 3: need Stockfish
+    setHint((prev) => ({
+      tier,
+      text: prev?.text ?? pickRandom(tier === 2 ? HINT_T2_PHRASES : ["Ecco la mossa."]),
+      hintSquare: prev?.hintSquare ?? null,
+      hintArrow: null,
+      waitingSan: null,
+      loading: true,
+    }));
+
+    // Race against a 5s timeout — never block the game
+    const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000));
+
+    try {
+      const evPromise = sf.evaluate(currentFen, { depth: 12 });
+      const ev = await Promise.race([evPromise, timeout]);
+
+      // Stale check: fen may have changed while engine was thinking
+      if (hintFenRef.current !== currentFen) return;
+
+      if (!ev || !ev.bestMoveUci) {
+        // Graceful fallback to Tier 1 text
+        const moment2 = analyzePosition(currentFen, myColor);
+        let fallback: string;
+        if (moment2 === "tactical") fallback = pickRandom(HINT_T1_TACTICAL);
+        else if (moment2 === "under_attack") fallback = pickRandom(HINT_T1_UNDER_ATTACK);
+        else fallback = pickRandom(HINT_T1_QUIET);
+        setHint({ tier: 1, text: fallback, hintSquare: null, hintArrow: null, waitingSan: null, loading: false });
+        return;
+      }
+
+      const bestUci = ev.bestMoveUci;
+      const fromSq = uciFrom(bestUci);
+      const toSq = bestUci.length >= 4 ? bestUci.slice(2, 4) : null;
+
+      if (tier === 2) {
+        const t2text = pickRandom(HINT_T2_PHRASES);
+        setHint({
+          tier: 2,
+          text: t2text,
+          hintSquare: fromSq,
+          hintArrow: null,
+          waitingSan: null,
+          loading: false,
+        });
+      } else {
+        // Tier 3: show the full move
+        const bestSan = uciToSan(currentFen, bestUci);
+        const moveText = bestSan ? `La mossa e' ${bestSan}.` : "Guarda la freccia sulla scacchiera.";
+
+        // Check if position is "too hard" (p_maia_mine_top low proxy: swing > 150cp)
+        const isSwing = ev.scoreCp != null && Math.abs(ev.scoreCp) > 150;
+        // Try to find a waiting move when position is a big swing (hard to see)
+        let waitingSan: string | null = null;
+        if (isSwing) {
+          try {
+            const b = new Chess(currentFen);
+            const legals = b.moves({ verbose: true });
+            const bestNorm = bestSan ?? "";
+            const candidates = legals.filter((m) => {
+              if (m.san === bestNorm) return false;
+              if (m.captured || m.san.includes("+") || m.san.includes("#")) return false;
+              return true;
+            }).slice(0, 4);
+
+            for (const cand of candidates) {
+              if (hintFenRef.current !== currentFen) break;
+              const b2 = new Chess(currentFen);
+              b2.move(cand.san);
+              const evW = await sf.evaluate(b2.fen(), { depth: 8 });
+              if (hintFenRef.current !== currentFen) break;
+              const cpLoss = Math.max(0, (ev.scoreCp ?? 0) - (-(evW.scoreCp ?? 0)));
+              if (cpLoss <= 50) {
+                waitingSan = cand.san;
+                break;
+              }
+            }
+          } catch { /* skip waiting move */ }
+        }
+
+        if (hintFenRef.current !== currentFen) return;
+
+        const fullText = waitingSan
+          ? `${moveText} Se non la vedi, una solida e' ${waitingSan}.`
+          : moveText;
+
+        setHint({
+          tier: 3,
+          text: fullText,
+          hintSquare: fromSq,
+          hintArrow: fromSq && toSq ? { from: fromSq, to: toSq } : null,
+          waitingSan,
+          loading: false,
+        });
+      }
+    } catch {
+      if (hintFenRef.current !== currentFen) return;
+      // Graceful fallback
+      const moment3 = analyzePosition(currentFen, myColor);
+      let fb: string;
+      if (moment3 === "tactical") fb = pickRandom(HINT_T1_TACTICAL);
+      else if (moment3 === "under_attack") fb = pickRandom(HINT_T1_UNDER_ATTACK);
+      else fb = pickRandom(HINT_T1_QUIET);
+      setHint({ tier: 1, text: fb, hintSquare: null, hintArrow: null, waitingSan: null, loading: false });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myColor, sf]);
+
+  // ---------------------------------------------------------------------------
+  // Hint: reset timer every time the fen changes or turn changes
+  // ---------------------------------------------------------------------------
+  const isMyTurn = !outcome && !engineThinking && !evaluatingMove && !pendingSure
+    && turnFromFen(fen) === myColor;
+
+  useEffect(() => {
+    // Clear hint and timer on every fen/turn change
+    setHint(null);
+    hintFenRef.current = fen;
+    if (hintTimerRef.current !== null) {
+      clearTimeout(hintTimerRef.current);
+      hintTimerRef.current = null;
+    }
+    if (!isMyTurn) return;
+
+    // Start the 12s timer
+    hintTimerRef.current = setTimeout(() => {
+      hintTimerRef.current = null;
+      // Only trigger if still my turn and no hint showing yet
+      if (hintFenRef.current === fen) {
+        computeHint(fen, 1);
+      }
+    }, HINT_TIMER_MS);
+
+    return () => {
+      if (hintTimerRef.current !== null) {
+        clearTimeout(hintTimerRef.current);
+        hintTimerRef.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fen, isMyTurn]);
 
   // Aggiorna eval dopo ogni cambio di fen
   useEffect(() => {
@@ -265,6 +528,7 @@ export function PlayStep({
     setHistory((h) => [...h, mv.san]);
     setLastMove({ from: mv.from, to: mv.to, by: "me" });
     setCoachInline(null);
+    setHint(null);
     if (!checkGameOver()) {
       // Salvo il timeout ref per poterlo cancellare su undo
       engineTimeoutRef.current = setTimeout(() => {
@@ -352,8 +616,26 @@ export function PlayStep({
         { square: pendingSure.threatSquare, color: "#f43f5eaa" },
       ]
     : [];
-  const highlights = pendingSure ? sureHighlights : baseHighlights;
-  const arrows = lastMove && !pendingSure ? [{ from: lastMove.from, to: lastMove.to, color: lastMoveColor }] : [];
+
+  // Hint highlights/arrows (Tier 2: highlight from-square; Tier 3: arrow)
+  const hintHighlights: { square: string; color: string }[] =
+    hint && hint.hintSquare && !pendingSure
+      ? [{ square: hint.hintSquare, color: "#f6c64acc" }]
+      : [];
+  const hintArrows: { from: string; to: string; color: string }[] =
+    hint && hint.hintArrow && !pendingSure
+      ? [{ from: hint.hintArrow.from, to: hint.hintArrow.to, color: "#34d399" }]
+      : [];
+
+  const highlights = pendingSure
+    ? sureHighlights
+    : [...baseHighlights, ...hintHighlights];
+  const arrows = pendingSure
+    ? []
+    : [
+        ...(lastMove ? [{ from: lastMove.from, to: lastMove.to, color: lastMoveColor }] : []),
+        ...hintArrows,
+      ];
 
   const openPlayLine = coachSession?.open_play || sessionFallbackLine("open_play", maiaLevel ?? 1600);
 
@@ -376,7 +658,8 @@ export function PlayStep({
         <BoardLegend preset="play" />
       </div>
 
-      <div className="space-y-5">
+      <div className="space-y-4">
+        {/* Voce di Nonno: messaggio inline o apertura partita */}
         {coachInline && (
           <CoachNote text={coachInline} tone="warm" />
         )}
@@ -385,12 +668,38 @@ export function PlayStep({
           <CoachNote text={openPlayLine} tone="warm" />
         )}
 
+        {/* Hint di Nonno — appare dopo 12s idle o su richiesta */}
+        {!outcome && !coachInline && (
+          <NonnoHint
+            hint={hint}
+            isMyTurn={isMyTurn}
+            fen={fen}
+            onAsk={() => {
+              hintFenRef.current = fen;
+              computeHint(fen, 1);
+            }}
+            onEscalate={() => {
+              if (!hint) return;
+              const nextTier = Math.min(3, hint.tier + 1) as 1 | 2 | 3;
+              computeHint(fen, nextTier);
+            }}
+          />
+        )}
+
+        {/* Intestazione partita */}
         <div>
-          <div className="label-eyebrow">
-            Partita finale ·{" "}
-            {maiaLevel != null ? `Target: ${maiaLevel} ${tcLabel}` : `livello Stockfish ${skillLevel}/20`}
+          <div
+            className="label-eyebrow"
+            style={{ color: "var(--color-brand-soft)", marginBottom: "0.5rem" }}
+          >
+            {maiaLevel != null
+              ? `Partita vs avversario ${maiaLevel} ${tcLabel}`
+              : `Partita vs Stockfish livello ${skillLevel}`}
           </div>
-          <h3 className="display-small mt-2">
+          <h3
+            className="display-small"
+            style={{ marginBottom: "0.375rem" }}
+          >
             {outcome
               ? outcomeLabel(outcome)
               : evaluatingMove
@@ -401,38 +710,81 @@ export function PlayStep({
               ? "L'avversario pensa…"
               : "Attendi mossa avversario"}
           </h3>
-          <div className="text-sm text-[color:var(--color-text-soft)] mt-1">
+          <p
+            style={{
+              fontSize: "0.875rem",
+              color: "var(--color-text-soft)",
+              lineHeight: 1.5,
+              margin: 0,
+            }}
+          >
             {maiaLevel != null
-              ? `Giochi contro un ${maiaLabel(maiaLevel)} ${tcLabel} — il livello che hai dichiarato come obiettivo. ${maiaSubText(currentRating, maiaLevel)}`
-              : `Posizione presa da un tuo bivio. Giochi come ${myColor === "white" ? "bianco" : "nero"} contro un avversario calibrato.`}
-          </div>
+              ? `${maiaSubText(currentRating, maiaLevel)}`
+              : `Giochi come ${myColor === "white" ? "bianco" : "nero"} da una tua posizione critica.`}
+          </p>
         </div>
 
+        {/* Lista mosse */}
         {!outcome && (
-          <div className="rounded-xl p-3 border border-[color:var(--color-line)] bg-white/[0.02]">
-            <div className="label-eyebrow mb-2">Mosse</div>
-            <div className="font-mono text-xs leading-relaxed text-[color:var(--color-text-soft)]">
-              {history.length === 0 ? <span className="opacity-50">—</span> :
+          <div
+            style={{
+              padding: "0.75rem 1rem",
+              borderRadius: "8px",
+              border: "1px solid var(--color-line)",
+              background: "rgba(255,255,255,0.018)",
+            }}
+          >
+            <div
+              className="label-eyebrow"
+              style={{ marginBottom: "0.5rem" }}
+            >
+              Mosse
+            </div>
+            <div
+              className="mono"
+              style={{
+                fontSize: "0.8125rem",
+                lineHeight: 1.7,
+                color: "var(--color-text-soft)",
+              }}
+            >
+              {history.length === 0 ? (
+                <span style={{ opacity: 0.4, color: "var(--color-muted)" }}>nessuna ancora</span>
+              ) : (
                 history.map((m, i) => (
                   <span key={i}>
-                    {i % 2 === 0 && <span className="text-[color:var(--color-muted)]">{Math.floor(i / 2) + 1}. </span>}
-                    {m}{" "}
+                    {i % 2 === 0 && (
+                      <span style={{ color: "var(--color-faint)", marginRight: "0.2rem" }}>
+                        {Math.floor(i / 2) + 1}.{" "}
+                      </span>
+                    )}
+                    <span
+                      style={{
+                        color: i % 2 === 0
+                          ? (i === history.length - 1 ? "var(--color-brand-soft)" : "var(--color-text-soft)")
+                          : (i === history.length - 1 ? "var(--color-gold-soft)" : "var(--color-text-soft)"),
+                        fontWeight: i === history.length - 1 ? 700 : 400,
+                      }}
+                    >
+                      {m}
+                    </span>{" "}
                   </span>
                 ))
-              }
+              )}
             </div>
           </div>
         )}
 
+        {/* Azioni partita in corso */}
         {!outcome && (
-          <div className="flex gap-2 flex-wrap">
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
             <button
               onClick={handleUndo}
               disabled={history.length === 0 || engineThinking}
               className="btn btn-ghost btn-sm"
-              title="Annulla ultima mossa (2 plies)"
+              title="Annulla ultima mossa"
             >
-              ← Indietro
+              Indietro
             </button>
             <button
               onClick={handleRestart}
@@ -440,30 +792,56 @@ export function PlayStep({
               className="btn btn-ghost btn-sm"
               title="Ricomincia dalla posizione iniziale"
             >
-              ↻ Rifai partita
+              Ricomincia
             </button>
-            <button onClick={() => commit("abandoned")} className="btn btn-ghost btn-sm">
+            <button
+              onClick={() => commit("abandoned")}
+              className="btn btn-ghost btn-sm"
+            >
               Termina
             </button>
           </div>
         )}
 
+        {/* Esito partita */}
         {outcome && (
           <div
-            className="rounded-xl p-5 border"
+            className="position-puzzle-verdict"
             style={{
-              borderColor: outcomeBorder(outcome),
+              borderRadius: "12px",
+              padding: "1.25rem",
+              border: `1px solid ${outcomeBorder(outcome)}44`,
               background: outcomeBg(outcome),
             }}
           >
-            <div className="display-small" style={{ color: outcomeBorder(outcome) }}>
+            <div
+              style={{
+                fontFamily: "var(--font-display)",
+                fontWeight: 600,
+                fontSize: "1.3rem",
+                lineHeight: 1.25,
+                color: outcomeBorder(outcome),
+                marginBottom: "0.5rem",
+              }}
+            >
               {outcomeLabel(outcome)}
             </div>
-            <div className="text-sm text-[color:var(--color-text-soft)] mt-1">
-              {history.length} mosse giocate.
+            <div
+              className="mono"
+              style={{
+                fontSize: "0.75rem",
+                color: "var(--color-muted)",
+                marginBottom: "1.25rem",
+              }}
+            >
+              {history.length} mosse giocate
             </div>
-            <button onClick={() => commit(outcome)} className="btn btn-primary mt-4 w-full justify-center">
-              Vai al recap →
+            <button
+              onClick={() => commit(outcome)}
+              className="btn btn-primary btn-lg"
+              style={{ width: "100%", justifyContent: "center" }}
+            >
+              Vai avanti
             </button>
           </div>
         )}
@@ -475,6 +853,143 @@ export function PlayStep({
           onCancel={sureCheckCancel}
           onConfirm={sureCheckConfirm}
         />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// NonnoHint — UI component per il sistema di indizi in partita
+// ---------------------------------------------------------------------------
+
+interface NonnoHintProps {
+  hint: HintState | null;
+  isMyTurn: boolean;
+  fen: string;
+  onAsk: () => void;
+  onEscalate: () => void;
+}
+
+function NonnoHint({ hint, isMyTurn, onAsk, onEscalate }: NonnoHintProps) {
+  if (!isMyTurn) return null;
+
+  // No hint yet: show the pulsing "Chiedi a Nonno" affordance
+  if (!hint) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <button
+          onClick={onAsk}
+          className="btn btn-ghost btn-sm"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.375rem",
+            color: "var(--color-muted)",
+            borderColor: "var(--color-line)",
+            fontSize: "0.75rem",
+          }}
+          title="Chiedi un consiglio a Nonno"
+        >
+          <span style={{
+            width: "6px",
+            height: "6px",
+            borderRadius: "999px",
+            background: "var(--color-brand-soft)",
+            flexShrink: 0,
+            animation: "pulseGlow 2s ease-in-out infinite",
+          }} />
+          Chiedi a Nonno
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      padding: "0.75rem 1rem",
+      borderRadius: "8px",
+      border: "1px solid rgba(161,139,255,0.22)",
+      background: "rgba(161,139,255,0.05)",
+    }}>
+      {/* Header */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        marginBottom: "0.5rem",
+      }}>
+        <span style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: "0.6rem",
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          color: "var(--color-brand-soft)",
+          fontWeight: 700,
+        }}>
+          Nonno
+        </span>
+        {hint.loading && (
+          <span style={{
+            width: "5px",
+            height: "5px",
+            borderRadius: "999px",
+            background: "var(--color-brand-soft)",
+            animation: "pulseGlow 1.2s ease-in-out infinite",
+          }} />
+        )}
+        {!hint.loading && (
+          <span style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: "0.6rem",
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            color: "var(--color-faint)",
+          }}>
+            indizio {hint.tier}/3
+          </span>
+        )}
+      </div>
+
+      {/* Text */}
+      {!hint.loading && (
+        <p style={{
+          fontFamily: "var(--font-sans)",
+          fontSize: "0.875rem",
+          lineHeight: 1.55,
+          color: "var(--color-text-soft)",
+          margin: 0,
+          marginBottom: hint.tier < 3 ? "0.625rem" : 0,
+        }}>
+          {hint.text}
+        </p>
+      )}
+
+      {hint.loading && (
+        <p style={{
+          fontFamily: "var(--font-sans)",
+          fontSize: "0.8rem",
+          color: "var(--color-muted)",
+          margin: 0,
+          marginBottom: "0.5rem",
+        }}>
+          Guardo la posizione…
+        </p>
+      )}
+
+      {/* Escalate button — show only when not at tier 3 and not loading */}
+      {!hint.loading && hint.tier < 3 && (
+        <button
+          onClick={onEscalate}
+          className="btn btn-ghost btn-sm"
+          style={{
+            fontSize: "0.7rem",
+            color: "var(--color-muted)",
+            borderColor: "var(--color-line)",
+            padding: "0.25rem 0.625rem",
+          }}
+        >
+          Un altro indizio
+        </button>
       )}
     </div>
   );

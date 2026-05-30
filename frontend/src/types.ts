@@ -1,5 +1,116 @@
 ﻿// Tipi del player model v2 — sostituisce types v1.
 
+// ── Storia temporale (§2.1-2.3 BUILD.md) ─────────────────────────────────────
+
+/**
+ * Trend finestrato immediato per un'ancora (§2.1 BUILD.md).
+ *
+ * Frequenza errore normalizzata per partite in due finestre da 28 gg sulla
+ * data della partita. Piu' raro = stai migliorando.
+ * null sull'intero oggetto se dati insufficienti.
+ */
+export interface AnchorTrendNow {
+  /** Occorrenze ancora / partite distinte, finestra recente (<= 28 gg). */
+  recent_per_game: number | null;
+  /** Occorrenze ancora / partite distinte, finestra precedente (29..56 gg). */
+  prior_per_game: number | null;
+  /** Occorrenze (errori) nella finestra recente. */
+  recent_n: number;
+  /** Occorrenze (errori) nella finestra precedente. */
+  prior_n: number;
+  /** Partite distinte nella finestra recente. */
+  recent_games: number;
+  /** Partite distinte nella finestra precedente. */
+  prior_games: number;
+  /** Media p_maia_target_top sull'ancora (quanto e' "da target"). null se Maia non ha girato. */
+  target_pct: number | null;
+  /** recent_per_game < prior_per_game => improving. */
+  direction: "improving" | "worsening" | "stable";
+  /** Da min(recent_n, prior_n) e dal n. partite. */
+  confidence: "low" | "medium" | "high";
+}
+
+/**
+ * Snapshot compatto scritto a fine ogni run (onboarding/refresh/reanalyze).
+ * Niente examples — solo cio' che serve a trend e traguardi.
+ */
+export interface HistorySnapshot {
+  captured_at: string;       // ISO
+  week_iso: string;          // "2026-W22"
+  run_kind: "onboarding" | "refresh" | "reanalyze";
+  games_analyzed: number;
+  rating_by_time_class: Record<string, number | null>;
+  goal: {
+    target: number;
+    time_class: string;
+    current: number | null;
+    points_needed: number;
+    days_left: number;
+    on_track: boolean;
+    projection_at_deadline: number | null;
+  };
+  maia_weighted: {
+    errors_scored: number;
+    avoidable: number;
+    mine_pct: number | null;
+    target_pct: number | null;
+    gap_pct: number | null;
+    avoidable_share: number | null;
+  };
+  anchors: Array<{
+    key: string;
+    label_it: string;
+    count: number;
+    mine_pct: number | null;
+    target_pct: number | null;
+    rating_upside: number;
+  }>;
+}
+
+/** File persistito su Storage: quaderno/history.json. */
+export interface HistoryFile {
+  schema_version: 1;
+  snapshots: HistorySnapshot[];
+}
+
+/** Tipi di traguardo (§1.3 BUILD.md). */
+export type MilestoneType =
+  | "rating_gain"
+  | "gap_closed"
+  | "anchor_improved"
+  | "anchor_domata"
+  | "sessions"
+  | "on_track";
+
+export interface Milestone {
+  type: MilestoneType;
+  /** true = soglia superata; false = in corso. */
+  achieved: boolean;
+  /** Data ISO di raggiungimento (null se in corso). */
+  achieved_at: string | null;
+  /** Percentuale di avanzamento [0..1] quando non ancora raggiunto. */
+  progress_pct: number | null;
+  /** Il numero che prova il traguardo (es. +75 per rating_gain di +50). */
+  evidence: number | null;
+  /** Descrizione sintetica (in italiano) per l'UI. */
+  label_it: string;
+  /** Soglia numerica del traguardo (es. 50 per "+50 rating_gain"). */
+  threshold: number;
+}
+
+/** Progresso verso l'obiettivo (§2.3 BUILD.md). */
+export interface GoalProgress {
+  points_needed: number;
+  weeks_left: number;
+  /** Rating points/week necessari per raggiungere il target. */
+  rate_needed_per_week: number | null;
+  /** Rating points/week reali dall'inizio del piano. */
+  rate_real_per_week: number | null;
+  on_track: boolean;
+  /** Rating proiettato alla scadenza al ritmo attuale. null se non stimabile. */
+  projection: number | null;
+}
+
 export type Phase = "opening" | "middlegame" | "endgame";
 export type Color = "white" | "black";
 export type Result = "win" | "loss" | "draw";
@@ -285,6 +396,11 @@ export interface PositionRow {
   last_opp_from?: string | null;
   last_opp_to?: string | null;
   last_opp_san?: string | null;
+  /** Mossa Stockfish-best in formato UCI grezzo (es. "f1d1"). Usato come fallback
+   * per calcolare la casa di partenza dell'hint quando best_san_sf non è
+   * parsabile da chess.js (es. il converter UCI→SAN ha fallito e ha lasciato
+   * il raw UCI in best_san_sf). */
+  best_uci?: string | null;
   /** R1-A — Review fields. */
   /** Secondi che il giocatore ha pensato sulla mossa (da Chess.com PGN [%clk]). */
   spent_seconds?: number | null;

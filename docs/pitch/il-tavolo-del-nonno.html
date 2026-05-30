@@ -1,0 +1,2025 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>il Tavolo del Nonno &middot; Pitch di prodotto</title>
+<style>
+/* ============================================================
+   NONNO'S TABLE · Pitch Deck
+   Design system: "Il Tavolo del Nonno" (da docs/DESIGN.md)
+   Register: product. Notturno, intimo, scacchistico. Flat.
+   Regole dure: oro SOLO per l'Obiettivo · twilight <=15% superficie
+   · niente ombre decorative · niente gradient-text · niente em-dash
+   · niente card-dentro-card · una sola voce (Nonno, TU).
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap');
+
+:root {
+  /* Notte */
+  --bg:            #060814;
+  --bg-soft:       #0a0d1c;
+  --s1:            #0f1325;   /* tavolo */
+  --s2:            #161a30;   /* sollevato */
+  --s3:            #1c2138;   /* elevato: pill/chip */
+  --line:          #1e2440;
+  --line-strong:   #2a3158;
+  /* Foglio */
+  --paper:         #eef0fa;
+  --paper-soft:    #b6bcd6;
+  --muted:         #717892;
+  --faint:         #4a5070;
+  /* Accenti */
+  --twilight:      #7c5cff;
+  --twilight-soft: #a18bff;
+  --honey:         #f6c64a;   /* RISERVATO all'Obiettivo */
+  --honey-soft:    #ffd877;
+  --good:          #34d399;
+  --warn:          #f5a524;
+  --danger:        #f43f5e;
+  --info:          #60a5fa;
+
+  --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-pill: 999px;
+
+  --font-display: 'Inter Tight', 'Inter', system-ui, sans-serif;
+  --font-body:    'Inter', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+
+  --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --maxw: 1080px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body {
+  background:
+    radial-gradient(1200px 700px at 78% -8%, rgba(124,92,255,0.10), transparent 60%),
+    radial-gradient(900px 600px at 12% 4%, rgba(246,198,74,0.05), transparent 55%),
+    var(--bg);
+  color: var(--paper);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.62;
+  letter-spacing: 0.001em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  padding-bottom: 120px;
+}
+::selection { background: rgba(124,92,255,0.35); color: #fff; }
+
+/* ---------- Tipografia ---------- */
+.display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.4rem, 6vw, 4.6rem);
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+}
+h1, .h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(2rem, 4.5vw, 3.2rem); line-height: 1.08; letter-spacing: -0.022em; }
+h2, .h2 { font-family: var(--font-display); font-weight: 700; font-size: clamp(1.5rem, 3vw, 2.1rem); line-height: 1.16; letter-spacing: -0.018em; }
+h3, .h3 { font-family: var(--font-display); font-weight: 700; font-size: 1.3rem; line-height: 1.3; letter-spacing: -0.01em; }
+p  { max-width: 68ch; }
+.lead { font-size: 1.18rem; line-height: 1.6; color: var(--paper-soft); max-width: 64ch; }
+strong { color: var(--paper); font-weight: 700; }
+em { font-style: normal; color: var(--twilight-soft); font-weight: 600; }
+a { color: var(--twilight-soft); text-decoration: none; }
+.mono { font-family: var(--font-mono); font-weight: 600; font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.soft  { color: var(--paper-soft); }
+.faint { color: var(--faint); }
+.honey { color: var(--honey-soft); }
+.tw    { color: var(--twilight-soft); }
+.good  { color: var(--good); }
+.warn  { color: var(--warn); }
+.bad   { color: var(--danger); }
+
+.eyebrow {
+  font-family: var(--font-body);
+  font-weight: 700; font-size: 0.72rem;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--twilight-soft);
+}
+.eyebrow.honey { color: var(--honey-soft); }
+.eyebrow.muted { color: var(--muted); }
+
+/* ---------- Layout ---------- */
+.wrap   { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+.narrow { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+section.band { padding: clamp(56px, 9vw, 120px) 0; border-top: 1px solid var(--line); }
+section.band:first-of-type { border-top: none; }
+.stack > * + * { margin-top: 18px; }
+.stack-lg > * + * { margin-top: 32px; }
+.grid { display: grid; gap: 20px; }
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 820px){ .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+.row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.between { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+.center { text-align: center; }
+
+/* ---------- Superfici (FLAT, tre livelli) ---------- */
+.card {
+  background: var(--s1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 28px 30px;
+}
+.card.s2 { background: var(--s2); }
+.card.pad-lg { padding: 38px 40px; }
+.card.hover { transition: border-color 180ms var(--ease), transform 180ms var(--ease); }
+.card.hover:hover { border-color: var(--line-strong); transform: translateY(-2px); }
+
+/* Hero Obiettivo, firma. Oro tinted, radial honey glow (NON shadow). */
+.hero-goal {
+  position: relative; overflow: hidden;
+  background:
+    radial-gradient(420px 220px at 88% -20%, rgba(246,198,74,0.16), transparent 60%),
+    linear-gradient(180deg, rgba(124,92,255,0.08), var(--s2) 55%);
+  border: 1px solid rgba(246,198,74,0.30);
+  border-radius: var(--r-lg);
+  padding: 40px;
+}
+
+/* ---------- Chip / Pill ---------- */
+.chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--s3); color: var(--paper-soft);
+  border-radius: var(--r-pill); padding: 5px 14px;
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  border: 1px solid transparent;
+}
+.chip.tw    { color: var(--twilight-soft); background: color-mix(in srgb, var(--twilight) 14%, transparent); }
+.chip.honey { color: var(--honey-soft);    background: color-mix(in srgb, var(--honey) 14%, transparent); }
+.chip.good  { color: var(--good);  background: color-mix(in srgb, var(--good) 12%, transparent); }
+.chip.warn  { color: var(--warn);  background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.chip.bad   { color: var(--danger);background: color-mix(in srgb, var(--danger) 12%, transparent); }
+/* Stato SRS (bordo currentColor) */
+.srs { border: 1px solid currentColor; background: transparent; }
+
+/* ---------- Bottoni (un solo CTA per schermo) ---------- */
+.btn {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: var(--font-body); font-weight: 700; font-size: 1rem;
+  border-radius: var(--r-md); padding: 14px 26px; cursor: pointer; border: 1px solid transparent;
+  transition: background 160ms var(--ease), transform 120ms var(--ease), border-color 160ms var(--ease);
+}
+.btn-primary { background: var(--twilight); color: var(--paper); }
+.btn-primary:hover { background: var(--twilight-soft); color: var(--bg); }
+.btn-primary:active { transform: scale(0.97); }
+.btn-ghost { background: transparent; color: var(--paper-soft); border-color: var(--line-strong); }
+.btn-ghost:hover { color: var(--paper); border-color: var(--twilight); }
+
+/* ---------- Voce di Nonno (pull-quote / racconto) ---------- */
+.nonno {
+  position: relative;
+  font-family: var(--font-display); font-weight: 600;
+  font-size: clamp(1.25rem, 2.4vw, 1.7rem); line-height: 1.42;
+  color: var(--paper);
+  padding: 4px 0 4px 26px;
+  border-left: 2px solid var(--twilight);   /* 2px = voce, non side-stripe decorativa */
+  max-width: 62ch;
+}
+.nonno .who { display:block; font-family: var(--font-body); font-size: 0.72rem; font-weight:700; letter-spacing:0.16em; text-transform:uppercase; color: var(--twilight-soft); margin-bottom: 10px; }
+.nonno b { color: var(--honey-soft); font-weight: 700; }
+
+/* ---------- Numeri narrativi ---------- */
+.stat { display: flex; flex-direction: column; gap: 4px; }
+.stat .n { font-family: var(--font-mono); font-weight: 700; font-size: clamp(2rem, 4vw, 2.8rem); line-height: 1; font-variant-numeric: tabular-nums; }
+.stat .k { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); min-height: 2.2em; line-height: 1.2; }
+.n.tw{color:var(--twilight-soft)} .n.honey{color:var(--honey-soft)} .n.good{color:var(--good)} .n.bad{color:var(--danger)} .n.warn{color:var(--warn)}
+
+/* ---------- Flussi (step numerati) ---------- */
+.flow { display: grid; gap: 0; }
+.step { display: grid; grid-template-columns: 44px 1fr; gap: 18px; padding: 18px 0; position: relative; }
+.step + .step { border-top: 1px solid var(--line); }
+.step .dot {
+  width: 40px; height: 40px; border-radius: var(--r-pill);
+  display: grid; place-items: center;
+  font-family: var(--font-mono); font-weight: 700; font-size: 1rem;
+  background: var(--s3); color: var(--twilight-soft); border: 1px solid var(--line-strong);
+}
+.step .dot.honey { color: var(--honey-soft); }
+.step h3 { margin-bottom: 4px; }
+
+/* ---------- Cornice "schermo" (mockup UI) ---------- */
+.screen {
+  background: var(--bg-soft); border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg); padding: 18px; overflow: hidden;
+}
+.screen .bar { display:flex; gap:6px; margin-bottom: 14px; }
+.screen .bar i { width:9px; height:9px; border-radius:50%; background: var(--line-strong); display:inline-block; }
+
+/* ---------- Grafici (helper SVG) ---------- */
+.chart { width: 100%; height: auto; display: block; }
+.chart text { font-family: var(--font-mono); fill: var(--muted); }
+.chart .grid-line { stroke: var(--line); stroke-dasharray: 3 3; }
+.axis { stroke: var(--line); }
+.legend { display:flex; gap: 18px; flex-wrap: wrap; font-size: 0.78rem; color: var(--paper-soft); }
+.legend i { width: 12px; height: 12px; border-radius: 3px; display:inline-block; margin-right: 7px; vertical-align: -1px; }
+.bar-track { fill: var(--s3); }
+.bar-mine { fill: var(--twilight); }
+.bar-target { fill: var(--honey); }
+
+/* mini board (scacchiera 8x8 via CSS grid, opzionale) */
+.board { display: grid; grid-template-columns: repeat(8, 1fr); aspect-ratio: 1; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--line-strong); }
+.board i { display:block; }
+.board i.l { background: #2a2f4e; } .board i.d { background: #161a30; }
+
+/* ---------- Nav (sticky, backdrop blur) ---------- */
+.topnav {
+  position: sticky; top: 0; z-index: 50;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  background: rgba(10,13,28,0.82);
+  border-bottom: 1px solid var(--line);
+}
+.topnav .inner { max-width: var(--maxw); margin: 0 auto; padding: 12px 24px; display:flex; align-items:center; gap: 18px; }
+.topnav .brand { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.01em; color: var(--paper); }
+.topnav .brand .o { color: var(--honey-soft); }
+.topnav .links { margin-left: auto; display:flex; gap: 6px; flex-wrap: wrap; }
+.topnav .links a {
+  padding: 7px 13px; border-radius: var(--r-pill); font-size: 0.85rem; font-weight: 600;
+  color: var(--paper-soft); border: 1px solid transparent; transition: all 160ms var(--ease);
+}
+.topnav .links a:hover { color: var(--paper); background: rgba(255,255,255,0.04); border-color: var(--line); }
+.topnav .links a.active { color: var(--twilight-soft); background: color-mix(in srgb, var(--twilight) 12%, transparent); }
+@media (max-width: 720px){ .topnav .links a { padding: 6px 10px; font-size: 0.78rem; } }
+
+/* chapter footer pager */
+.pager { display:flex; justify-content: space-between; gap: 16px; margin-top: 64px; padding-top: 28px; border-top: 1px solid var(--line); }
+.pager a { display:flex; flex-direction: column; gap: 4px; color: var(--paper-soft); }
+.pager .lbl { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.pager a:hover .t { color: var(--twilight-soft); }
+.pager .next { text-align: right; }
+
+/* divider tra blocchi narrativi */
+.rule { height:1px; background: var(--line); border: none; margin: 0; }
+.kicker { display:inline-block; font-size: 0.8rem; color: var(--muted); margin-bottom: 12px; }
+
+/* ---------- Reveal on scroll ---------- */
+.reveal { opacity: 0; transform: translateY(16px); transition: opacity 620ms var(--ease), transform 620ms var(--ease); }
+.reveal.in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce){ .reveal { opacity:1; transform:none; transition:none; } html{scroll-behavior:auto;} }
+
+/* tabella sobria (confronti vs competitor) */
+table.cmp { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+table.cmp th, table.cmp td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+table.cmp th { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+table.cmp td.us { color: var(--paper); font-weight: 600; }
+table.cmp .yes { color: var(--good); } table.cmp .no { color: var(--faint); }
+table.cmp tr:hover td { background: rgba(255,255,255,0.015); }
+
+/* ---------- Responsive / mobile (deck + file unico) ---------- */
+[id] { scroll-margin-top: 76px; }
+.map-scroll, .table-scroll { width: 100%; }
+@media (max-width: 760px) {
+  body { font-size: 16px; }
+  .topnav .inner { gap: 10px; }
+  .topnav .links { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .topnav .links::-webkit-scrollbar { display: none; }
+  .card { padding: 22px 18px; }
+  .card.pad-lg { padding: 24px 18px; }
+  .hero-goal { padding: 26px 20px; }
+  .nonno { font-size: 1.12rem; padding-left: 18px; }
+  .grid { gap: 16px; }
+  section.band { padding: clamp(40px, 12vw, 72px) 0; }
+  .map-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .map-scroll .ooux-map { min-width: 660px; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table.cmp { min-width: 560px; }
+}
+
+
+/* ===== stili dei capitoli (fusi) ===== */
+/* Tocchi di copertina (solo layout, nessun colore nuovo) */
+  .cover { padding-top: clamp(48px, 9vw, 110px); }
+  .cover-title { max-width: 20ch; line-height: 1.04; }
+  .cover-title span { display: block; }
+  .cover-title .honey { color: var(--honey-soft); margin-top: 0.06em; }
+  .wordmark { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
+  .wordmark .mk { font-family: var(--font-display); font-weight: 800; font-size: 1.18rem; letter-spacing: -0.01em; color: var(--paper); }
+  .wordmark .mk b { color: var(--honey-soft); font-weight: 800; }
+  .wordmark .tg { font-size: 0.86rem; color: var(--muted); letter-spacing: 0.03em; }
+  .toc-card { display:flex; flex-direction:column; gap:14px; min-height: 260px; }
+  .toc-card .num { font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); }
+  .toc-card .go { margin-top:auto; font-weight:700; color: var(--twilight-soft); }
+  .toc-card:hover .go { color: var(--honey-soft); }
+  .pillrow { display:flex; gap:10px; flex-wrap:wrap; }
+  .verdict { font-family: var(--font-mono); font-weight:700; font-size:0.8rem; letter-spacing:0.08em; }
+/* ---- tocchi specifici del capitolo (mai ridefinire token) ---- */
+
+    /* HERO: il tavolo nella sera */
+    .anima-hero { padding-top: clamp(48px, 8vw, 96px); }
+    .anima-hero .display { max-width: 18ch; }
+
+    /* IL RIBALTAMENTO · due mondi affiancati, stesso dato */
+    .flip { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: stretch; position: relative; }
+    .flip .vs {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      z-index: 2; width: 46px; height: 46px; border-radius: var(--r-pill);
+      display: grid; place-items: center; background: var(--s3);
+      border: 1px solid var(--line-strong);
+      font-family: var(--font-mono); font-weight: 700; font-size: 0.78rem; color: var(--muted);
+    }
+    @media (max-width: 820px){ .flip { grid-template-columns: 1fr; } .flip .vs { position: static; transform: none; margin: 2px auto; } }
+
+    /* il muro freddo: griglia di numeri che competono (volutamente piatta e muta) */
+    .cold-wall { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border-radius: var(--r-sm); overflow: hidden; }
+    .cold-wall div { background: var(--s1); padding: 12px 10px; }
+    .cold-wall .cv { font-family: var(--font-mono); font-weight: 700; font-size: 1.3rem; color: var(--paper-soft); line-height: 1.1; }
+    .cold-wall .ck { font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); margin-top: 3px; }
+
+    /* mappa-oggetti OOUX */
+    .ooux-map { width: 100%; height: auto; display: block; }
+    .ooux-map .obj rect { fill: var(--s2); stroke: var(--line-strong); }
+    .ooux-map .obj text { fill: var(--paper-soft); font-family: var(--font-body); font-weight: 600; }
+    .ooux-map .edge { stroke: var(--line-strong); fill: none; }
+    .ooux-map .edge-label { fill: var(--muted); font-family: var(--font-mono); font-size: 9px; }
+    /* la relazione-spina: Momento -> Obiettivo, in oro (e' il drill_value, lega al target) */
+    .ooux-map .spine { stroke: var(--honey); stroke-width: 2.4; }
+    .ooux-map .spine-label { fill: var(--honey-soft); font-family: var(--font-mono); font-weight: 700; font-size: 10px; }
+    .ooux-map .node-momento rect { stroke: var(--twilight); }
+    .ooux-map .node-obiettivo rect { stroke: var(--honey); fill: color-mix(in srgb, var(--honey) 8%, var(--s2)); }
+    .ooux-map .node-obiettivo text { fill: var(--honey-soft); }
+    .ooux-map .node-momento text { fill: var(--paper); }
+
+    /* le 3 superfici come 3 momenti del rituale */
+    .surfaces .card { display: flex; flex-direction: column; gap: 14px; }
+    .surfaces .moment-k { font-family: var(--font-mono); font-weight: 700; font-size: 0.78rem; color: var(--muted); }
+    .surfaces .hush { font-size: 0.82rem; color: var(--faint); margin-top: auto; padding-top: 8px; }
+
+    .chart-note { font-size: 0.82rem; color: var(--paper-soft); margin-top: 12px; max-width: 60ch; }
+    .chart-note .who { color: var(--twilight-soft); font-weight: 700; }
+/* Tocchi specifici del capitolo (nessun colore/token ridefinito) */
+  .lede-num { display:grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  @media (max-width: 720px){ .lede-num { grid-template-columns: 1fr; } }
+
+  /* griglia card-Momento: board a sinistra, lettura a destra */
+  .moment { display:grid; grid-template-columns: 220px 1fr; gap: 28px; align-items:center; }
+  @media (max-width: 720px){ .moment { grid-template-columns: 1fr; } }
+  .moment .board { width: 100%; max-width: 220px; }
+  /* caselle in evidenza dentro la mini scacchiera */
+  .board i.hl-from { background: color-mix(in srgb, var(--twilight) 38%, #2a2f4e); }
+  .board i.hl-to   { background: color-mix(in srgb, var(--honey) 30%, #161a30); }
+
+  /* etichetta di grafico (riga sopra al chart) */
+  .chart-cap { font-family: var(--font-body); font-weight:700; font-size:0.72rem; letter-spacing:0.14em; text-transform:uppercase; color: var(--muted); margin-bottom: 12px; }
+  .chart-note { font-size: 0.92rem; color: var(--paper-soft); margin-top: 14px; max-width: 60ch; }
+  .chart-note b { color: var(--honey-soft); font-weight: 700; }
+
+  /* mini riga "ancora" dentro lo screen */
+  .anchor-row { display:grid; grid-template-columns: 1fr auto; gap: 12px; align-items:center; padding: 12px 0; border-top: 1px solid var(--line); }
+  .anchor-row:first-child { border-top: none; }
+  .anchor-row .nm { font-weight: 600; color: var(--paper); }
+  .anchor-row .meta { font-size: 0.8rem; color: var(--muted); }
+  .up { font-family: var(--font-mono); font-weight: 700; color: var(--honey-soft); }
+
+  /* fascia tempo (velocità) */
+  .speed-row { display:grid; grid-template-columns: 96px 1fr 78px; gap: 14px; align-items:center; padding: 10px 0; }
+  .speed-row .tlbl { font-family: var(--font-mono); font-size: 0.82rem; color: var(--paper-soft); }
+  .speed-row .pct  { font-family: var(--font-mono); font-weight: 700; text-align: right; }
+
+  /* ply-table repertorio */
+  .ply { display:grid; grid-template-columns: 64px 1fr auto; gap: 12px; align-items:center; padding: 9px 0; border-top: 1px solid var(--line); font-size: 0.9rem; }
+  .ply:first-child { border-top: none; }
+  .ply .pp { font-family: var(--font-mono); color: var(--muted); }
+
+  .legend-mine i  { background: var(--twilight); }
+  .legend-tgt  i  { background: var(--honey); }
+  .legend-1240 i  { background: var(--twilight-soft); }
+  .legend-avoid i { background: var(--danger); }
+/* tocchi specifici del capitolo (nessun colore ridefinito) */
+    .cap-hero .display { max-width: 16ch; }
+    .flow-screens .step { grid-template-columns: 44px 1fr; align-items: start; }
+    .flow-screens .screen { margin-top: 14px; }
+    .moment-line { font-family: var(--font-mono); font-size: 0.82rem; color: var(--paper-soft); letter-spacing: 0.01em; }
+    .moment-line .t { color: var(--twilight-soft); }
+    .moment-line .h { color: var(--honey-soft); }
+    .micro-board { width: 132px; }
+    .ladder { display: grid; gap: 0; }
+    .ladder .rung { display: grid; grid-template-columns: 96px 1fr auto; gap: 16px; align-items: center; padding: 13px 0; }
+    .ladder .rung + .rung { border-top: 1px solid var(--line); }
+    .ladder .when { font-family: var(--font-mono); font-weight: 700; color: var(--twilight-soft); font-size: 0.92rem; }
+    .tier { display: grid; gap: 10px; }
+    .tier .price { font-family: var(--font-mono); font-weight: 700; font-size: 1.7rem; line-height: 1; }
+    .tier .price.honey { color: var(--honey-soft); }
+    .tier ul { list-style: none; display: grid; gap: 8px; }
+    .tier li { display: grid; grid-template-columns: 18px 1fr; gap: 8px; font-size: 0.92rem; color: var(--paper-soft); }
+    .tier li .mk { color: var(--twilight-soft); font-weight: 700; }
+    .churn { font-size: 0.78rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; margin-top: 4px; }
+    .churn b { color: var(--paper-soft); font-weight: 700; }
+    .adv { display: grid; grid-template-columns: 40px 1fr; gap: 14px; align-items: start; }
+    .adv .num { font-family: var(--font-mono); font-weight: 700; font-size: 1.3rem; color: var(--twilight-soft); }
+    .roadmap { display: grid; gap: 0; }
+    .roadmap .obj { display: grid; grid-template-columns: 30px 1fr auto; gap: 16px; align-items: center; padding: 15px 0; }
+    .roadmap .obj + .obj { border-top: 1px solid var(--line); }
+    .roadmap .obj .led { width: 12px; height: 12px; border-radius: 50%; background: var(--line-strong); justify-self: center; }
+    .roadmap .obj.on .led { background: var(--good); }
+    .roadmap .obj.now .led { background: var(--twilight); }
+    .ask-line { font-family: var(--font-display); font-weight: 700; font-size: clamp(1.5rem, 3.4vw, 2.3rem); line-height: 1.18; letter-spacing: -0.018em; max-width: 22ch; }
+
+/* ---- single-file ---- */
+#top { scroll-margin-top: 0; }
+.chapter { display: block; }
+
+</style>
+</head>
+<body>
+
+<nav class="topnav"><div class="inner">
+  <a class="brand" href="#top">il Tavolo del <span class="o">Nonno</span></a>
+  <div class="links">
+    <a href="#top">Copertina</a>
+    <a href="#anima">L'Anima</a>
+    <a href="#moneta">La Moneta</a>
+    <a href="#prova">La Prova</a>
+  </div>
+</div></nav>
+
+<main>
+  <div id="top">
+<section class="band cover">
+    <div class="wrap stack-lg">
+      <div class="wordmark reveal">
+        <span class="mk">il Tavolo del <b>Nonno</b></span>
+        <span class="tg">il coach che si siede al tuo livello</span>
+      </div>
+
+      <div class="pillrow reveal">
+        <span class="chip tw">Re-immaginazione</span>
+        <span class="chip">Pitch di prodotto</span>
+        <span class="chip honey">2026</span>
+      </div>
+
+      <h1 class="display cover-title reveal">
+        <span>Non analizziamo le tue partite.</span>
+        <span class="honey">Ti misuriamo contro chi vuoi diventare.</span>
+      </h1>
+
+      <p class="lead reveal">
+        L'unica app che ti dice <em>come gioca uno al tuo target</em> in ogni posizione che incontri,
+        e quanto sei lontano. Non "hai sbagliato". Ma: <strong>questa la trova chi vuoi diventare, tu ancora no</strong>.
+        Posizione per posizione.
+      </p>
+
+      <div class="grid grid-2 reveal" style="align-items:stretch; margin-top:8px;">
+        <div class="nonno">
+          <span class="who">Nonno, quando ti siedi</span>
+          Oooh, eccoti. Ti ho guardato le partite. <b>1240</b> oggi, <b>1500</b> nel mirino.
+          Il problema non sono le posizioni difficili, li' fai quello che puoi. E' in quelle che POTEVI
+          chiudere: lasci il pezzo in presa <b>12</b> volte, su mosse che uno al tuo livello trovava.
+          Quello e' il tuo gap, ed e' il piu' facile da recuperare. Sediamoci.
+        </div>
+
+        <div class="hero-goal">
+          <div class="eyebrow honey">Obiettivo dichiarato</div>
+          <div style="display:flex; align-items:baseline; gap:14px; margin:14px 0 6px;">
+            <span class="mono" style="font-size:2.6rem; color:var(--paper);">1240</span>
+            <span class="muted" style="font-size:1.4rem;">&rarr;</span>
+            <span class="mono" style="font-size:2.6rem; color:var(--honey-soft);">1500</span>
+            <span class="chip" style="margin-left:auto;">rapid</span>
+          </div>
+          <div class="verdict warn">IN RITARDO, RECUPERABILE</div>
+          <p class="soft" style="margin-top:14px; font-size:0.92rem;">
+            90 giorni di deadline. Servono <span class="mono">+2.9</span>/sett., fai <span class="mono">+1.2</span>.
+            Il gap col target sul tuo campione: <span class="mono">33</span> errori evitabili. E' il numero che facciamo scendere.
+          </p>
+        </div>
+      </div>
+
+      <div class="row reveal">
+        <a class="btn btn-primary" href="#anima">Sfoglia il pitch</a>
+        <span class="muted" style="font-size:0.9rem;">3 racconti &middot; 10 minuti &middot; nessun grafico decorativo</span>
+      </div>
+    </div>
+  </section>
+<section class="band">
+    <div class="wrap stack-lg">
+      <div class="eyebrow reveal">Il ribaltamento, in tre colpi</div>
+      <div class="grid grid-3">
+        <div class="card reveal stack">
+          <div class="stat"><span class="n tw">0.32</span><span class="k">la difficolta' e' la moneta</span></div>
+          <p class="soft" style="font-size:0.92rem;">Ogni errore pesato per quanto la posizione era difficile <em>al tuo livello</em>. "244 errori" e' rumore. "33 evitabili verso il target" agisce.</p>
+        </div>
+        <div class="card reveal stack">
+          <div class="stat"><span class="n honey">67%</span><span class="k">Maia e' l'avversario vivente</span></div>
+          <p class="soft" style="font-size:0.92rem;">Non un check si'/no. Il benchmark calibrato al livello che vuoi diventare. Un 1500 trova quella mossa il 67% delle volte, tu il 34%. E ora <strong>gira nel tuo browser</strong>.</p>
+        </div>
+        <div class="card reveal stack">
+          <div class="stat"><span class="n">una</span><span class="k">la voce e' il prodotto</span></div>
+          <p class="soft" style="font-size:0.92rem;">Nonno non e' un chatbot. E' l'interprete dei tuoi dati. Una voce sola, in tutto il prodotto, che ti dice cosa conta oggi e ti aspetta domani.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+  </div>
+
+  <div id="anima" class="chapter">
+<!-- ============================================================
+       1. HERO · il rituale, il North Star, la voce che accoglie
+       ============================================================ -->
+  <section class="band anima-hero">
+    <div class="wrap">
+      <div class="reveal stack-lg">
+        <span class="eyebrow">Capitolo 1 · L'Anima</span>
+        <h1 class="display">Non e' una dashboard. E' un tavolo a cui ti siedi la sera.</h1>
+        <p class="lead">
+          Apri l'app da solo, dopo cena. La lampada e' accesa. Qualcuno ti aspettava:
+          ti ha gia' guardato le partite, ha gia' scelto cosa conta stasera. Non ti
+          riempie di grafici, ti parla. Quindici minuti, e poi torni domani.
+        </p>
+
+        <div class="nonno">
+          <span class="who">Nonno dice</span>
+          Oooh, eccoti. Ti ho guardato le partite. <b>1240</b> oggi, <b>1500</b> nel mirino.
+          Il problema non sono le posizioni difficili, li' fai quello che puoi. E' in quelle
+          che POTEVI chiudere: lasci il pezzo in presa <b>12</b> volte, su mosse che uno al tuo
+          livello trovava. Un <b>1500</b>, li', non sbaglia. Quello e' il tuo gap, ed e' il piu'
+          facile da recuperare. Una settimana su questo e i punti arrivano. Sediamoci.
+        </div>
+
+        <div class="row">
+          <button class="btn btn-primary" type="button">Sediamoci&nbsp;&rarr;</button>
+          <span class="mono muted">3 momenti · 1 partita · 15 minuti</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       1b. CHI E' NONNO · la figura che ti insegna e si mette al tuo
+           livello. Il nome del prodotto. (l'anima)
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="grid grid-2" style="align-items: center; gap: 44px;">
+        <div class="reveal stack">
+          <span class="eyebrow">Chi e' Nonno</span>
+          <h2 class="h2">Un nonno non ti allena. Si siede accanto, e ti insegna.</h2>
+          <p class="lead">
+            Ha imparato il gioco decenni fa, ha visto diecimila partite. Quando ti siedi non si
+            mette in cattedra: <strong>si china sulla scacchiera e si mette al tuo livello</strong>.
+            Ti mostra dove guardare, aspetta mentre pensi, non ti giudica. Ti insegna guardando
+            le <em>tue</em> partite, non gli scacchi in generale.
+          </p>
+          <p class="soft">
+            Per questo si chiama <strong>il Tavolo del Nonno</strong>. Non "dashboard", non "trainer".
+            Un tavolo: il posto dove, la sera, qualcuno piu' avanti di te si siede vicino e, senza
+            fretta, ti porta un passo piu' in la'.
+          </p>
+        </div>
+
+        <div class="reveal">
+          <div class="card s2 pad-lg stack">
+            <span class="eyebrow honey">"Si mette al tuo livello" non e' un modo di dire</span>
+            <p class="soft" style="max-width:none;">
+              Quando Nonno ti fa rigiocare un bivio contro un <span class="honey mono">1500</span>,
+              quel 1500 e' <strong>Maia calibrata</strong>: una macchina che gioca DAVVERO come uno
+              del tuo livello, con le sue esitazioni, non un motore che ti annienta. Il nonno che si
+              china sulla scacchiera e la tecnologia che lo rende possibile fanno la stessa, identica
+              cosa: <strong>incontrarti dove sei</strong>, e portarti dove puoi arrivare.
+            </p>
+            <div class="row" style="gap:10px;">
+              <span class="chip">non un motore che ti schiaccia</span>
+              <span class="chip honey">un avversario al tuo livello</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       2. IL RIBALTAMENTO · da "i tuoi errori" a "quanto sei lontano
+          da chi vuoi diventare". Confronto fianco-a-fianco.
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="reveal narrow center stack" style="margin-bottom: 44px;">
+        <span class="eyebrow">Il ribaltamento</span>
+        <h2 class="h2">Gli altri ti mostrano gli errori. Noi ti diciamo quanto sei lontano da chi vuoi diventare, posizione per posizione.</h2>
+        <p class="lead" style="margin: 0 auto;">
+          Stesso dato grezzo, due mondi. A sinistra il muro freddo: numeri che competono
+          per la tua attenzione e ti lasciano solo a interpretarli. A destra il Tavolo:
+          una voce, e <strong>un solo edge</strong> che conta oggi.
+        </p>
+      </div>
+
+      <div class="reveal flip">
+        <!-- SINISTRA: la dashboard fredda degli altri -->
+        <div class="card">
+          <div class="between" style="margin-bottom: 16px;">
+            <span class="eyebrow muted">Le insights degli altri</span>
+            <span class="chip">Accuracy 71%</span>
+          </div>
+          <div class="cold-wall" aria-label="muro di numeri freddi">
+            <div><div class="cv">61</div><div class="ck">mistakes + blunders</div></div>
+            <div><div class="cv">312</div><div class="ck">critical positions</div></div>
+            <div><div class="cv">0.32</div><div class="ck">avg difficulty</div></div>
+            <div><div class="cv">58%</div><div class="ck">conversion</div></div>
+            <div><div class="cv">31%</div><div class="ck">save rate</div></div>
+            <div><div class="cv">4.8%</div><div class="ck">midgame error</div></div>
+            <div><div class="cv">1.2%</div><div class="ck">opening error</div></div>
+            <div><div class="cv">2.1%</div><div class="ck">endgame error</div></div>
+            <div><div class="cv">42%</div><div class="ck">blow rate</div></div>
+          </div>
+          <p class="chart-note muted">
+            Nove numeri veri. Tutti corretti. Nessuno ti dice da dove cominciare stasera.
+            Sei tu a dover capire. E quindi non torni.
+          </p>
+        </div>
+
+        <span class="vs mono">vs</span>
+
+        <!-- DESTRA: il Tavolo. La voce + UN edge che conta. -->
+        <div class="card s2">
+          <div class="between" style="margin-bottom: 16px;">
+            <span class="eyebrow">Il Tavolo</span>
+            <span class="chip tw">oggi conta una cosa</span>
+          </div>
+
+          <div class="nonno" style="font-size: 1.15rem;">
+            <span class="who">Nonno dice</span>
+            Lasci il <b>pezzo in presa</b> dodici volte. Tu lo eviti il <b>34%</b>,
+            un <b>1500</b> il <b>67%</b>. E' la tua ancora piu' facile da mollare:
+            <b>+18</b> punti se ci lavori una settimana.
+          </div>
+
+          <svg class="chart" viewBox="0 0 400 96" role="img" aria-label="Pezzo in presa: tu 34 percento, un 1500 il 67 percento" style="margin-top: 18px;">
+            <text x="0" y="12" font-size="10">PEZZO IN PRESA · trovi la mossa giusta</text>
+            <rect class="bar-track" x="0" y="22" width="400" height="20" rx="6"></rect>
+            <rect class="bar-mine"  x="0" y="22" width="136" height="20" rx="6"></rect>
+            <text x="146" y="37" font-size="11" fill="#a18bff">tu 34%</text>
+            <rect class="bar-track" x="0" y="56" width="400" height="20" rx="6"></rect>
+            <rect class="bar-target" x="0" y="56" width="268" height="20" rx="6"></rect>
+            <text x="278" y="71" font-size="11" fill="#ffd877">un 1500: 67%</text>
+          </svg>
+          <p class="chart-note">
+            <span class="who">Nonno:</span> la barra viola sei tu oggi, l'oro e' dove arrivi.
+            Quella distanza ha un prezzo in punti, e questa volta sai da dove partire.
+          </p>
+        </div>
+      </div>
+
+      <p class="reveal center mono muted" style="margin-top: 28px;">
+        61 errori &rarr; 33 evitabili &rarr; 1 ancora da mollare per prima. Sottrazione, non accumulo.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       3. NONNO, IL PERSONAGGIO · la voce e' il prodotto
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="grid grid-2" style="align-items: start; gap: 40px;">
+        <div class="reveal stack">
+          <span class="eyebrow">Il personaggio</span>
+          <h2 class="h2">La voce e' il prodotto.</h2>
+          <p class="lead">
+            Nonno non e' un chatbot e non improvvisa. E' un <strong>interprete dei tuoi dati</strong>:
+            ti parla in seconda persona, caldo ma diretto, e cita i numeri dentro il discorso,
+            non accanto. Ti accoglie, ti da' la frustata gentile quando serve, e ti rimanda
+            su con un perche'.
+          </p>
+          <p class="soft">
+            Tre cose, e nient'altro, lo distinguono da qualsiasi insights tool:
+            <strong>il tempo che hai speso</strong> sulla mossa, <strong>il confronto con chi vuoi diventare</strong>
+            (tu vs un 1500 su quella posizione esatta), e il consiglio della <strong>mossa di attesa</strong>
+            quando la mossa giusta era davvero troppo difficile per te. Niente colpa: solo la verita',
+            misurata.
+          </p>
+          <div class="row">
+            <span class="chip tw">seconda persona, sempre TU</span>
+            <span class="chip">una sola voce</span>
+            <span class="chip">cita i tuoi numeri</span>
+          </div>
+        </div>
+
+        <div class="reveal stack-lg">
+          <!-- accoglienza -->
+          <div class="nonno">
+            <span class="who">Nonno · accoglienza</span>
+            Oooh, eccoti. Oggi rivediamo tre momenti delle tue ultime partite. Niente di
+            difficile, roba tua. Poi una partita contro un <b>1500</b>, e ti lascio andare.
+          </div>
+          <!-- la frustata gentile -->
+          <div class="nonno">
+            <span class="who">Nonno · la frustata gentile</span>
+            Hai mosso in <b>8</b> secondi. Su quelle mosse, il <b>41%</b> dei tuoi errori
+            erano evitabili. Non e' che non li vedi: e' che non ti fermi. Respira, e guarda
+            ancora.
+          </div>
+          <!-- l'incoraggiamento, ancorato al dato di crescita -->
+          <div class="nonno">
+            <span class="who">Nonno · l'incoraggiamento</span>
+            Quattro settimane fa il pezzo in presa lo evitavi il <b>19%</b> delle volte.
+            Oggi <b>34%</b>. Hai gia' chiuso un terzo del gap verso il <b>67%</b>. Stai
+            andando. Continua cosi'.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       4. LA LOGICA OOUX RIBALTATA E SPIATTELLATA
+          La relazione-spina al centro: Momento x Obiettivo = drill_value
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="reveal narrow center stack" style="margin-bottom: 40px;">
+        <span class="eyebrow">La logica, spiattellata</span>
+        <h2 class="h2">Il colpo di genio non e' un oggetto al centro. E' una relazione.</h2>
+        <p class="lead" style="margin: 0 auto;">
+          Tutti costruiscono attorno a un sostantivo (la partita, l'errore). Noi mettiamo al
+          centro un <strong>legame</strong>: ogni Momento, incrociato col tuo Obiettivo, diventa un
+          numero, <strong>il drill_value</strong>. Tutti gli oggetti e i loro legami sono visibili in
+          un colpo d'occhio, niente nascosto dietro un'icona.
+        </p>
+      </div>
+
+      <div class="reveal card s2 pad-lg">
+        <div class="map-scroll"><svg class="ooux-map" viewBox="0 0 920 470" role="img"
+             aria-label="Mappa dei nove oggetti e delle loro relazioni. L'arco evidenziato in oro lega Momento e Obiettivo: e' il drill value.">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#2a3158"></path>
+            </marker>
+            <marker id="arrow-gold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#f6c64a"></path>
+            </marker>
+          </defs>
+
+          <!-- ===== archi (sotto i nodi) ===== -->
+          <!-- Partita -> Momento : ha molti -->
+          <line class="edge" x1="158" y1="120" x2="300" y2="200" marker-end="url(#arrow)"></line>
+          <text class="edge-label" x="200" y="153">ha molti</text>
+          <!-- Partita -> Apertura : in -->
+          <line class="edge" x1="120" y1="148" x2="120" y2="316" marker-end="url(#arrow)"></line>
+          <text class="edge-label" x="74" y="238">in</text>
+          <!-- Apertura -> Momento : genera -->
+          <line class="edge" x1="178" y1="346" x2="300" y2="246" marker-end="url(#arrow)"></line>
+          <text class="edge-label" x="196" y="312">genera</text>
+          <!-- Momento -> Struttura : dentro -->
+          <line class="edge" x1="386" y1="252" x2="386" y2="328" marker-end="url(#arrow)"></line>
+          <text class="edge-label" x="396" y="296">dentro</text>
+          <!-- Struttura -> Apertura : nasce da -->
+          <line class="edge" x1="320" y1="360" x2="216" y2="360" marker-end="url(#arrow)"></line>
+          <text class="edge-label" x="232" y="380">nasce da</text>
+          <!-- Freno -> Momento : istanza di -->
+          <line class="edge" x1="600" y1="150" x2="452" y2="206" marker-end="url(#arrow)"></line>
+          <text class="edge-label" x="500" y="166">istanza di</text>
+          <!-- Avversario/Maia -> spina : calibra (entra nel calcolo) -->
+          <line class="edge" x1="640" y1="346" x2="568" y2="300" marker-end="url(#arrow)"></line>
+          <text class="edge-label" x="566" y="346">calibra</text>
+          <!-- Sessione -> Momento : rivede / rigioca -->
+          <line class="edge" x1="386" y1="116" x2="386" y2="196" marker-end="url(#arrow)"></line>
+          <text class="edge-label" x="396" y="160">rivede</text>
+          <!-- Sessione -> Quaderno : scrive -->
+          <line class="edge" x1="452" y1="92" x2="734" y2="92" marker-end="url(#arrow)"></line>
+          <text class="edge-label" x="560" y="80">scrive voci</text>
+
+          <!-- ===== LA SPINA: Momento x Obiettivo = drill_value (oro) ===== -->
+          <line class="spine" x1="452" y1="224" x2="734" y2="224" marker-end="url(#arrow-gold)"></line>
+          <text class="spine-label" x="500" y="214">x OBIETTIVO = drill_value</text>
+          <text class="spine-label" x="500" y="246" fill="#717892" font-weight="400">p(target la trova) &minus; p(tu la trovi)</text>
+
+          <!-- ===== nodi (oggetti) ===== -->
+          <!-- Partita -->
+          <g class="obj">
+            <rect x="40" y="92" width="120" height="48" rx="10"></rect>
+            <text x="100" y="121" text-anchor="middle" font-size="13">Partita</text>
+          </g>
+          <!-- Apertura -->
+          <g class="obj">
+            <rect x="40" y="316" width="120" height="48" rx="10"></rect>
+            <text x="100" y="345" text-anchor="middle" font-size="13">Apertura</text>
+          </g>
+          <!-- Struttura -->
+          <g class="obj">
+            <rect x="320" y="336" width="132" height="48" rx="10"></rect>
+            <text x="386" y="365" text-anchor="middle" font-size="13">Struttura</text>
+          </g>
+          <!-- Sessione -->
+          <g class="obj">
+            <rect x="320" y="68" width="132" height="48" rx="10"></rect>
+            <text x="386" y="97" text-anchor="middle" font-size="13">Sessione</text>
+          </g>
+          <!-- Freno (Ancora) -->
+          <g class="obj">
+            <rect x="600" y="102" width="148" height="48" rx="10"></rect>
+            <text x="674" y="125" text-anchor="middle" font-size="13">Ancora</text>
+            <text x="674" y="140" text-anchor="middle" font-size="9" fill="#717892">debolezza ricorrente</text>
+          </g>
+          <!-- Avversario / Maia -->
+          <g class="obj">
+            <rect x="600" y="346" width="180" height="56" rx="10"></rect>
+            <text x="690" y="370" text-anchor="middle" font-size="13">Avversario</text>
+            <text x="690" y="387" text-anchor="middle" font-size="9" fill="#717892">Maia, calibrata al target</text>
+          </g>
+          <!-- Quaderno -->
+          <g class="obj">
+            <rect x="734" y="68" width="146" height="48" rx="10"></rect>
+            <text x="807" y="97" text-anchor="middle" font-size="13">Quaderno</text>
+          </g>
+
+          <!-- MOMENTO (protagonista, bordo twilight) -->
+          <g class="obj node-momento">
+            <rect x="300" y="196" width="152" height="56" rx="11"></rect>
+            <text x="376" y="220" text-anchor="middle" font-size="14" font-weight="700">Momento</text>
+            <text x="376" y="238" text-anchor="middle" font-size="9" fill="#a18bff">la posizione critica, l'atomo</text>
+          </g>
+          <!-- OBIETTIVO (oro, fine della spina) -->
+          <g class="obj node-obiettivo">
+            <rect x="734" y="196" width="146" height="56" rx="11"></rect>
+            <text x="807" y="220" text-anchor="middle" font-size="14" font-weight="700">Obiettivo</text>
+            <text x="807" y="238" text-anchor="middle" font-size="9">1500 in 90 giorni</text>
+          </g>
+        </svg></div>
+
+        <p class="chart-note" style="margin-top: 18px;">
+          <span class="who">Nonno:</span> guarda l'arco d'oro. Ogni posizione che hai vissuto,
+          messa accanto a dove vuoi arrivare, diventa un solo numero: quanto quella mossa ti separa
+          dal 1500. Non e' "hai sbagliato", e': questa la trova chi vuoi diventare, tu ancora no.
+          Tutto il resto del prodotto e' appeso a quel filo.
+        </p>
+      </div>
+
+      <div class="reveal grid grid-3" style="margin-top: 24px;">
+        <div class="stat">
+          <span class="n tw">9</span>
+          <span class="k">oggetti, tutti in vista</span>
+        </div>
+        <div class="stat">
+          <span class="n honey">1</span>
+          <span class="k">relazione-spina al centro</span>
+        </div>
+        <div class="stat">
+          <span class="n">0</span>
+          <span class="k">valore nascosto dietro icone</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       5. LE 3 SUPERFICI come 3 momenti del rituale (teaser)
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="reveal narrow center stack" style="margin-bottom: 40px;">
+        <span class="eyebrow">Il rituale, in tre momenti</span>
+        <h2 class="h2">Tre superfici, un solo gesto della sera.</h2>
+        <p class="lead" style="margin: 0 auto;">
+          Non un menu di pagine scollegate. Tre momenti dello stesso rituale: cosa conta oggi,
+          dove ti alleni, e la casa dove ritrovi tutto. Il dettaglio arriva nei prossimi capitoli.
+        </p>
+      </div>
+
+      <div class="reveal surfaces grid grid-3">
+        <!-- TAVOLO -->
+        <div class="card">
+          <span class="moment-k">01 · l'ingresso</span>
+          <h3>Tavolo</h3>
+          <p class="soft">Oggi, cosa conta. La voce di Nonno, l'anello dell'Obiettivo, e
+            la mossa che ti e' costata di piu'. Da qui ti tuffi in ogni oggetto.</p>
+          <div class="row"><span class="chip tw">Sediamoci</span></div>
+          <span class="hush">la priorita', detta forte</span>
+        </div>
+        <!-- SESSIONE -->
+        <div class="card">
+          <span class="moment-k">02 · l'allenamento</span>
+          <h3>Sessione</h3>
+          <p class="soft">Guardo e Nonno parla, Nonno mi aiuta, gioco da solo, gioco la
+            partita contro un 1500 da una mia posizione vissuta. Quattro fasi, sulle TUE posizioni.</p>
+          <div class="row"><span class="chip">3 momenti · 1 partita</span></div>
+          <span class="hush">il loop attivo, ~15 minuti</span>
+        </div>
+        <!-- QUADERNO -->
+        <div class="card">
+          <span class="moment-k">03 · la casa continua</span>
+          <h3>Quaderno</h3>
+          <p class="soft">La memoria navigabile, prima classe e non nascosta: la tua
+            evoluzione, le cadute, il repertorio. Da un'Ancora arrivi ai suoi Momenti, da un
+            Momento alla sua Struttura.</p>
+          <div class="row"><span class="chip">Evoluzione · Cadute · Storia</span></div>
+          <span class="hush">la continuita', sussurrata</span>
+        </div>
+      </div>
+
+      <p class="reveal center mono muted" style="margin-top: 28px;">
+        Tavolo (oggi) &rarr; Sessione (allena) &rarr; Quaderno (ritrova). E domani si ricomincia.
+      </p>
+    </div>
+  </section>
+  </div>
+
+  <div id="moneta" class="chapter">
+<!-- ============================================================
+       APERTURA CAPITOLO
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="reveal stack">
+        <span class="eyebrow honey">Capitolo 2 · La Moneta</span>
+        <h1>Tutti contano gli errori.<br>Noi pesiamo quelli che <span class="honey">potevi evitare</span>.</h1>
+        <p class="lead">
+          Chess.com, Aimchess, Lichess ti dicono quanti errori hai fatto, poi ti lasciano
+          interpretare. Numero grosso, zero direzione. Qui la nostra unita' di misura non e'
+          "hai sbagliato", e': <strong>questa la trova chi vuoi diventare, tu ancora no</strong>.
+          La difficolta' della posizione e' la moneta: ogni metrica pesata per quanto era
+          difficile <em>al tuo livello</em>.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       BEAT 1 · TESI: la difficolta' e' la moneta
+       Stesso campione, riletto per difficolta'. Tu vs 1240 vs 1500.
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="reveal stack" style="margin-bottom: 36px;">
+        <span class="eyebrow">La tesi</span>
+        <h2>Lo stesso campione, riletto per difficolta'</h2>
+        <p class="lead">
+          Ultime <span class="mono">100</span> partite. <span class="mono">312</span> posizioni
+          critiche. <span class="mono">61</span> errori gravi. Difficolta' media
+          <span class="mono">0.32</span>. Finora questo era un mucchio di numeri. Adesso ci mettiamo
+          accanto chi sei tu e chi vuoi diventare, <em>sullo stesso identico campione</em>.
+        </p>
+      </div>
+
+      <div class="grid grid-2 reveal" style="align-items: stretch;">
+
+        <!-- Grafico: tu vs 1240 vs 1500, stesso campione -->
+        <div class="card s2 pad-lg">
+          <div class="chart-cap">Errori sullo stesso campione di 312 posizioni</div>
+          <svg class="chart" viewBox="0 0 480 210" role="img" aria-label="Tu 61 errori, un 1240 47, un 1500 28 sullo stesso campione">
+            <!-- assi impliciti, barre orizzontali -->
+            <!-- riga TU -->
+            <text x="0" y="34" font-size="12" fill="#b6bcd6">tu, oggi · 1240</text>
+            <rect class="bar-track" x="0" y="42" width="480" height="26" rx="6"></rect>
+            <rect x="0" y="42" width="480" height="26" rx="6" fill="#7c5cff"></rect>
+            <text x="466" y="59" font-size="13" font-weight="700" fill="#eef0fa" text-anchor="end">61 errori</text>
+
+            <!-- riga un 1240 medio -->
+            <text x="0" y="98" font-size="12" fill="#b6bcd6">un 1240 medio</text>
+            <rect class="bar-track" x="0" y="106" width="480" height="26" rx="6"></rect>
+            <rect x="0" y="106" width="370" height="26" rx="6" fill="#a18bff"></rect>
+            <text x="356" y="123" font-size="13" font-weight="700" fill="#0a0d1c" text-anchor="end">47</text>
+
+            <!-- riga un 1500 (target) -->
+            <text x="0" y="162" font-size="12" fill="#ffd877">un 1500 (il tuo obiettivo)</text>
+            <rect class="bar-track" x="0" y="170" width="480" height="26" rx="6"></rect>
+            <rect class="bar-target" x="0" y="170" width="220" height="26" rx="6"></rect>
+            <text x="206" y="187" font-size="13" font-weight="700" fill="#0a0d1c" text-anchor="end">28</text>
+          </svg>
+          <div class="legend" style="margin-top:14px;">
+            <span class="legend-mine"><i></i>tu (1240)</span>
+            <span class="legend-1240"><i></i>la media al tuo punteggio</span>
+            <span class="legend-tgt"><i></i>il livello che vuoi</span>
+          </div>
+          <p class="chart-note">
+            <span class="nonno" style="border:none; padding:0; font-size:1rem; font-family:var(--font-body); font-weight:400; color:var(--paper-soft);">
+            Su queste posizioni un 1500 ne sbaglia <b>28</b>, tu <b>61</b>. La differenza,
+            <b>33 errori</b>, non sono "posizioni difficili": sono mosse che chi vuoi diventare trova.
+            Quello e' il tuo gap, ed e' il numero che facciamo scendere.</span>
+          </p>
+        </div>
+
+        <!-- Da numero vuoto a numero che agisce -->
+        <div class="card s2 pad-lg stack">
+          <div class="chart-cap">Da numero vuoto a numero che agisce</div>
+
+          <div class="between" style="align-items:center;">
+            <div class="stat">
+              <span class="n muted">244</span>
+              <span class="k">"errori evitabili" alla vecchia maniera</span>
+            </div>
+            <span class="mono muted" style="font-size:1.4rem;">&rarr;</span>
+            <div class="stat">
+              <span class="n honey">33</span>
+              <span class="k">errori evitabili verso il 1500</span>
+            </div>
+          </div>
+
+          <hr class="rule" style="margin: 18px 0;">
+
+          <p class="soft" style="max-width:none;">
+            <span class="mono">244</span> non ti dice cosa fare: non sai se sono mosse impossibili
+            o sviste banali. <span class="mono">33</span> e' azionabile: e' la distanza esatta,
+            su questo campione, fra te e chi giocava al tuo posto a <span class="honey mono">1500</span>.
+            Chiudine un terzo e l'hai gia' visto, in queste 100 partite, salire.
+          </p>
+
+          <div class="row" style="gap:10px;">
+            <span class="chip">campione fisso · 312 pos.</span>
+            <span class="chip">difficolta' media 0.32</span>
+            <span class="chip honey">gap target · 33</span>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="nonno reveal" style="margin-top: 40px;">
+        <span class="who">Nonno dice</span>
+        Il problema non sono le posizioni difficili, li' fai quello che puoi. E' in quelle che
+        <b>potevi chiudere</b>. Un mucchio da 244 non si allena. Trentatre' errori verso il 1500, si'.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       BEAT 2 · MAIA, L'AVVERSARIO VIVENTE
+       Il grafico-firma: tu 34% / un 1500 67% sulla stessa posizione.
+       Usiamo la DISTRIBUZIONE, non l'argmax.
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="reveal stack" style="margin-bottom: 36px;">
+        <span class="eyebrow">Il benchmark vivente</span>
+        <h2>Maia non e' un giudice.<br>E' l'avversario calibrato.</h2>
+        <p class="lead">
+          Stockfish dice qual e' la mossa giusta (la verita'). Maia dice
+          <strong>quante probabilita' c'erano che la trovassi tu, e che la trovasse un 1500</strong>,
+          nella stessa posizione. Non un "si'/no": una probabilita'. E' quella distribuzione il dato,
+          non il semplice "qual e' la mossa piu' probabile".
+        </p>
+      </div>
+
+      <div class="grid grid-2 reveal" style="align-items:stretch;">
+
+        <!-- Grafico-firma: tu 34% vs 1500 67% -->
+        <div class="card pad-lg">
+          <svg class="chart" viewBox="0 0 480 150" role="img" aria-label="Pezzo in presa: tu 34 percento, un 1500 67 percento">
+            <text x="0" y="16" font-size="11" fill="#717892">PEZZO IN PRESA · TROVI LA MOSSA GIUSTA</text>
+
+            <rect class="bar-track" x="0" y="38" width="480" height="28" rx="7"></rect>
+            <rect class="bar-mine"  x="0" y="38" width="163" height="28" rx="7"></rect>
+            <text x="175" y="57" font-size="14" font-weight="700" fill="#a18bff">tu 34%</text>
+
+            <rect class="bar-track" x="0" y="92" width="480" height="28" rx="7"></rect>
+            <rect class="bar-target" x="0" y="92" width="322" height="28" rx="7"></rect>
+            <text x="334" y="111" font-size="14" font-weight="700" fill="#ffd877">un 1500: 67%</text>
+
+            <!-- delta marker -->
+            <line x1="163" y1="34" x2="163" y2="124" stroke="#2a3158" stroke-width="1" stroke-dasharray="3 3"></line>
+            <line x1="322" y1="34" x2="322" y2="124" stroke="#2a3158" stroke-width="1" stroke-dasharray="3 3"></line>
+            <text x="243" y="140" font-size="11" fill="#717892" text-anchor="middle">il gap = drill_value 0.33</text>
+          </svg>
+          <p class="chart-note">
+            <span class="nonno" style="border:none; padding:0; font-size:1rem; font-family:var(--font-body); font-weight:400; color:var(--paper-soft);">
+            Su due dei tuoi pezzi in presa su tre, un 1500 muove giusto. Tu uno su tre. Non sei tu
+            che "sbagli sempre": sei tu <b>33 punti percentuali sotto</b> chi vuoi diventare, qui.</span>
+          </p>
+        </div>
+
+        <!-- La distribuzione, non l'argmax -->
+        <div class="card s2 pad-lg stack">
+          <div class="chart-cap">Perche' la distribuzione e non solo la prima mossa</div>
+          <svg class="chart" viewBox="0 0 480 168" role="img" aria-label="Distribuzione Maia delle mosse candidate, tu contro un 1500">
+            <!-- 4 candidate, due profili: mine (twilight) e target (honey) -->
+            <!-- assi -->
+            <line x1="0" y1="140" x2="480" y2="140" class="axis"></line>
+            <!-- gruppi -->
+            <!-- Txc4 (la giusta) -->
+            <rect x="20"  y="70"  width="34" height="70"  rx="3" fill="#7c5cff"></rect>
+            <rect x="58"  y="44"  width="34" height="96"  rx="3" fill="#f6c64a"></rect>
+            <text x="56" y="156" font-size="10" fill="#b6bcd6" text-anchor="middle">Txc4 (giusta)</text>
+            <!-- Cf6 -->
+            <rect x="150" y="100" width="34" height="40" rx="3" fill="#7c5cff"></rect>
+            <rect x="188" y="118" width="34" height="22" rx="3" fill="#f6c64a"></rect>
+            <text x="186" y="156" font-size="10" fill="#717892" text-anchor="middle">Cf6</text>
+            <!-- a5 -->
+            <rect x="280" y="112" width="34" height="28" rx="3" fill="#7c5cff"></rect>
+            <rect x="318" y="124" width="34" height="16" rx="3" fill="#f6c64a"></rect>
+            <text x="316" y="156" font-size="10" fill="#717892" text-anchor="middle">a5</text>
+            <!-- Dd7 -->
+            <rect x="410" y="120" width="34" height="20" rx="3" fill="#7c5cff"></rect>
+            <rect x="448" y="130" width="22" height="10" rx="3" fill="#f6c64a"></rect>
+            <text x="436" y="156" font-size="10" fill="#717892" text-anchor="middle">Dd7</text>
+          </svg>
+          <div class="legend">
+            <span class="legend-mine"><i></i>quanto e' probabile per te</span>
+            <span class="legend-tgt"><i></i>quanto per un 1500</span>
+          </div>
+          <p class="soft" style="max-width:none;">
+            Gli altri leggono solo "la mossa piu' probabile" e buttano via il resto. Noi teniamo
+            <strong>l'intera curva</strong>: la giusta e' al <span class="mono">34%</span> per te e al
+            <span class="honey mono">67%</span> per il target, ma vediamo anche dove vanno le tue mani
+            quando sbagli. E' li' che nasce ogni numero del prodotto.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       BEAT 3 · drill_value reso numero su UNA posizione concreta
+       card-Momento: mini scacchiera + lettura.
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="reveal stack" style="margin-bottom: 36px;">
+        <span class="eyebrow">Un momento, da vicino</span>
+        <h2>"Errore grave" non basta.<br>Questo era <span class="honey">evitabile al tuo livello</span>.</h2>
+        <p class="lead">
+          Prendi una posizione vera delle tue ultime 100 partite. La differenza fra un errore qualsiasi
+          e un errore che ti costa punti la dice un solo numero: <strong>drill_value</strong>, quanto piu'
+          probabile era che la trovasse chi vuoi diventare, rispetto a te.
+        </p>
+      </div>
+
+      <div class="card s2 pad-lg reveal">
+        <div class="moment">
+          <!-- mini scacchiera 8x8: alternanza l/d, due caselle evidenziate (from/to) -->
+          <div class="board" role="img" aria-label="Posizione: pezzo in presa, casa di partenza e di arrivo evidenziate">
+            <!-- riga 8 --><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i>
+            <!-- riga 7 --><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i>
+            <!-- riga 6 --><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i>
+            <!-- riga 5 --><i class="d"></i><i class="l"></i><i class="d"></i><i class="l hl-to"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i>
+            <!-- riga 4 --><i class="l"></i><i class="d"></i><i class="l hl-from"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i>
+            <!-- riga 3 --><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i>
+            <!-- riga 2 --><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i>
+            <!-- riga 1 --><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i>
+          </div>
+
+          <div class="stack">
+            <div class="row" style="gap:10px;">
+              <span class="chip tw">Pezzo in presa</span>
+              <span class="chip">vs un 1180 · mossa 24</span>
+              <span class="chip warn">pensato 6s</span>
+            </div>
+
+            <p class="soft" style="max-width:none;">
+              Avevi la torre che catturava in <span class="mono">c4</span> e chiudeva. L'hai vista in
+              <span class="mono">6</span> secondi e hai mosso altro, lasciando il pezzo in presa.
+              La verita' di Stockfish: <span class="mono">Txc4</span>. Quanto era trovabile?
+            </p>
+
+            <!-- drill_value reso esplicito -->
+            <div class="between" style="align-items:flex-end; gap: 14px; flex-wrap:wrap;">
+              <div class="stat">
+                <span class="n tw">34%</span>
+                <span class="k">la trovavi tu (p_maia_mine_top)</span>
+              </div>
+              <div class="stat">
+                <span class="n honey">67%</span>
+                <span class="k">la trova un 1500 (p_maia_target_top)</span>
+              </div>
+              <div class="stat">
+                <span class="n honey">0.33</span>
+                <span class="k">drill_value = la moneta</span>
+              </div>
+            </div>
+
+            <hr class="rule" style="margin: 6px 0;">
+
+            <p class="soft" style="max-width:none;">
+              <strong>Errore grave?</strong> Lo sarebbe per chiunque. <strong>Evitabile per te?</strong>
+              Si': un 1500 la chiude due volte su tre, e tu non sei lontano.
+              <span class="honey">drill_value 0.33</span> vuol dire: e' qui che recuperi punti, non
+              nelle posizioni dove anche il target tentenna.
+            </p>
+          </div>
+        </div>
+
+        <div class="nonno" style="margin-top: 28px;">
+          <span class="who">Nonno dice</span>
+          Questa la trova un 1500 il <b>67%</b> delle volte, tu il <b>34%</b>. Sei a meta' strada,
+          non all'inizio. Una settimana su questi e i punti arrivano. Sediamoci.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       BEAT 4 · LE VISTE RI-IMMAGINATE (mockup in .screen)
+       (a) testata Tavolo pesata · (b) bivio vs 1500 · (c) Velocita' · (d) Repertorio
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="reveal stack" style="margin-bottom: 40px;">
+        <span class="eyebrow">Le viste, ri-immaginate</span>
+        <h2>Come la moneta cambia ogni schermo</h2>
+        <p class="lead">
+          Non un'altra dashboard. Le superfici del prodotto (Tavolo, Sessione, Quaderno) lette
+          <strong>per valore evitabile verso il target</strong>, non per conteggi rumorosi.
+          Quattro assaggi.
+        </p>
+      </div>
+
+      <div class="grid grid-2" style="gap: 28px;">
+
+        <!-- (a) Testata del Tavolo pesata per difficolta' -->
+        <div class="reveal stack">
+          <h3>(a) La testata del Tavolo, pesata</h3>
+          <div class="screen">
+            <div class="bar"><i></i><i></i><i></i></div>
+            <div class="stack" style="padding: 6px 10px 12px;">
+              <div class="between">
+                <span class="eyebrow muted">Obiettivo dichiarato</span>
+                <span class="chip warn">in ritardo · recuperabile</span>
+              </div>
+              <div class="between" style="align-items:baseline;">
+                <span class="display" style="font-size: clamp(1.8rem, 5vw, 2.6rem);">
+                  da <span class="mono">1240</span> a <span class="honey mono">1500</span>
+                </span>
+                <span class="mono soft" style="font-size:0.95rem;">90 giorni</span>
+              </div>
+              <p class="soft" style="margin-top:6px; max-width:none;">
+                Non "244 errori". Il numero in testata e':
+                <strong class="honey">33 errori evitabili</strong> verso il 1500, difficolta' media
+                <span class="mono">0.32</span>. Sotto, una riga: <span class="mono">+35</span> in 90 giorni,
+                serve <span class="mono">+2.9</span>/sett, vai a <span class="mono">+1.2</span>.
+              </p>
+            </div>
+          </div>
+          <p class="chart-note">
+            <b>Nonno:</b> appena entri, in alto, non un mucchio di statistiche: la distanza dal 1500
+            e quanto e' fatta di cose tue.
+          </p>
+        </div>
+
+        <!-- (b) Gioca il bivio contro un 1500 -->
+        <div class="reveal stack">
+          <h3>(b) Gioca il bivio contro un 1500</h3>
+          <div class="screen">
+            <div class="bar"><i></i><i></i><i></i></div>
+            <div class="stack" style="padding: 6px 10px 12px;">
+              <span class="chip tw">Avversario calibrato · 1500</span>
+              <p class="soft" style="max-width:none;">
+                Riprendi la posizione del pezzo in presa. Non un puzzle astratto: <strong>la rigiochi
+                contro chi vuoi diventare</strong>, dal bivio reale che hai vissuto.
+              </p>
+              <div class="flow" style="margin-top:4px;">
+                <div class="step" style="grid-template-columns: 32px 1fr; padding:10px 0;">
+                  <span class="dot" style="width:30px;height:30px;font-size:0.85rem;">1</span>
+                  <div><strong>Trovi la mossa</strong><br><span class="muted" style="font-size:0.85rem;">senza aiuto, dalla tua posizione</span></div>
+                </div>
+                <div class="step" style="grid-template-columns: 32px 1fr; padding:10px 0;">
+                  <span class="dot honey" style="width:30px;height:30px;font-size:0.85rem;">2</span>
+                  <div><strong>Il 1500 risponde</strong><br><span class="muted" style="font-size:0.85rem;">Maia al target, non Stockfish da muro</span></div>
+                </div>
+              </div>
+              <button class="btn btn-primary" style="margin-top:8px; padding:11px 20px; font-size:0.92rem;">Gioca il bivio &rarr;</button>
+            </div>
+          </div>
+          <p class="chart-note">
+            <b>Nonno:</b> non ti faccio battere lo Stockfish, ti faccio battere il te' di domani.
+          </p>
+        </div>
+
+        <!-- (c) Velocita': barre per fascia di tempo + % evitabile -->
+        <div class="reveal stack">
+          <h3>(c) Velocita': dove la fretta ti costa</h3>
+          <div class="screen">
+            <div class="bar"><i></i><i></i><i></i></div>
+            <div class="stack" style="padding: 6px 10px 12px;">
+              <div class="chart-cap" style="margin-bottom:4px;">Errori per tempo speso sulla mossa</div>
+              <svg class="chart" viewBox="0 0 480 184" role="img" aria-label="Errori per fascia di tempo, con percentuale di errori evitabili">
+                <!-- 4 cluster barre, colore per volume errori, sotto la quota evitabile -->
+                <!-- cluster <8s -->
+                <rect x="14"  y="30"  width="86" height="86" rx="5" fill="#7c5cff"></rect>
+                <text x="57" y="22" font-size="10" fill="#b6bcd6" text-anchor="middle">&lt; 8s</text>
+                <rect x="14"  y="116" width="86" height="22" rx="4" fill="#f43f5e"></rect>
+                <text x="57" y="131" font-size="11" font-weight="700" fill="#0a0d1c" text-anchor="middle">41%</text>
+                <text x="57" y="158" font-size="9" fill="#717892" text-anchor="middle">evitabili</text>
+                <!-- cluster 8-15s -->
+                <rect x="130" y="56"  width="86" height="60" rx="5" fill="#7c5cff"></rect>
+                <text x="173" y="48" font-size="10" fill="#b6bcd6" text-anchor="middle">8 - 15s</text>
+                <rect x="130" y="116" width="60" height="22" rx="4" fill="#f43f5e"></rect>
+                <text x="160" y="131" font-size="11" font-weight="700" fill="#0a0d1c" text-anchor="middle">28%</text>
+                <!-- cluster 15-30s -->
+                <rect x="246" y="72"  width="86" height="44" rx="5" fill="#7c5cff"></rect>
+                <text x="289" y="64" font-size="10" fill="#b6bcd6" text-anchor="middle">15 - 30s</text>
+                <rect x="246" y="116" width="36" height="22" rx="4" fill="#f43f5e"></rect>
+                <text x="264" y="131" font-size="11" font-weight="700" fill="#0a0d1c" text-anchor="middle">19%</text>
+                <!-- cluster >30s -->
+                <rect x="362" y="86"  width="86" height="30" rx="5" fill="#7c5cff"></rect>
+                <text x="405" y="78" font-size="10" fill="#b6bcd6" text-anchor="middle">&gt; 30s</text>
+                <rect x="362" y="116" width="14" height="22" rx="4" fill="#f43f5e"></rect>
+                <text x="384" y="131" font-size="11" font-weight="700" fill="#717892" text-anchor="start">12%</text>
+                <!-- base -->
+                <line x1="0" y1="138" x2="480" y2="138" class="axis"></line>
+                <text x="0" y="176" font-size="10" fill="#717892">altezza barra viola = volume errori · barra rossa = quota evitabile</text>
+              </svg>
+            </div>
+          </div>
+          <p class="chart-note">
+            <b>Nonno:</b> sotto gli <span class="mono">8s</span> il <b>41%</b> degli errori era evitabile
+            al tuo livello. Oltre i <span class="mono">30s</span>, solo il <b>12%</b>: li' erano difficili
+            davvero, non colpa tua. La fretta, non gli scacchi.
+          </p>
+        </div>
+
+        <!-- (d) Repertorio pesato per valore evitabile -->
+        <div class="reveal stack">
+          <h3>(d) Repertorio, per punti persi (non per win%)</h3>
+          <div class="screen">
+            <div class="bar"><i></i><i></i><i></i></div>
+            <div class="stack" style="padding: 6px 10px 12px;">
+              <div class="between">
+                <span class="chip">Caro-Kann · nero · 14 partite</span>
+                <span class="up">11 punti persi</span>
+              </div>
+              <div class="chart-cap" style="margin-top:4px;">Punti evitabili persi, mossa per mossa</div>
+              <!-- ply table: dove si concentra la perdita -->
+              <div class="ply"><span class="pp">ply 4</span><span class="soft">teoria, tutto bene</span><span class="mono good">-0</span></div>
+              <div class="ply"><span class="pp">ply 6</span><span class="soft">struttura ancora solida</span><span class="mono">-1</span></div>
+              <div class="ply" style="background: color-mix(in srgb, var(--danger) 8%, transparent); border-radius:6px;">
+                <span class="pp" style="color:var(--danger);">ply 8</span>
+                <span class="soft">qui la struttura ti punisce</span>
+                <span class="mono bad">-7</span>
+              </div>
+              <div class="ply"><span class="pp">ply 10</span><span class="soft">strascico del ply 8</span><span class="mono">-3</span></div>
+            </div>
+          </div>
+          <p class="chart-note">
+            <b>Nonno:</b> il win% e' rumore, dipende da chi incontri. Qui guardiamo dove
+            <strong>tu</strong> perdi punti evitabili: <span class="mono">7</span> degli
+            <span class="mono">11</span> nascono al <span class="mono">ply 8</span>. Si lavora li'.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       BEAT 5 · E ORA E' REALE (hook)
+       Maia gira nel browser, zero-worker, gia' in questa build.
+       ============================================================ -->
+  <section class="band">
+    <div class="narrow">
+      <div class="reveal stack center">
+        <span class="eyebrow honey">E ora e' reale</span>
+        <h2>Il differenziatore non e' una promessa.<br>E' spedibile oggi.</h2>
+        <p class="lead" style="margin: 0 auto;">
+          La distribuzione di Maia, il benchmark calibrato al livello che vuoi diventare,
+          <strong>gira dentro il browser dell'utente</strong>. ONNX runtime su WebAssembly,
+          un Web Worker, modello in cache. <strong>Zero worker server-side</strong>, zero costo
+          per inferenza, zero attesa di backend. Gia' funzionante in questa build.
+        </p>
+        <div class="lede-num" style="margin-top: 14px; width:100%;">
+          <div class="stat center" style="align-items:center;">
+            <span class="n tw">~44<span style="font-size:1.1rem;"> MB</span></span>
+            <span class="k">modello Maia, scaricato una volta</span>
+          </div>
+          <div class="stat center" style="align-items:center;">
+            <span class="n tw">0</span>
+            <span class="k">worker server-side per l'analisi</span>
+          </div>
+          <div class="stat center" style="align-items:center;">
+            <span class="n good">oggi</span>
+            <span class="k">non roadmap: in questa build</span>
+          </div>
+        </div>
+        <p class="chart-note center" style="margin: 18px auto 0;">
+          <b>Nonno:</b> quello che ti racconto sul tuo gap col 1500, te lo calcolo qui, davanti a te,
+          senza mandare niente da nessuna parte.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       BEAT 6 · TABELLA CONFRONTO vs competitor
+       Onesti dove non siamo unici; chiari dove lo siamo.
+       ============================================================ -->
+  <section class="band">
+    <div class="wrap">
+      <div class="reveal stack" style="margin-bottom: 32px;">
+        <span class="eyebrow">Il confronto, onesto</span>
+        <h2>Dove siamo gli unici a dire "si'"</h2>
+        <p class="lead">
+          Tante cose le fanno bene anche gli altri, e lo diciamo. Ma tre righe le fa
+          <strong>solo</strong> il Tavolo del Nonno, e sono quelle che contano: la difficolta' come moneta,
+          Maia come avversario continuo a piu' livelli, e l'allenamento dai TUOI errori graduati.
+        </p>
+      </div>
+
+      <div class="card reveal" style="padding: 8px 10px;">
+        <div class="table-scroll"><table class="cmp">
+          <thead>
+            <tr>
+              <th style="width:42%;">Cosa</th>
+              <th>Chess.com Insights</th>
+              <th>Aimchess</th>
+              <th>Lichess</th>
+              <th class="us">il Tavolo del Nonno</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Conta gli errori / ACPL</td>
+              <td class="yes">si'</td>
+              <td class="yes">si'</td>
+              <td class="yes">si'</td>
+              <td class="us">si'</td>
+            </tr>
+            <tr>
+              <td>Repertorio per apertura</td>
+              <td class="no">no</td>
+              <td class="yes">si'</td>
+              <td class="yes">base</td>
+              <td class="us">si'</td>
+            </tr>
+            <tr>
+              <td>Esercizi dai tuoi errori</td>
+              <td class="no">no</td>
+              <td class="yes">si'</td>
+              <td class="no">random</td>
+              <td class="us">si'</td>
+            </tr>
+            <tr style="background: color-mix(in srgb, var(--honey) 7%, transparent);">
+              <td><strong>ACPL pesato per difficolta'</strong></td>
+              <td class="no">no</td>
+              <td class="no">no</td>
+              <td class="no">no</td>
+              <td class="us"><span class="honey">solo noi</span></td>
+            </tr>
+            <tr style="background: color-mix(in srgb, var(--honey) 7%, transparent);">
+              <td><strong>Maia come benchmark continuo, multi-livello</strong></td>
+              <td class="no">no</td>
+              <td class="no">parziale</td>
+              <td class="no">no</td>
+              <td class="us"><span class="honey">solo noi</span></td>
+            </tr>
+            <tr style="background: color-mix(in srgb, var(--honey) 7%, transparent);">
+              <td><strong>Esercizi dai TUOI errori, graduati per difficolta'</strong></td>
+              <td class="no">no</td>
+              <td class="no">random</td>
+              <td class="no">random</td>
+              <td class="us"><span class="honey">solo noi</span></td>
+            </tr>
+          </tbody>
+        </table></div>
+      </div>
+
+      <div class="nonno reveal" style="margin-top: 36px;">
+        <span class="who">Nonno dice</span>
+        Gli altri ti mostrano i dati e ti lasciano da solo a capirli. Io ti dico
+        <b>questa la trova chi vuoi diventare, tu ancora no</b>, e ti porto li'. E' tutto qui.
+      </div>
+    </div>
+  </section>
+  </div>
+
+  <div id="prova" class="chapter">
+<!-- ============ APERTURA CAPITOLO ============ -->
+  <section class="band">
+    <div class="wrap cap-hero reveal">
+      <div class="eyebrow">Capitolo 3 · La Prova</div>
+      <h1 class="display" style="margin-top:14px;">Il rituale che<br>non molli più.</h1>
+      <p class="lead" style="margin-top:22px;">
+        Sai dov'è il tuo gap, e sai che la prima ancora vale <span class="mono">+18</span> punti.
+        Resta una domanda sola: cosa succede quando ti siedi. Quindici minuti, quattro fasi,
+        un numero che cresce ogni settimana e che ti fa tornare. Poi: il mercato, perché si paga,
+        e cosa accendiamo per primo.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ BEAT 1 · IL FLUSSO SEDIAMOCI ============ -->
+  <section class="band">
+    <div class="wrap reveal">
+      <div class="eyebrow">Beat 1 · Il flusso</div>
+      <h2 style="margin-top:12px;">Sediamoci. Quindici minuti, quattro fasi.</h2>
+      <p class="soft" style="margin-top:14px;">
+        Non è un review passivo, e non è un puzzle rush. È una progressione pedagogica sulle
+        <strong>tue</strong> posizioni: prima guardo, poi facciamo insieme, poi faccio da solo,
+        poi gioco. Ogni fase su un Momento che hai vissuto davvero.
+      </p>
+    </div>
+
+    <div class="wrap reveal" style="margin-top:34px;">
+      <div class="flow flow-screens">
+
+        <!-- FASE 1 -->
+        <div class="step">
+          <div class="dot">1</div>
+          <div>
+            <h3>Guardo, e Nonno parla</h3>
+            <p class="soft" style="margin:6px 0 0;">
+              Rivedo il Momento dall'alto: il film delle mosse precedenti, il tempo che ci ho
+              messo, quanti al mio livello l'avrebbero trovata. Passivo. Solo capire.
+            </p>
+            <div class="screen">
+              <div class="bar"><i></i><i></i><i></i></div>
+              <div class="moment-line">
+                lun 19 mag · vs <span class="t">1180</span> · mossa <span class="t">24</span> · orologio <span class="t">1:48</span>
+              </div>
+              <div class="row" style="margin-top:12px; align-items:flex-start; gap:18px;">
+                <div class="board micro-board" aria-hidden="true">
+                  <i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i>
+                  <i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i>
+                  <i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i>
+                  <i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i>
+                  <i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i>
+                  <i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i>
+                  <i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i>
+                  <i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i><i class="d"></i><i class="l"></i>
+                </div>
+                <div class="nonno" style="font-size:1.05rem; flex:1; min-width:240px;">
+                  <span class="who">Nonno dice</span>
+                  Qui hai mosso in <b>8 secondi</b>. Al tuo livello questa la trovava 1 su 8:
+                  non era facile. Guarda solo come ci sei arrivato.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FASE 2 -->
+        <div class="step">
+          <div class="dot">2</div>
+          <div>
+            <h3>Nonno mi aiuta</h3>
+            <p class="soft" style="margin:6px 0 0;">
+              Stessa posizione, ora tocca a me, ma con una mano sulla spalla: un accenno alla
+              casa di partenza, niente di più. Guidato. Imparo la geometria, non la risposta.
+            </p>
+            <div class="screen">
+              <div class="bar"><i></i><i></i><i></i></div>
+              <div class="moment-line">la TUA posizione · <span class="h">aiuto attivo</span> · trova la mossa</div>
+              <div class="nonno" style="font-size:1.05rem; margin-top:12px;">
+                <span class="who">Nonno dice</span>
+                Guarda la torre in <b>f1</b>. Da lì cambia tutto. Non te la dico, ma sai dove
+                guardare adesso.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FASE 3 -->
+        <div class="step">
+          <div class="dot">3</div>
+          <div>
+            <h3>Gioco da solo</h3>
+            <p class="soft" style="margin:6px 0 0;">
+              Adesso niente aiuto, e il tema resta <strong>nascosto fino al tentativo</strong>:
+              non sai se è un pezzo in presa o un'ottava traversa, devi vederlo tu. È l'esercizio
+              sulle tue posizioni, non puzzle a caso.
+            </p>
+            <div class="screen">
+              <div class="bar"><i></i><i></i><i></i></div>
+              <div class="moment-line">esercizio · tema <span class="muted">nascosto</span> · solo tu e la scacchiera</div>
+              <div class="row" style="margin-top:10px; gap:8px;">
+                <span class="chip tw">pezzo in presa</span>
+                <span class="chip">il tema si rivela dopo</span>
+              </div>
+              <div class="nonno" style="font-size:1.05rem; margin-top:12px;">
+                <span class="who">Nonno dice</span>
+                Niente indizi stavolta. Se la trovi adesso, è tua per sempre.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FASE 4 -->
+        <div class="step">
+          <div class="dot honey">4</div>
+          <div>
+            <h3>Rifaccio la partita</h3>
+            <p class="soft" style="margin:6px 0 0;">
+              Si torna al bivio e lo si rigioca, ma contro un <span class="honey">avversario 1500</span>:
+              il livello che vuoi diventare, vivo, nel browser. Non un check, un avversario che ti
+              risponde calibrato sul target. Con "Ripensaci" sempre a portata di mano.
+            </p>
+            <div class="screen">
+              <div class="bar"><i></i><i></i><i></i></div>
+              <div class="moment-line">rigioco il bivio · vs <span class="h">avversario 1500 rapid</span> · dalla TUA posizione</div>
+              <div class="row" style="margin-top:10px; gap:8px;">
+                <span class="chip honey">il livello che vuoi diventare</span>
+                <span class="chip">Ripensaci</span>
+              </div>
+              <div class="nonno" style="font-size:1.05rem; margin-top:12px;">
+                <span class="who">Nonno dice</span>
+                Stesso bivio, avversario diverso. Vediamo se stavolta chiudi come chiude un
+                <b>1500</b>.
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BEAT 2 · LA PROVA DI CRESCITA ============ -->
+  <section class="band">
+    <div class="wrap reveal">
+      <div class="eyebrow honey">Beat 2 · La prova di crescita</div>
+      <h2 style="margin-top:12px;">Il numero che ti fa tornare.</h2>
+      <p class="lead" style="margin-top:14px;">
+        Gli altri ti dicono "hai fatto un errore". Noi ti facciamo vedere il giocatore che stai
+        diventando, una settimana dopo l'altra, sullo stesso pattern.
+      </p>
+    </div>
+
+    <div class="wrap reveal" style="margin-top:30px;">
+      <div class="grid grid-2" style="align-items:stretch;">
+
+        <!-- Curva nel tempo -->
+        <div class="card s2 pad-lg">
+          <div class="eyebrow muted">Pezzo in presa · trovi la mossa giusta</div>
+          <svg class="chart" viewBox="0 0 440 240" role="img" aria-label="Pezzo in presa: 19 per cento quattro settimane fa, 34 per cento oggi, target 67 per cento" style="margin-top:14px;">
+            <!-- gridlines orizzontali -->
+            <line class="grid-line" x1="44" y1="40"  x2="430" y2="40"></line>
+            <line class="grid-line" x1="44" y1="90"  x2="430" y2="90"></line>
+            <line class="grid-line" x1="44" y1="140" x2="430" y2="140"></line>
+            <line class="grid-line" x1="44" y1="190" x2="430" y2="190"></line>
+            <!-- asse y etichette -->
+            <text x="0" y="44"  font-size="10">67%</text>
+            <text x="0" y="94"  font-size="10">50%</text>
+            <text x="0" y="144" font-size="10">34%</text>
+            <text x="0" y="194" font-size="10">19%</text>
+            <!-- linea target (oro tratteggiata) -->
+            <line x1="44" y1="40" x2="430" y2="40" stroke="#f6c64a" stroke-width="1.5" stroke-dasharray="5 4"></line>
+            <text x="372" y="34" font-size="10" fill="#ffd877">un 1500</text>
+            <!-- area sotto la curva (twilight tenue) -->
+            <path d="M70 190 L210 140 L350 110 L350 220 L70 220 Z" fill="#7c5cff" fill-opacity="0.10"></path>
+            <!-- curva tua progressione -->
+            <polyline points="70,190 210,140 350,110" fill="none" stroke="#7c5cff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+            <!-- proiezione tratteggiata verso il target -->
+            <polyline points="350,110 430,40" fill="none" stroke="#a18bff" stroke-width="2" stroke-dasharray="4 4" stroke-linecap="round"></polyline>
+            <!-- punti -->
+            <circle cx="70"  cy="190" r="4.5" fill="#7c5cff"></circle>
+            <circle cx="210" cy="140" r="4.5" fill="#7c5cff"></circle>
+            <circle cx="350" cy="110" r="5.5" fill="#a18bff" stroke="#060814" stroke-width="2"></circle>
+            <!-- etichette punti -->
+            <text x="56"  y="210" font-size="10" fill="#717892">4 sett. fa</text>
+            <text x="60"  y="178" font-size="11" fill="#a18bff">19%</text>
+            <text x="196" y="160" font-size="11" fill="#a18bff">34%</text>
+            <text x="332" y="98"  font-size="11" fill="#eef0fa">oggi</text>
+            <text x="340" y="132" font-size="12" fill="#a18bff" font-weight="700">34%</text>
+          </svg>
+          <p class="soft" style="margin-top:6px; font-size:0.92rem;">
+            Hai chiuso <strong>un terzo del gap</strong> in quattro settimane. Da <span class="mono tw">19%</span>
+            a <span class="mono tw">34%</span>, verso il <span class="mono honey">67%</span> di un 1500.
+          </p>
+          <div class="nonno" style="font-size:1rem; margin-top:18px;">
+            <span class="who">Nonno legge il grafico</span>
+            Questa curva sei tu che migliori. Quattro settimane fa lasciavi il pezzo in presa quasi
+            sempre, oggi lo eviti un terzo delle volte. Non è fortuna: è la stessa cosa allenata
+            apposta. Continua e il <b>67%</b> arriva.
+          </div>
+        </div>
+
+        <!-- Ripetizione spaziata -->
+        <div class="card s2 pad-lg">
+          <div class="eyebrow">Ripetizione spaziata sui tuoi errori</div>
+          <p class="soft" style="margin-top:12px; font-size:0.95rem;">
+            Il pattern che hai mancato non sparisce. Te lo ripropongo su <strong>geometrie simili</strong>
+            (non la stessa posizione) a distanza crescente. Se lo chiudi, vai avanti. Se lo sbagli, riparte.
+          </p>
+          <div class="ladder" style="margin-top:16px;">
+            <div class="rung">
+              <span class="when">+1 g</span>
+              <span class="soft">prima ripetizione, geometria gemella</span>
+              <span class="chip good srs">chiuso</span>
+            </div>
+            <div class="rung">
+              <span class="when">+3 g</span>
+              <span class="soft">stesso tema, altra apertura</span>
+              <span class="chip good srs">chiuso</span>
+            </div>
+            <div class="rung">
+              <span class="when">+7 g</span>
+              <span class="soft">sotto pressione di tempo</span>
+              <span class="chip warn srs">da rivedere</span>
+            </div>
+            <div class="rung">
+              <span class="when">+21 g</span>
+              <span class="soft">la prova vera: lo vedi ancora?</span>
+              <span class="chip srs">in coda</span>
+            </div>
+          </div>
+          <div class="nonno" style="font-size:1rem; margin-top:18px;">
+            <span class="who">Nonno dice</span>
+            A 21 giorni torno e te lo richiedo. Se lo vedi ancora, allora <b>l'hai imparato</b>,
+            non l'hai indovinato. Quella è la differenza.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Il Quaderno come spina -->
+    <div class="wrap reveal" style="margin-top:24px;">
+      <div class="card pad-lg">
+        <div class="grid grid-2" style="align-items:center; gap:32px;">
+          <div>
+            <div class="eyebrow">Il Quaderno · la casa continua</div>
+            <h3 style="margin-top:10px;">Dove vedi il giocatore che stai diventando.</h3>
+            <p class="soft" style="margin-top:12px; font-size:0.95rem;">
+              Ogni Sessione lascia una voce: l'ancora domata, l'errore che non rifai, il pattern
+              che hai chiuso. Non lo scrivi tu, lo scrive Nonno. È la spina dorsale della retention:
+              torni perché ritrovi <strong>tutto quello che avete costruito insieme</strong>, non
+              perché un badge ti chiama.
+            </p>
+            <p class="lead tw" style="margin-top:16px;">Questo è il "non gioco senza".</p>
+          </div>
+          <div class="screen">
+            <div class="bar"><i></i><i></i><i></i></div>
+            <div class="moment-line"><span class="h">Quaderno</span> · le ultime voci</div>
+            <div class="ladder" style="margin-top:6px;">
+              <div class="rung" style="grid-template-columns:64px 1fr;">
+                <span class="when" style="font-size:0.8rem;">oggi</span>
+                <span class="soft" style="font-size:0.88rem;">Pezzo in presa: <span class="mono tw">34%</span>, +15 in 4 settimane.</span>
+              </div>
+              <div class="rung" style="grid-template-columns:64px 1fr;">
+                <span class="when" style="font-size:0.8rem;">−5 g</span>
+                <span class="soft" style="font-size:0.88rem;">Ottava traversa rivista, hai fermato la mano due volte.</span>
+              </div>
+              <div class="rung" style="grid-template-columns:64px 1fr;">
+                <span class="when" style="font-size:0.8rem;">−12 g</span>
+                <span class="soft" style="font-size:0.88rem;">Vittorie buttate: <span class="mono warn">42%</span> da posizione vinta.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BEAT 3 · PERCHÉ SI PAGA ============ -->
+  <section class="band">
+    <div class="wrap reveal">
+      <div class="eyebrow">Beat 3 · Perché si paga</div>
+      <h2 style="margin-top:12px;">Non un report una tantum. Presenza.</h2>
+      <p class="lead" style="margin-top:14px;">
+        Un'analisi la regalano tutti, una volta sola. Quello per cui si paga <span class="mono">8&nbsp;€</span>/mese
+        è che Nonno <strong>torna</strong>: ti richiama fra tre giorni, accumula il Quaderno, ti tiene
+        sullo stesso pattern finché non è tuo. Ogni tier risponde a una domanda sola: sposta il churn?
+      </p>
+    </div>
+
+    <div class="wrap reveal" style="margin-top:30px;">
+      <div class="grid grid-3" style="align-items:stretch;">
+
+        <!-- FREE -->
+        <div class="card tier">
+          <div class="between">
+            <span class="eyebrow muted">Free</span>
+            <span class="price soft">0&nbsp;€</span>
+          </div>
+          <p class="soft" style="font-size:0.9rem;">Il rapporto si stabilisce. Vedi il valore una volta.</p>
+          <ul>
+            <li><span class="mk">·</span> Ultime <span class="mono">100</span> partite analizzate</li>
+            <li><span class="mk">·</span> Le tue ancore, ordinate per upside</li>
+            <li><span class="mk">·</span> La galleria dei Momenti</li>
+          </ul>
+          <div class="churn"><b>Sul churn:</b> apre la porta. Da solo non trattiene, è la prova del valore.</div>
+        </div>
+
+        <!-- PRO -->
+        <div class="card s2 tier" style="border-color: var(--line-strong);">
+          <div class="between">
+            <span class="eyebrow">Pro</span>
+            <span class="price honey">8&nbsp;€<span class="mono soft" style="font-size:0.9rem;">/mese</span></span>
+          </div>
+          <p class="soft" style="font-size:0.9rem;">La presenza. Il Nonno completo che torna ogni giorno.</p>
+          <ul>
+            <li><span class="mk">→</span> Analisi <strong>ricorrente</strong> ("torna fra 3 giorni")</li>
+            <li><span class="mk">→</span> Nudge e richiami event-driven</li>
+            <li><span class="mk">→</span> Quaderno che si accumula nel tempo</li>
+            <li><span class="mk">→</span> Allenamento vs avversario al target (Maia)</li>
+            <li><span class="mk">→</span> Opponent intel prima della partita</li>
+          </ul>
+          <div class="churn"><b>Sul churn:</b> è IL prodotto che lo sposta. La ripetizione spaziata e il Quaderno fanno il "non gioco senza".</div>
+        </div>
+
+        <!-- COACH -->
+        <div class="card tier">
+          <div class="between">
+            <span class="eyebrow muted">Coach</span>
+            <span class="price soft">white-label</span>
+          </div>
+          <p class="soft" style="font-size:0.9rem;">Per gli allenatori umani. Il Nonno come strumento di studio.</p>
+          <ul>
+            <li><span class="mk">·</span> Dashboard multi-studente</li>
+            <li><span class="mk">·</span> Pacchetti di allenamento condivisi</li>
+            <li><span class="mk">·</span> Brand dell'allenatore sopra Nonno</li>
+          </ul>
+          <div class="churn"><b>Sul churn:</b> il churn dell'allenatore è quasi zero (è il suo lavoro). Ricavo per utente alto, retention strutturale.</div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BEAT 4 · MERCATO + UNFAIR ADVANTAGES + MOONSHOT ============ -->
+  <section class="band">
+    <div class="wrap reveal">
+      <div class="eyebrow">Beat 4 · Mercato</div>
+      <h2 style="margin-top:12px;">Il mercato in una riga.</h2>
+      <p class="lead" style="margin-top:14px;">
+        <span class="mono">40M</span> account attivi al mese su Chess.com. La fascia
+        <span class="mono">1000-1800</span>, gli amatori seri, è circa <span class="mono">8-10M</span>:
+        giocano, perdono, aprono "Game Review", leggono "Blunder", chiudono. Tornano domani.
+        Nessuno gli dice <strong>come gioca chi vogliono diventare</strong>.
+      </p>
+    </div>
+
+    <div class="wrap reveal" style="margin-top:30px;">
+      <div class="grid grid-3" style="align-items:stretch;">
+
+        <div class="card s2">
+          <div class="adv">
+            <span class="num">1</span>
+            <div>
+              <h3 style="font-size:1.1rem;">Maia, benchmark continuo</h3>
+              <p class="soft" style="margin-top:8px; font-size:0.9rem;">
+                Non un check binario sì/no. L'avversario vivente calibrato al livello che vuoi
+                diventare, posizione per posizione. E ora gira <strong>nel browser</strong>.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card s2">
+          <div class="adv">
+            <span class="num">2</span>
+            <div>
+              <h3 style="font-size:1.1rem;">Coach LLM grounded</h3>
+              <p class="soft" style="margin-top:8px; font-size:0.9rem;">
+                La voce di Nonno è ancorata a un filesystem di concetti e pattern scritti a mano.
+                Specifica, comparativa, azionabile. Non chiacchiera generica sugli scacchi.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card s2">
+          <div class="adv">
+            <span class="num">3</span>
+            <div>
+              <h3 style="font-size:1.1rem;">Difficoltà come moneta</h3>
+              <p class="soft" style="margin-top:8px; font-size:0.9rem;">
+                Ogni metrica pesata per quanto la posizione era difficile <strong>al tuo livello</strong>.
+                Conta solo l'errore evitabile. Nessuno misura così.
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="narrow reveal" style="margin-top:40px;">
+      <div class="hero-goal">
+        <div class="eyebrow honey">La moonshot · 18 mesi</div>
+        <p class="ask-line honey" style="color:var(--honey-soft); margin-top:14px;">
+          Acquisition da Chess.com, oppure <span class="mono">1M&nbsp;€</span> ARR standalone.
+        </p>
+        <p class="soft" style="margin-top:16px; font-size:0.95rem;">
+          <span class="mono">10k</span> utenti Pro × <span class="mono">8&nbsp;€</span> = <span class="mono">80k&nbsp;€</span>
+          MRR, margini lordi oltre il 70% (i costi sono LLM più hosting). La precondizione in
+          entrambi gli scenari è una sola: un prodotto che si apre 6 giorni su 7 e fa dire
+          <em>"non gioco senza"</em>.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BEAT 5 · L'ASK / COSTRUIAMO ============ -->
+  <section class="band">
+    <div class="wrap reveal">
+      <div class="eyebrow">Beat 5 · L'ask</div>
+      <h2 style="margin-top:12px;">Costruiamo. Accendiamo un oggetto alla volta.</h2>
+      <p class="lead" style="margin-top:14px;">
+        Il differenziatore non è più una roadmap: <strong>Maia gira già nel browser</strong> in
+        questa build, zero-worker. Quindi non partiamo da zero. Accendiamo gli oggetti uno dopo
+        l'altro, e il primo che si illumina è proprio quello che batte Chess.com.
+      </p>
+    </div>
+
+    <div class="wrap reveal" style="margin-top:30px;">
+      <div class="card pad-lg">
+        <div class="roadmap">
+
+          <div class="obj on">
+            <span class="led" aria-hidden="true"></span>
+            <div>
+              <h3 style="font-size:1.05rem;">Ancore + galleria Momenti</h3>
+              <p class="soft" style="margin:4px 0 0; font-size:0.9rem;">Il dato è già quasi pronto. Le viste si riaccendono con pochissimo lavoro UI.</p>
+            </div>
+            <span class="chip good">pronto</span>
+          </div>
+
+          <div class="obj now">
+            <span class="led" aria-hidden="true"></span>
+            <div>
+              <h3 style="font-size:1.05rem;">Avversario · drill_value</h3>
+              <p class="soft" style="margin:4px 0 0; font-size:0.9rem;">"Questa la trova chi vuoi diventare, tu ancora no." Ora è <strong>reale</strong>: Maia nel browser.</p>
+            </div>
+            <span class="chip tw">accendi ORA</span>
+          </div>
+
+          <div class="obj">
+            <span class="led" aria-hidden="true"></span>
+            <div>
+              <h3 style="font-size:1.05rem;">Motif tattici</h3>
+              <p class="soft" style="margin:4px 0 0; font-size:0.9rem;">Forchetta, infilata, ottava traversa: ancore vere, non solo "fase".</p>
+            </div>
+            <span class="chip">poi</span>
+          </div>
+
+          <div class="obj">
+            <span class="led" aria-hidden="true"></span>
+            <div>
+              <h3 style="font-size:1.05rem;">Storia e trend</h3>
+              <p class="soft" style="margin:4px 0 0; font-size:0.9rem;">Snapshot ripetuti nel tempo: la curva di crescita e la rating curve.</p>
+            </div>
+            <span class="chip">poi</span>
+          </div>
+
+          <div class="obj">
+            <span class="led" aria-hidden="true"></span>
+            <div>
+              <h3 style="font-size:1.05rem;">Strutture e repertorio</h3>
+              <p class="soft" style="margin:4px 0 0; font-size:0.9rem;">Le ultime due viste: dove cadi nel Caro-Kann, le strutture che ti puniscono.</p>
+            </div>
+            <span class="chip">poi</span>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="narrow reveal center" style="margin-top:48px;">
+      <p class="ask-line" style="margin:0 auto;">
+        Maia è nel browser. Il prossimo oggetto che accendiamo vale <span class="mono honey">+18</span> punti.
+        Sediamoci e costruiamolo.
+      </p>
+      <div style="margin-top:28px;">
+        <a class="btn btn-primary" href="#top">Torna alla Copertina →</a>
+      </div>
+    </div>
+  </section>
+  </div>
+
+<section class="band">
+    <div class="narrow center stack-lg reveal">
+      <span class="eyebrow honey">Il tavolo e' apparecchiato</span>
+      <h2 style="max-width:22ch; margin:0 auto;">
+        Il primo coach che ti misura contro chi vuoi diventare. E te lo dimostra, settimana dopo settimana.
+      </h2>
+      <p class="lead" style="margin:0 auto;">
+        Otto, dieci milioni di amatori giocano, perdono e tornano domani senza sapere cosa allenare.
+        Noi diamo loro la risposta, piu' la prova che stanno migliorando. E il motore non e' un sogno:
+        <strong>Maia gira gia' nel browser</strong>, zero server, costo marginale vicino allo zero.
+        Manca solo riempire il tavolo.
+      </p>
+
+      <div class="grid grid-3" style="margin-top: 6px; width:100%;">
+        <div class="stat center" style="align-items:center;">
+          <span class="n tw">8-10M</span><span class="k">amatori 1000-1800 da raggiungere</span>
+        </div>
+        <div class="stat center" style="align-items:center;">
+          <span class="n honey">8&nbsp;&euro;</span><span class="k">al mese, payback sotto il mese</span>
+        </div>
+        <div class="stat center" style="align-items:center;">
+          <span class="n good">oggi</span><span class="k">Maia nel browser, non una roadmap</span>
+        </div>
+      </div>
+
+      <p class="nonno" style="border:none; padding:0; margin: 10px auto 0; max-width: 26ch; font-size: clamp(1.4rem, 3.2vw, 2rem);">
+        Il tavolo e' pronto. Manca solo sederti.
+      </p>
+      <div class="faint mono" style="font-size:0.8rem; letter-spacing:0.08em;">il Tavolo del Nonno &middot; 2026</div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <div class="pager">
+    <span class="faint" style="font-size:0.85rem;">il Tavolo del Nonno &middot; pitch di prodotto</span>
+    <a class="next" href="#top"><span class="lbl">Torna su &uarr;</span><span class="t mono">Copertina</span></a>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var els=document.querySelectorAll('.reveal');
+  if('IntersectionObserver' in window && els.length){
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});},{threshold:0.12,rootMargin:'0px 0px -8% 0px'});
+    els.forEach(function(el){io.observe(el);});
+  } else { els.forEach(function(el){el.classList.add('in');}); }
+  var links={};
+  document.querySelectorAll('.topnav .links a').forEach(function(a){var h=a.getAttribute('href');if(h&&h.charAt(0)==='#')links[h.slice(1)]=a;});
+  var secs=['top','anima','moneta','prova'].map(function(id){return document.getElementById(id);}).filter(Boolean);
+  if('IntersectionObserver' in window && secs.length){
+    var spy=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){var id=e.target.id;Object.keys(links).forEach(function(k){links[k].classList.toggle('active',k===id);});}});},{rootMargin:'-45% 0px -50% 0px'});
+    secs.forEach(function(s){spy.observe(s);});
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,298 @@
+<!-- ====== PARTE 2 ====== -->
+      <section class="part-divider">
+        <div class="part-divider-eyebrow">Parte 2</div>
+        <h2>Il loop runtime — il cuore</h2>
+        <p>Questa e' la parte importante. Se Mimmo capisce solo questa parte,
+          ha gia' capito l'80%.</p>
+      </section>
+
+      <!-- SLIDE 8 -->
+      <section class="slide" id="s8">
+        <div class="slide-num">08 / 26</div>
+        <h1>Anatomia di un turno</h1>
+        <p class="slide-sub">Cosa succede dall'istante in cui premi Invio.</p>
+        <div class="slide-body">
+          <p>Quando scrivi qualcosa a Claude Code e premi Invio, non parte UNA
+            chiamata al modello. Partono <strong>tanti micro-step</strong>
+            coordinati dall'harness. Ecco la sequenza canonica:</p>
+          <ol class="turn-steps">
+            <li>
+              <div class="ts-num">01</div>
+              <div class="ts-body">
+                <div class="ts-name">Input</div>
+                <div class="ts-desc">Tu scrivi una richiesta. L'harness la cattura.</div>
+              </div>
+            </li>
+            <li>
+              <div class="ts-num">02</div>
+              <div class="ts-body">
+                <div class="ts-name">Assembly</div>
+                <div class="ts-desc">L'harness costruisce il prompt completo: regole di sistema + tool disponibili + history dei turni precedenti + il tuo messaggio.</div>
+              </div>
+            </li>
+            <li>
+              <div class="ts-num">03</div>
+              <div class="ts-body">
+                <div class="ts-name">Modello pensa</div>
+                <div class="ts-desc">Chiamata API. Il modello produce un "thought" e (di solito) una <code>tool_call</code> — chiede di eseguire qualcosa.</div>
+              </div>
+            </li>
+            <li>
+              <div class="ts-num">04</div>
+              <div class="ts-body">
+                <div class="ts-name">Tool exec</div>
+                <div class="ts-desc">L'harness intercetta la <code>tool_call</code> ed esegue davvero l'azione: legge un file, esegue un comando, fa una HTTP request.</div>
+              </div>
+            </li>
+            <li>
+              <div class="ts-num">05</div>
+              <div class="ts-body">
+                <div class="ts-name">Result</div>
+                <div class="ts-desc">Il risultato del tool viene formattato e rispedito al modello come nuovo messaggio.</div>
+              </div>
+            </li>
+            <li>
+              <div class="ts-num">06</div>
+              <div class="ts-body">
+                <div class="ts-name">Modello decide</div>
+                <div class="ts-desc">Il modello legge il risultato e decide: altro tool, o ho finito? Se altro tool, torna al passo 3. Se ho finito, vai al 7.</div>
+              </div>
+            </li>
+            <li>
+              <div class="ts-num">07</div>
+              <div class="ts-body">
+                <div class="ts-name">Output</div>
+                <div class="ts-desc">L'harness mostra a te il messaggio finale. Il turno e' completo.</div>
+              </div>
+            </li>
+          </ol>
+          <p>Questa e' la struttura. Nelle prossime due slide la vediamo
+            <strong>girare dal vivo</strong>.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 9 — VISUALIZER TURNO 1 -->
+      <section class="slide" id="s9">
+        <div class="slide-num">09 / 26</div>
+        <h1>Un turno, dal vivo</h1>
+        <p class="slide-sub">Step-by-step. Premi avanti, guarda cosa succede.</p>
+        <div class="slide-body">
+          <div class="vz" id="vz1" data-turn="1">
+            <div class="vz-header">
+              <span class="vz-tag">Turno 1</span>
+              <span class="vz-prompt" id="vz1-prompt">Tu: "crea un file note.md con dentro 'ciao mondo'"</span>
+            </div>
+            <div class="vz-stage">
+              <div class="vz-actors">
+                <div class="vz-actor" data-actor="user"><div class="vz-actor-name">Tu</div></div>
+                <div class="vz-actor" data-actor="harness"><div class="vz-actor-name">Harness</div></div>
+                <div class="vz-actor" data-actor="model"><div class="vz-actor-name">Modello</div></div>
+                <div class="vz-actor" data-actor="tools"><div class="vz-actor-name">Tools</div></div>
+              </div>
+              <div class="vz-fs">
+                <div class="vz-fs-head">Filesystem</div>
+                <div class="vz-fs-tree" id="vz1-fs"><div class="vz-fs-empty">(vuoto)</div></div>
+              </div>
+            </div>
+            <div class="vz-narration" id="vz1-narration">
+              Premi <strong>Step ▶</strong> per cominciare. Vedrai un turno
+              completo, dall'input al file scritto sul disco.
+            </div>
+            <div class="vz-controls">
+              <div class="vz-progress">
+                <span id="vz1-step">0</span> / <span id="vz1-total">7</span>
+              </div>
+              <div class="vz-buttons">
+                <button class="vz-btn" data-vz="vz1" data-action="reset">Reset</button>
+                <button class="vz-btn vz-btn-primary" data-vz="vz1" data-action="next">Step ▶</button>
+                <button class="vz-btn" data-vz="vz1" data-action="play">▶ Auto</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 10 -->
+      <section class="slide" id="s10">
+        <div class="slide-num">10 / 26</div>
+        <h1>Cosa abbiamo appena visto?</h1>
+        <p class="slide-sub">Quattro fatti che spesso restano sotto traccia.</p>
+        <div class="slide-body">
+          <ol class="recap">
+            <li><strong>Il modello non ha eseguito niente.</strong> Ha solo
+              <em>chiesto</em> all'harness di eseguire. La separazione e' netta:
+              il modello propone, l'harness dispone.</li>
+            <li><strong>L'harness ha eseguito il tool</strong> e ha rispedito il
+              risultato al modello come nuovo messaggio.</li>
+            <li><strong>Il modello ha deciso autonomamente di fermarsi.</strong>
+              Nessuno gli ha detto "ok ora basta" — ha capito da solo che il
+              compito era finito.</li>
+            <li><strong>Il filesystem ora ha un file in piu'.</strong>
+              <em>Questa</em> e' l'unica cosa che resta dopo che il turno e'
+              finito.</li>
+          </ol>
+          <div class="pull">
+            La "memoria" del modello dura un turno. Quello che resta tra i turni
+            e' solo cio' che e' stato scritto sul filesystem.
+          </div>
+          <p>Tieni a mente questo punto. Adesso vediamo cosa succede al turno
+            <em>successivo</em>, quando il modello deve "ricordarsi" qualcosa
+            di prima.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 11 — VISUALIZER TURNO 2 -->
+      <section class="slide" id="s11">
+        <div class="slide-num">11 / 26</div>
+        <h1>Lo stesso visualizer, un turno dopo</h1>
+        <p class="slide-sub">Il modello "ricomincia da capo", ma il disco e' cambiato.</p>
+        <div class="slide-body">
+          <p>Tu scrivi una <em>seconda</em> richiesta: <strong>"aggiungi una
+            riga a note.md che dica 'arrivederci'"</strong>. Il modello viene
+            chiamato di nuovo, con la testa vuota. Cosa fa?</p>
+          <div class="vz" id="vz2" data-turn="2">
+            <div class="vz-header">
+              <span class="vz-tag vz-tag-accent">Turno 2</span>
+              <span class="vz-prompt" id="vz2-prompt">Tu: "aggiungi una riga 'arrivederci' a note.md"</span>
+            </div>
+            <div class="vz-stage">
+              <div class="vz-actors">
+                <div class="vz-actor" data-actor="user"><div class="vz-actor-name">Tu</div></div>
+                <div class="vz-actor" data-actor="harness"><div class="vz-actor-name">Harness</div></div>
+                <div class="vz-actor" data-actor="model"><div class="vz-actor-name">Modello</div></div>
+                <div class="vz-actor" data-actor="tools"><div class="vz-actor-name">Tools</div></div>
+              </div>
+              <div class="vz-fs">
+                <div class="vz-fs-head">Filesystem</div>
+                <div class="vz-fs-tree" id="vz2-fs">
+                  <div class="vz-fs-file">
+                    <span class="vz-fs-name">note.md</span>
+                    <span class="vz-fs-content">"ciao mondo"</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="vz-narration" id="vz2-narration">
+              Stato iniziale: il file <code>note.md</code> esiste gia' (dal turno 1).
+              Il modello pero' <em>non lo sa</em>. Premi <strong>Step ▶</strong> e
+              guarda cosa fa per scoprirlo.
+            </div>
+            <div class="vz-controls">
+              <div class="vz-progress">
+                <span id="vz2-step">0</span> / <span id="vz2-total">9</span>
+              </div>
+              <div class="vz-buttons">
+                <button class="vz-btn" data-vz="vz2" data-action="reset">Reset</button>
+                <button class="vz-btn vz-btn-primary" data-vz="vz2" data-action="next">Step ▶</button>
+                <button class="vz-btn" data-vz="vz2" data-action="play">▶ Auto</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SLIDE 12 -->
+      <section class="slide" id="s12">
+        <div class="slide-num">12 / 26</div>
+        <h1>L'"ah" moment</h1>
+        <p class="slide-sub">Tutto il resto del deck e' una conseguenza di questa frase.</p>
+        <div class="slide-body">
+          <div class="ah-frame">
+            <p class="ah-text">
+              Il modello non sa nulla di te tra un turno e il successivo.<br>
+              L'unica cosa che sopravvive<br>
+              <span class="ah-emph">e' cio' che e' scritto sul filesystem.</span>
+            </p>
+          </div>
+          <p>Questa frase sembra banale. Non lo e'.</p>
+          <p>Ti chiarisce di colpo perche' Claude Code ti chiede di scrivere
+            un <code>CLAUDE.md</code>. Perche' Cursor ha le rules. Perche' i tre
+            pilastri che vedremo dopo (Van Clieff, Karpathy, Skills) <em>non sono
+            opinioni</em> — sono conseguenze logiche.</p>
+          <p>Se il modello dimentica tutto tra un turno e l'altro, e l'unica
+            cosa che sopravvive sono i file, allora <strong>tutto il design di
+            un agente diventa design di filesystem</strong>. Come organizzi i
+            file, cosa scrivi dentro, come il modello li trova: e' qui che si
+            decide se il tuo agente funziona o no.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 13 -->
+      <section class="slide" id="s13">
+        <div class="slide-num">13 / 26</div>
+        <h1>Cosa sopravvive a un turno</h1>
+        <p class="slide-sub">L'inventario di cio' che persiste.</p>
+        <div class="slide-body">
+          <p>Concretamente, alla fine di un turno, cosa rimane in vita? Tre cose:</p>
+          <div class="survive-list">
+            <div class="sv-item sv-positive">
+              <div class="sv-icon">✓</div>
+              <div class="sv-name">I file sul disco</div>
+              <div class="sv-desc">Tutto cio' che il modello (o tu) avete scritto con
+                <code>write_file</code> / <code>edit_file</code>. Persistente fino a
+                cancellazione esplicita.</div>
+            </div>
+            <div class="sv-item sv-positive">
+              <div class="sv-icon">✓</div>
+              <div class="sv-name">La history della conversazione</div>
+              <div class="sv-desc">La sequenza di messaggi (utente, modello, tool result)
+                della sessione corrente. Vive in memoria dell'harness, viene
+                rimandata al modello ogni turno.</div>
+            </div>
+            <div class="sv-item sv-positive">
+              <div class="sv-icon">✓</div>
+              <div class="sv-name">Gli artefatti esterni</div>
+              <div class="sv-desc">Commit git pushati, file caricati su un servizio,
+                processi avviati. Tutto cio' che ha "lasciato traccia" fuori
+                dall'agente.</div>
+            </div>
+          </div>
+          <p>Tutto qui. Nient'altro.</p>
+        </div>
+      </section>
+
+      <!-- SLIDE 14 -->
+      <section class="slide" id="s14">
+        <div class="slide-num">14 / 26</div>
+        <h1>Cosa NON sopravvive</h1>
+        <p class="slide-sub">L'elenco di cio' che svanisce ad ogni turno.</p>
+        <div class="slide-body">
+          <p>Quattro cose che la gente <em>pensa</em> persistano, ma non persistono:</p>
+          <div class="survive-list">
+            <div class="sv-item sv-negative">
+              <div class="sv-icon">✗</div>
+              <div class="sv-name">Il "ragionamento interno" del modello</div>
+              <div class="sv-desc">Quello che il modello "ha pensato" senza
+                scriverlo. Sparisce. Se vuoi che resti, deve essere parte
+                dell'output testuale o di un file.</div>
+            </div>
+            <div class="sv-item sv-negative">
+              <div class="sv-icon">✗</div>
+              <div class="sv-name">Variabili in memoria del programma</div>
+              <div class="sv-desc">Oggetti Python, stati di applicazione,
+                cache in-process. Se rilanci l'harness, addio.</div>
+            </div>
+            <div class="sv-item sv-negative">
+              <div class="sv-icon">✗</div>
+              <div class="sv-name">Decisioni prese ma non documentate</div>
+              <div class="sv-desc">"Stavolta uso questo pattern" — se non
+                lo scrivi su un file, il modello al turno dopo non lo sa
+                e potrebbe fare scelte opposte.</div>
+            </div>
+            <div class="sv-item sv-negative">
+              <div class="sv-icon">✗</div>
+              <div class="sv-name">Contesto temporaneo mai esplicitato</div>
+              <div class="sv-desc">"L'utente ha detto qualcosa di importante
+                tre turni fa." Se non sta nei messaggi visibili, e nessuno
+                l'ha scritto su disco, sparisce alla prossima sessione.</div>
+            </div>
+          </div>
+          <div class="note">
+            <strong>Implicazione pratica.</strong> Se vuoi che il modello
+            "ricordi" qualcosa <em>tra sessioni</em>, devi scriverlo da qualche
+            parte che lui rileggera'. Non basta dirglielo in chat. Per questo
+            esistono i file <code>CLAUDE.md</code>, le rules in Cursor, le
+            skill, le wiki: <em>sono i posti dove la memoria sopravvive</em>.
+          </div>
+        </div>
+      </section>
