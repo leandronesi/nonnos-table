@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
+import { OnboardingRunProvider } from "./pipeline/OnboardingRunContext";
 import { Signup } from "./pages/auth/Signup";
 import { Login } from "./pages/auth/Login";
 import { VerifyEmail } from "./pages/auth/VerifyEmail";
@@ -74,6 +75,8 @@ export function App() {
   const basename = (import.meta.env.BASE_URL || "/").replace(/\/$/, "") || undefined;
   return (
     <AuthProvider>
+      {/* OnboardingRunProvider vede useAuth e sopravvive alle route changes */}
+      <OnboardingRunProvider>
       <BrowserRouter basename={basename}>
         <Routes>
           {/* Pubbliche */}
@@ -123,6 +126,7 @@ export function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
+      </OnboardingRunProvider>
     </AuthProvider>
   );
 }

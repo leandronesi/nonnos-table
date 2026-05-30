@@ -1,79 +1,59 @@
 /**
  * OnboardingWaiting — container "Il Primo Incontro".
  *
- * Motore: runOnboardingOrchestrator + supabase + auth.
- * Presentazione: delegata interamente a <IncontroScene>.
+ * Consumatore puro: non lancia più runOnboardingOrchestrator da solo.
+ * Il run vive in OnboardingRunProvider (App.tsx), sopravvive alla navigazione.
  *
- * LOGICA INVARIATA: useEffect con deps [profile?.user_id], bug del loop
- * "Mi preparo" gia' risolto, NON reintrodotto.
- * Al ready: carica coach_brief.json e mostra il primo colpo via IncontroScene.
- * Se l'utente e' gia' ready al mount, naviga subito a "/".
+ * Redirect logic:
+ *   - profile.onboarding_state === "ready" E firstBatchReady === false
+ *     → utente di ritorno già onboardato: vai dritto al Tavolo (replace).
+ *   - profile.onboarding_state === "ready" E firstBatchReady === true
+ *     → utente nuovo: resta qui, carica coach_brief e mostra PrimoColpo.
+ *
+ * LOGICA INVARIATA: NON reintroduce il bug del loop "Mi preparo".
  */
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
-import { supabase } from "../../auth/supabaseClient";
 import { downloadJson, quadernoPath } from "../../auth/storage";
-import { runOnboardingOrchestrator, type OrchestratorProgress } from "../../pipeline/orchestrator";
+import { useOnboardingRun } from "../../pipeline/OnboardingRunContext";
 import { IncontroScene, type CoachLlmBrief } from "./IncontroScene";
 
 export function OnboardingWaiting() {
   const nav = useNavigate();
-  const { profile, refreshProfile, signOut } = useAuth();
-  const [progress, setProgress] = useState<OrchestratorProgress | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { profile, signOut } = useAuth();
+  const { progress, error, firstBatchReady } = useOnboardingRun();
 
   // undefined = non ancora in stato ready
   // null = brief fallito o non trovato (mostra fallback)
   // CoachLlmBrief = brief caricato
   const [readyBrief, setReadyBrief] = useState<CoachLlmBrief | null | undefined>(undefined);
 
-  // CRITICO: deps su [profile?.user_id] per non reintrodurre il bug del loop.
+  // Redirect: utente di ritorno già onboardato (profilo ready, ma firstBatchReady
+  // è false perché non ha appena completato l'onboarding in questa sessione).
   useEffect(() => {
-    if (profile?.onboarding_state === "ready") {
+    if (!profile) return;
+    if (profile.onboarding_state === "ready" && !firstBatchReady) {
       nav("/", { replace: true });
-      return;
     }
-    if (!profile?.user_id) return;
+  }, [profile, firstBatchReady, nav]);
 
+  // Quando firstBatchReady diventa true: carica il coach_brief e mostralo.
+  useEffect(() => {
+    if (!firstBatchReady || !profile?.user_id) return;
     let cancelled = false;
-    runOnboardingOrchestrator({
-      profile,
-      onProgress: (p) => {
-        if (!cancelled) setProgress(p);
-      },
-    })
-      .then(async () => {
-        if (cancelled) return;
-        const { data: freshRow } = await supabase
-          .from("profiles")
-          .select("onboarding_state")
-          .eq("user_id", profile.user_id)
-          .maybeSingle();
-        if (cancelled) return;
-        if (freshRow?.onboarding_state === "ready") {
-          await refreshProfile();
-          if (!cancelled) {
-            try {
-              const brief = await downloadJson<CoachLlmBrief>(
-                quadernoPath(profile.user_id, "coach_brief.json")
-              );
-              if (!cancelled) setReadyBrief(brief);
-            } catch {
-              if (!cancelled) setReadyBrief(null);
-            }
-          }
-        }
+    downloadJson<CoachLlmBrief>(quadernoPath(profile.user_id, "coach_brief.json"))
+      .then((brief) => {
+        if (!cancelled) setReadyBrief(brief);
       })
-      .catch((e) => {
-        if (!cancelled) setError(String(e instanceof Error ? e.message : e));
+      .catch(() => {
+        if (!cancelled) setReadyBrief(null);
       });
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.user_id]);
+  }, [firstBatchReady, profile?.user_id]);
 
   if (!profile) {
     return (
