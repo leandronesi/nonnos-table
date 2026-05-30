@@ -16,7 +16,7 @@ import { downloadJson, uploadJson, analysisPath, quadernoPath } from "../auth/st
 import type { GameAnalysis } from "./analyze";
 import { getMaiaEngine } from "./maia/maiaEngine";
 import { FREE_GAME_CAP, MAX_COACH_EXAMPLES, CADUTE_LIMIT, CADUTE_MAIA_CAP } from "./config";
-import type { AnchorTrendNow } from "../types";
+import type { AnchorTrendNow, TransferAggregates, TransferMotifStat, TransferMotifType, MotifOccurrence } from "../types";
 
 export interface PhaseAgg {
   moves: number;
@@ -269,6 +269,14 @@ export interface Aggregates {
    * undefined se nessuna partita analizzata.
    */
   repertoire?: RepertoireRow[];
+  /**
+   * Transfer metrics: faced/handled/rate per motif, windowed and overall (§7.3 BUILD.md).
+   *
+   * HEURISTIC: motif classification uses chess.js geometry — approximate.
+   * `rate` is null when `faced` is below the minimum threshold (sparse data).
+   * undefined if no motif_occurrences data available (old analysis files).
+   */
+  transfer?: TransferAggregates;
 }
 
 function emptyPhase(): PhaseAgg {
@@ -472,6 +480,90 @@ async function enrichWithMaia(
   return result;
 }
 
+// ── Transfer aggregates (§7.3 BUILD.md) ──────────────────────────────────────
+
+/**
+ * Minimum number of faced occurrences to compute a meaningful rate.
+ * Below this threshold, `rate` is null ("dato insufficiente").
+ */
+const MIN_FACED_FOR_RATE = 3;
+
+/** All tracked motif types (excludes "none" from the per-motif breakdown). */
+const TRANSFER_MOTIFS: TransferMotifType[] = ["hanging_piece", "fork", "back_rank"];
+
+/**
+ * Builds per-motif TransferMotifStat[] from a list of occurrences.
+ * Only the 3 tactical motifs are reported (not "none" — it's the null/rest category).
+ */
+function buildTransferStats(occurrences: MotifOccurrence[]): TransferMotifStat[] {
+  const faced: Record<TransferMotifType, number> = { hanging_piece: 0, fork: 0, back_rank: 0, none: 0 };
+  const handled: Record<TransferMotifType, number> = { hanging_piece: 0, fork: 0, back_rank: 0, none: 0 };
+
+  for (const occ of occurrences) {
+    faced[occ.motif]++;
+    if (occ.handled) handled[occ.motif]++;
+  }
+
+  return TRANSFER_MOTIFS.map((motif) => {
+    const f = faced[motif];
+    const h = handled[motif];
+    return {
+      motif,
+      faced: f,
+      handled: h,
+      rate: f >= MIN_FACED_FOR_RATE ? h / f : null,
+    };
+  });
+}
+
+/**
+ * Computes TransferAggregates from all motif_occurrences across analyzed games.
+ *
+ * Windowing: relative to the most recent `played_at` in the occurrences.
+ *   recent = [maxDate - 27d .. maxDate]
+ *   prior  = [maxDate - 55d .. maxDate - 28d]
+ *
+ * Returns undefined if there are no occurrences (old analysis files, no data).
+ */
+function computeTransferAggregates(
+  allOccurrences: MotifOccurrence[],
+): TransferAggregates | undefined {
+  if (allOccurrences.length === 0) return undefined;
+
+  // Find the most recent played_at.
+  let maxDateMs = 0;
+  for (const occ of allOccurrences) {
+    if (occ.played_at) {
+      const t = Date.parse(occ.played_at);
+      if (!isNaN(t) && t > maxDateMs) maxDateMs = t;
+    }
+  }
+  if (maxDateMs === 0) return undefined;
+
+  const MS_PER_DAY = 86_400_000;
+  const recentEnd   = maxDateMs;
+  const recentStart = maxDateMs - 27 * MS_PER_DAY;
+  const priorEnd    = maxDateMs - 28 * MS_PER_DAY;
+  const priorStart  = maxDateMs - 55 * MS_PER_DAY;
+
+  const recentOcc: MotifOccurrence[] = [];
+  const priorOcc: MotifOccurrence[] = [];
+
+  for (const occ of allOccurrences) {
+    if (!occ.played_at) continue;
+    const t = Date.parse(occ.played_at);
+    if (isNaN(t)) continue;
+    if (t >= recentStart && t <= recentEnd) recentOcc.push(occ);
+    else if (t >= priorStart && t <= priorEnd) priorOcc.push(occ);
+  }
+
+  return {
+    overall: buildTransferStats(allOccurrences),
+    recent:  buildTransferStats(recentOcc),
+    prior:   buildTransferStats(priorOcc),
+  };
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 /**
@@ -524,6 +616,10 @@ export async function computeAggregates(
 
   const exampleCandidates: Array<PositionExample & { gameKey: string }> = [];
 
+  // ── Transfer: collect all motif_occurrences across games ─────────────────────
+  // Occurrences come from GameAnalysis.motif_occurrences (undefined on old files → skip).
+  const allMotifOccurrences: MotifOccurrence[] = [];
+
   // ── Repertorio accumulator ───────────────────────────────────────────────────
   // Key: "<eco>|<opening>|<color>" — built per-game, errors/avoidable added post-Maia.
   interface RepertoireAccEntry {
@@ -548,6 +644,14 @@ export async function computeAggregates(
     const ga = await downloadJson<GameAnalysis>(g.analysis_path);
     if (!ga) continue;
     analyzedCount++;
+
+    // Collect motif occurrences for transfer metrics (§7.3). Old analysis files
+    // will have motif_occurrences === undefined — silently skip them.
+    if (ga.motif_occurrences && ga.motif_occurrences.length > 0) {
+      for (const occ of ga.motif_occurrences) {
+        allMotifOccurrences.push(occ);
+      }
+    }
 
     movesTotal += ga.total_player_moves;
     blundersTotal += ga.blunders;
@@ -1121,6 +1225,11 @@ export async function computeAggregates(
   // TODO: waiting_moves — "posizioni di attesa" quando p_maia_mine_top < 0.20. (M3)
   // TODO: strutture pedonali — cluster per natura posizionale. (M3)
 
+  // ── Transfer aggregates (§7.3 BUILD.md) ──────────────────────────────────────
+  // Computed from all motif_occurrences collected above. Returns undefined if no
+  // occurrence data exists (old analysis files before this feature was added).
+  const transfer = computeTransferAggregates(allMotifOccurrences);
+
   const out: Aggregates = {
     generated_at: new Date().toISOString(),
     games_analyzed: analyzedCount,
@@ -1138,6 +1247,7 @@ export async function computeAggregates(
     weaknesses: anchors, // alias, same array reference
     maia_weighted: maiaWeighted,
     repertoire: repertoire.length > 0 ? repertoire : undefined,
+    transfer,
   };
 
   await uploadJson(quadernoPath(userId, "aggregates.json"), out);

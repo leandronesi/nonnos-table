@@ -302,3 +302,53 @@ FATTO BENE, "a seconda del momento". Un coach NON ti da' la mossa: ti dice dove 
     offri quella ("Se non la vedi, una solida e' {waiting}").
 - Voce di Nonno, calda, non da' via il gioco. Highlight/arrow su BoardView per Tier 2/3. Niente dato finto: tutto Stockfish/chess.js-validato.
 - Non blocca il gioco se il motore tarda (timeout/skip con grazia). Vive in frontend/src/session/PlayStep.tsx (+ eventuale util hint).
+
+---
+
+## 7. LA STORIA = registro del TRANSFER (ripensata, feedback PO 2026-05-30)
+
+Problema (PO): la Storia attuale e' un DIARIO di cio' che il coach ha detto, non la prova di cosa TU
+fai diverso nelle partite vere. Misura l'output dell'app, non il transfer. "Puo' essere potentissima o
+una merda." Direzione scelta: registro del transfer + pattern-detection vero (affrontato N / schivato M).
+
+### 7.1 La tesi
+Una domanda, ogni giorno: **"Stai applicando quello che impari, partita vera dopo partita vera? E quanto
+sei evoluto dal primo giorno?"** Tre strati: (1) polso di ieri, (2) applicazione nel tempo, (3) dal giorno 1.
+Unisce gli attuali tab Evoluzione + Storia in UNA vista "Il tuo percorso" (via la ridondanza).
+
+### 7.2 Pattern-occurrence detection (il dato nuovo, in analyze) — onesto
+Oggi salviamo solo gli ERRORI. Per dire "affrontato N, schivato M" serve censire le OCCORRENZE del motif
+anche quando NON sbagli. Modello (per OGNI posizione critica del giocatore, non solo gli errori):
+- Classifica il MOTIF della decisione dal best-move Stockfish + geometria (chess.js, euristico):
+  - `hanging_piece` (pezzo in presa): best move cattura un pezzo avversario indifeso / guadagna materiale,
+    OPPURE un tuo pezzo e' attaccato e sotto-difeso e la best lo salva.
+  - `fork`: la best crea un doppio attacco (2+ bersagli pezzo/re).
+  - `back_rank`: best move e'/minaccia matto sull'ultima traversa o sfrutta debolezza dell'ultima traversa.
+  - (`removed_defender`/`discovered`: approssimati o rimandati.)
+  - else: `none` (decisione posizionale/tranquilla, niente motif tattico netto).
+- Registra per posizione critica: `{ motif, handled: cp_loss < HANDLED_CP (es. 50), played_at, phase }`.
+  Registra per TUTTE le critiche (gestite e non), non solo gli errori.
+- Aggrega per motif su finestra/storia: `faced` = conteggio, `handled` = conteggio gestite, `rate = handled/faced`.
+- ONESTA': la classificazione e' euristica (chess.js): "affrontato {motif}" e' approssimato, dichiaralo.
+  Mai gonfiare "schivato". Sotto-soglia di numerosita' -> "dato insufficiente".
+
+### 7.3 Aggregati transfer (aggregate.ts + history snapshot)
+- Per motif/ancora: `faced` / `handled` / `rate`, finestrato (recent vs prior, per data partita) + nello snapshot
+  history (serie nel tempo). Cosi' la "curva del transfer" e' reale.
+- "Polso di ieri/recente": filtra le partite per `played_at` (ultime 24-72h o ultima sessione di gioco);
+  per ogni freno: faced/handled in quella finestra vs baseline.
+- "Dal giorno 1": primo snapshot (o partite piu' vecchie) vs oggi: rating, top freni, gap. Prima/dopo.
+
+### 7.4 La vista "Il tuo percorso" (sostituisce Storia, assorbe Evoluzione)
+- **Polso di ieri**: "Hai giocato N partite. Sul tuo freno X: affrontato A, schivato S (prima S0/A0). [verdetto]."
+  Con le partite linkate (game_url). Voce di Nonno che legge il TRANSFER (non un diario che si ripete).
+- **Applicazione nel tempo**: per ogni freno, curva faced/handled (o rate) dal giorno 1. "Lo schivavi 2 su 8, ora 6 su 8."
+- **Dal primo giorno**: rating curve + profilo day-1 vs oggi (freni, gap). Il giocatore che stai diventando.
+- Empty-state onesti finche' non ci sono >= 2 finestre di dati. Niente dato finto.
+- Il diario di Nonno (coach_journal) resta come nota qualitativa, ma DEDUP (gia' fatto) e secondario.
+
+### 7.5 Sequenza di build
+1. analyze: pattern-occurrence detection (motif + handled per posizione critica). Richiede rianalisi per popolare.
+2. aggregate + history: metriche transfer (faced/handled finestrato + snapshot).
+3. UI "Il tuo percorso" (merge Evoluzione+Storia): polso di ieri + applicazione nel tempo + dal giorno 1.
+Acceptance: build verde; numeri reali (mai finti); euristica dichiarata; empty-state onesti; nessuna ridondanza.
