@@ -7355,6 +7355,7 @@ button:disabled, [aria-disabled="true"] {
 .public-main {
   width: min(1140px, calc(100% - 40px));
   margin: 0 auto;
+  padding-bottom: clamp(3rem, 7vw, 5.5rem);
 }
 
 .public-hero {
@@ -7689,7 +7690,7 @@ button:disabled, [aria-disabled="true"] {
 }
 
 .public-session-card {
-  top: 6.8rem;
+  top: 5.2rem;
   right: 1.55rem;
   width: min(36%, 15.4rem);
   padding: 1rem;
@@ -7802,7 +7803,7 @@ button:disabled, [aria-disabled="true"] {
 }
 
 .public-story-grid {
-  margin: clamp(0.75rem, 2.4vw, 1.7rem) 0 clamp(6rem, 12vw, 9rem);
+  margin: clamp(0.75rem, 2.4vw, 1.7rem) 0 clamp(1.5rem, 3vw, 2.5rem);
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1.15rem;
