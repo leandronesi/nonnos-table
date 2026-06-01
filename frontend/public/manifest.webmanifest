@@ -1,0 +1,14 @@
+{
+  "name": "Il Tavolo del Nonno",
+  "short_name": "Tavolo del Nonno",
+  "description": "Un coach di scacchi che rivede con te le tue partite di Chess.com. Ti siedi al tavolo con Nonno e migliori un momento alla volta.",
+  "lang": "it",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#060814",
+  "theme_color": "#060814",
+  "icons": [
+    { "src": "nonno-icon.png", "sizes": "250x250", "type": "image/png", "purpose": "any" }
+  ]
+}

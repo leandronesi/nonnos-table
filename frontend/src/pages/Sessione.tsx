@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { downloadJson, quadernoPath } from "../auth/storage";
 import { NonnoSession } from "../session/NonnoSession";
@@ -19,6 +19,10 @@ import { PRODUCT_NAME } from "../coaching";
 export function Sessione() {
   const { user, profile } = useAuth();
   const nav = useNavigate();
+  const location = useLocation();
+
+  // Deep-link from MomentoDelGiorno: bring the clicked position to front.
+  const focusKey = (location.state as { focusKey?: string } | null)?.focusKey;
 
   const [cadute, setCadute] = useState<PositionExample[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,9 +101,24 @@ export function Sessione() {
   // ── Sessione ───────────────────────────────────────────────────────────────
   // NonnoSession handles cadute.length === 0 with its own clean empty state.
 
+  // If a focusKey is present (deep-link from Momento del giorno), bring the
+  // matching position to the front so it becomes positions[0] in NonnoSession.
+  const orderedCadute = (() => {
+    const base = cadute ?? [];
+    if (!focusKey) return base;
+    const idx = base.findIndex(
+      (c) => `${c.fen_before}:${c.ply}` === focusKey,
+    );
+    if (idx <= 0) return base; // not found or already first — no-op
+    const reordered = [...base];
+    const [target] = reordered.splice(idx, 1);
+    reordered.unshift(target);
+    return reordered;
+  })();
+
   return (
     <NonnoSession
-      cadute={cadute ?? []}
+      cadute={orderedCadute}
       targetRating={profile?.goal_rating ?? 1600}
       currentRating={null}
       onClose={() => nav("/")}

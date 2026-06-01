@@ -41,6 +41,7 @@ import { RatingCurveChart } from "../../components/RatingCurveChart";
 import { DecisionsCard } from "../../components/DecisionsCard";
 import { WeeklyTrendCard } from "../../components/WeeklyTrendCard";
 import { SpeedVsErrorsChart } from "../../components/SpeedVsErrorsChart";
+import { GameArcChart } from "../../components/GameArcChart";
 import { BoardView } from "../../components/BoardView";
 import { RepertorioPanel } from "../../components/RepertorioPanel";
 import { CaduteTrainer } from "../../session/CaduteTrainer";
@@ -1473,9 +1474,11 @@ function HBar({ pct, danger, label, sub }: { pct: number; danger: boolean; label
 function TabProfilo({
   aggregates,
   pmLite,
+  targetRating,
 }: {
   aggregates: Aggregates | null;
   pmLite: PlayerModelLite | null;
+  targetRating: number;
 }) {
   const decisions = pmLite?.decisions ?? null;
   const weeklyTrend = pmLite?.weekly_trend ?? null;
@@ -1533,6 +1536,16 @@ function TabProfilo({
           <SpeedVsErrorsChart
             data={pmLite!.time_management!.spent_vs_accuracy!}
             avoidable={aggregates?.maia_weighted?.spent_vs_avoidable}
+          />
+        </Reveal>
+      )}
+
+      {/* Gap Maia — GameArcChart (moved from Tavolo) */}
+      {aggregates?.maia_weighted != null && (
+        <Reveal delay={100} className="mb-8">
+          <GameArcChart
+            maiaWeighted={aggregates.maia_weighted}
+            targetRating={targetRating > 0 ? targetRating : null}
           />
         </Reveal>
       )}
@@ -1881,7 +1894,7 @@ function TabRepertorio({ aggregates }: { aggregates: Aggregates | null }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function Quaderno() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [pmLite,     setPmLite]     = useState<PlayerModelLite | null>(null);
   const [aggregates, setAggregates] = useState<Aggregates | null>(null);
   const [history,    setHistory]    = useState<HistoryFile>({ schema_version: 1, snapshots: [] });
@@ -2049,6 +2062,7 @@ export function Quaderno() {
             <TabProfilo
               aggregates={aggregates}
               pmLite={pmLite}
+              targetRating={profile?.goal_rating ?? pmLite?.identity?.goal?.target ?? 0}
             />
           )}
           {activeTab === "cadute" && (

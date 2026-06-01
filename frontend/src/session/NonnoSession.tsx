@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import type { PositionExample } from "../pipeline/aggregate";
 import type { PlayResult } from "./store";
 import { toPositionRow } from "./fromCadute";
+import { writeEntry, hasEntryToday } from "./journal";
 import { MomentReview } from "./MomentReview";
 import { PositionPuzzle } from "./WarmupGuidato";
 import { PlayStep } from "./PlayStep";
@@ -344,6 +345,14 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose }: P
   }
 
   function handlePlayDone(_result: PlayResult) {
+    // Write journal entry only once, only on full completion (not on early exit).
+    if (!hasEntryToday("session_done")) {
+      writeEntry({
+        kind: "session_done",
+        body: "Ci siamo seduti, abbiamo rivisto i tuoi momenti e giocato una partita.",
+        meta: { positions: positions.length },
+      });
+    }
     setPhase("saluto");
   }
 

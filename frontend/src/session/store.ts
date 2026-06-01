@@ -217,22 +217,17 @@ export function completeSession(s: SessionState): { session: SessionState; strea
   };
   saveSession(finished);
 
-  // streak update
+  // streak bookkeeping — maintains totalSessions / totalPoints / best / lastDate.
+  // Streak display is forbidden (lista del NO). Journal entries for streak are removed.
   const prev = loadStreak();
   const today = todayUTC();
   let current = prev.current;
-  let streakKind: "up" | "broken" | "same" = "same";
-  if (prev.lastDate === today) {
-    streakKind = "same";
-  } else if (prev.lastDate === yesterdayUTC()) {
-    current = prev.current + 1;
-    streakKind = "up";
-  } else if (prev.lastDate !== "") {
-    current = 1;
-    streakKind = "broken";
-  } else {
-    current = 1;
-    streakKind = "up";
+  if (prev.lastDate !== today) {
+    if (prev.lastDate === yesterdayUTC()) {
+      current = prev.current + 1;
+    } else {
+      current = 1;
+    }
   }
   const next: DailyStreak = {
     current,
@@ -243,38 +238,9 @@ export function completeSession(s: SessionState): { session: SessionState; strea
   };
   saveStreak(next);
 
-  // Journal: scrivi entries per la sessione + streak. Import lazy per evitare
-  // cicli (journal.ts → store.ts → journal.ts).
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  import("./journal").then(({ writeEntry, bodyForStreakMilestone, hasEntryToday }) => {
-    if (!hasEntryToday("session_done")) {
-      writeEntry({
-        kind: "session_done",
-        body: `Sessione di oggi: ${finished.points} punti.`,
-        meta: { points: finished.points },
-      });
-    }
-    if (streakKind === "up" && !hasEntryToday("streak_up")) {
-      writeEntry({
-        kind: "streak_up",
-        body: `Streak a ${current} ${current === 1 ? "giorno" : "giorni"}.`,
-        meta: { current },
-      });
-      if ([7, 14, 30, 60, 100].includes(current) && !hasEntryToday("streak_milestone")) {
-        writeEntry({
-          kind: "streak_milestone",
-          body: bodyForStreakMilestone(current),
-          meta: { days: current },
-        });
-      }
-    } else if (streakKind === "broken" && !hasEntryToday("streak_broken")) {
-      writeEntry({
-        kind: "streak_broken",
-        body: `Hai saltato qualche giorno. Si ricomincia da uno.`,
-        meta: { previous: prev.current },
-      });
-    }
-  }).catch(() => { /* silent */ });
+  // Journal entry for session_done is written by NonnoSession.handlePlayDone
+  // (only on full completion, with guard hasEntryToday). Streak journal entries
+  // are removed: streak is a forbidden attribute (DESIGN.md / lista del NO).
 
   return { session: finished, streak: next };
 }

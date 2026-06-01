@@ -51,7 +51,7 @@ export function Landing() {
       <main className="public-main">
         <section className="public-hero" aria-labelledby="home-title">
           <div className="public-copy">
-            <div className="public-kicker">Beta su invito</div>
+            <div className="public-kicker">Coach di scacchi · Beta su invito</div>
 
             <h1 id="home-title">
               il Tavolo del <span>Nonno</span>
