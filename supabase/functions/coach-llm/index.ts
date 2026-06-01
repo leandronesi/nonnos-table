@@ -181,13 +181,25 @@ serve(async (req: Request) => {
   }
 
   // 5+6. Prompt + OpenAI + validazione, con fallback deterministico.
+  // fallbackReason resta null quando l'LLM ha risposto e il brief e' valido.
+  // Quando e' valorizzato, la risposta finale lo espone (used_fallback + reason),
+  // cosi' il motivo del ripiego e' diagnosticabile dall'app, non solo dai log.
   let brief: CoachBrief;
+  let fallbackReason: string | null = null;
   try {
     const raw = await callOpenAi(ctx, aggregates);
-    brief = isValidBrief(raw) ? raw : fallbackBrief(aggregates, ctx);
+    if (isValidBrief(raw)) {
+      brief = raw;
+    } else {
+      fallbackReason = "openai ha risposto con un brief non valido (campi mancanti o top_3_freni vuoto)";
+      // eslint-disable-next-line no-console
+      console.warn("[coach-llm]", fallbackReason);
+      brief = fallbackBrief(aggregates, ctx);
+    }
   } catch (e) {
+    fallbackReason = String(e instanceof Error ? e.message : e);
     // eslint-disable-next-line no-console
-    console.warn("[coach-llm] OpenAI fallita, uso fallback:", String(e));
+    console.warn("[coach-llm] OpenAI fallita, uso fallback:", fallbackReason);
     brief = fallbackBrief(aggregates, ctx);
   }
 
@@ -214,10 +226,15 @@ serve(async (req: Request) => {
     );
   if (journalErr) return jsonError(`journal upload failed: ${journalErr.message}`, 500, origin);
 
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: { ...corsHeaders(origin), "content-type": "application/json" },
-  });
+  // used_fallback/reason: cosi' l'app (e tu, dal Network tab) vedi se la voce e'
+  // quella vera di OpenAI o il ripiego deterministico, e PERCHE'.
+  return new Response(
+    JSON.stringify({ ok: true, used_fallback: fallbackReason != null, reason: fallbackReason ?? undefined }),
+    {
+      status: 200,
+      headers: { ...corsHeaders(origin), "content-type": "application/json" },
+    },
+  );
 });
 
 function jsonError(message: string, status: number, origin: string | null) {
