@@ -1,20 +1,22 @@
 /**
- * TavoloHome — S3 redo (FASE 2, §5.2 BUILD.md).
+ * TavoloHome — Il Tavolo "il perche'", letto da Nonno.
  *
- * Ordine sezioni (il rituale):
- *   1. INGRESSO      — voce di Nonno (NonnoGreeting/frustata) DOMINANTE, CTA unica "Sediamoci al Tavolo"
- *   2. OBIETTIVO     — anello/hero-goal (oro) + riga progresso da goalProgress()
- *   3. LE TUE 3 ANCORE — top-3 by rating_upside desc, upside in oro, chip "stai migliorando"
- *   4. DETTAGLIO     — gap col target (maia_weighted) + GameArc + SpeedVsErrors + cadute (de-enfatizzati)
- *   5. NAVIGAZIONE   — links a Sessione / Quaderno in fondo
+ * Ordine blocchi (SPRINT_OOUX.md §5 — una sola schermata, decisione PO 2026-06-01):
+ *   1. INGRESSO   — NonnoGreeting (voce dominante) + memoria visibile (journal)
+ *   2. OBIETTIVO  — GoalHero (oro)
+ *   3. MOMENTO    — MomentoDelGiorno (la spina resa posizione)
+ *   4. GAP        — maia_weighted, solo testo tagliente (GameArc vive nel Quaderno)
+ *   5. ANCORE     — top-3 cliccabili -> /quaderno#percorso ("dove perdi, in breve")
+ *   6. VARCO      — card-soglia quiet -> /quaderno (la sala d'analisi)
+ *   7. AZIONI     — ghost, in fondo (aggiorna / rianalizza)
  *
  * Regole visive (DESIGN.md):
  *   - FLAT: profondita' tonal layers, niente ombre decorative
- *   - twilight <= 15% superficie, una sola CTA per schermo
+ *   - twilight <= 15% superficie, una sola CTA LOUD per schermo (in NonnoGreeting)
  *   - ORO solo per l'Obiettivo e rating_upside ancore
  *   - niente gradient-text, niente em-dash, niente card-dentro-card
  *   - classi tt-* per le primitive del KIT (index.css KIT block)
- *   - classNames .tavolo-* per scoped layout
+ *   - mono solo per numeri che Nonno cita nel discorso
  */
 
 import React, { useEffect, useRef, useState } from "react";
@@ -27,14 +29,9 @@ import { runRefresh, runFullReanalyze } from "../pipeline/orchestrator";
 import type { Aggregates, Anchor, PositionExample } from "../pipeline/aggregate";
 import type { PlayerModelLite } from "../pipeline/playerModelLite";
 import { goalProgress } from "../pipeline/history";
-import { RatingCurveChart } from "../components/RatingCurveChart";
-import { DecisionsCard } from "../components/DecisionsCard";
-import { WeeklyTrendCard } from "../components/WeeklyTrendCard";
-import { BoardView } from "../components/BoardView";
 import { NonnoGreeting } from "../components/NonnoGreeting";
-import { SpeedVsErrorsChart } from "../components/SpeedVsErrorsChart";
-import { GameArcChart } from "../components/GameArcChart";
-import { uciToArrow, cpToPawns, uciToSan } from "./quaderno/boardArrows";
+import { MomentoDelGiorno } from "../components/MomentoDelGiorno";
+import { readEntries } from "../session/journal";
 
 // ── Reveal hook ───────────────────────────────────────────────────────────────
 
@@ -144,7 +141,7 @@ function GoalHero({
         Il tuo obiettivo
       </div>
 
-      {/* Main row: current ← track → target */}
+      {/* Main row: current <- track -> target */}
       <div
         style={{
           display: "flex",
@@ -265,145 +262,123 @@ function AnchorRow({ anchor, rank }: { anchor: Anchor; rank: number }) {
     (anchor.trend_now.confidence === "medium" || anchor.trend_now.confidence === "high");
 
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        gap: "1rem",
-        padding: "1rem 0",
-        borderBottom: "1px solid var(--color-line)",
-      }}
+    <Link
+      to="/quaderno#percorso"
+      style={{ textDecoration: "none", color: "inherit", display: "block" }}
     >
-      {/* Rank number */}
       <div
         style={{
-          flexShrink: 0,
-          width: "2rem",
-          height: "2rem",
-          borderRadius: "999px",
-          background: "var(--color-surface-3)",
-          border: "1px solid var(--color-line-strong)",
           display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily: "var(--font-mono)",
-          fontWeight: 700,
-          fontSize: "0.8rem",
-          color: "var(--color-brand-soft)",
+          alignItems: "flex-start",
+          gap: "1rem",
+          padding: "1rem 0",
+          borderBottom: "1px solid var(--color-line)",
+          transition: "opacity 160ms cubic-bezier(0.23,1,0.32,1)",
         }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = "0.78"; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = "1"; }}
       >
-        {rank}
-      </div>
-
-      {/* Label + chips */}
-      <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Rank number */}
         <div
           style={{
-            fontWeight: 600,
-            fontSize: "0.95rem",
-            color: "var(--color-text)",
-            lineHeight: 1.3,
-            marginBottom: "0.375rem",
+            flexShrink: 0,
+            width: "2rem",
+            height: "2rem",
+            borderRadius: "999px",
+            background: "var(--color-surface-3)",
+            border: "1px solid var(--color-line-strong)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontFamily: "var(--font-mono)",
+            fontWeight: 700,
+            fontSize: "0.8rem",
+            color: "var(--color-brand-soft)",
           }}
         >
-          {anchor.label_it}
+          {rank}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-          {anchor.rating_upside != null && anchor.rating_upside > 0 && (
-            <span
-              className="tt-chip"
-              style={{
-                color: "var(--color-gold-soft)",
-                background: "color-mix(in srgb, var(--color-gold) 14%, transparent)",
-              }}
-            >
-              +{anchor.rating_upside} punti
-            </span>
-          )}
-          {improving && (
-            <span className="tt-chip good">stai migliorando</span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
-// ── Mini caduta board card ────────────────────────────────────────────────────
-
-const MOTIF_LABEL: Record<string, string> = {
-  pezzo_in_presa: "Pezzo in presa",
-};
-
-function CadutaCard({ caduta }: { caduta: PositionExample }) {
-  const arrowPlayed = uciToArrow(caduta.played_uci, "rgba(239,68,68,0.85)");
-  const arrowBest = uciToArrow(caduta.best_uci ?? null, "rgba(34,197,94,0.85)");
-  const arrows = [arrowPlayed, arrowBest].filter(Boolean) as {
-    from: string;
-    to: string;
-    color: string;
-  }[];
-
-  return (
-    <div
-      style={{
-        background: "var(--color-surface)",
-        border: "1px solid var(--color-line)",
-        borderRadius: "10px",
-        padding: "0.75rem",
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "center" }}>
-        <BoardView
-          fen={caduta.fen_before}
-          orientation={caduta.color}
-          size={150}
-          arrows={arrows}
-        />
-      </div>
-      <div className="flex items-center gap-2 mt-2 flex-wrap">
-        <span
-          className="font-mono font-bold"
-          style={{
-            fontSize: "1.25rem",
-            lineHeight: 1,
-            color: "var(--color-danger)",
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          -{cpToPawns(caduta.cp_loss)}
-        </span>
-        <span
-          className="tt-chip"
-          style={{
-            background: "rgba(96,165,250,0.12)",
-            color: "var(--color-info, #60a5fa)",
-            textTransform: "capitalize",
-          }}
-        >
-          {caduta.phase}
-        </span>
-        {caduta.motif && (
-          <span
-            className="tt-chip tw"
+        {/* Label + chips */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontWeight: 600,
+              fontSize: "0.95rem",
+              color: "var(--color-text)",
+              lineHeight: 1.3,
+              marginBottom: "0.375rem",
+            }}
           >
-            {MOTIF_LABEL[caduta.motif] ?? caduta.motif}
-          </span>
-        )}
+            {anchor.label_it}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+            {anchor.rating_upside != null && anchor.rating_upside > 0 && (
+              <span
+                className="tt-chip"
+                style={{
+                  color: "var(--color-gold-soft)",
+                  background: "color-mix(in srgb, var(--color-gold) 14%, transparent)",
+                }}
+              >
+                +{anchor.rating_upside} punti
+              </span>
+            )}
+            {improving && (
+              <span className="tt-chip good">stai migliorando</span>
+            )}
+          </div>
+        </div>
       </div>
-      <div
-        className="font-mono"
-        style={{ fontSize: "0.7rem", color: "var(--color-muted)", marginTop: "0.375rem" }}
-      >
-        <span style={{ color: "var(--color-text-soft)" }}>{caduta.san}</span>
-        {" "}
-        <span style={{ color: "var(--color-faint)" }}>-&gt;</span>
-        {" "}
-        <span>{uciToSan(caduta.fen_before, caduta.best_uci ?? null)}</span>
-      </div>
-    </div>
+    </Link>
   );
 }
+
+
+// ── Memoria visibile (la frase "L'altra volta...") ───────────────────────────
+
+/**
+ * Builds the "memoria visibile" line shown above NonnoGreeting in Nonno's voice.
+ *
+ * The journal `body` strings are self-contained sentences (some written for the
+ * Quaderno feed), so they do NOT read naturally after "L'altra volta": some carry
+ * em-dashes or "di oggi" wording that fights the "last time" framing. So we do
+ * not concatenate the raw body here — we recompose a short memory line from the
+ * entry kind, preferring the last full SESSION over a single exercise/streak,
+ * and lean on the TIME tic ("ieri", "tre giorni fa") without inventing facts.
+ *
+ * Returns null when there is nothing worth surfacing.
+ */
+function buildMemoria(): string | null {
+  const entries = readEntries();
+  if (entries.length === 0) return null;
+
+  // Prefer the last actual session; fall back to the most recent entry of any kind.
+  const lastSession = entries.find((e) => e.kind === "session_done");
+  const ref = lastSession ?? entries[0];
+
+  // Days since that entry (from its UTC date string, so clock/time-zone hours
+  // never turn "today" into "yesterday").
+  const today = new Date();
+  const todayUtcMid = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  const parts = ref.date.split("-").map((n) => parseInt(n, 10));
+  let whenClause = "L'altra volta";
+  if (parts.length === 3 && parts.every((n) => !Number.isNaN(n))) {
+    const refUtcMid = Date.UTC(parts[0], parts[1] - 1, parts[2]);
+    const days = Math.round((todayUtcMid - refUtcMid) / 86400000);
+    if (days === 1) whenClause = "Ieri";
+    else if (days >= 2 && days <= 6) whenClause = `${days} giorni fa`;
+    else if (days > 6) whenClause = "L'ultima volta";
+    // days <= 0 (same UTC day): keep the neutral "L'altra volta".
+  }
+
+  if (lastSession != null) {
+    return `${whenClause} ci siamo seduti insieme. Riprendiamo da li'.`;
+  }
+  // No full session yet, but some activity happened: keep it light, no raw body.
+  return `${whenClause} sei passato dal Tavolo. Bene, riprendiamo.`;
+}
+
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -438,7 +413,7 @@ export function TavoloHome() {
       }
     })();
     return () => { cancelled = true; };
-    // dataVersion: si incrementa quando il background finisce, forza reload dati
+    // dataVersion: increments when background pipeline finishes, forces data reload.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, dataVersion]);
 
@@ -477,7 +452,7 @@ export function TavoloHome() {
           <div className="tt-eyebrow" style={{ marginBottom: "0.5rem" }}>
             {PRODUCT_NAME}
           </div>
-          <div style={{ fontSize: "0.9rem", color: "var(--color-muted)" }}>Apparecchio…</div>
+          <div style={{ fontSize: "0.9rem", color: "var(--color-muted)" }}>Apparecchio...</div>
         </div>
       </div>
     );
@@ -533,13 +508,13 @@ export function TavoloHome() {
               marginBottom: "0.75rem",
             }}
           >
-            Il Tavolo non e' ancora pronto
+            Il Tavolo non e' ancora apparecchiato
           </h1>
           <p style={{ color: "var(--color-text-soft)", fontSize: "0.9rem", marginBottom: "1.5rem" }}>
-            Sembra che l'onboarding non sia stato completato. Riprendi da li'.
+            Non ho ancora finito di guardare le tue partite. Torniamo da dove ci eravamo fermati.
           </p>
           <Link to="/onboarding/waiting" className="btn btn-primary">
-            Continua l'onboarding
+            Riprendiamo
           </Link>
         </div>
       </div>
@@ -564,23 +539,12 @@ export function TavoloHome() {
     .sort((a, b) => (b.rating_upside ?? 0) - (a.rating_upside ?? 0))
     .slice(0, 3);
 
-  // Cadute
-  const caduteRaw: PositionExample[] = aggregates?.cadute ?? aggregates?.examples ?? [];
-  const cadute3 = caduteRaw.slice(0, 3);
+  // Momento pool: cadute preferred, fallback to examples
+  const momentoPool: PositionExample[] = aggregates?.cadute ?? aggregates?.examples ?? [];
 
-  // Phase bars
-  const phases =
-    aggregates?.by_phase != null
-      ? [
-          { key: "opening" as const, label: "Apertura",    pct: aggregates.by_phase.opening.blunder_pct,    moves: aggregates.by_phase.opening.moves },
-          { key: "middlegame" as const, label: "Mediogioco", pct: aggregates.by_phase.middlegame.blunder_pct, moves: aggregates.by_phase.middlegame.moves },
-          { key: "endgame" as const, label: "Finale",      pct: aggregates.by_phase.endgame.blunder_pct,    moves: aggregates.by_phase.endgame.moves },
-        ]
-      : [];
-
-  const decisions = pmLite?.decisions ?? null;
-  const weeklyTrend = pmLite?.weekly_trend ?? null;
-  const showWeekly = weeklyTrend != null && weeklyTrend.last_7d.n_games >= 1;
+  // Journal: "memoria visibile" — recomposed in Nonno's voice (prefers the last
+  // full session, leans on the TIME tic). Reads localStorage synchronously.
+  const memoriaVisibile = buildMemoria();
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -589,353 +553,287 @@ export function TavoloHome() {
       style={{ maxWidth: "56rem" }}
     >
 
-        {/* ── 1. INGRESSO: voce di Nonno (dominante) ─────────────────── */}
-        <Reveal>
-          <NonnoGreeting
-            goal={goal}
-            topAnchor={aggregates?.anchors?.[0] ?? null}
-            decisions={
-              pmLite?.decisions != null
-                ? {
-                    blow_rate: pmLite.decisions.blow_rate,
-                    blew_winning: pmLite.decisions.blew_winning,
-                  }
-                : null
-            }
-            maiaWeighted={aggregates?.maia_weighted ?? null}
-            byPhase={
-              aggregates?.by_phase != null
-                ? {
-                    opening: aggregates.by_phase.opening.blunder_pct,
-                    middlegame: aggregates.by_phase.middlegame.blunder_pct,
-                    endgame: aggregates.by_phase.endgame.blunder_pct,
-                  }
-                : null
-            }
-            onSediamoci={() => nav("/sessione")}
+      {/* ════════════════════════════════════════════════════════════════════
+          ATTO 1 — la spina del giorno (il colpo d'occhio).
+          Ingresso, Obiettivo, Momento, Gap: la testa della pagina. Piu' aria,
+          piu' peso, entra per prima. E' qui che cade l'occhio aprendo.
+          ════════════════════════════════════════════════════════════════════ */}
+
+      {/* ── 1. INGRESSO: voce di Nonno + memoria visibile ──────────────── */}
+      <Reveal className="mb-10">
+        {/* Memoria visibile — quiet row above NonnoGreeting, omitted if journal empty */}
+        {memoriaVisibile && (
+          <div
+            style={{
+              marginBottom: "0.875rem",
+              padding: "0.625rem 0.875rem",
+              background: "var(--color-surface-2)",
+              border: "1px solid var(--color-line)",
+              borderRadius: "8px",
+              fontSize: "0.78rem",
+              color: "var(--color-muted)",
+              lineHeight: 1.5,
+            }}
+          >
+            {memoriaVisibile}
+          </div>
+        )}
+
+        <NonnoGreeting
+          goal={goal}
+          topAnchor={aggregates?.anchors?.[0] ?? null}
+          decisions={
+            pmLite?.decisions != null
+              ? {
+                  blow_rate: pmLite.decisions.blow_rate,
+                  blew_winning: pmLite.decisions.blew_winning,
+                }
+              : null
+          }
+          maiaWeighted={aggregates?.maia_weighted ?? null}
+          byPhase={
+            aggregates?.by_phase != null
+              ? {
+                  opening: aggregates.by_phase.opening.blunder_pct,
+                  middlegame: aggregates.by_phase.middlegame.blunder_pct,
+                  endgame: aggregates.by_phase.endgame.blunder_pct,
+                }
+              : null
+          }
+          onSediamoci={() => nav("/sessione")}
+        />
+      </Reveal>
+
+      {/* ── 2. OBIETTIVO: hero-goal (oro) ──────────────────────────────── */}
+      {currentRating != null && (
+        <Reveal delay={80} className="mb-10">
+          <GoalHero
+            current={currentRating}
+            start={startRating}
+            target={targetRating}
+            deadline={deadline}
+            onTrack={onTrack}
+            pointsNeeded={gp?.points_needed ?? Math.max(0, targetRating - currentRating)}
+            rateNeeded={gp?.rate_needed_per_week ?? null}
+            rateReal={gp?.rate_real_per_week ?? null}
           />
         </Reveal>
+      )}
 
-        {/* ── 2. OBIETTIVO: hero-goal (oro) + riga progresso ─────────── */}
-        {currentRating != null && (
-          <Reveal delay={80} className="mb-8">
-            <GoalHero
-              current={currentRating}
-              start={startRating}
-              target={targetRating}
-              deadline={deadline}
-              onTrack={onTrack}
-              pointsNeeded={gp?.points_needed ?? Math.max(0, targetRating - currentRating)}
-              rateNeeded={gp?.rate_needed_per_week ?? null}
-              rateReal={gp?.rate_real_per_week ?? null}
-            />
-          </Reveal>
-        )}
+      {/* ── 3. IL MOMENTO DEL GIORNO (la spina resa posizione) ─────────── */}
+      {momentoPool.length > 0 && (
+        <Reveal delay={140} className="mb-10">
+          <MomentoDelGiorno
+            pool={momentoPool}
+            targetRating={targetRating > 0 ? targetRating : null}
+          />
+        </Reveal>
+      )}
 
-        {/* ── 3. LE TUE 3 ANCORE ──────────────────────────────────────── */}
-        {anchorsTop3.length > 0 && (
-          <Reveal delay={160} className="mb-8">
+      {/* ── 4. IL GAP COL TARGET (solo testo — il grafico vive nel Quaderno) ── */}
+      {aggregates?.maia_weighted != null && (() => {
+        const mw = aggregates.maia_weighted!;
+        return (
+          <Reveal delay={180} className="mb-10">
             <div
               style={{
                 background: "var(--color-surface)",
                 border: "1px solid var(--color-line)",
                 borderRadius: "14px",
-                padding: "clamp(20px, 4vw, 32px)",
+                padding: "clamp(22px, 4vw, 30px)",
               }}
             >
-              <div
+              <div className="tt-eyebrow" style={{ marginBottom: "1rem", color: "var(--color-gold-soft)" }}>
+                Il tuo gap col target
+              </div>
+              <p
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: "0.25rem",
-                  gap: "0.75rem",
+                  fontSize: "0.92rem",
+                  color: "var(--color-text-soft)",
+                  lineHeight: 1.65,
+                  margin: 0,
                 }}
               >
-                <div className="tt-eyebrow">Le tue 3 ancore</div>
-                <Link
-                  to="/freni"
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "var(--color-brand-soft)",
-                    textDecoration: "none",
-                    fontWeight: 600,
-                  }}
-                >
-                  vedi tutte
-                </Link>
-              </div>
-              <div
-                style={{
-                  fontSize: "0.82rem",
-                  color: "var(--color-muted)",
-                  marginBottom: "0.5rem",
-                  lineHeight: 1.4,
-                }}
-              >
-                Ordinate per potenziale di guadagno.
-              </div>
-
-              {/* List — no border on last row */}
-              <div>
-                {anchorsTop3.map((anchor, i) => (
-                  <div
-                    key={anchor.type}
-                    style={i === anchorsTop3.length - 1 ? { borderBottom: "none" } : undefined}
-                  >
-                    <AnchorRow anchor={anchor} rank={i + 1} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Reveal>
-        )}
-
-        {/* ── 4. DETTAGLIO (secondario, de-enfatizzato) ───────────────── */}
-
-        {/* Rating curve */}
-        {pmLite != null && goal != null && (
-          <Reveal delay={200} className="mb-8">
-            <div
-              style={{
-                background: "var(--color-surface)",
-                border: "1px solid var(--color-line)",
-                borderRadius: "14px",
-                padding: "clamp(20px, 4vw, 28px)",
-              }}
-            >
-              <div className="tt-eyebrow" style={{ marginBottom: "1rem" }}>Curva di rating</div>
-              <RatingCurveChart
-                ratingCurve={pmLite.rating_curve}
-                goal={goal}
-              />
-              <p style={{ fontSize: "0.72rem", color: "var(--color-muted)", marginTop: "0.5rem", lineHeight: 1.5 }}>
-                Su tutto il tuo storico. L'analisi a fondo e' sulle partite recenti.
+                Ho guardato a fondo{" "}
+                <span className="font-mono font-bold" style={{ color: "var(--color-text)", fontVariantNumeric: "tabular-nums" }}>
+                  {mw.errors_scored}
+                </span>{" "}
+                dei tuoi errori:{" "}
+                <span className="font-mono font-bold" style={{ color: "var(--color-danger)", fontVariantNumeric: "tabular-nums" }}>
+                  {mw.avoidable}
+                </span>{" "}
+                erano alla tua portata. Sulle stesse posizioni,{" "}
+                {targetRating > 0 ? (
+                  <>
+                    uno al tuo{" "}
+                    <strong style={{ color: "var(--color-gold-soft)" }}>{targetRating}</strong>
+                  </>
+                ) : (
+                  "il giocatore che vuoi diventare"
+                )}{" "}
+                la mossa giusta la trova il{" "}
+                <span className="font-mono font-bold" style={{ color: "var(--color-gold-soft)", fontVariantNumeric: "tabular-nums" }}>
+                  {Math.round(mw.target_pct)}%
+                </span>{" "}
+                delle volte, tu il{" "}
+                <span className="font-mono font-bold" style={{ color: "var(--color-text)", fontVariantNumeric: "tabular-nums" }}>
+                  {Math.round(mw.mine_pct)}%
+                </span>
+                . Quei{" "}
+                <span className="font-mono font-bold" style={{ color: "var(--color-brand-soft)", fontVariantNumeric: "tabular-nums" }}>
+                  {Math.round(mw.gap_pct)}
+                </span>{" "}
+                punti di scarto sono il tuo margine da prendere.
               </p>
             </div>
           </Reveal>
-        )}
+        );
+      })()}
 
-        {/* Gap col target (Maia) */}
-        {aggregates?.maia_weighted != null && (() => {
-          const mw = aggregates.maia_weighted!;
-          return (
-            <Reveal delay={220} className="mb-8">
-              <div
-                style={{
-                  background: "var(--color-surface)",
-                  border: "1px solid var(--color-line)",
-                  borderRadius: "14px",
-                  padding: "clamp(20px, 4vw, 28px)",
-                }}
-              >
-                <div className="tt-eyebrow" style={{ marginBottom: "1rem", color: "var(--color-muted)" }}>
-                  Il tuo gap col target
-                </div>
-                <p
-                  style={{
-                    fontSize: "0.92rem",
-                    color: "var(--color-text-soft)",
-                    lineHeight: 1.65,
-                    margin: 0,
-                  }}
-                >
-                  Su{" "}
-                  <span className="font-mono font-bold" style={{ color: "var(--color-text)", fontVariantNumeric: "tabular-nums" }}>
-                    {mw.errors_scored}
-                  </span>{" "}
-                  errori analizzati a fondo,{" "}
-                  <span className="font-mono font-bold" style={{ color: "var(--color-danger)", fontVariantNumeric: "tabular-nums" }}>
-                    {mw.avoidable}
-                  </span>{" "}
-                  erano alla tua portata. Sulle stesse posizioni un giocatore{" "}
-                  {targetRating > 0 && (
-                    <strong style={{ color: "var(--color-gold-soft)" }}>{targetRating}</strong>
-                  )}{" "}
-                  trova la mossa giusta il{" "}
-                  <span className="font-mono font-bold" style={{ color: "var(--color-gold-soft)", fontVariantNumeric: "tabular-nums" }}>
-                    {Math.round(mw.target_pct)}%
-                  </span>{" "}
-                  delle volte, tu il{" "}
-                  <span className="font-mono font-bold" style={{ color: "var(--color-text)", fontVariantNumeric: "tabular-nums" }}>
-                    {Math.round(mw.mine_pct)}%
-                  </span>
-                  . Quel{" "}
-                  <span className="font-mono font-bold" style={{ color: "var(--color-brand-soft)", fontVariantNumeric: "tabular-nums" }}>
-                    {Math.round(mw.gap_pct)}
-                  </span>{" "}
-                  punti di divario e' il tuo margine.
-                </p>
-              </div>
-            </Reveal>
-          );
-        })()}
-
-        {/* GameArcChart */}
-        {aggregates?.maia_weighted != null && (
-          <Reveal delay={240} className="mb-8">
-            <GameArcChart
-              maiaWeighted={aggregates.maia_weighted!}
-              targetRating={targetRating > 0 ? targetRating : null}
-            />
-          </Reveal>
-        )}
-
-        {/* SpeedVsErrors */}
-        {(pmLite?.time_management?.spent_vs_accuracy?.length ?? 0) > 0 && (
-          <Reveal delay={260} className="mb-8">
-            <SpeedVsErrorsChart
-              data={pmLite!.time_management!.spent_vs_accuracy!}
-              avoidable={aggregates?.maia_weighted?.spent_vs_avoidable}
-            />
-          </Reveal>
-        )}
-
-        {/* Secondary stats grid: Decisions + Weekly + Phase */}
-        {(decisions != null || showWeekly || phases.length > 0) && (
-          <Reveal delay={280} className="mb-8">
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                gap: "1rem",
-              }}
-            >
-              {decisions != null && (
-                <div
-                  style={{
-                    background: "var(--color-surface)",
-                    border: "1px solid var(--color-line)",
-                    borderRadius: "14px",
-                    padding: "1.25rem 1.5rem",
-                  }}
-                >
-                  <div className="tt-eyebrow" style={{ marginBottom: "0.875rem", color: "var(--color-muted)" }}>
-                    Decisioni
-                  </div>
-                  <DecisionsCard decisions={decisions} />
-                </div>
-              )}
-              {showWeekly && weeklyTrend != null && (
-                <WeeklyTrendCard trend={weeklyTrend} title="Settimana vs precedente" />
-              )}
-              {phases.length > 0 && (
-                <div
-                  style={{
-                    background: "var(--color-surface)",
-                    border: "1px solid var(--color-line)",
-                    borderRadius: "14px",
-                    padding: "1.25rem 1.5rem",
-                  }}
-                >
-                  <div className="tt-eyebrow" style={{ marginBottom: "0.875rem", color: "var(--color-muted)" }}>
-                    Errori gravi per fase
-                  </div>
-                  {phases.map((p) => (
-                    <div
-                      key={p.key}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.75rem",
-                        paddingTop: "0.375rem",
-                        paddingBottom: "0.375rem",
-                      }}
-                    >
-                      <span
-                        className="font-mono"
-                        style={{ fontSize: "0.75rem", width: "5rem", textAlign: "right", color: "var(--color-text-soft)", flexShrink: 0 }}
-                      >
-                        {p.label}
-                      </span>
-                      <div style={{ flex: 1, height: "6px", borderRadius: "999px", background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
-                        <div
-                          style={{
-                            width: `${Math.min(100, p.pct * 5)}%`,
-                            height: "100%",
-                            borderRadius: "999px",
-                            background: "var(--color-brand-soft)",
-                            transition: "width 600ms cubic-bezier(0.22,1,0.36,1)",
-                          }}
-                        />
-                      </div>
-                      <span
-                        className="font-mono font-bold"
-                        style={{ fontSize: "0.85rem", color: "var(--color-text)", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}
-                      >
-                        {p.pct.toFixed(1)}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </Reveal>
-        )}
-
-        {/* Cadute preview */}
-        {cadute3.length > 0 && (
-          <Reveal delay={300} className="mb-8">
-            <div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: "0.75rem",
-                }}
-              >
-                <div className="tt-eyebrow" style={{ color: "var(--color-muted)" }}>Le tue cadute</div>
-                <Link
-                  to="/cadute"
-                  style={{ fontSize: "0.75rem", color: "var(--color-brand-soft)", textDecoration: "none", fontWeight: 600 }}
-                >
-                  vedi tutte
-                </Link>
-              </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                  gap: "0.75rem",
-                }}
-              >
-                {cadute3.map((c) => (
-                  <CadutaCard key={c.fen_before + ":" + c.ply} caduta={c} />
-                ))}
-              </div>
-            </div>
-          </Reveal>
-        )}
-
-        {/* ── 5. AZIONI SECONDARIE (aggiorna / reanalizza) ──────────────── */}
-        <Reveal delay={340} className="mb-8">
+      {/* ── 5. DOVE PERDI, IN BREVE (top-3 ancore, cliccabili) ─────────── */}
+      {anchorsTop3.length > 0 && (
+        <Reveal delay={220} className="mb-10">
           <div
             style={{
-              borderTop: "1px solid var(--color-line)",
-              paddingTop: "1.25rem",
-              display: "flex",
-              gap: "0.75rem",
+              background: "var(--color-surface)",
+              border: "1px solid var(--color-line)",
+              borderRadius: "14px",
+              padding: "clamp(20px, 4vw, 32px)",
             }}
           >
-            <button
-              onClick={() => void handleRefresh()}
-              disabled={refreshing || reanalyzing}
-              className="btn btn-ghost btn-sm"
-              style={{ flex: 1 }}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: "0.25rem",
+                gap: "0.75rem",
+              }}
             >
-              {refreshing ? "Preparo…" : "Aggiorna partite"}
-            </button>
-            <button
-              onClick={() => void handleFullReanalyze()}
-              disabled={refreshing || reanalyzing}
-              className="btn btn-ghost btn-sm"
-              style={{ flex: 1 }}
+              <div className="tt-eyebrow">Le tue 3 ancore</div>
+              <Link
+                to="/quaderno#percorso"
+                style={{
+                  fontSize: "0.75rem",
+                  color: "var(--color-brand-soft)",
+                  textDecoration: "none",
+                  fontWeight: 600,
+                }}
+              >
+                vedi tutte
+              </Link>
+            </div>
+            <div
+              style={{
+                fontSize: "0.82rem",
+                color: "var(--color-muted)",
+                marginBottom: "0.5rem",
+                lineHeight: 1.4,
+              }}
             >
-              {reanalyzing ? "Rianalizzando…" : "Rianalizza da capo"}
-            </button>
+              Quello che ti tiene ancorato giu'. In cima, l'ancora che ti vale piu' punti se la sciogli.
+            </div>
+
+            {/* List — no border on last row */}
+            <div>
+              {anchorsTop3.map((anchor, i) => (
+                <div
+                  key={anchor.type}
+                  style={i === anchorsTop3.length - 1 ? { borderBottom: "none" } : undefined}
+                >
+                  <AnchorRow anchor={anchor} rank={i + 1} />
+                </div>
+              ))}
+            </div>
           </div>
         </Reveal>
+      )}
+
+      {/* ── 6. VARCO AL QUADERNO (quiet, surface-2, flat, no em-dash) ─────── */}
+      <Reveal delay={260} className="mb-10">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => nav("/quaderno")}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); nav("/quaderno"); } }}
+          style={{
+            background: "var(--color-surface-2)",
+            border: "1px solid var(--color-line)",
+            borderRadius: "14px",
+            padding: "clamp(20px, 4vw, 28px)",
+            cursor: "pointer",
+            transition: "border-color 160ms cubic-bezier(0.23,1,0.32,1)",
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--color-line-strong)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--color-line)"; }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: "1rem",
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="tt-eyebrow tt-muted" style={{ marginBottom: "0.5rem" }}>
+                Il perche', a fondo
+              </div>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.92rem",
+                  color: "var(--color-text-soft)",
+                  lineHeight: 1.6,
+                  maxWidth: "56ch",
+                }}
+              >
+                La sala dove guardiamo tutto con calma: la curva, dove perdi tempo, le aperture.
+              </p>
+            </div>
+            <div
+              style={{
+                flexShrink: 0,
+                fontSize: "1.1rem",
+                color: "var(--color-muted)",
+                paddingTop: "0.25rem",
+              }}
+              aria-hidden="true"
+            >
+              &rarr;
+            </div>
+          </div>
+        </div>
+      </Reveal>
+
+      {/* ── 7. AZIONI SECONDARIE (ghost, in fondo) ─────────────────────── */}
+      <Reveal delay={300} className="mb-8">
+        <div
+          style={{
+            borderTop: "1px solid var(--color-line)",
+            paddingTop: "1.25rem",
+            display: "flex",
+            gap: "0.75rem",
+          }}
+        >
+          <button
+            onClick={() => void handleRefresh()}
+            disabled={refreshing || reanalyzing}
+            className="btn btn-ghost btn-sm"
+            style={{ flex: 1 }}
+          >
+            {refreshing ? "Preparo..." : "Aggiorna partite"}
+          </button>
+          <button
+            onClick={() => void handleFullReanalyze()}
+            disabled={refreshing || reanalyzing}
+            className="btn btn-ghost btn-sm"
+            style={{ flex: 1 }}
+          >
+            {reanalyzing ? "Rianalizzando..." : "Rianalizza da capo"}
+          </button>
+        </div>
+      </Reveal>
 
     </div>
   );

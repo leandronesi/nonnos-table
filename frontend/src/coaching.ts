@@ -1,6 +1,6 @@
 import type { PlayerModel, PositionRow } from "./types";
 
-export const PRODUCT_NAME = "Nonno's Table";
+export const PRODUCT_NAME = "Il Tavolo del Nonno";
 export const COACH_NAME = "Nonno";
 
 const MAIA_LEVELS = [1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900];
