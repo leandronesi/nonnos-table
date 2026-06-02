@@ -7,6 +7,10 @@ import { BoardView } from "../components/BoardView";
 // Il valore non e' "la soluzione": e' il gap fra te e il tuo ELO target.
 const HERO_FEN = "r1bq1rk1/pppp1ppp/2n2n2/2b1p3/2BPP3/5N2/PPP2PPP/RNBQ1RK1 w - - 0 1";
 
+// Nonno's portrait. Asset in public/; BASE_URL keeps the GH Pages subpath
+// (/nonnos-table/) without hardcoding it. Circular mask hides navy corners.
+const NONNO_FACE = `${import.meta.env.BASE_URL}nonno-face.png`;
+
 function useFitSize(min: number, max: number) {
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(max);
@@ -34,9 +38,7 @@ export function Landing() {
     <div className="public-home">
       <header className="public-topbar">
         <Link to="/" className="public-brand" aria-label="il Tavolo del Nonno">
-          <span className="public-brand-mark" aria-hidden>
-            N
-          </span>
+          <img src={NONNO_FACE} alt="" className="public-brand-face" aria-hidden />
           <span>
             il Tavolo del <b>Nonno</b>
           </span>
@@ -69,12 +71,15 @@ export function Landing() {
 
             <TargetRail />
 
-            <div className="public-nonno">
-              <span>Nonno, quando ti siedi</span>
-              Ti aspetto qui. Giochiamo al tuo passo, ma tengo la sedia appena piu'
-              avanti. Non per farti sentire piccolo: per mostrarti, una mossa alla
-              volta, dove andrai a sederti.
-            </div>
+            <figure className="public-nonno">
+              <img src={NONNO_FACE} alt="Nonno O." className="public-nonno-face" />
+              <figcaption>
+                <span>Nonno, quando ti siedi</span>
+                Ti aspetto qui. Giochiamo al tuo passo, ma tengo la sedia appena piu'
+                avanti. Non per farti sentire piccolo: per mostrarti, una mossa alla
+                volta, dove andrai a sederti.
+              </figcaption>
+            </figure>
 
             <div className="public-actions">
               <Link to="/signup" className="btn btn-primary btn-lg public-cta">

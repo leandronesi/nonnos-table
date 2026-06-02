@@ -64,19 +64,29 @@ function isActive(dest: NavDest, pathname: string): boolean {
   return pathname.startsWith(dest.path);
 }
 
-// ── Mini lamp SVG brand mark ───────────────────────────────────────────────────
+// ── Brand mark: Nonno's face ───────────────────────────────────────────────────
+// Asset lives in public/; BASE_URL keeps the GH Pages subpath (/nonnos-table/)
+// without hardcoding it. Circular mask hides the navy corners of the portrait.
 
-function LampIcon() {
+const NONNO_FACE = `${import.meta.env.BASE_URL}nonno-face.png`;
+
+function NonnoMark({ size = 34 }: { size?: number }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
-      <ellipse cx="11" cy="16" rx="4.5" ry="2" fill="var(--color-gold)" opacity="0.25"/>
-      <path d="M8 12 C8 8.5 11 6 11 6 C11 6 14 8.5 14 12 L13.5 14 H8.5 L8 12Z"
-        fill="var(--color-gold)" opacity="0.85"/>
-      <rect x="9.5" y="14" width="3" height="1.5" rx="0.5" fill="var(--color-gold-soft)"/>
-      <line x1="11" y1="4" x2="11" y2="2" stroke="var(--color-gold)" strokeWidth="1.5" strokeLinecap="round"/>
-      <line x1="5.5" y1="6" x2="4.2" y2="4.7" stroke="var(--color-gold)" strokeWidth="1.5" strokeLinecap="round" opacity="0.6"/>
-      <line x1="16.5" y1="6" x2="17.8" y2="4.7" stroke="var(--color-gold)" strokeWidth="1.5" strokeLinecap="round" opacity="0.6"/>
-    </svg>
+    <img
+      src={NONNO_FACE}
+      alt="Nonno O."
+      width={size}
+      height={size}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        objectFit: "cover",
+        flexShrink: 0,
+        border: "1px solid color-mix(in srgb, var(--color-brand) 26%, var(--color-line))",
+        background: "var(--color-surface-2)",
+      }}
+    />
   );
 }
 
@@ -168,7 +178,7 @@ function DesktopSidebar({
       {/* Brand */}
       <div style={{ padding: "1.5rem 1.25rem 1rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
-          <LampIcon />
+          <NonnoMark size={34} />
           <div>
             <div style={{
               fontFamily: "var(--font-display)",
@@ -300,7 +310,7 @@ function MobileTopBar({
     >
       {/* Brand left + optional silent-refresh pill */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", minWidth: 0 }}>
-        <LampIcon />
+        <NonnoMark size={30} />
         <span style={{
           fontFamily: "var(--font-display)",
           fontWeight: 700,
