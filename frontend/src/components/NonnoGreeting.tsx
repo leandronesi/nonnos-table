@@ -54,7 +54,11 @@ function pickPunch(
 
   // ── (a) Ancora #1 con count >= 3 ──────────────────────────────────────────
   if (topAnchor != null && topAnchor.count >= 3) {
-    const { label_it, count, rating_upside } = topAnchor;
+    const { label_it, count, games_with, rating_upside } = topAnchor;
+    // games_with = partite distinte con almeno un errore di questo tipo
+    // (sempre <= partite giocate): numero per-partita, mai assurdo.
+    // count = occorrenze per-mossa: usabile solo se diciamo "momenti".
+    const inPartite = `in ${games_with} delle tue partite`;
     const upsidePart =
       rating_upside != null && rating_upside > 0
         ? ` Il piu' facile da recuperare: vali gia' ~${rating_upside} punti in piu'.`
@@ -67,9 +71,9 @@ function pickPunch(
         : "";
 
     const body = pick(0, [
-      `Ho guardato le tue partite. ${label_it}: ${count} volte, su mosse che uno al tuo livello trovava.${maiaPart}${upsidePart}`,
-      `Ti dico una cosa sola. ${label_it} e' tornato ${count} volte. Non in posizioni impossibili: in quelle che potevi chiudere.${maiaPart}${upsidePart}`,
-      `La cosa piu' netta che ho visto: ${label_it}, ${count} volte di fila. Mosse che uno come te trova, non che non si possono trovare.${maiaPart}${upsidePart}`,
+      `Ho guardato le tue partite. ${label_it}, ${inPartite}, su mosse che uno al tuo livello trovava.${maiaPart}${upsidePart}`,
+      `Ti dico una cosa sola. ${label_it}: ti e' successo ${inPartite}. Non in posizioni impossibili, in quelle che potevi chiudere.${maiaPart}${upsidePart}`,
+      `La cosa piu' netta che ho visto: ${label_it}, ${count} momenti in cui la mossa giusta era li' davanti. Mosse che uno come te trova, non di quelle che non si possono trovare.${maiaPart}${upsidePart}`,
     ]);
 
     const close = pick(1, [
@@ -85,12 +89,13 @@ function pickPunch(
   if (decisions != null && decisions.blow_rate != null && decisions.blow_rate > 0.30) {
     const blowPct = Math.round(decisions.blow_rate * 100);
     const blew = decisions.blew_winning ?? null;
-    const blewStr = blew != null && blew > 0 ? `${blew} volte` : `il ${blowPct}% delle volte`;
+    // blew_winning = numero di PARTITE vinte e poi lasciate andare (per-partita).
+    const blewPartite = blew != null && blew > 0 ? `${blew} partite` : null;
 
     const body = pick(2, [
-      `Eri in vantaggio e l'hai lasciata andare ${blewStr} (${blowPct}%). Non e' un problema di forza: e' di chiusura. Le partite vinte si portano a casa.`,
-      `Il numero che mi disturba di piu': eri avanti, e hai perso ${blewStr}. ${blowPct}% delle partite in cui avevi il vantaggio. Quello non e' sfortuna.`,
-      `Sai cosa vedo spesso? Stai vincendo. Poi dai via la partita. ${blew != null ? `${blew} volte` : `${blowPct}% delle partite`}. Le partite vinte si chiudono, non si tengono aperte.`,
+      `Eri in vantaggio e l'hai lasciata andare nel ${blowPct}% delle partite in cui avevi il vantaggio. Non e' un problema di forza, e' di chiusura. Le partite vinte si portano a casa.`,
+      `Il numero che mi disturba di piu': ${blewPartite ?? `il ${blowPct}% delle partite`} in cui eri avanti, e poi le hai perse. Quello non e' sfortuna.`,
+      `Sai cosa vedo spesso? Stai vincendo. Poi dai via la partita. ${blewPartite ?? `Il ${blowPct}% di quelle in cui eri avanti`}. Le partite vinte si chiudono, non si tengono aperte.`,
     ]);
 
     const close = pick(3, [
