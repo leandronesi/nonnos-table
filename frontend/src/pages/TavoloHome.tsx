@@ -587,13 +587,19 @@ export function TavoloHome() {
   // Part A: use live ELO from Chess.com if available; fall back to stored value.
   const storedRating = goal?.current_rating ?? pmLite?.current_rating ?? null;
   const currentRating = liveElo ?? storedRating;
+  // Single source of truth: a goal whose current_rating is the LIVE ELO. Used by
+  // the greeting, the Obiettivo card AND the rate/points math below — otherwise
+  // the card showed the live rating while the message and "servono +X/sett" still
+  // used the stale stored one (the incoherence the PO caught).
+  const liveGoal = goal ? { ...goal, current_rating: currentRating } : undefined;
   const targetRating = profile?.goal_rating ?? goal?.target ?? 0;
   const startRating = goal?.start_rating ?? currentRating ?? 0;
   const onTrack = goal?.on_track ?? false;
   const deadline = goal?.deadline ?? "";
 
-  // GoalProgress from history.ts
-  const gp = goal ? goalProgress(goal) : null;
+  // GoalProgress recomputed from the LIVE goal (rate-needed / points reflect the
+  // current ELO, not the rating at the last coach generation).
+  const gp = liveGoal ? goalProgress(liveGoal) : null;
 
   // Top-3 anchors by rating_upside desc
   const anchorsRaw: Anchor[] = aggregates?.anchors ?? [];
@@ -642,7 +648,7 @@ export function TavoloHome() {
         )}
 
         <NonnoGreeting
-          goal={goal}
+          goal={liveGoal}
           topAnchor={aggregates?.anchors?.[0] ?? null}
           decisions={
             pmLite?.decisions != null
