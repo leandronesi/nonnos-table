@@ -32,6 +32,7 @@ import { goalProgress } from "../pipeline/history";
 import { NonnoGreeting } from "../components/NonnoGreeting";
 import { MomentoDelGiorno } from "../components/MomentoDelGiorno";
 import { readEntries } from "../session/journal";
+import type { TimeClass } from "../auth/db.types";
 
 // ── Reveal hook ───────────────────────────────────────────────────────────────
 
@@ -380,6 +381,61 @@ function buildMemoria(): string | null {
 }
 
 
+// ── Chess.com stats shape (same as Onboarding.tsx) ───────────────────────────
+
+interface ChessComStats {
+  chess_rapid?: { last?: { rating?: number } };
+  chess_blitz?: { last?: { rating?: number } };
+  chess_bullet?: { last?: { rating?: number } };
+  chess_daily?: { last?: { rating?: number } };
+}
+
+function ratingFromStats(stats: ChessComStats, tc: TimeClass): number | null {
+  switch (tc) {
+    case "rapid":  return stats.chess_rapid?.last?.rating ?? null;
+    case "blitz":  return stats.chess_blitz?.last?.rating ?? null;
+    case "bullet": return stats.chess_bullet?.last?.rating ?? null;
+    case "daily":  return stats.chess_daily?.last?.rating ?? null;
+    default:       return null;
+  }
+}
+
+/**
+ * Fetches the live ELO from Chess.com for the user's goal time-class.
+ * Returns null while loading or on any failure — caller falls back to stored value.
+ * No throttle needed: display-only, one cheap request at mount.
+ */
+function useLiveElo(
+  chessComUsername: string | null | undefined,
+  goalTimeClass: TimeClass | null | undefined,
+): number | null {
+  const [liveRating, setLiveRating] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!chessComUsername || !goalTimeClass) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(
+          `https://api.chess.com/pub/player/${encodeURIComponent(chessComUsername)}/stats`,
+        );
+        if (!r.ok) return; // silently fall back
+        const stats = (await r.json()) as ChessComStats;
+        const rating = ratingFromStats(stats, goalTimeClass);
+        if (!cancelled && rating != null) setLiveRating(rating);
+      } catch (e) {
+        // Network failures are expected (offline, CORS, Chess.com down).
+        // We degrade gracefully — no crash, no UI error.
+        // eslint-disable-next-line no-console
+        console.warn("[TavoloHome] Chess.com live ELO fetch failed:", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [chessComUsername, goalTimeClass]);
+
+  return liveRating;
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function TavoloHome() {
@@ -440,6 +496,10 @@ export function TavoloHome() {
       setReanalyzing(false);
     }
   }
+
+  // ── Part A: live ELO from Chess.com (display-only, no persistence) ────────
+  // Falls back to stored current_rating if fetch fails or returns null.
+  const liveElo = useLiveElo(profile?.chess_com_username, profile?.goal_time_class);
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
@@ -524,7 +584,9 @@ export function TavoloHome() {
   // ── Derived values ────────────────────────────────────────────────────────
 
   const goal = pmLite?.identity?.goal;
-  const currentRating = goal?.current_rating ?? pmLite?.current_rating ?? null;
+  // Part A: use live ELO from Chess.com if available; fall back to stored value.
+  const storedRating = goal?.current_rating ?? pmLite?.current_rating ?? null;
+  const currentRating = liveElo ?? storedRating;
   const targetRating = profile?.goal_rating ?? goal?.target ?? 0;
   const startRating = goal?.start_rating ?? currentRating ?? 0;
   const onTrack = goal?.on_track ?? false;
