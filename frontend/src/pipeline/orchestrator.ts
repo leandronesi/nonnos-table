@@ -525,9 +525,9 @@ async function deriveCurrentRating(userId: string, profile: ProfileRow): Promise
 
 /**
  * Restituisce il played_at (ISO string) della partita più recente dell'utente,
- * o null se non ci sono partite. Usato da runRefresh per impostare refresh_after.
+ * o null se non ci sono partite. Usato da runRefresh e runSilentRefresh.
  */
-async function getLatestGamePlayedAt(userId: string): Promise<string | null> {
+export async function getLatestGamePlayedAt(userId: string): Promise<string | null> {
   const { data } = await supabase
     .from("games")
     .select("played_at")
@@ -594,6 +594,192 @@ export async function runFullReanalyze(profile: ProfileRow): Promise<void> {
     .from("profiles")
     .update({ onboarding_state: "analyzing" })
     .eq("user_id", userId);
+}
+
+/**
+ * Silent background refresh — runs while the user stays on the Tavolo.
+ *
+ * Contract:
+ *   - ADDITIVE: does NOT touch profile.onboarding_state, does NOT create
+ *     ingest_jobs rows, does NOT interact with the 20+80 state machine.
+ *   - No-op if activeRun is already in progress (onboarding / Refresh / Reanalyze
+ *     just started) — we skip silently so there is no double work.
+ *   - No-op if there are no new games on Chess.com since the last analysed game.
+ *   - Ingest delta → analyze new games → aggregate → player_model_lite → coach.
+ *   - Re-uses the internal step functions already used by doRun.
+ */
+export interface SilentRefreshCallbacks {
+  onProgress?: (msg: string) => void;
+  onNewGames?: (count: number) => void;
+  onDone?: () => void;
+}
+
+/**
+ * Key used to throttle the silent-refresh check to once per day per user.
+ * Exported so OnboardingRunContext can read/write it without duplicating the key.
+ */
+export function silentRefreshThrottleKey(userId: string): string {
+  return `nt_newgames_check_${userId}`;
+}
+
+export async function runSilentRefresh(
+  profile: ProfileRow,
+  callbacks: SilentRefreshCallbacks = {},
+): Promise<void> {
+  const { onProgress, onNewGames, onDone } = callbacks;
+  const userId = profile.user_id;
+
+  // Guard: do not double-work if the main orchestrator is already running.
+  if (activeRun) {
+    onDone?.();
+    return;
+  }
+
+  // Step 1: detect new games (same strategy as the old nudge check).
+  const latestPlayedAt = await getLatestGamePlayedAt(userId);
+
+  let hasNew = false;
+  let newGameCount = 0;
+  try {
+    const archivesRes = await fetch(
+      `https://api.chess.com/pub/player/${encodeURIComponent(profile.chess_com_username)}/games/archives`,
+    );
+    if (archivesRes.ok) {
+      const archivesData = (await archivesRes.json()) as { archives?: string[] };
+      const archives = archivesData.archives ?? [];
+      if (archives.length > 0) {
+        const lastArchiveUrl = archives[archives.length - 1];
+        const gamesRes = await fetch(lastArchiveUrl);
+        if (gamesRes.ok) {
+          const gamesData = (await gamesRes.json()) as {
+            games?: Array<{ end_time?: number }>;
+          };
+          const games = gamesData.games ?? [];
+          const cutoff = latestPlayedAt ? new Date(latestPlayedAt).getTime() / 1000 : 0;
+          newGameCount = games.filter((g) => (g.end_time ?? 0) > cutoff).length;
+          hasNew = newGameCount > 0;
+        }
+      }
+    }
+  } catch (e) {
+    // Network failure is not fatal — silent no-op.
+    // eslint-disable-next-line no-console
+    console.warn("[runSilentRefresh] Chess.com check failed:", e);
+    onDone?.();
+    return;
+  }
+
+  if (!hasNew) {
+    onDone?.();
+    return;
+  }
+
+  onNewGames?.(newGameCount);
+
+  // Step 2: ingest delta only (games newer than latestPlayedAt).
+  // We do NOT create a proper ingest_job row to avoid touching the state machine.
+  // runIngest uses refresh_after to filter what to download.
+  // We create a transient ephemeral job row (status "queued") that will be set
+  // to "done" at the end of this function. The key invariant: profile stays "ready"
+  // throughout — we NEVER call setProfileState or set profile.onboarding_state.
+  //
+  // Re-check guard: if activeRun appeared while we were fetching Chess.com, abort.
+  if (activeRun) {
+    onDone?.();
+    return;
+  }
+
+  let ephemeralJobId: string | null = null;
+
+  try {
+    onProgress?.("Sto guardando le tue ultime partite...");
+
+    // Create a silent ephemeral job row (status 'queued') for runIngest to update.
+    const { data: jobData, error: jobErr } = await supabase
+      .from("ingest_jobs")
+      .insert({
+        user_id: userId,
+        status: "queued",
+        months_total: 0,
+        months_done: 0,
+        games_total: 0,
+        games_done: 0,
+        refresh_after: latestPlayedAt,
+      })
+      .select("*")
+      .single();
+
+    if (jobErr || !jobData) {
+      throw new Error(`[runSilentRefresh] ingest_jobs insert failed: ${jobErr?.message ?? "no data"}`);
+    }
+
+    ephemeralJobId = (jobData as { id: string }).id;
+
+    // Ingest delta.
+    await runIngest({
+      userId,
+      chessComUsername: profile.chess_com_username,
+      jobId: ephemeralJobId,
+      refreshAfter: latestPlayedAt ?? undefined,
+      onProgress: (p) => {
+        onProgress?.(`Scarico ${p.gamesDone}/${p.gamesTotal} partite...`);
+      },
+    });
+
+    // Guard again: if main orchestrator started during ingest, abort cleanly.
+    if (activeRun) {
+      // Mark ephemeral job done so it does not confuse future orchestrator runs.
+      await supabase
+        .from("ingest_jobs")
+        .update({ status: "done", finished_at: new Date().toISOString() })
+        .eq("id", ephemeralJobId);
+      onDone?.();
+      return;
+    }
+
+    // Step 3: analyze new games only (those still 'pending' after ingest).
+    onProgress?.("Analizzo con Stockfish...");
+    await runAnalyze({
+      userId,
+      jobId: ephemeralJobId,
+      // No range: analyze whatever is pending (only the newly ingested games).
+      onProgress: (done, total) => {
+        onProgress?.(`Analizzo ${done}/${total} partite...`);
+      },
+    });
+
+    // Step 4: re-aggregate + player_model_lite + coach (full, on all done games).
+    onProgress?.("Aggiorno il profilo...");
+    await runAggregateAndCoach(userId, profile);
+
+    // Mark ephemeral job done.
+    const { error: doneErr } = await supabase
+      .from("ingest_jobs")
+      .update({ status: "done", finished_at: new Date().toISOString() })
+      .eq("id", ephemeralJobId);
+    if (doneErr) {
+      // eslint-disable-next-line no-console
+      console.warn("[runSilentRefresh] failed to mark job done:", doneErr.message);
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn("[runSilentRefresh] error during background refresh:", e);
+    // Best-effort: mark ephemeral job error so it does not block future runs.
+    if (ephemeralJobId) {
+      await supabase
+        .from("ingest_jobs")
+        .update({ status: "error", error: String(e instanceof Error ? e.message : e) })
+        .eq("id", ephemeralJobId)
+        .then(({ error: markErr }) => {
+          if (markErr) {
+            // eslint-disable-next-line no-console
+            console.warn("[runSilentRefresh] failed to mark job error:", markErr.message);
+          }
+        });
+    }
+  } finally {
+    onDone?.();
+  }
 }
 
 async function invokeCoachLlm(

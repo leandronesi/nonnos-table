@@ -1543,6 +1543,12 @@ button:disabled, [aria-disabled="true"] {
 }
 .pulse-glow { animation: pulseGlow 2s ease-in-out infinite; }
 
+/* Silent-refresh indicator dot */
+@keyframes nt-pulse {
+  0%, 100% { opacity: 0.7; }
+  50%       { opacity: 0.25; }
+}
+
 /* ============================================================================
  * Utility shadows + dividers
  * ========================================================================== */

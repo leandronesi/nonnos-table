@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { useOnboardingRun } from "../pipeline/OnboardingRunContext";
 import { downloadJson, quadernoPath } from "../auth/storage";
 import { NonnoSession } from "../session/NonnoSession";
 import type { Aggregates, PositionExample } from "../pipeline/aggregate";
@@ -20,6 +21,9 @@ export function Sessione() {
   const { user, profile } = useAuth();
   const nav = useNavigate();
   const location = useLocation();
+  // dataVersion: increments when silent-refresh or 20+80 background finishes.
+  // Adding it as a dep ensures Sessione reloads cadute when new games are processed.
+  const { dataVersion } = useOnboardingRun();
 
   // Deep-link from MomentoDelGiorno: bring the clicked position to front.
   const focusKey = (location.state as { focusKey?: string } | null)?.focusKey;
@@ -50,7 +54,9 @@ export function Sessione() {
     return () => {
       cancelled = true;
     };
-  }, [user, profile]);
+    // dataVersion: when silent-refresh completes, reload cadute to reflect new games.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, profile, dataVersion]);
 
   // ── Loading ────────────────────────────────────────────────────────────────
 

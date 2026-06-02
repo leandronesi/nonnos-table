@@ -16,6 +16,7 @@
 import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { useOnboardingRun } from "../pipeline/OnboardingRunContext";
 import { toggleTheme, getCurrentTheme } from "../theme";
 
 // ── Nav definition ─────────────────────────────────────────────────────────────
@@ -274,9 +275,11 @@ function DesktopSidebar({
 function MobileTopBar({
   onSignOut,
   onThemeToggle,
+  silentRefreshing,
 }: {
   onSignOut: () => void;
   onThemeToggle: () => void;
+  silentRefreshing?: boolean;
 }) {
   return (
     <header
@@ -295,8 +298,8 @@ function MobileTopBar({
         borderBottom: "1px solid var(--color-line)",
       }}
     >
-      {/* Brand left */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+      {/* Brand left + optional silent-refresh pill */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", minWidth: 0 }}>
         <LampIcon />
         <span style={{
           fontFamily: "var(--font-display)",
@@ -304,13 +307,15 @@ function MobileTopBar({
           fontSize: "0.8125rem",
           color: "var(--color-text)",
           letterSpacing: "-0.01em",
+          flexShrink: 0,
         }}>
           il Tavolo del{" "}
           <span style={{ color: "var(--color-gold-soft)" }}>Nonno</span>
         </span>
+        {silentRefreshing && <SilentRefreshPill />}
       </div>
       {/* Actions right */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
         <ThemeToggleButton onToggle={onThemeToggle} />
         <button
           onClick={onSignOut}
@@ -383,11 +388,49 @@ function MobileTabBar({ pathname }: { pathname: string }) {
   );
 }
 
+// ── Silent-refresh indicator ───────────────────────────────────────────────────
+// Shown only when silentRefreshing is true. Discrete: a pulsing dot + quiet text.
+
+function SilentRefreshPill() {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.375rem",
+        fontSize: "0.68rem",
+        color: "var(--color-muted)",
+        lineHeight: 1,
+        userSelect: "none",
+        flexShrink: 0,
+      }}
+      aria-live="polite"
+      aria-label="Elaborazione partite in corso"
+    >
+      {/* Pulsing dot */}
+      <span
+        style={{
+          display: "inline-block",
+          width: "6px",
+          height: "6px",
+          borderRadius: "50%",
+          background: "var(--color-brand-soft)",
+          opacity: 0.7,
+          animation: "nt-pulse 1.8s ease-in-out infinite",
+        }}
+        aria-hidden="true"
+      />
+      Guardo le ultime partite...
+    </div>
+  );
+}
+
 // ── AppShell ───────────────────────────────────────────────────────────────────
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { profile, signOut } = useAuth();
   const { pathname } = useLocation();
+  const { silentRefreshing } = useOnboardingRun();
   // Local state to force icon re-render on toggle
   const [_theme, setThemeState] = useState(() => getCurrentTheme());
 
@@ -414,6 +457,18 @@ export function AppShell({ children }: { children: ReactNode }) {
         />
         {/* Content */}
         <main className="appshell-content">
+          {/* Silent-refresh indicator: sits just above content, full width, quiet */}
+          {silentRefreshing && (
+            <div
+              style={{
+                padding: "0.375rem 1.5rem",
+                borderBottom: "1px solid var(--color-line)",
+                background: "transparent",
+              }}
+            >
+              <SilentRefreshPill />
+            </div>
+          )}
           <div style={{ maxWidth: "960px", margin: "0 auto", padding: "0 1.5rem" }}>
             {children}
           </div>
@@ -422,7 +477,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       {/* ── MOBILE layout (< 1024px) — hidden on desktop via CSS ──────── */}
       <div className="appshell-mobile">
-        <MobileTopBar onSignOut={handleSignOut} onThemeToggle={handleThemeToggle} />
+        <MobileTopBar onSignOut={handleSignOut} onThemeToggle={handleThemeToggle} silentRefreshing={silentRefreshing} />
         <main className="appshell-mobile-main">
           {children}
         </main>
