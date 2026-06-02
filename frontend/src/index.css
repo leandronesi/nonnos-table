@@ -7333,6 +7333,17 @@ button:disabled, [aria-disabled="true"] {
   font-weight: 850;
 }
 
+/* Nonno's face in the topbar: same person seen inside the app. */
+.public-brand-face {
+  width: 2.1rem;
+  height: 2.1rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid color-mix(in srgb, var(--color-brand) 28%, var(--color-line));
+  background: var(--color-surface-2);
+}
+
 .public-login {
   min-height: 2.25rem;
   display: inline-flex;
@@ -7504,9 +7515,29 @@ button:disabled, [aria-disabled="true"] {
 }
 
 .public-nonno {
-  max-width: 44ch;
-  margin-top: 1.55rem;
-  padding: 1.05rem 0 1.05rem 1.1rem;
+  max-width: 46ch;
+  margin: 1.55rem 0 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+/* The portrait: Nonno looks up and speaks the words next to him. The warmth
+   comes from the lamp baked into the image, not from a CSS glow. */
+.public-nonno-face {
+  flex-shrink: 0;
+  width: 3.75rem;
+  height: 3.75rem;
+  margin-top: 0.1rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid color-mix(in srgb, var(--color-gold) 26%, var(--color-line-strong));
+  background: var(--color-surface-2);
+}
+
+.public-nonno figcaption {
+  min-width: 0;
+  padding-left: 1.1rem;
   border-left: 2px solid var(--color-brand);
   color: var(--color-text);
   font-family: var(--font-display);
@@ -8033,9 +8064,10 @@ button:disabled, [aria-disabled="true"] {
     font-size: 0.92rem;
   }
 
-  .public-brand-mark {
-    width: 1.85rem;
-    height: 1.85rem;
+  .public-brand-mark,
+  .public-brand-face {
+    width: 1.9rem;
+    height: 1.9rem;
   }
 
   .public-login {
