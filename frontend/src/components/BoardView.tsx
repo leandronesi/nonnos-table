@@ -36,15 +36,29 @@ export function BoardView({
   const [boardSize, setBoardSize] = useState(maxSize);
 
   useLayoutEffect(() => {
+    let raf = 0;
     function measure() {
-      if (!wrapRef.current) return;
-      const availableWidth = wrapRef.current.parentElement?.offsetWidth ?? maxSize;
+      const parent = wrapRef.current?.parentElement;
+      if (!parent) return;
+      const availableWidth = parent.offsetWidth;
+      // Ignore implausibly small / transient reads: a flex item that collapsed
+      // mid-reflow, or a pre-layout measurement, can report a near-zero width.
+      // Applying it would lock the board to a tiny size and keep it there until
+      // the next resize — the "a volte piccolissima" bug. A real container is
+      // never this narrow (the smallest intentional board is ~160px).
+      if (availableWidth < 120) return;
       setBoardSize(Math.min(maxSize, availableWidth));
     }
     measure();
+    // Re-measure on the next frame in case layout had not settled at this point.
+    raf = requestAnimationFrame(measure);
     const ro = new ResizeObserver(measure);
-    if (wrapRef.current) ro.observe(wrapRef.current.parentElement ?? wrapRef.current);
-    return () => ro.disconnect();
+    const target = wrapRef.current?.parentElement ?? wrapRef.current;
+    if (target) ro.observe(target);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
   }, [maxSize]);
 
   const squareStyles: Record<string, React.CSSProperties> = {};
