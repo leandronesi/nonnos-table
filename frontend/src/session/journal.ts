@@ -163,7 +163,7 @@ export function bodyForPatternMastered(patternName: string): string {
 }
 
 export function bodyForFirstDrill(patternName: string): string {
-  return `Primo allenamento su "${patternName}". Questo è uno dei tuoi freni — lo rivedremo finché non lo togliamo.`;
+  return `Primo esercizio su "${patternName}". Questa è una delle tue ancore: la rivedremo finché non la togliamo.`;
 }
 
 export function bodyForGoalUpdated(target: number, timeClass: string): string {
