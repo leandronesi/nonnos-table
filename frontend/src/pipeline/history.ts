@@ -143,9 +143,13 @@ export function anchorTrendsFromHistory(history: HistoryFile): AnchorTrail[] {
     const first = points[0];
     const last = points[points.length - 1];
 
-    // direction: >= 20% relative change in freq (same threshold as anchor_improved).
+    // direction: >= 20% relative change in freq (same threshold as anchor_improved),
+    // but ONLY for material anchors. An anchor seen ~once every 33-50 games (count
+    // 1-2 per snapshot) is statistical noise: flagging it "in salita / tienila
+    // d'occhio" just confuses. Require >= 3 occurrences in at least one endpoint.
     let direction: AnchorTrail["direction"] = "stable";
-    if (first.freq != null && last.freq != null && first.freq > 0) {
+    const material = Math.max(first.count ?? 0, last.count ?? 0) >= 3;
+    if (material && first.freq != null && last.freq != null && first.freq > 0) {
       const ratio = last.freq / first.freq;
       if (ratio <= 0.80) direction = "improving";    // ≥20% relative drop
       else if (ratio >= 1.20) direction = "worsening"; // ≥20% relative rise

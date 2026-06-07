@@ -328,7 +328,7 @@ function phaseIt(phase: string): string {
 }
 
 /** Metadati italiani per ogni tipo di errore. Testi in chiave AVANTI (upside). */
-const WEAKNESS_META: Record<string, Pick<Anchor, "label_it" | "meaning_it" | "action_it" | "category">> = {
+export const WEAKNESS_META: Record<string, Pick<Anchor, "label_it" | "meaning_it" | "action_it" | "category">> = {
   careless: {
     label_it: "Disattenzione",
     meaning_it: "Errori in posizioni non difficili dove avevi tempo e la mossa non era complicata. Se molli questa ancora guadagni punti sulle partite facili.",
