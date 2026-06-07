@@ -15,7 +15,7 @@ import { supabase } from "../auth/supabaseClient";
 import { downloadJson, uploadJson, analysisPath, quadernoPath } from "../auth/storage";
 import type { GameAnalysis } from "./analyze";
 import { getMaiaEngine } from "./maia/maiaEngine";
-import { FREE_GAME_CAP, MAX_COACH_EXAMPLES, CADUTE_LIMIT, CADUTE_MAIA_CAP } from "./config";
+import { FREE_GAME_CAP, MAX_COACH_EXAMPLES, CADUTE_LIMIT, CADUTE_MAIA_CAP, ANALYZED_TIME_CLASSES } from "./config";
 import type { AnchorTrendNow, TransferAggregates, TransferMotifStat, TransferMotifType, MotifOccurrence } from "../types";
 
 export interface PhaseAgg {
@@ -177,6 +177,12 @@ export interface Anchor {
   action_it: string;
   category: "tattica" | "timing" | "tecnica" | "comportamento";
   count: number;
+  /**
+   * Number of errors in this anchor where priority_score >= 2 (Maia-avoidable).
+   * 0 if Maia did not run (all priority_score null).
+   * Subset of `count` — does NOT replace it.
+   */
+  count_avoidable: number;
   share_of_errors: number;
   games_with: number;
   avg_cp_loss: number;
@@ -190,6 +196,17 @@ export interface Anchor {
    * altrimenti Σ(blameWeight * cp_loss). Escluse posizioni priority_score 0.
    */
   weighted_score: number;
+  /**
+   * Media di p_maia_mine_top sugli exemplar di questa ancora dove Maia ha girato.
+   * Proxy di "quanto ovvia" e' questa ancora per il tuo livello.
+   * null se Maia non ha girato per nessun errore di questa ancora.
+   */
+  mine_pct: number | null;
+  /**
+   * Media di p_maia_target_top sugli exemplar di questa ancora dove Maia ha girato.
+   * null se Maia non ha girato per nessun errore di questa ancora.
+   */
+  target_pct: number | null;
   exemplars: PositionExample[];
   /**
    * Trend finestrato immediato (§2.1 BUILD.md).
@@ -579,13 +596,16 @@ export async function computeAggregates(
   currentRating: number | null = null,
   targetRating: number = (currentRating ?? 1200) + 200,
 ): Promise<Aggregates> {
-  // Cappa alle FREE_GAME_CAP partite PIU' RECENTI: senza limit rileggerebbe ogni
-  // partita 'done' del DB (centinaia/migliaia) - download infiniti.
+  // FIX B: filter rapid/blitz IN SQL so the FREE_GAME_CAP quota contains 100
+  // rapid/blitz games, not 100 mixed games (daily/bullet would silently consume
+  // cap slots and halve the analysed volume for mixed-format players).
+  // The in-memory filter below is kept as a redundant safety net.
   const { data: games } = await supabase
     .from("games")
     .select("id,chess_com_uuid,time_class,color,result,analysis_path,analysis_status")
     .eq("user_id", userId)
     .eq("analysis_status", "done")
+    .in("time_class", ANALYZED_TIME_CLASSES)
     .order("played_at", { ascending: false })
     .limit(FREE_GAME_CAP);
 
@@ -638,12 +658,23 @@ export async function computeAggregates(
   const repertoireAcc: Map<string, RepertoireAccEntry> = new Map();
 
   let analyzedCount = 0;
+  // All played_at timestamps of games that passed the filter (for trend denominators).
+  // This includes games with zero errors — required for an honest errors-per-game rate.
+  const allAnalyzedPlayedAt: string[] = [];
 
   for (const g of games ?? []) {
     if (!g.analysis_path) continue;
     const ga = await downloadJson<GameAnalysis>(g.analysis_path);
     if (!ga) continue;
+
+    // Filter: only rapid/blitz contribute to error analysis and anchor scoring.
+    // If time_class is missing/undefined we keep the game (conservative).
+    // Daily games have unusable clock data; bullet produces noisy cp_loss.
+    if (ga.time_class && !ANALYZED_TIME_CLASSES.includes(ga.time_class)) continue;
+
     analyzedCount++;
+    // Track played_at of every filtered game — used as denominator in trend_now.
+    if (ga.played_at) allAnalyzedPlayedAt.push(ga.played_at);
 
     // Collect motif occurrences for transfer metrics (§7.3). Old analysis files
     // will have motif_occurrences === undefined — silently skip them.
@@ -1003,9 +1034,16 @@ export async function computeAggregates(
   }
 
   // Cadute: galleria piu' ampia, ordinate per trainability desc, max 4 per partita.
+  // Score = drill_value * (blame_weight * cp_loss) when Maia ran (drill_value != null),
+  // else fallback to blame_weight * cp_loss. This surfaces Maia-ranked positions at
+  // the top of the gallery, while positions without Maia data still participate.
+  // priority_score 0 positions are NOT excluded here — they stay in the gallery
+  // so the player sees their worst moments; Maia weighting naturally deprioritises them.
   const caduteByTrainability = [...exampleCandidates].sort((a, b) => {
-    const scoreA = (a.blame_weight ?? 1.0) * a.cp_loss;
-    const scoreB = (b.blame_weight ?? 1.0) * b.cp_loss;
+    const impactA = (a.blame_weight ?? 1.0) * a.cp_loss;
+    const impactB = (b.blame_weight ?? 1.0) * b.cp_loss;
+    const scoreA = a.drill_value != null ? a.drill_value * impactA : impactA;
+    const scoreB = b.drill_value != null ? b.drill_value * impactB : impactB;
     return scoreB - scoreA;
   });
   const perGameCadute: Record<string, number> = {};
@@ -1025,6 +1063,12 @@ export async function computeAggregates(
     weightedScoreSum: number;
     games: Set<string>;
     count: number;
+    count_avoidable: number;
+    // Per-anchor Maia averages: mine_pct / target_pct from p_maia_mine_top / p_maia_target_top.
+    // Only positions where Maia ran (p_maia_mine_top != null) contribute.
+    maia_mine_sum: number;
+    maia_target_sum: number;
+    maia_n: number;
     candidates: Array<{ example: PositionExample & { gameKey: string }; score: number }>;
   }> = new Map();
 
@@ -1045,13 +1089,22 @@ export async function computeAggregates(
           : 0;
 
     if (!anchorAcc.has(et)) {
-      anchorAcc.set(et, { cpLossSum: 0, weightedScoreSum: 0, games: new Set(), count: 0, candidates: [] });
+      anchorAcc.set(et, { cpLossSum: 0, weightedScoreSum: 0, games: new Set(), count: 0, count_avoidable: 0, maia_mine_sum: 0, maia_target_sum: 0, maia_n: 0, candidates: [] });
     }
     const acc = anchorAcc.get(et)!;
     acc.count++;
+    // count_avoidable: errors where Maia says the player at their level could avoid this.
+    // priority_score >= 2 means avoidable (2=avoidable, 3=money).
+    if (c.priority_score != null && c.priority_score >= 2) acc.count_avoidable++;
     acc.cpLossSum += c.cp_loss;
     acc.weightedScoreSum += drillWeight;
     acc.games.add(c.gameKey);
+    // Accumulate per-anchor Maia top-policy for mine_pct / target_pct.
+    if (c.p_maia_mine_top != null && c.p_maia_target_top != null) {
+      acc.maia_mine_sum += c.p_maia_mine_top;
+      acc.maia_target_sum += c.p_maia_target_top;
+      acc.maia_n++;
+    }
     acc.candidates.push({ example: c, score: drillWeight });
   }
 
@@ -1073,15 +1126,31 @@ export async function computeAggregates(
     // rating_upside: round(share * 100) capped to [0..60].
     const rawUpside = Math.round(share * 100);
     const rating_upside = rawUpside > 0 ? Math.min(rawUpside, 60) : null;
+    // FIX D: normalize mine_pct / target_pct to 0..100 (same scale as maia_weighted).
+    // These are averages of p_maia_mine_top / p_maia_target_top which are 0..1 fractions
+    // from the ONNX policy head. Without *100, Math.round(mine_pct) would always be 0 or 1
+    // when Onda 3 wires up the anchor-trail.
+    //
+    // IMPORTANT — semantic note: these values represent average top-policy obviousness
+    // (0..100) for a player at mine/target ELO. This is a PROPERTY OF THE POSITIONS in
+    // this anchor type, NOT a progress indicator. The value does NOT decrease as the
+    // user improves (a hung-piece position will always be 90%+ obvious at 1500). The
+    // signal of "anchor shrinking over time" lives in count/games_analyzed (the
+    // milestone/trend code). Use mine_pct/target_pct only as STATIC CONTEXT.
+    const mine_pct = data.maia_n > 0 ? (data.maia_mine_sum / data.maia_n) * 100 : null;
+    const target_pct = data.maia_n > 0 ? (data.maia_target_sum / data.maia_n) * 100 : null;
     anchors.push({
       type,
       ...meta,
       count: data.count,
+      count_avoidable: data.count_avoidable,
       share_of_errors: share,
       games_with: data.games.size,
       avg_cp_loss: data.count > 0 ? data.cpLossSum / data.count : 0,
       rating_upside,
       weighted_score: data.weightedScoreSum,
+      mine_pct,
+      target_pct,
       exemplars,
     });
   }
@@ -1147,23 +1216,17 @@ export async function computeAggregates(
         }
       }
 
-      // Also collect all distinct game dates per window (for denominator: total
-      // games played in that window, not just games with this anchor).
-      const allRecentGames: Set<string> = new Set();
-      const allPriorGames: Set<string> = new Set();
-      for (const c of exampleCandidates) {
-        if (!c.played_at) continue;
-        const t = Date.parse(c.played_at);
+      // Denominator: ALL analyzed games (including zero-error games) in each window.
+      // We use allAnalyzedPlayedAt collected above — this gives an honest
+      // errors-per-game rate, not inflated by counting only games with errors.
+      let recentGamesCount = 0;
+      let priorGamesCount = 0;
+      for (const playedAt of allAnalyzedPlayedAt) {
+        const t = Date.parse(playedAt);
         if (isNaN(t)) continue;
-        if (t >= recentStart && t <= recentEnd) allRecentGames.add(c.gameKey);
-        else if (t >= priorStart && t <= priorEnd) allPriorGames.add(c.gameKey);
+        if (t >= recentStart && t <= recentEnd) recentGamesCount++;
+        else if (t >= priorStart && t <= priorEnd) priorGamesCount++;
       }
-      // Also include games with zero errors (from the games list we queried).
-      // We know analyzedCount but don't have per-window game dates easily.
-      // Best-effort: use the distinct game keys from all candidates per window
-      // as the denominator — this slightly underestimates total games played
-      // (it counts only games WITH at least one error), but is the only data
-      // we have without re-querying. Documented limitation.
 
       // Attach trend_now to each anchor.
       for (const anchor of anchors) {
@@ -1173,16 +1236,17 @@ export async function computeAggregates(
           continue;
         }
 
-        const recent_games = allRecentGames.size;
-        const prior_games  = allPriorGames.size;
+        const recent_games = recentGamesCount;
+        const prior_games  = priorGamesCount;
 
         const recent_per_game =
           recent_games > 0 ? ta.recent_n / recent_games : null;
         const prior_per_game =
           prior_games > 0 ? ta.prior_n / prior_games : null;
 
+        // FIX D: normalize to 0..100 (same scale as Anchor.mine_pct / target_pct).
         const target_pct =
-          ta.target_pct_n > 0 ? ta.target_pct_sum / ta.target_pct_n : null;
+          ta.target_pct_n > 0 ? (ta.target_pct_sum / ta.target_pct_n) * 100 : null;
 
         // Direction.
         let direction: AnchorTrendNow["direction"] = "stable";

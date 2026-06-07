@@ -412,16 +412,22 @@ function classifyOccurrenceMotif(
 /**
  * Parsa l'header "TimeControl" del PGN.
  * Formati: "600", "180+2", "1/259200" (daily), "-" (nessuno).
- * Restituisce baseSeconds (primo numero) o null per daily/assente.
+ * Restituisce { base, increment } in secondi, o null per daily/assente.
+ *
+ * increment = bonus aggiunto al clock del giocatore DOPO che ha mosso.
+ * Necessario per calcolare correttamente il tempo speso (vedi spentSeconds).
  */
-function parseTimeControl(tc: string | null | undefined): number | null {
+function parseTimeControl(tc: string | null | undefined): { base: number; increment: number } | null {
   if (!tc || tc === "-" || tc === "?") return null;
   // Daily/correspondence: contiene "/"
   if (tc.includes("/")) return null;
   // "180+2" o "600+0" o "600"
-  const m = tc.match(/^(\d+)/);
+  const m = tc.match(/^(\d+)(?:\+(\d+))?$/);
   if (!m) return null;
-  return parseInt(m[1], 10);
+  return {
+    base: parseInt(m[1], 10),
+    increment: m[2] != null ? parseInt(m[2], 10) : 0,
+  };
 }
 
 /**
@@ -616,9 +622,12 @@ export async function analyzeGame(
   // Chess.com PGN carries the canonical game URL in the [Link] header.
   const gameUrl: string | null = headers["Link"] ?? null;
 
-  // Time control: baseSeconds null per daily/assente.
+  // Time control: null per daily/assente.
   const timeControlRaw: string | null = headers["TimeControl"] ?? null;
-  const timeControlBaseSeconds: number | null = parseTimeControl(timeControlRaw);
+  const parsedTc = parseTimeControl(timeControlRaw);
+  const timeControlBaseSeconds: number | null = parsedTc?.base ?? null;
+  // increment in seconds: added to the player's clock AFTER they make a move.
+  const timeControlIncrement: number = parsedTc?.increment ?? 0;
 
   const playerColor = game.color;
   await engine.waitReady();
@@ -717,19 +726,31 @@ export async function analyzeGame(
       // else: null (mate present or < 2 lines)
     }
 
-    // spentSeconds: clock[i-2] − clock[i] (stessa faccia, mossa precedente).
-    // i è l'indice 0-based nella lista mosse: clock[i] è il clock DOPO la mossa i.
-    // Per il bianco (playerSide === 'w'): le sue mosse sono ai ply pari (0,2,4…).
-    // Per il nero (playerSide === 'b'): le sue mosse sono ai ply dispari (1,3,5…).
-    // La mossa precedente dello stesso giocatore è a i-2.
+    // spentSeconds: how long the player thought on move i.
+    //
+    // Chess.com clock model:
+    //   clock[i] = time REMAINING after move i, ALREADY INCLUDING the increment
+    //              the player earned for making that move.
+    //
+    // So for move i (index 0-based), the player's clock at the START of their turn
+    // was clock[i-2] (their clock after their previous move, same colour).
+    // When they move, they get `timeControlIncrement` added, then their elapsed
+    // time is subtracted, leaving clock[i].
+    //
+    // Therefore:
+    //   spentSeconds = clockPrev + increment - clockAfter
+    //   = (clock[i-2]) + timeControlIncrement - clock[i]
+    //
+    // This is clamped to >= 0 (guard against rounding / flag moves).
+    // null when either clock is missing (no [%clk] annotations, or daily).
     let spentSeconds: number | null = null;
     const clockRemaining: number | null = clocks.length > 0 ? (clocks[i] ?? null) : null;
     if (clocks.length > 0) {
       const clockAfter = clockRemaining;
-      const clockPrev  = i >= 2 ? (clocks[i - 2] ?? null) : null; // clock rimasto dopo la mossa precedente dello stesso colore
+      const clockPrev  = i >= 2 ? (clocks[i - 2] ?? null) : null; // clock after own previous move
       if (clockAfter !== null && clockPrev !== null) {
-        const delta = clockPrev - clockAfter;
-        // Un delta negativo (bonus time control, overtime) → null
+        const delta = clockPrev + timeControlIncrement - clockAfter;
+        // Clamp to >= 0: a negative value can occur in overtime / flag scenarios.
         spentSeconds = delta >= 0 ? delta : null;
       }
     }

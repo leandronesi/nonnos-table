@@ -318,13 +318,16 @@ async function doRun(opts: {
         const existingHistory = await readHistory(userId);
         const run_kind: HistorySnapshot["run_kind"] =
           existingHistory.snapshots.length > 0 ? "reanalyze" : "onboarding";
+        // Use immutable start_rating from first snapshot (day-1 baseline).
+        const startRating = deriveStartRating(existingHistory, currentRating);
+        const pointsGained = (currentRating ?? 0) - (startRating ?? currentRating ?? 0);
         const goalForSnap: Goal = {
           target: profile.goal_rating,
           time_class: profile.goal_time_class,
           deadline: profile.goal_deadline ?? "",
           current_rating: currentRating,
-          start_rating: currentRating,
-          points_gained_since_start: 0,
+          start_rating: startRating,
+          points_gained_since_start: Math.max(0, pointsGained),
           points_needed: Math.max(0, profile.goal_rating - (currentRating ?? 0)),
           days_left: profile.goal_horizon_weeks * 7,
           days_since_start: 0,
@@ -407,14 +410,16 @@ async function doRun(opts: {
           run_kind = "onboarding";
         }
 
-        // Use goal from pmLite if available; build minimal fallback otherwise.
+        // Use immutable start_rating from first snapshot (day-1 baseline).
+        const startRating = deriveStartRating(existingHistory, currentRating);
+        const pointsGained = (currentRating ?? 0) - (startRating ?? currentRating ?? 0);
         const goalForSnap: Goal = {
           target: profile.goal_rating,
           time_class: profile.goal_time_class,
           deadline: profile.goal_deadline ?? "",
           current_rating: currentRating,
-          start_rating: currentRating,
-          points_gained_since_start: 0,
+          start_rating: startRating,
+          points_gained_since_start: Math.max(0, pointsGained),
           points_needed: Math.max(0, profile.goal_rating - (currentRating ?? 0)),
           days_left: profile.goal_horizon_weeks * 7,
           days_since_start: 0,
@@ -482,7 +487,15 @@ async function runAggregateAndCoach(
       if (ga) analyses.push(ga);
     }
 
-    const pmLite = buildPlayerModelLite(gameRows, analyses, profile);
+    // FIX C: derive the immutable start_rating baseline from history (day-1 snapshot)
+    // and pass it to buildPlayerModelLite so the GoalHero shows the same baseline
+    // as the milestone and history code. Without this the goal inside playerModelLite
+    // re-derived start_rating from the oldest game on every run, which could zero or
+    // negate points_gained_since_start every time the game window changed.
+    const existingHistoryForPm = await readHistory(userId);
+    const startRatingForPm = deriveStartRating(existingHistoryForPm, currentRating);
+
+    const pmLite = buildPlayerModelLite(gameRows, analyses, profile, startRatingForPm);
     await uploadJson(quadernoPath(userId, "player_model_lite.json"), pmLite);
   } catch (pmErr) {
     // eslint-disable-next-line no-console
@@ -496,6 +509,31 @@ async function runAggregateAndCoach(
     // eslint-disable-next-line no-console
     console.warn("[orchestrator] coach-llm fallito (best-effort, apro il Tavolo lo stesso):", coachErr);
   }
+}
+
+/**
+ * Returns the immutable start_rating baseline for goal tracking.
+ *
+ * Strategy:
+ *   1. If history already has snapshots, use the oldest snapshot's goal.current
+ *      as the baseline — it was the rating at the time of first onboarding and
+ *      must never change, so progress is measured from day 1.
+ *   2. If no snapshots exist yet (first ever run), use currentRating — it will
+ *      become the baseline once persisted in the first snapshot.
+ *
+ * This prevents the start_rating from being reset to the current rating at every
+ * run, which zeroed out the points_gained_since_start counter.
+ */
+function deriveStartRating(
+  existingHistory: { snapshots: Array<{ captured_at: string; goal: { current: number | null } }> },
+  currentRating: number | null,
+): number | null {
+  if (existingHistory.snapshots.length === 0) return currentRating;
+  // Oldest snapshot = first ever run.
+  const sorted = [...existingHistory.snapshots].sort((a, b) =>
+    a.captured_at.localeCompare(b.captured_at),
+  );
+  return sorted[0].goal.current ?? currentRating;
 }
 
 /** Deriva il rating corrente dell'utente (goal time class, con fallback). */
