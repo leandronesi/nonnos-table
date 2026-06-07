@@ -32,6 +32,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { downloadJson, downloadText, quadernoPath } from "../../auth/storage";
 import { PRODUCT_NAME } from "../../coaching";
 import type { Aggregates, PositionExample } from "../../pipeline/aggregate";
+import { WEAKNESS_META } from "../../pipeline/aggregate";
 import type { PlayerModelLite } from "../../pipeline/playerModelLite";
 import type { HistoryFile, Milestone, AnchorTrail, TimeManagement, Tilt } from "../../types";
 import {
@@ -69,12 +70,6 @@ function tabFromHash(): TabKey {
   if (h === "diario") return "cadute";
   return TABS.some((t) => t.key === h) ? (h as TabKey) : "evoluzione";
 }
-
-// ── Motif label map ────────────────────────────────────────────────────────────
-
-const MOTIF_LABEL: Record<string, string> = {
-  pezzo_in_presa: "Pezzo in presa",
-};
 
 // ── Italian date helpers ───────────────────────────────────────────────────────
 
@@ -333,6 +328,11 @@ function AnchorTrailsSection({
                         <span className="tt-chip" style={{ fontSize: "0.6rem", color: "var(--color-faint)", background: "rgba(255,255,255,0.03)" }}>dati parziali</span>
                       )}
                     </div>
+                    {WEAKNESS_META[trail.key]?.meaning_it && (
+                      <div style={{ marginBottom: "0.375rem", fontSize: "0.78rem", color: "var(--color-faint)", lineHeight: 1.45 }}>
+                        {WEAKNESS_META[trail.key]?.meaning_it}
+                      </div>
+                    )}
                     <div style={{ fontSize: "0.82rem", color: "var(--color-text-soft)", lineHeight: 1.55 }}>
                       {verdict}
                     </div>
@@ -1266,10 +1266,12 @@ function TabProfilo({
 // TAB: CADUTE
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Group cadute by motif/anchor label (key = motif ?? "varie") */
+/** Group cadute by ANCHOR (error_type) — the same taxonomy as everywhere else
+ *  (Tavolo, Evoluzione). Key = error_type, "varie" for unclassified. */
 interface CaduteGroup {
-  key: string;       // motif key, "varie" for unclassified
-  label: string;     // Italian display label
+  key: string;          // anchor (error_type) key, "varie" for unclassified
+  label: string;        // Italian display label
+  meaning?: string;     // one-line explanation of the anchor
   positions: PositionExample[];
 }
 
@@ -1277,20 +1279,20 @@ function buildCaduteGroups(raw: PositionExample[]): CaduteGroup[] {
   const map = new Map<string, CaduteGroup>();
 
   for (const pos of raw) {
-    const key = pos.motif ?? "varie";
-    const label = pos.motif
-      ? (MOTIF_LABEL[pos.motif] ?? pos.motif.replace(/_/g, " "))
-      : "Varie";
+    const et = pos.error_type ?? null;
+    const meta = et ? WEAKNESS_META[et] : undefined;
+    const key = et ?? "varie";
+    const label = meta?.label_it ?? "Varie";
 
     let grp = map.get(key);
     if (!grp) {
-      grp = { key, label, positions: [] };
+      grp = { key, label, meaning: meta?.meaning_it, positions: [] };
       map.set(key, grp);
     }
     grp.positions.push(pos);
   }
 
-  // Sort: named groups by count desc, "varie" last
+  // Sort: named anchors by count desc, "varie" last
   const named = [...map.values()].filter((g) => g.key !== "varie").sort((a, b) => b.positions.length - a.positions.length);
   const varie = map.get("varie");
   return varie ? [...named, varie] : named;
@@ -1403,11 +1405,13 @@ function TabCadute({
   aggregates,
   pmLite,
   anchorFilter,
+  onClearAnchorFilter,
   onOpeningLink,
 }: {
   aggregates: Aggregates | null;
   pmLite: PlayerModelLite | null;
   anchorFilter: string | null;
+  onClearAnchorFilter: () => void;
   onOpeningLink: (eco: string) => void;
 }) {
   // trainer state: null = group list, string = key of group being trained
@@ -1419,12 +1423,12 @@ function TabCadute({
 
   const raw: PositionExample[] = aggregates?.cadute ?? aggregates?.examples ?? [];
 
-  // If anchor filter is active, filter positions by motif match
+  // If an anchor filter is active, filter by the ANCHOR (error_type) exactly —
+  // the same taxonomy the filter key comes from. The old code matched the
+  // error_type against the tactical motif and let every motif-less caduta
+  // through (`!c.motif || ...`), which dumped almost everything into "Varie".
   const basePositions = anchorFilter
-    ? raw.filter((c) => {
-        const motifKey = anchorFilter.toLowerCase().replace(/ /g, "_");
-        return !c.motif || c.motif.includes(motifKey) || motifKey.includes(c.motif);
-      })
+    ? raw.filter((c) => c.error_type === anchorFilter)
     : raw;
 
   const groups = buildCaduteGroups(basePositions);
@@ -1526,11 +1530,16 @@ function TabCadute({
         </div>
       </Reveal>
 
-      {/* Anchor filter banner */}
+      {/* Anchor filter banner — names the anchor and offers a clear way out. */}
       {anchorFilter && (
         <Reveal delay={0} className="mb-4">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem 0.875rem", background: "color-mix(in srgb, var(--color-brand) 8%, transparent)", borderRadius: "8px", border: "1px solid color-mix(in srgb, var(--color-brand) 20%, transparent)" }}>
-            <span style={{ fontSize: "0.82rem", color: "var(--color-brand-soft)" }}>Filtro ancora attivo</span>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", padding: "0.5rem 0.875rem", background: "color-mix(in srgb, var(--color-brand) 8%, transparent)", borderRadius: "8px", border: "1px solid color-mix(in srgb, var(--color-brand) 20%, transparent)" }}>
+            <span style={{ fontSize: "0.82rem", color: "var(--color-brand-soft)" }}>
+              Stai guardando solo: <strong>{WEAKNESS_META[anchorFilter]?.label_it ?? "questa ancora"}</strong>
+            </span>
+            <button onClick={onClearAnchorFilter} className="btn btn-ghost btn-sm" style={{ fontSize: "0.72rem", flexShrink: 0 }}>
+              vedi tutte
+            </button>
           </div>
         </Reveal>
       )}
@@ -1557,6 +1566,11 @@ function TabCadute({
                       <div style={{ fontWeight: 700, fontSize: "1rem", color: "var(--color-text)", lineHeight: 1.25 }}>
                         {grp.label}
                       </div>
+                      {grp.meaning && (
+                        <div style={{ marginTop: "0.25rem", fontSize: "0.8rem", color: "var(--color-muted)", lineHeight: 1.5 }}>
+                          {grp.meaning}
+                        </div>
+                      )}
                       <div style={{ marginTop: "0.25rem", display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
                         {avoidable > 0 ? (
                           <>
@@ -1881,6 +1895,7 @@ export function Quaderno() {
               aggregates={aggregates}
               pmLite={pmLite}
               anchorFilter={selectedAnchor}
+              onClearAnchorFilter={() => setSelectedAnchor(null)}
               onOpeningLink={handleOpeningLink}
             />
           )}
