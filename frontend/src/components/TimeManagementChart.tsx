@@ -86,7 +86,7 @@ export function TimeManagementChart({
               width={56}
               tickFormatter={(v) => `${v}%`}
               label={{
-                value: "% mosse blunder",
+                value: "% errori gravi",
                 angle: 90,
                 position: "insideRight",
                 offset: 10,
@@ -101,7 +101,7 @@ export function TimeManagementChart({
                 v === "avg_cp_loss"
                   ? "ACPL · linea (sx)"
                   : v === "blunder_pct"
-                  ? "% blunder · barre (dx)"
+                  ? "% errori gravi · barre (dx)"
                   : v
               }
             />
@@ -190,23 +190,23 @@ export function TimeManagementChart({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6">
         <StatCard
           label="Mosse istantanee in critica"
-          sub="< 2 secondi su posizione critica"
+          sub="< 5 secondi su posizione critica"
           value={time_management.instant_moves_in_critical.n}
           danger={time_management.instant_moves_in_critical.avg_cp_loss > 100}
           metric={`ACPL ${time_management.instant_moves_in_critical.avg_cp_loss}`}
-          extra={`${time_management.instant_moves_in_critical.blunders} blunder`}
+          extra={`${time_management.instant_moves_in_critical.blunders} errori gravi`}
         />
         <StatCard
           label="Mosse in zeitnot"
-          sub="< 30s rimasti sull'orologio"
+          sub="sotto il 10% dell'orologio"
           value={time_management.zeitnot.n}
           danger={time_management.zeitnot.avg_cp_loss > 100}
           metric={`ACPL ${time_management.zeitnot.avg_cp_loss}`}
-          extra={`${time_management.zeitnot.blunders} blunder`}
+          extra={`${time_management.zeitnot.blunders} errori gravi`}
         />
         <StatCard
           label="Tilt factor"
-          sub="quanto peggiori dopo un tuo blunder"
+          sub="quanto peggiori dopo un tuo errore grave"
           value={`${tilt.tilt_factor}×`}
           danger={tilt.tilt_factor > 1.3}
           metric={`ACPL ${tilt.after_blunder_avg_cp_loss} · baseline ${tilt.baseline_avg_cp_loss}`}
@@ -280,10 +280,10 @@ function RichTooltip({ active, payload }: { active?: boolean; payload?: TooltipP
         Tempo rimasto: {p.bucket}
       </div>
       <Row label="ACPL medio" value={p.avg_cp_loss} color="var(--color-brand-soft)" suffix="" />
-      <Row label="% mosse blunder" value={p.blunder_pct} color="#f43f5e" suffix="%" />
+      <Row label="% errori gravi" value={p.blunder_pct} color="#f43f5e" suffix="%" />
       <div className="my-1.5 h-px bg-[color:var(--color-line)]" />
       <Row label="Mosse totali" value={p.positions} />
-      <Row label="Blunder assoluti" value={p.blunders} />
+      <Row label="Errori gravi" value={p.blunders} />
     </div>
   );
 }

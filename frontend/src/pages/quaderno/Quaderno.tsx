@@ -32,15 +32,17 @@ import { downloadJson, downloadText, quadernoPath } from "../../auth/storage";
 import { PRODUCT_NAME } from "../../coaching";
 import type { Aggregates, PositionExample } from "../../pipeline/aggregate";
 import type { PlayerModelLite } from "../../pipeline/playerModelLite";
-import type { HistoryFile, Milestone } from "../../types";
+import type { HistoryFile, Milestone, AnchorTrail, TimeManagement, Tilt } from "../../types";
 import {
   readHistory,
   computeMilestones,
+  anchorTrendsFromHistory,
 } from "../../pipeline/history";
 import { RatingCurveChart } from "../../components/RatingCurveChart";
 import { DecisionsCard } from "../../components/DecisionsCard";
 import { WeeklyTrendCard } from "../../components/WeeklyTrendCard";
 import { SpeedVsErrorsChart } from "../../components/SpeedVsErrorsChart";
+import { TimeManagementChart } from "../../components/TimeManagementChart";
 import { GameArcChart } from "../../components/GameArcChart";
 import { BoardView } from "../../components/BoardView";
 import { RepertorioPanel } from "../../components/RepertorioPanel";
@@ -116,7 +118,7 @@ function Reveal({ children, delay = 0, className = "" }: {
 
 // ── Mini sparkline (SVG, no dep) ──────────────────────────────────────────────
 
-function MiniSparkline({ points, improving }: { points: number[]; improving: boolean }) {
+function MiniSparkline({ points, improving, neutral = false }: { points: number[]; improving: boolean; neutral?: boolean }) {
   if (points.length < 2) return null;
   const W = 80, H = 22, PAD = 2;
   const min = Math.min(...points);
@@ -128,7 +130,7 @@ function MiniSparkline({ points, improving }: { points: number[]; improving: boo
   }));
   const polyline = pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   const last = pts[pts.length - 1];
-  const lineColor = improving ? "var(--color-ok)" : "var(--color-danger)";
+  const lineColor = neutral ? "var(--color-faint)" : improving ? "var(--color-ok)" : "var(--color-danger)";
   return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true"
       style={{ display: "block", flexShrink: 0 }}>
@@ -182,6 +184,138 @@ function motifLabel(motif: string): string {
   return MOTIF_LABEL_TRANSFER[motif] ?? motif.replace(/_/g, " ");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ANCHOR TRAILS — sparkline per-ancora nel tempo (3A)
+// Cuore della prova di progresso: frequenza errore per ancora, snapshot-by-snapshot.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Builds Nonno's verdict line for one AnchorTrail.
+ * Honest: only speaks when freq is real (not null on endpoints).
+ * Nonno voice: calm, direct, Italian chess vocabulary.
+ */
+/** Phrase a per-game error frequency in Nonno's voice (no bare decimals). */
+function freqPhrase(freq: number): string {
+  if (freq <= 0.001) return "quasi sparita";
+  if (freq < 1) return `circa 1 ogni ${Math.max(2, Math.round(1 / freq))} partite`;
+  return `${freq.toFixed(1)} volte a partita`;
+}
+
+function anchorTrailVerdictLine(trail: AnchorTrail): string {
+  const first = trail.points[0];
+  const last  = trail.points[trail.points.length - 1];
+
+  if (first.freq == null || last.freq == null) {
+    return "Il segnale e' incompleto: alcune sessioni non hanno dati di frequenza.";
+  }
+
+  const firstP = freqPhrase(first.freq);
+  const lastP  = freqPhrase(last.freq);
+
+  if (trail.direction === "improving") {
+    return `Prima ${firstP}, ora ${lastP}. Sta calando: continua.`;
+  }
+  if (trail.direction === "worsening") {
+    return `Prima ${firstP}, ora ${lastP}. E' risalita: tienila d'occhio.`;
+  }
+  // stable
+  if (last.freq <= 0.5) {
+    return `Stabile, ${lastP}. Bassa, va bene.`;
+  }
+  return `Stabile, ${lastP}. Non peggiora, ma non cala ancora.`;
+}
+
+function AnchorTrailsSection({
+  history,
+  onSelectAnchor,
+}: {
+  history: HistoryFile;
+  onSelectAnchor: (anchorType: string) => void;
+}) {
+  const trails = anchorTrendsFromHistory(history);
+
+  return (
+    <Section eyebrow="Le ancore nel tempo" delay={80}>
+      {trails.length === 0 ? (
+        <div style={{ color: "var(--color-muted)", fontSize: "0.88rem", lineHeight: 1.6 }}>
+          Il percorso si disegna con le analisi: torna dopo la prossima.
+        </div>
+      ) : (
+        <div>
+          {trails.map((trail, i) => {
+            const improving = trail.direction === "improving";
+            const worsening = trail.direction === "worsening";
+            const freqPoints = trail.points
+              .map((p) => p.freq)
+              .filter((f): f is number => f != null);
+            const verdict = anchorTrailVerdictLine(trail);
+
+            return (
+              <div
+                key={trail.key}
+                style={{
+                  padding: "0.875rem 0",
+                  borderBottom: i < trails.length - 1 ? "1px solid var(--color-line)" : undefined,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "0.875rem" }}>
+                  {/* Label + verdict */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem", flexWrap: "wrap" }}>
+                      <button
+                        onClick={() => onSelectAnchor(trail.key)}
+                        style={{
+                          background: "none", border: "none", cursor: "pointer", padding: 0,
+                          fontWeight: 700, fontSize: "0.92rem",
+                          color: worsening ? "var(--color-warn)" : "var(--color-text)",
+                          textAlign: "left",
+                          textDecoration: "underline", textUnderlineOffset: "2px",
+                          textDecorationColor: "transparent",
+                          transition: "text-decoration-color 160ms",
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.textDecorationColor = "currentColor"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.textDecorationColor = "transparent"; }}
+                        title="Vai alle cadute per questa ancora"
+                      >
+                        {trail.label_it}
+                      </button>
+                      {improving && (
+                        <span className="tt-chip good" style={{ fontSize: "0.65rem" }}>in calo</span>
+                      )}
+                      {worsening && (
+                        <span className="tt-chip warn" style={{ fontSize: "0.65rem" }}>in salita</span>
+                      )}
+                      {trail.confidence === "low" && (
+                        <span className="tt-chip" style={{ fontSize: "0.6rem", color: "var(--color-faint)", background: "rgba(255,255,255,0.03)" }}>dati parziali</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: "0.82rem", color: "var(--color-text-soft)", lineHeight: 1.55 }}>
+                      {verdict}
+                    </div>
+                    <div style={{ marginTop: "0.25rem", fontSize: "0.72rem", color: "var(--color-faint)", fontVariantNumeric: "tabular-nums" }}>
+                      {trail.points.length} snapshot
+                    </div>
+                  </div>
+
+                  {/* Sparkline */}
+                  {freqPoints.length >= 2 && (
+                    <div style={{ flexShrink: 0, paddingTop: "0.25rem" }}>
+                      <MiniSparkline
+                        points={freqPoints}
+                        improving={improving}
+                        neutral={!improving && !worsening}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Section>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DIAGNOSI COLLAPSIBLE (latest journal entry, secondary)
@@ -914,8 +1048,11 @@ function TabPercorso({
         )}
       </Section>
 
-      {/* ── SEZIONE 2: Applicazione nel tempo ─────────────────────────────── */}
-      <Section eyebrow="Applicazione nel tempo" delay={80}>
+      {/* ── SEZIONE 2: Le ancore nel tempo (anchor trails) ─────────────────── */}
+      <AnchorTrailsSection history={history} onSelectAnchor={onSelectAnchor} />
+
+      {/* ── SEZIONE 3: Trasferimento tattico ──────────────────────────────── */}
+      <Section eyebrow="Trasferimento tattico" delay={160}>
         {!hasWindowComparison ? (
           <div style={{ color: "var(--color-muted)", fontSize: "0.88rem", lineHeight: 1.6 }}>
             {!hasTransferData
@@ -924,12 +1061,12 @@ function TabPercorso({
           </div>
         ) : transferPoints.length === 0 ? (
           <div style={{ color: "var(--color-muted)", fontSize: "0.88rem" }}>
-            Nessun motif tattico classificato con sufficiente dati.
+            Nessun motif tattico classificato con dati sufficienti.
           </div>
         ) : (
           <div>
             <p style={{ fontSize: "0.82rem", color: "var(--color-muted)", marginBottom: "1rem", lineHeight: 1.5 }}>
-              Tasso di gestione (gestito / affrontato) nelle due finestre disponibili. La curva storica appare dopo piu' analisi.
+              Tasso di gestione (gestito su affrontato) nelle due finestre disponibili.
             </p>
             {transferPoints.map((tp, i) => {
               const improving = tp.recent_rate != null && tp.prior_rate != null && tp.recent_rate > tp.prior_rate + 0.05;
@@ -987,8 +1124,8 @@ function TabPercorso({
         )}
       </Section>
 
-      {/* ── SEZIONE 3: Dal primo giorno ────────────────────────────────────── */}
-      <Section eyebrow="Dal primo giorno" delay={160}>
+      {/* ── SEZIONE 4: Dal primo giorno ────────────────────────────────────── */}
+      <Section eyebrow="Dal primo giorno" delay={240}>
         {/* Rating curve */}
         {hasRatingCurve && pmLite != null && goal != null ? (
           <Reveal delay={0} className="mb-6">
@@ -1506,6 +1643,7 @@ function TabProfilo({
       ]
     : [];
   const maxPhasePct = phases.length > 0 ? Math.max(...phases.map((p) => p.pct)) : 0;
+  const worstPhase = phases.find((p) => p.pct === maxPhasePct && p.pct > 0);
 
   const colors = aggregates?.by_color
     ? [
@@ -1513,8 +1651,56 @@ function TabProfilo({
         { label: "Nero",   pct: aggregates.by_color.black.blunder_pct, games: aggregates.by_color.black.games, danger: aggregates.by_color.black.blunder_pct > aggregates.by_color.white.blunder_pct },
       ]
     : [];
+  const colorDelta = colors.length === 2 ? Math.abs(colors[0].pct - colors[1].pct) : 0;
+  const weakerColor = colors.find((c) => c.danger);
 
   const hasSpeedData = (pmLite?.time_management?.spent_vs_accuracy?.length ?? 0) > 0;
+  const hasClockData = (pmLite?.time_management?.clock_vs_accuracy?.length ?? 0) > 0;
+
+  // ── verdetti per-blocco (deterministic, only when signal is significant) ──
+
+  // Fase verdict: solo se c'e' una fase dominante chiara (>= 1.5x la seconda)
+  const phaseVerdictLine = (() => {
+    if (worstPhase == null || phases.length < 2) return null;
+    const others = phases.filter((p) => p.key !== worstPhase.key);
+    const secondMax = Math.max(...others.map((p) => p.pct));
+    if (worstPhase.pct < secondMax * 1.5) return null; // gap non abbastanza netto
+    const labelMap: Record<string, string> = { opening: "apertura", middlegame: "mediogioco", endgame: "finale" };
+    return `Dove lasci piu' valore e' il ${labelMap[worstPhase.key] ?? worstPhase.label.toLowerCase()}.`;
+  })();
+
+  // Colore verdict: solo se il divario e' reale (>= 1.5 punti %)
+  const colorVerdictLine = (() => {
+    if (weakerColor == null || colorDelta < 1.5) return null;
+    return `Col ${weakerColor.label === "Nero" ? "Nero" : "Bianco"} fai piu' fatica: il divario e' reale, vale la pena guardare.`;
+  })();
+
+  // Tilt verdict: gia' nel profiloNonno globale, non lo ripetiamo qui
+
+  // SpeedVsErrors verdict (3C-b): dal dato spent_vs_avoidable
+  const speedVerdictLine = (() => {
+    const sva = aggregates?.maia_weighted?.spent_vs_avoidable;
+    if (!sva || sva.length === 0) return null;
+    const lt5 = sva.find((b) => b.key === "lt_5s");
+    if (!lt5 || lt5.errors === 0) return null;
+    const totalErrors = sva.reduce((s, b) => s + b.errors, 0);
+    if (totalErrors === 0) return null;
+    const avoidPct = Math.round((lt5.avoidable / Math.max(lt5.errors, 1)) * 100);
+    if (avoidPct < 30 || lt5.avoidable < 2) return null; // segnale troppo debole
+    return `Il ${avoidPct}% degli errori evitabili sulle mosse sotto i 5 secondi: stai forzando posizioni che sapresti risolvere.`;
+  })();
+
+  // ClockVsAccuracy verdict (3C-a): il bucket <10% ha errori piu' alti?
+  const clockVerdictLine = (() => {
+    const cva = pmLite?.time_management?.clock_vs_accuracy;
+    if (!cva || cva.length === 0) return null;
+    const low = cva.find((b) => b.key === "lt_10pct");
+    if (!low || low.positions < 3) return null;
+    const avgAll = cva.reduce((s, b) => s + b.avg_cp_loss * b.positions, 0) /
+                   Math.max(cva.reduce((s, b) => s + b.positions, 0), 1);
+    if (low.avg_cp_loss < avgAll * 1.3) return null; // non abbastanza peggio
+    return `Quando l'orologio scende sotto il 10%, gli errori gravi salgono.`;
+  })();
 
   return (
     <div>
@@ -1530,19 +1716,39 @@ function TabProfilo({
         </Section>
       )}
 
-      {/* Velocita' vs errori */}
+      {/* Velocita' vs errori — con verdetto Nonno sopra (3C-b) */}
       {hasSpeedData && (
         <Reveal delay={80} className="mb-8">
-          <SpeedVsErrorsChart
-            data={pmLite!.time_management!.spent_vs_accuracy!}
-            avoidable={aggregates?.maia_weighted?.spent_vs_avoidable}
-          />
+          <div>
+            {speedVerdictLine && (
+              <p className="tt-nonno" style={{ marginBottom: "0.875rem" }}>{speedVerdictLine}</p>
+            )}
+            <SpeedVsErrorsChart
+              data={pmLite!.time_management!.spent_vs_accuracy!}
+              avoidable={aggregates?.maia_weighted?.spent_vs_avoidable}
+            />
+          </div>
+        </Reveal>
+      )}
+
+      {/* Gestione orologio — TimeManagementChart con verdetto Nonno sopra (3C-a) */}
+      {hasClockData && pmLite?.time_management?.clock_vs_accuracy && pmLite?.time_management?.instant_moves_in_critical && pmLite?.time_management?.zeitnot && pmLite.tilt && (
+        <Reveal delay={100} className="mb-8">
+          <div>
+            {clockVerdictLine && (
+              <p className="tt-nonno" style={{ marginBottom: "0.875rem" }}>{clockVerdictLine}</p>
+            )}
+            <TimeManagementChart
+              time_management={pmLite.time_management as TimeManagement}
+              tilt={pmLite.tilt as Tilt}
+            />
+          </div>
         </Reveal>
       )}
 
       {/* Gap Maia — GameArcChart (moved from Tavolo) */}
       {aggregates?.maia_weighted != null && (
-        <Reveal delay={100} className="mb-8">
+        <Reveal delay={120} className="mb-8">
           <GameArcChart
             maiaWeighted={aggregates.maia_weighted}
             targetRating={targetRating > 0 ? targetRating : null}
@@ -1552,7 +1758,7 @@ function TabProfilo({
 
       {/* Tilt */}
       {showTilt && tilt != null && (
-        <Section eyebrow="Tilt" delay={120}>
+        <Section eyebrow="Tilt" delay={140}>
           <p style={{ fontSize: "0.88rem", color: "var(--color-text-soft)", lineHeight: 1.65, margin: 0 }}>
             Dopo un errore grave la tua perdita media sale a{" "}
             <span className="font-mono font-bold" style={{ color: "var(--color-danger)", fontVariantNumeric: "tabular-nums" }}>
@@ -1571,18 +1777,28 @@ function TabProfilo({
         </Section>
       )}
 
-      {/* Errori per fase */}
+      {/* Errori per fase — con verdetto Nonno sopra (3B) */}
       {phases.length > 0 && (
-        <Section eyebrow="Errori gravi per fase" delay={160}>
+        <Section eyebrow="Errori gravi per fase" delay={180}>
+          {phaseVerdictLine && (
+            <p style={{ fontSize: "0.88rem", color: "var(--color-text-soft)", lineHeight: 1.55, marginBottom: "0.875rem", marginTop: 0 }}>
+              {phaseVerdictLine}
+            </p>
+          )}
           {phases.map((p) => (
             <HBar key={p.key} label={p.label} pct={p.pct} sub={`${p.moves} mosse`} danger={p.pct === maxPhasePct && p.pct > 0} />
           ))}
         </Section>
       )}
 
-      {/* Bianco vs Nero */}
+      {/* Bianco vs Nero — con verdetto Nonno sopra (3B) */}
       {colors.length > 0 && (
-        <Section eyebrow="Bianco vs Nero" delay={200}>
+        <Section eyebrow="Bianco vs Nero" delay={220}>
+          {colorVerdictLine && (
+            <p style={{ fontSize: "0.88rem", color: "var(--color-text-soft)", lineHeight: 1.55, marginBottom: "0.875rem", marginTop: 0 }}>
+              {colorVerdictLine}
+            </p>
+          )}
           {colors.map((c) => (
             <HBar key={c.label} label={c.label} pct={c.pct} sub={`${c.games} partite`} danger={c.danger} />
           ))}
@@ -1591,12 +1807,12 @@ function TabProfilo({
 
       {/* Trend settimanale */}
       {showWeekly && weeklyTrend != null && (
-        <Reveal delay={240} className="mb-8">
+        <Reveal delay={260} className="mb-8">
           <WeeklyTrendCard trend={weeklyTrend} title="Settimana vs precedente" />
         </Reveal>
       )}
 
-      {decisions == null && !hasSpeedData && phases.length === 0 && (
+      {decisions == null && !hasSpeedData && !hasClockData && phases.length === 0 && (
         <Section delay={0}>
           <div style={{ color: "var(--color-muted)", fontSize: "0.88rem", textAlign: "center", padding: "2rem 0" }}>
             Ancora nessun dato di profilo. Completa l'analisi.
@@ -1811,18 +2027,25 @@ function TabCadute({
                   display: "flex", alignItems: "center", gap: "1rem",
                   padding: "1rem 1.25rem",
                 }}>
-                  {/* Label + count */}
+                  {/* Label + count — 3D: avoidable count come numero-titolo */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: "1rem", color: "var(--color-text)", lineHeight: 1.25 }}>
                       {grp.label}
                     </div>
                     <div style={{ marginTop: "0.25rem", display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
-                      <span className="font-mono" style={{ fontSize: "0.75rem", color: "var(--color-muted)", fontVariantNumeric: "tabular-nums" }}>
-                        {grp.positions.length} {grp.positions.length === 1 ? "posizione" : "posizioni"}
-                      </span>
-                      {avoidable > 0 && (
-                        <span className="tt-chip warn" style={{ fontSize: "0.65rem" }}>
-                          {avoidable} evitabili
+                      {avoidable > 0 ? (
+                        <>
+                          <span className="font-mono" style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--color-warn)", fontVariantNumeric: "tabular-nums" }}>
+                            {avoidable}
+                          </span>
+                          <span style={{ fontSize: "0.75rem", color: "var(--color-muted)" }}>alla tua portata</span>
+                          <span className="font-mono" style={{ fontSize: "0.72rem", color: "var(--color-faint)", fontVariantNumeric: "tabular-nums" }}>
+                            su {grp.positions.length}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="font-mono" style={{ fontSize: "0.75rem", color: "var(--color-muted)", fontVariantNumeric: "tabular-nums" }}>
+                          {grp.positions.length} {grp.positions.length === 1 ? "posizione" : "posizioni"}
                         </span>
                       )}
                     </div>
