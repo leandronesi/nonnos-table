@@ -4,7 +4,7 @@
  * Strategia: costruisce un mini-PlayerModel che soddisfi esattamente i campi
  * che GuidedSession + step leggono, senza riempire l'intero PlayerModel.
  *
- * Campi di PlayerModel usati da GuidedSession:
+ * Campi di PlayerModel usati da NonnoSession:
  *   pm.drills                        → posizioni per tema/warmup/drill
  *   pm.turning_points                → posizione per play step
  *   pm.identity.goal.target          → maiaLevel (stockfish skill)
@@ -46,7 +46,7 @@ function motifLabelIt(motif: string | null | undefined): string | null {
 // ---------------------------------------------------------------------------
 
 /**
- * Converte una PositionExample (caduta) in PositionRow compatibile con GuidedSession/step.
+ * Converte una PositionExample (caduta) in PositionRow compatibile con NonnoSession/step.
  *
  * Campi obbligatori di PositionRow che NON esistono in PositionExample
  * → ricevono valori di default sensati (null/0/"").
@@ -137,10 +137,10 @@ export function toPositionRow(pe: PositionExample, index: number): PositionRow {
 // ---------------------------------------------------------------------------
 
 /**
- * Costruisce un PlayerModel minimale che GuidedSession possa usare as-is,
+ * Costruisce un PlayerModel minimale che NonnoSession possa usare as-is,
  * partendo dalle cadute (PositionExample[]) e dal profilo Supabase.
  *
- * Riempiamo solo i campi che GuidedSession/step LEGGONO.
+ * Riempiamo solo i campi che NonnoSession/step LEGGONO.
  * Tutto il resto riceve valori di default/vuoti per soddisfare il type.
  */
 export function buildMiniPlayerModel(
@@ -179,7 +179,7 @@ export function buildMiniPlayerModel(
     last_game_date: null,
   };
 
-  // KPI vuoti (GuidedSession non li legge direttamente)
+  // KPI vuoti (NonnoSession non li legge direttamente)
   const kpi: Kpi = {
     critical_positions: drills.length,
     avg_cp_loss_on_critical: drills.length > 0 ? drills.reduce((s, d) => s + d.cp_loss, 0) / drills.length : 0,
@@ -246,7 +246,7 @@ export function buildMiniPlayerModel(
     ? [{ key: "cadute", title: topMotif, evidence: "", trainable: "", lichess_theme: null, priority: 1, confidence: "low" }]
     : [];
 
-  // turning_points = drills (stesse posizioni, GuidedSession usa turning_points
+  // turning_points = drills (stesse posizioni, NonnoSession usa turning_points
   // come fallback e per playFen. Con turning_points = [] il play step mostra
   // PhaseFallback "Nessuna posizione per la partita" — accettabile se non
   // abbiamo turning points separati. Per dare una posizione di partita, usiamo
@@ -275,7 +275,7 @@ export function buildMiniPlayerModel(
     drills,
     diagnoses,
     weekly_focus: weeklyFocus,
-    // Opzionali — assenti: GuidedSession ha guard su questi (?.)
+    // Opzionali — assenti: NonnoSession ha guard su questi (?.)
     coach_session: undefined,
     coach_brief: undefined,
     trend_weekly: undefined,
