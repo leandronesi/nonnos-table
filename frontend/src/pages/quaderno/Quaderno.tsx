@@ -1,21 +1,22 @@
 /**
- * Quaderno — backstage navigabile a tab.
+ * Quaderno — backstage navigabile a tab. Quattro domande, quattro schede.
  *
  * STRUTTURA:
- *   Tab 1 — EVOLUZIONE : punti deboli nel tempo (anchorTrendsFromHistory o trend_now)
- *                         + proiezione obiettivo da goalProgress()
- *   Tab 2 — TRAGUARDI  : computeMilestones() → raggiunti + in corso (barra)
- *   Tab 3 — STORIA     : RatingCurveChart + timeline diario coach_journal.md
- *   Tab 4 — PROFILO    : tagli analitici (decisions, time_management, tilt, by_color/phase)
- *   Tab 5 — CADUTE     : galleria posizioni (Cadute riusata come pannello)
- *   Tab 6 — REPERTORIO : RepertorioPanel
+ *   Tab 1 — EVOLUZIONE : "sto migliorando?" — le ancore nel tempo (sparkline) con
+ *                         micro-riga transfer per le ancore tattiche, curva dal primo
+ *                         giorno (RatingCurveChart + Giorno 1 vs oggi), striscia
+ *                         compatta dei traguardi (computeMilestones), diagnosi collassabile.
+ *   Tab 2 — CADUTE     : "dove cado?" — galleria posizioni allenabili, raggruppabile
+ *                         "per ancora" (default) o "per giorno" (rassegna del Diario).
+ *   Tab 3 — PROFILO    : "chi sono?" — decisioni, tempo, tilt, fase, colore.
+ *   Tab 4 — REPERTORIO : aperture e dove si concentrano gli errori evitabili.
  *
  * Cross-link OOUX:
  *   Ancora (Evoluzione) -> filtra Cadute per motif/tipo
  *   Caduta -> mostra apertura (eco/opening)
  *
- * Route deep-link via URL hash: #evoluzione | #traguardi | #storia | #profilo
- *                                            | #cadute   | #repertorio
+ * Route deep-link via URL hash: #evoluzione | #cadute | #profilo | #repertorio
+ *   Alias legacy: #percorso/#storia/#traguardi -> evoluzione, #diario -> cadute
  *
  * Invarianti DESIGN.md:
  *   - FLAT: tonal layers, niente ombre decorative
@@ -51,22 +52,22 @@ import { uciToArrow, cpToPawns, uciToSan } from "./boardArrows";
 
 // ── Tab definition ─────────────────────────────────────────────────────────────
 
-type TabKey = "percorso" | "traguardi" | "profilo" | "cadute" | "repertorio" | "diario";
+type TabKey = "evoluzione" | "cadute" | "profilo" | "repertorio";
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: "percorso",    label: "Percorso"    },
-  { key: "diario",      label: "Diario"      },
-  { key: "traguardi",   label: "Traguardi"   },
-  { key: "profilo",     label: "Profilo"     },
+  { key: "evoluzione",  label: "Evoluzione"  },
   { key: "cadute",      label: "Cadute"      },
+  { key: "profilo",     label: "Profilo"     },
   { key: "repertorio",  label: "Repertorio"  },
 ];
 
 function tabFromHash(): TabKey {
   const h = typeof window !== "undefined" ? window.location.hash.replace("#", "") : "";
-  // Legacy hash aliases: evoluzione/storia both map to percorso
-  if (h === "evoluzione" || h === "storia") return "percorso";
-  return TABS.some((t) => t.key === h) ? (h as TabKey) : "percorso";
+  // Legacy hash aliases: Percorso/Storia/Traguardi were merged into Evoluzione,
+  // and Diario was merged into Cadute. Keep old deep-links alive.
+  if (h === "percorso" || h === "storia" || h === "traguardi") return "evoluzione";
+  if (h === "diario") return "cadute";
+  return TABS.some((t) => t.key === h) ? (h as TabKey) : "evoluzione";
 }
 
 // ── Motif label map ────────────────────────────────────────────────────────────
@@ -168,20 +169,59 @@ function Section({ children, eyebrow, delay = 0 }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB: PERCORSO (merges Evoluzione + Storia)
-// 3 sections: (1) Polso di ieri, (2) Applicazione nel tempo, (3) Dal primo giorno
+// TAB: EVOLUZIONE ("sto migliorando?") — anchor trails + transfer micro-line,
+// "dal primo giorno" (rating curve + day1 vs now), traguardi strip, diagnosi.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Transfer motif labels for display (honest: classification is heuristic). */
-const MOTIF_LABEL_TRANSFER: Record<string, string> = {
-  hanging_piece: "Pezzo in presa",
-  fork:          "Doppio attacco",
-  back_rank:     "Ultima traversa",
-  none:          "Posizione tranquilla",
+// ─────────────────────────────────────────────────────────────────────────────
+// TRANSFER -> ANCORA mapping (for the per-anchor "transfer" micro-line)
+// Only tactical anchors get a micro-line. The transfer motifs (heuristic, chess.js)
+// map to anchor types as follows:
+//   hanging_piece -> hung_piece    ("Pezzi in presa")
+//   fork + back_rank -> missed_tactic ("Tattiche mancate": doppio attacco, ultima traversa)
+// Non-tactical anchors (zeitnot/rushed/conversion/careless) get no micro-line.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Which transfer motifs feed each anchor key. */
+const ANCHOR_TRANSFER_MOTIFS: Record<string, import("../../types").TransferMotifType[]> = {
+  hung_piece:    ["hanging_piece"],
+  missed_tactic: ["fork", "back_rank"],
 };
 
-function motifLabel(motif: string): string {
-  return MOTIF_LABEL_TRANSFER[motif] ?? motif.replace(/_/g, " ");
+interface TransferWindow { faced: number; handled: number }
+
+/**
+ * Aggregates the transfer recent/prior windows for an anchor key.
+ * Returns null when the anchor is not tactical or has no recent faced positions.
+ */
+function transferForAnchor(
+  anchorKey: string,
+  transfer: import("../../pipeline/aggregate").Aggregates["transfer"] | null | undefined,
+): { recent: TransferWindow; prior: TransferWindow | null } | null {
+  const motifs = ANCHOR_TRANSFER_MOTIFS[anchorKey];
+  if (!motifs || !transfer) return null;
+
+  const sum = (stats: import("../../types").TransferMotifStat[]): TransferWindow => {
+    let faced = 0, handled = 0;
+    for (const s of stats) {
+      if (motifs.includes(s.motif)) { faced += s.faced; handled += s.handled; }
+    }
+    return { faced, handled };
+  };
+
+  const recent = sum(transfer.recent);
+  if (recent.faced === 0) return null;
+
+  const priorRaw = sum(transfer.prior);
+  const prior = priorRaw.faced > 0 ? priorRaw : null;
+  return { recent, prior };
+}
+
+/** Faint Nonno micro-line: "di recente gestito 7 su 10 (prima 4 su 8)". */
+function transferMicroLine(t: { recent: TransferWindow; prior: TransferWindow | null }): string {
+  const r = `di recente gestito ${t.recent.handled} su ${t.recent.faced}`;
+  if (t.prior) return `${r} (prima ${t.prior.handled} su ${t.prior.faced})`;
+  return r;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -227,15 +267,17 @@ function anchorTrailVerdictLine(trail: AnchorTrail): string {
 
 function AnchorTrailsSection({
   history,
+  transfer,
   onSelectAnchor,
 }: {
   history: HistoryFile;
+  transfer: import("../../pipeline/aggregate").Aggregates["transfer"] | null | undefined;
   onSelectAnchor: (anchorType: string) => void;
 }) {
   const trails = anchorTrendsFromHistory(history);
 
   return (
-    <Section eyebrow="Le ancore nel tempo" delay={80}>
+    <Section eyebrow="Le tue ancore nel tempo" delay={80}>
       {trails.length === 0 ? (
         <div style={{ color: "var(--color-muted)", fontSize: "0.88rem", lineHeight: 1.6 }}>
           Il percorso si disegna con le analisi: torna dopo la prossima.
@@ -249,6 +291,8 @@ function AnchorTrailsSection({
               .map((p) => p.freq)
               .filter((f): f is number => f != null);
             const verdict = anchorTrailVerdictLine(trail);
+            // Transfer micro-line: only for tactical anchors with recent faced data.
+            const transferData = transferForAnchor(trail.key, transfer);
 
             return (
               <div
@@ -292,6 +336,12 @@ function AnchorTrailsSection({
                     <div style={{ fontSize: "0.82rem", color: "var(--color-text-soft)", lineHeight: 1.55 }}>
                       {verdict}
                     </div>
+                    {/* Transfer micro-line (tactical anchors only): "di recente gestito 7 su 10 (prima 4 su 8)" */}
+                    {transferData && (
+                      <div style={{ marginTop: "0.25rem", fontSize: "0.72rem", color: "var(--color-faint)", lineHeight: 1.5, fontVariantNumeric: "tabular-nums" }}>
+                        {transferMicroLine(transferData)}
+                      </div>
+                    )}
                     <div style={{ marginTop: "0.25rem", fontSize: "0.72rem", color: "var(--color-faint)", fontVariantNumeric: "tabular-nums" }}>
                       {trail.points.length} snapshot
                     </div>
@@ -357,7 +407,8 @@ function DiagnosiCollapsible({ entry }: { entry: JournalEntry }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB: DIARIO — rassegna del mattino dopo, per giorno giocato
+// DIARIO logic — per-day review, reused inside Cadute as the "per giorno" grouping
+// (the morning-after review survives as a view, not a separate tab)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -511,30 +562,6 @@ function buildDayReviews(
   return reviews;
 }
 
-/** One-line summary for the day row */
-function dayRowSummary(r: DayReview): string {
-  const parts: string[] = [`${r.n_games} ${r.n_games === 1 ? "partita" : "partite"}`];
-  const res: string[] = [];
-  if (r.wins > 0) res.push(`${r.wins}V`);
-  if (r.draws > 0) res.push(`${r.draws}P`);
-  if (r.losses > 0) res.push(`${r.losses}S`);
-  if (res.length > 0) parts.push(res.join(" "));
-  if (r.n_errori_gravi > 0) {
-    const faseDesc = (() => {
-      const f = r.errori_per_fase;
-      const max = Math.max(f.apertura, f.mediogioco, f.finale);
-      if (max === 0) return "";
-      if (f.mediogioco === max) return ", soprattutto mediogioco";
-      if (f.apertura === max) return ", soprattutto apertura";
-      return ", soprattutto finale";
-    })();
-    parts.push(`${r.n_errori_gravi} ${r.n_errori_gravi === 1 ? "errore grave" : "errori gravi"}${faseDesc}`);
-  } else {
-    parts.push("nessun errore grave");
-  }
-  return parts.join(" · ");
-}
-
 /** Nonno's voice line for a day, template-based (no LLM) */
 function nonnoLineDayTemplate(r: DayReview, isLatest: boolean): string {
   const dateStr = isLatest ? `Ieri (${dateIt(r.date)})` : `Il ${dateIt(r.date)}`;
@@ -565,364 +592,149 @@ function nonnoLineDayTemplate(r: DayReview, isLatest: boolean): string {
   return `${dateStr} hai giocato ${r.n_games} ${r.n_games === 1 ? "partita" : "partite"} (${resultStr}): ${r.n_errori_gravi} ${r.n_errori_gravi === 1 ? "errore grave" : "errori gravi"}, soprattutto in ${faseTop}.${ancoraPart}`;
 }
 
-function TabDiario({
-  pmLite,
-  aggregates,
+// ─────────────────────────────────────────────────────────────────────────────
+// TRAGUARDI — compact strip (merged into Evoluzione, secondary)
+// Reuses deduplicateMilestones/computeMilestones logic, rendered tight: the achieved
+// thresholds as muted chips + the single closest next-in-progress with a bar.
+// No badges/gamification: these are real measures.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function TraguardiStrip({
+  milestones,
+  historyLength,
 }: {
-  pmLite: import("../../pipeline/playerModelLite").PlayerModelLite | null;
-  aggregates: import("../../pipeline/aggregate").Aggregates | null;
+  milestones: Milestone[];
+  historyLength: number;
 }) {
-  const [expandedDate, setExpandedDate] = useState<string | null>(null);
+  const dedupedCards = deduplicateMilestones(milestones);
 
-  const reviews = buildDayReviews(
-    pmLite?.rating_curve,
-    aggregates?.cadute ?? aggregates?.examples,
-    aggregates?.anchors,
-  );
+  // All achieved milestones, as compact chips (most relevant per type, plus passed thresholds).
+  const achievedChips: { key: string; label: string }[] = [];
+  for (const { topAchieved, allAchievedSameType } of dedupedCards) {
+    if (topAchieved.type === "rating_gain" || topAchieved.type === "gap_closed") {
+      // Show only the highest threshold passed per type (it implies the lower ones).
+      const top = [...allAchievedSameType].sort((a, b) => b.threshold - a.threshold)[0];
+      achievedChips.push({
+        key: `${top.type}-${top.threshold}`,
+        label: top.type === "rating_gain"
+          ? `+${top.threshold} punti`
+          : `${Math.round(top.threshold * 100)}% del gap`,
+      });
+    } else {
+      achievedChips.push({ key: `${topAchieved.type}`, label: topAchieved.label_it.replace(/^"|"$/g, "") });
+    }
+  }
 
-  if (reviews.length === 0) {
+  // Single closest next-in-progress across all types.
+  const allInProgress = milestones
+    .filter((m) => !m.achieved && m.progress_pct != null && m.progress_pct < 1)
+    .sort((a, b) => (b.progress_pct ?? 0) - (a.progress_pct ?? 0));
+  const next = allInProgress[0] ?? null;
+  const nextPct = next != null ? Math.round((next.progress_pct ?? 0) * 100) : null;
+
+  // Nothing to show yet.
+  if (historyLength < 2 || (achievedChips.length === 0 && next == null)) {
     return (
-      <div>
-        <Reveal delay={0} className="mb-6">
-          <p className="tt-nonno">
-            Il Diario si compone giorno per giorno. Quando avrai partite analizzate,
-            ogni mattina troverai qui la rassegna del giorno prima.
-          </p>
-        </Reveal>
-        <Section delay={60}>
-          <div style={{ textAlign: "center", padding: "2rem 0", color: "var(--color-muted)", fontSize: "0.88rem" }}>
-            Nessuna partita ancora. Completa la prima analisi dal Tavolo.
-          </div>
-        </Section>
-      </div>
+      <Section eyebrow="Traguardi" delay={300}>
+        <div style={{ color: "var(--color-muted)", fontSize: "0.84rem", lineHeight: 1.6 }}>
+          {historyLength < 2
+            ? "I traguardi si calcolano dopo la seconda analisi. Sono misure reali, arrivano con la continuita'."
+            : "Nessun traguardo ancora. Continua a giocare."}
+        </div>
+      </Section>
     );
   }
 
-  const latest = reviews[0];
-
   return (
-    <div>
-      {/* Nonno intro */}
-      <Reveal delay={0} className="mb-6">
-        <p className="tt-nonno">
-          Ogni riga e' un giorno in cui hai giocato. La rassegna del mattino dopo:
-          cosa e' successo ieri, errore per errore.
-        </p>
-      </Reveal>
+    <Section eyebrow="Traguardi" delay={300}>
+      {/* Achieved, as muted chips */}
+      {achievedChips.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: next != null ? "1rem" : 0 }}>
+          {achievedChips.map((c) => (
+            <span key={c.key}
+              className="tt-chip"
+              style={{ background: "color-mix(in srgb, var(--color-ok) 10%, transparent)", color: "var(--color-ok)", fontSize: "0.72rem" }}
+            >
+              {c.label}
+            </span>
+          ))}
+        </div>
+      )}
 
-      {/* Calendar list */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-        {reviews.map((r, idx) => {
-          const isLatest = r.date === latest.date;
-          const isExpanded = expandedDate === r.date;
-          const summary = dayRowSummary(r);
-          const nonnoLine = nonnoLineDayTemplate(r, isLatest);
-          const arrowPlayed = r.peggior_caduta ? uciToArrow(r.peggior_caduta.played_uci, "rgba(239,68,68,0.85)") : null;
-          const arrowBest = r.peggior_caduta ? uciToArrow(r.peggior_caduta.best_uci, "rgba(34,197,94,0.85)") : null;
-          const boardArrows = [arrowPlayed, arrowBest].filter(Boolean) as { from: string; to: string; color: string }[];
-
-          return (
-            <Reveal key={r.date} delay={Math.min(idx * 30, 240)}>
-              <div style={{
-                background: "var(--color-surface)",
-                border: `1px solid ${isLatest ? "var(--color-line-strong)" : "var(--color-line)"}`,
-                borderRadius: "10px",
-                overflow: "hidden",
-              }}>
-                {/* Row header (always visible) */}
-                <button
-                  onClick={() => setExpandedDate(isExpanded ? null : r.date)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "0.875rem",
-                    width: "100%", padding: "0.75rem 1rem",
-                    background: "none", border: "none", cursor: "pointer",
-                    textAlign: "left",
-                  }}
-                >
-                  {/* Date badge */}
-                  <div style={{
-                    flexShrink: 0,
-                    fontFamily: "var(--font-mono)", fontSize: "0.75rem",
-                    color: isLatest ? "var(--color-text)" : "var(--color-muted)",
-                    fontWeight: isLatest ? 700 : 400,
-                    minWidth: "5.5rem",
-                    whiteSpace: "nowrap",
-                  }}>
-                    {isLatest ? "Ieri" : dateIt(r.date)}
-                  </div>
-
-                  {/* Summary */}
-                  <div style={{
-                    flex: 1, minWidth: 0,
-                    fontSize: "0.82rem", color: "var(--color-text-soft)",
-                    lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  }}>
-                    {summary}
-                  </div>
-
-                  {/* Result pills */}
-                  <div style={{ display: "flex", gap: "0.25rem", flexShrink: 0, alignItems: "center" }}>
-                    {r.wins > 0 && (
-                      <span className="tt-chip good" style={{ fontSize: "0.65rem", padding: "0.1rem 0.4rem" }}>
-                        {r.wins}V
-                      </span>
-                    )}
-                    {r.draws > 0 && (
-                      <span className="tt-chip" style={{ fontSize: "0.65rem", padding: "0.1rem 0.4rem", color: "var(--color-muted)", background: "rgba(255,255,255,0.05)" }}>
-                        {r.draws}P
-                      </span>
-                    )}
-                    {r.losses > 0 && (
-                      <span className="tt-chip bad" style={{ fontSize: "0.65rem", padding: "0.1rem 0.4rem" }}>
-                        {r.losses}S
-                      </span>
-                    )}
-                    <span style={{
-                      color: "var(--color-muted)", fontSize: "0.72rem",
-                      transform: isExpanded ? "rotate(180deg)" : "none",
-                      transition: "transform 200ms",
-                      marginLeft: "0.25rem",
-                    }}>
-                      ▾
-                    </span>
-                  </div>
-                </button>
-
-                {/* Expanded detail */}
-                {isExpanded && (
-                  <div style={{
-                    padding: "0 1rem 1rem",
-                    borderTop: "1px solid var(--color-line)",
-                  }}>
-                    {/* Nonno voice */}
-                    <p style={{
-                      fontSize: "0.88rem", color: "var(--color-text-soft)",
-                      lineHeight: 1.65, margin: "0.875rem 0",
-                      fontStyle: "italic",
-                    }}>
-                      {nonnoLine}
-                    </p>
-
-                    {/* Phase breakdown */}
-                    {r.n_errori_gravi > 0 && (
-                      <div style={{
-                        display: "flex", gap: "1.25rem", flexWrap: "wrap",
-                        marginBottom: "0.875rem",
-                        fontSize: "0.78rem", color: "var(--color-muted)",
-                        fontVariantNumeric: "tabular-nums",
-                      }}>
-                        {r.errori_per_fase.apertura > 0 && (
-                          <span>Apertura: <strong style={{ color: "var(--color-text)" }}>{r.errori_per_fase.apertura}</strong></span>
-                        )}
-                        {r.errori_per_fase.mediogioco > 0 && (
-                          <span>Mediogioco: <strong style={{ color: "var(--color-text)" }}>{r.errori_per_fase.mediogioco}</strong></span>
-                        )}
-                        {r.errori_per_fase.finale > 0 && (
-                          <span>Finale: <strong style={{ color: "var(--color-text)" }}>{r.errori_per_fase.finale}</strong></span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Dominant anchor chip */}
-                    {r.ancora_dominante && (
-                      <div style={{ marginBottom: "0.875rem" }}>
-                        <span className="tt-chip warn" style={{ fontSize: "0.72rem" }}>
-                          Ancora: {r.ancora_dominante}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Worst position mini-board */}
-                    {r.peggior_caduta && (
-                      <div style={{
-                        display: "flex", gap: "1rem", alignItems: "flex-start",
-                        flexWrap: "wrap",
-                        padding: "0.75rem",
-                        background: "var(--color-surface-2)",
-                        borderRadius: "8px",
-                        border: "1px solid var(--color-line)",
-                      }}>
-                        <div style={{ flexShrink: 0 }}>
-                          <BoardView
-                            fen={r.peggior_caduta.fen_before}
-                            orientation={r.peggior_caduta.color}
-                            size={140}
-                            arrows={boardArrows}
-                          />
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div className="tt-eyebrow" style={{ color: "var(--color-faint)", marginBottom: "0.375rem" }}>
-                            Momento peggiore del giorno
-                          </div>
-                          <div className="font-mono font-bold" style={{
-                            fontSize: "1.1rem", color: "var(--color-danger)",
-                            fontVariantNumeric: "tabular-nums",
-                            marginBottom: "0.25rem",
-                          }}>
-                            -{cpToPawns(r.peggior_caduta.cp_loss)}
-                          </div>
-                          <div style={{
-                            fontSize: "0.75rem", color: "var(--color-muted)",
-                            marginBottom: "0.5rem", textTransform: "capitalize",
-                          }}>
-                            {r.peggior_caduta.phase}
-                          </div>
-                          {r.peggior_caduta.game_url && (
-                            <a
-                              href={r.peggior_caduta.game_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn btn-ghost btn-sm"
-                              style={{ fontSize: "0.72rem", display: "inline-block" }}
-                            >
-                              Vedi partita
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </Reveal>
-          );
-        })}
-      </div>
-    </div>
+      {/* The single closest next, with bar */}
+      {next != null && nextPct != null && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.5rem", gap: "0.5rem" }}>
+            <div style={{ fontSize: "0.82rem", color: "var(--color-text-soft)", lineHeight: 1.3 }}>
+              Prossimo: {next.label_it.replace(/^"|"$/g, "")}
+            </div>
+            <span className="font-mono font-bold" style={{
+              flexShrink: 0, fontSize: "0.82rem",
+              color: nextPct >= 75 ? "var(--color-ok)" : "var(--color-brand-soft)",
+              fontVariantNumeric: "tabular-nums",
+            }}>
+              {nextPct}%
+            </span>
+          </div>
+          <div style={{ height: "4px", borderRadius: "999px", background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+            <div style={{
+              width: `${nextPct}%`, height: "100%", borderRadius: "999px",
+              background: nextPct >= 75 ? "var(--color-ok)" : nextPct >= 40 ? "var(--color-warn)" : "var(--color-brand-soft)",
+              transition: "width 600ms cubic-bezier(0.23,1,0.32,1)",
+            }} />
+          </div>
+        </div>
+      )}
+    </Section>
   );
 }
 
-/**
- * Nonno's verdict on the most recent window vs prior for a motif.
- * honest: we say "euristica" where needed.
- */
-function transferVerdictLine(
-  label: string,
-  recent: { faced: number; handled: number; rate: number | null },
-  prior: { faced: number; handled: number; rate: number | null } | null,
-): string {
-  if (recent.faced === 0) return `${label}: nessuna posizione critica recente.`;
-
-  const rateStr = (r: { handled: number; faced: number }) =>
-    `${r.handled} su ${r.faced}`;
-
-  if (prior == null || prior.faced === 0) {
-    // No prior baseline
-    if (recent.rate != null) {
-      const pct = Math.round(recent.rate * 100);
-      if (pct >= 70) return `${label}: gestito ${rateStr(recent)}. Buon lavoro.`;
-      if (pct >= 40) return `${label}: gestito ${rateStr(recent)}. C'e' ancora margine.`;
-      return `${label}: gestito ${rateStr(recent)}. E' il punto su cui lavorare.`;
-    }
-    return `${label}: affrontato ${recent.faced} volte di recente (dati parziali).`;
-  }
-
-  // Compare recent vs prior
-  if (recent.rate != null && prior.rate != null) {
-    const delta = recent.rate - prior.rate;
-    const suffix = delta > 0.08
-      ? " Stai applicando."
-      : delta < -0.08
-      ? " Qualcosa e' calato, tienilo d'occhio."
-      : " Stabile.";
-    return `${label}: recente ${rateStr(recent)}, prima ${rateStr(prior)}.${suffix}`;
-  }
-  return `${label}: affrontato ${recent.faced} volte (recente), ${prior.faced} prima.`;
-}
-
-function TabPercorso({
+function TabEvoluzione({
   aggregates,
   pmLite,
   history,
   journalRaw,
+  milestones,
   onSelectAnchor,
 }: {
   aggregates: Aggregates | null;
   pmLite: PlayerModelLite | null;
   history: HistoryFile;
   journalRaw: string | null;
+  milestones: Milestone[];
   onSelectAnchor: (anchorType: string) => void;
 }) {
   const goal = pmLite?.identity?.goal ?? null;
   const transfer = aggregates?.transfer ?? null;
 
-  // ── Transfer data availability checks ──────────────────────────────────────
-  // Transfer motif_occurrences exist only after a re-analysis with pattern detection.
-  const hasTransferData =
-    transfer != null &&
-    (transfer.overall.some((s) => s.faced > 0) ||
-     transfer.recent.some((s) => s.faced > 0));
-
-  // >=2 windows: both recent AND prior have data for at least one motif
-  const hasWindowComparison =
-    hasTransferData &&
-    transfer != null &&
-    transfer.prior.some((s) => s.faced > 0) &&
-    transfer.recent.some((s) => s.faced > 0);
-
-  // History for section 3
+  // History for "Dal primo giorno"
   const snaps = [...history.snapshots].sort((a, b) =>
     a.captured_at.localeCompare(b.captured_at),
   );
   const firstSnap = snaps[0] ?? null;
   const lastSnap = snaps[snaps.length - 1] ?? null;
 
-  // Journal entries (deduplicated, for secondary notes at bottom)
+  // Journal entries (deduplicated, for the collapsible diagnosis at bottom)
   const journalEntries = journalRaw ? parseJournal(journalRaw) : [];
 
-  // Nonno's main intro for Percorso tab
-  const percorsoNonno = (() => {
-    if (!hasTransferData) {
-      return "Sto raccogliendo i dati sul trasferimento. Torna dopo la prossima analisi e vedrai se stai applicando quello che impari.";
+  // Nonno's intro for Evoluzione: identity-framed, "sto migliorando?"
+  const evoluzioneNonno = (() => {
+    const trails = anchorTrendsFromHistory(history);
+    if (trails.length === 0) {
+      return "Il percorso si disegna con le analisi. Dopo la seconda vedrai le tue ancore muoversi nel tempo, partita dopo partita.";
     }
-    if (!hasWindowComparison) {
-      return "Ho i dati della finestra recente. Per vedere se stai applicando serve anche la finestra precedente: torna dopo la prossima analisi.";
+    const improving = trails.filter((t) => t.direction === "improving");
+    const worsening = trails.filter((t) => t.direction === "worsening");
+    if (improving.length > 0 && worsening.length === 0) {
+      return "Stai migliorando dove conta: le ancore che seguivamo stanno calando. Qui sotto vedi quanto, una per una.";
     }
-    // Build a summary verdict from the top motif with faced > 0
-    const topMotif = transfer!.recent.find((s) => s.faced > 0 && s.motif !== "none");
-    if (topMotif) {
-      const lbl = motifLabel(topMotif.motif);
-      const priorStat = transfer!.prior.find((s) => s.motif === topMotif.motif);
-      if (priorStat && priorStat.faced > 0 && topMotif.rate != null && priorStat.rate != null) {
-        const delta = topMotif.rate - priorStat.rate;
-        if (delta > 0.08) return `Sul "${lbl}" stai migliorando: lo gestisci piu' spesso di prima. Vai avanti.`;
-        if (delta < -0.08) return `Sul "${lbl}" il dato recente e' calato rispetto a prima. Vale la pena guardare.`;
-      }
+    if (worsening.length > 0) {
+      return "Qualcosa sta risalendo, te la mostro senza addolcirla. Sotto trovi cosa cala e cosa torna a pesare, ancora per ancora.";
     }
-    return "Ecco il tuo percorso reale, partita dopo partita. Tre domande: cosa e' successo ieri, come stai evolvendo, chi sei rispetto al giorno 1.";
+    return "Ecco come stai evolvendo, dal primo giorno a oggi. Le ancore nel tempo, poi il rating, poi i traguardi che hai gia' messo da parte.";
   })();
 
-  // ── Section 1: Polso di ieri/recente ──────────────────────────────────────
-  // Recent window = transfer.recent (games played_at <= 28d from most recent game)
-  const recentStats = transfer?.recent.filter((s) => s.faced > 0 && s.motif !== "none") ?? [];
-  const priorStats = transfer?.prior ?? [];
-
-  // ── Section 2: Applicazione nel tempo ─────────────────────────────────────
-  // For each motif: rate from history transfer snapshots (if >=2) or recent vs prior
-  type TransferPoint = { label: string; recent_rate: number | null; prior_rate: number | null; faced_recent: number; faced_prior: number };
-  const transferPoints: TransferPoint[] = [];
-  if (hasTransferData && transfer) {
-    const allMotifs = new Set([
-      ...transfer.recent.map((s) => s.motif),
-      ...transfer.prior.map((s) => s.motif),
-    ]);
-    for (const motif of allMotifs) {
-      if (motif === "none") continue;
-      const r = transfer.recent.find((s) => s.motif === motif);
-      const p = transfer.prior.find((s) => s.motif === motif);
-      if (!r || r.faced === 0) continue;
-      transferPoints.push({
-        label: motifLabel(motif),
-        recent_rate: r.rate,
-        prior_rate: p?.rate ?? null,
-        faced_recent: r.faced,
-        faced_prior: p?.faced ?? 0,
-      });
-    }
-  }
-
-  // ── Section 3: Dal primo giorno ────────────────────────────────────────────
-  // Rating curve + day1 vs now snapshot comparison
+  // ── "Dal primo giorno": rating curve + day1 vs now ─────────────────────────
   const hasRatingCurve = pmLite?.rating_curve != null &&
     Object.values(pmLite.rating_curve).some((pts) => pts.length > 0);
 
@@ -952,179 +764,13 @@ function TabPercorso({
     <div>
       {/* Nonno voice */}
       <Reveal delay={0} className="mb-6">
-        <p className="tt-nonno">{percorsoNonno}</p>
+        <p className="tt-nonno">{evoluzioneNonno}</p>
       </Reveal>
 
-      {/* ── SEZIONE 1: Polso di ieri/recente ──────────────────────────────── */}
-      <Section eyebrow="Polso di ieri" delay={0}>
-        {!hasTransferData ? (
-          <div style={{ color: "var(--color-muted)", fontSize: "0.88rem", lineHeight: 1.6 }}>
-            Sto raccogliendo i dati. Torna dopo la prossima analisi e vedrai se stai applicando.
-            <div style={{ marginTop: "0.75rem", fontSize: "0.75rem", color: "var(--color-faint)" }}>
-              La classificazione e' euristica (chess.js): richiede una rianalisi per popolarsi.
-            </div>
-          </div>
-        ) : recentStats.length === 0 ? (
-          <div style={{ color: "var(--color-muted)", fontSize: "0.88rem" }}>
-            Nessuna posizione critica classificata nella finestra recente (ultimi 28 giorni).
-          </div>
-        ) : (
-          <div>
-            {recentStats.map((stat, i) => {
-              const priorStat = priorStats.find((s) => s.motif === stat.motif);
-              const verdictLine = transferVerdictLine(
-                motifLabel(stat.motif),
-                { faced: stat.faced, handled: stat.handled, rate: stat.rate },
-                priorStat && priorStat.faced > 0
-                  ? { faced: priorStat.faced, handled: priorStat.handled, rate: priorStat.rate }
-                  : null,
-              );
-              const improving =
-                stat.rate != null &&
-                priorStat?.rate != null &&
-                stat.rate > priorStat.rate + 0.08;
-              const worsening =
-                stat.rate != null &&
-                priorStat?.rate != null &&
-                stat.rate < priorStat.rate - 0.08;
+      {/* ── Le tue ancore nel tempo (anchor trails + transfer micro-line) ──── */}
+      <AnchorTrailsSection history={history} transfer={transfer} onSelectAnchor={onSelectAnchor} />
 
-              return (
-                <div
-                  key={stat.motif}
-                  style={{
-                    padding: "0.875rem 0",
-                    borderBottom: i < recentStats.length - 1 ? "1px solid var(--color-line)" : undefined,
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", flexWrap: "wrap" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: "0.92rem", color: "var(--color-text)", marginBottom: "0.25rem" }}>
-                        {motifLabel(stat.motif)}
-                      </div>
-                      <div style={{ fontSize: "0.84rem", color: "var(--color-text-soft)", lineHeight: 1.55 }}>
-                        {verdictLine}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.25rem", flexShrink: 0 }}>
-                      {/* Recent rate pill */}
-                      {stat.rate != null ? (
-                        <span
-                          className="tt-chip"
-                          style={{
-                            color: stat.rate >= 0.6 ? "var(--color-ok)" : stat.rate >= 0.35 ? "var(--color-warn)" : "var(--color-danger)",
-                            background: stat.rate >= 0.6
-                              ? "color-mix(in srgb, var(--color-ok) 12%, transparent)"
-                              : stat.rate >= 0.35
-                              ? "color-mix(in srgb, var(--color-warn) 10%, transparent)"
-                              : "color-mix(in srgb, var(--color-danger) 10%, transparent)",
-                            fontVariantNumeric: "tabular-nums",
-                          }}
-                        >
-                          {Math.round(stat.rate * 100)}% gestito
-                        </span>
-                      ) : (
-                        <span className="tt-chip" style={{ color: "var(--color-faint)", background: "rgba(255,255,255,0.04)" }}>
-                          dati parziali
-                        </span>
-                      )}
-                      {improving && <span className="tt-chip good" style={{ fontSize: "0.65rem" }}>in crescita</span>}
-                      {worsening && <span className="tt-chip warn" style={{ fontSize: "0.65rem" }}>in calo</span>}
-                    </div>
-                  </div>
-                  {/* Prior comparison row */}
-                  {priorStat && priorStat.faced > 0 && (
-                    <div style={{ marginTop: "0.375rem", display: "flex", gap: "1.25rem", fontSize: "0.75rem", color: "var(--color-faint)", fontVariantNumeric: "tabular-nums" }}>
-                      <span>Recente: {stat.handled}/{stat.faced}</span>
-                      <span>Finestra precedente: {priorStat.handled}/{priorStat.faced}</span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-            <div style={{ marginTop: "0.75rem", fontSize: "0.72rem", color: "var(--color-faint)", lineHeight: 1.4 }}>
-              La classificazione e' euristica (chess.js geometry). "Affrontato" significa che la mossa migliore coinvolgeva quel motif, non che tu l'abbia riconosciuto.
-            </div>
-          </div>
-        )}
-      </Section>
-
-      {/* ── SEZIONE 2: Le ancore nel tempo (anchor trails) ─────────────────── */}
-      <AnchorTrailsSection history={history} onSelectAnchor={onSelectAnchor} />
-
-      {/* ── SEZIONE 3: Trasferimento tattico ──────────────────────────────── */}
-      <Section eyebrow="Trasferimento tattico" delay={160}>
-        {!hasWindowComparison ? (
-          <div style={{ color: "var(--color-muted)", fontSize: "0.88rem", lineHeight: 1.6 }}>
-            {!hasTransferData
-              ? "La curva del trasferimento appare dopo la prima analisi con rilevamento dei motif."
-              : "Serve la finestra precedente per disegnare la curva. Torna dopo la prossima analisi."}
-          </div>
-        ) : transferPoints.length === 0 ? (
-          <div style={{ color: "var(--color-muted)", fontSize: "0.88rem" }}>
-            Nessun motif tattico classificato con dati sufficienti.
-          </div>
-        ) : (
-          <div>
-            <p style={{ fontSize: "0.82rem", color: "var(--color-muted)", marginBottom: "1rem", lineHeight: 1.5 }}>
-              Tasso di gestione (gestito su affrontato) nelle due finestre disponibili.
-            </p>
-            {transferPoints.map((tp, i) => {
-              const improving = tp.recent_rate != null && tp.prior_rate != null && tp.recent_rate > tp.prior_rate + 0.05;
-              const worsening = tp.recent_rate != null && tp.prior_rate != null && tp.recent_rate < tp.prior_rate - 0.05;
-              const sparkPoints: number[] | null =
-                tp.prior_rate != null && tp.recent_rate != null
-                  ? [tp.prior_rate, tp.recent_rate]
-                  : null;
-              return (
-                <div
-                  key={tp.label}
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "1rem",
-                    padding: "0.875rem 0",
-                    borderBottom: i < transferPoints.length - 1 ? "1px solid var(--color-line)" : undefined,
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: "0.92rem", color: "var(--color-text)", marginBottom: "0.2rem" }}>
-                      {tp.label}
-                    </div>
-                    <div style={{ fontSize: "0.78rem", color: "var(--color-text-soft)", fontVariantNumeric: "tabular-nums" }}>
-                      {tp.prior_rate != null
-                        ? `Prima: ${Math.round(tp.prior_rate * 100)}% (${tp.faced_prior} occ.)`
-                        : `Prima: dati insufficienti`
-                      }
-                      {" "}
-                      {tp.recent_rate != null
-                        ? `Adesso: ${Math.round(tp.recent_rate * 100)}% (${tp.faced_recent} occ.)`
-                        : `Adesso: dati insufficienti`
-                      }
-                    </div>
-                    {improving && (
-                      <div style={{ marginTop: "0.2rem", fontSize: "0.75rem", color: "var(--color-ok)" }}>
-                        Stai applicando.
-                      </div>
-                    )}
-                    {worsening && (
-                      <div style={{ marginTop: "0.2rem", fontSize: "0.75rem", color: "var(--color-warn)" }}>
-                        Tienilo d'occhio.
-                      </div>
-                    )}
-                  </div>
-                  {sparkPoints && (
-                    <div style={{ flexShrink: 0, paddingTop: "0.125rem" }}>
-                      <MiniSparkline points={sparkPoints} improving={improving} />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Section>
-
-      {/* ── SEZIONE 4: Dal primo giorno ────────────────────────────────────── */}
+      {/* ── Dal primo giorno ───────────────────────────────────────────────── */}
       <Section eyebrow="Dal primo giorno" delay={240}>
         {/* Rating curve */}
         {hasRatingCurve && pmLite != null && goal != null ? (
@@ -1206,6 +852,9 @@ function TabPercorso({
         )}
       </Section>
 
+      {/* ── Traguardi — striscia compatta (fusa da TabTraguardi), secondaria ── */}
+      <TraguardiStrip milestones={milestones} historyLength={history.snapshots.length} />
+
       {/* ── Coach journal — most recent entry only, collapsible ─────────── */}
       {journalEntries.length > 0 && (
         <DiagnosiCollapsible entry={journalEntries[0]} />
@@ -1236,57 +885,8 @@ function TabPercorso({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB: TRAGUARDI
+// TRAGUARDI helpers (consumed by TraguardiStrip, merged into Evoluzione)
 // ─────────────────────────────────────────────────────────────────────────────
-
-// ── Traguardi helpers ─────────────────────────────────────────────────────────
-
-/**
- * Builds Nonno's celebratory voice line for an achieved milestone.
- * The line acknowledges past thresholds and hints at the next one.
- */
-function nonnoCelebration(
-  topAchieved: Milestone,
-  allAchievedSameType: Milestone[],
-  nextInProgress: Milestone | null,
-): string {
-  if (topAchieved.type === "rating_gain") {
-    const gained = topAchieved.evidence ?? 0;
-    // List all passed thresholds of this type
-    const passed = allAchievedSameType
-      .map((m) => `+${m.threshold}`)
-      .join(", ");
-    const passedText = allAchievedSameType.length > 1
-      ? `Hai gia' passato ${passed}.`
-      : `Hai gia' passato il ${passed}.`;
-    if (nextInProgress != null) {
-      const nextPct = Math.round((nextInProgress.progress_pct ?? 0) * 100);
-      return `Hai guadagnato ${gained} punti dall'inizio. ${passedText} Il +${nextInProgress.threshold} e' al ${nextPct}%.`;
-    }
-    return `Hai guadagnato ${gained} punti dall'inizio. ${passedText}`;
-  }
-  if (topAchieved.type === "gap_closed") {
-    const pct = topAchieved.evidence ?? 0;
-    if (nextInProgress != null) {
-      const nextPct = Math.round((nextInProgress.progress_pct ?? 0) * 100);
-      return `Hai chiuso il ${pct}% del gap verso il target. Il prossimo traguardo (${Math.round(nextInProgress.threshold * 100)}%) e' al ${nextPct}%.`;
-    }
-    return `Hai chiuso il ${pct}% del gap verso il target.`;
-  }
-  if (topAchieved.type === "anchor_improved") {
-    if (nextInProgress != null) {
-      return `${topAchieved.label_it}. ${nextInProgress.label_it} e' al ${Math.round((nextInProgress.progress_pct ?? 0) * 100)}%.`;
-    }
-    return topAchieved.label_it + ".";
-  }
-  if (topAchieved.type === "anchor_domata") {
-    return `${topAchieved.label_it}. Un'ancora in meno.`;
-  }
-  if (topAchieved.type === "on_track") {
-    return "Sei in carreggiata per raggiungere il target. Continua cosi'.";
-  }
-  return topAchieved.label_it + ".";
-}
 
 /**
  * Picks the single most relevant achieved milestone per type
@@ -1330,169 +930,8 @@ function deduplicateMilestones(milestones: Milestone[]): Array<{
   return result;
 }
 
-function TabTraguardi({
-  milestones,
-  historyLength,
-}: {
-  milestones: Milestone[];
-  historyLength: number;
-}) {
-  // Dedup: one card per type, most relevant achieved + next in progress
-  const dedupedCards = deduplicateMilestones(milestones);
-
-  // Fallback: types with ONLY in-progress (no achieved) — show the closest one per type
-  const achievedTypes = new Set(dedupedCards.map((c) => c.topAchieved.type));
-  const onlyInProgress = milestones.filter(
-    (m) => !m.achieved && !achievedTypes.has(m.type) && m.progress_pct != null && m.progress_pct < 1,
-  );
-  // Pick closest per type
-  const inProgressByType = new Map<string, Milestone>();
-  for (const m of onlyInProgress) {
-    const cur = inProgressByType.get(m.type);
-    if (!cur || (m.progress_pct ?? 0) > (cur.progress_pct ?? 0)) {
-      inProgressByType.set(m.type, m);
-    }
-  }
-  const onlyInProgressCards = [...inProgressByType.values()].sort(
-    (a, b) => (b.progress_pct ?? 0) - (a.progress_pct ?? 0),
-  );
-
-  // Nonno voice for Traguardi
-  const traguardiNonno = (() => {
-    if (milestones.length === 0 || historyLength < 2) {
-      return "I traguardi si costruiscono con il tempo. Ogni analisi aggiunge un punto alla storia.";
-    }
-    if (dedupedCards.length === 0 && onlyInProgressCards.length > 0) {
-      return "Stai avvicinandoti. Il primo traguardo formale arriva presto.";
-    }
-    if (dedupedCards.length > 0) {
-      return "Qui trovi quello che hai gia' costruito, e cosa viene dopo. Ogni traguardo e' una misura reale, non un badge.";
-    }
-    return "Continua a giocare. I traguardi arrivano con la continuita'.";
-  })();
-
-  if (milestones.length === 0 || (dedupedCards.length === 0 && onlyInProgressCards.length === 0)) {
-    return (
-      <div>
-        <Reveal delay={0} className="mb-6">
-          <p className="tt-nonno">{traguardiNonno}</p>
-        </Reveal>
-        <Section delay={60}>
-          <div style={{ color: "var(--color-muted)", fontSize: "0.88rem", textAlign: "center", padding: "2rem 0" }}>
-            {historyLength < 2
-              ? "I traguardi si calcolano dopo la seconda analisi. Torna presto."
-              : "Nessun traguardo ancora. Continua a giocare."}
-          </div>
-        </Section>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      {/* Nonno voice */}
-      <Reveal delay={0} className="mb-6">
-        <p className="tt-nonno">{traguardiNonno}</p>
-      </Reveal>
-      {/* ── Cards per achieved type ─────────────────────────────────────── */}
-      {dedupedCards.map(({ topAchieved, allAchievedSameType, nextInProgress }, idx) => {
-        const celebText = nonnoCelebration(topAchieved, allAchievedSameType, nextInProgress);
-        const nextPct = nextInProgress != null ? Math.round((nextInProgress.progress_pct ?? 0) * 100) : null;
-
-        return (
-          <Section key={topAchieved.type} delay={idx * 60}>
-            {/* Nonno's voice — the main text */}
-            <div className="tt-nonno" style={{ marginBottom: nextInProgress ? "1.25rem" : 0, lineHeight: 1.65 }}>
-              {celebText}
-            </div>
-
-            {/* "Next" progress bar if present */}
-            {nextInProgress != null && nextPct != null && (
-              <div>
-                <div style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "baseline",
-                  marginBottom: "0.5rem", gap: "0.5rem",
-                }}>
-                  <div style={{ fontSize: "0.82rem", color: "var(--color-text-soft)", lineHeight: 1.3 }}>
-                    Prossimo: {nextInProgress.label_it}
-                  </div>
-                  <span className="font-mono font-bold" style={{
-                    flexShrink: 0, fontSize: "0.82rem",
-                    color: nextPct >= 75 ? "var(--color-ok)" : "var(--color-brand-soft)",
-                    fontVariantNumeric: "tabular-nums",
-                  }}>
-                    {nextPct}%
-                  </span>
-                </div>
-                <div style={{ height: "4px", borderRadius: "999px", background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
-                  <div style={{
-                    width: `${nextPct}%`, height: "100%", borderRadius: "999px",
-                    background: nextPct >= 75 ? "var(--color-ok)" : nextPct >= 40 ? "var(--color-warn)" : "var(--color-brand-soft)",
-                    transition: "width 600ms cubic-bezier(0.23,1,0.32,1)",
-                  }} />
-                </div>
-              </div>
-            )}
-
-            {/* Past achieved thresholds (secondary, muted list) */}
-            {allAchievedSameType.length > 1 && (
-              <div style={{ marginTop: "0.875rem", display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-                {[...allAchievedSameType]
-                  .sort((a, b) => a.threshold - b.threshold)
-                  .map((m) => (
-                    <span key={`${m.type}-${m.threshold}`}
-                      className="tt-chip"
-                      style={{ background: "color-mix(in srgb, var(--color-ok) 10%, transparent)", color: "var(--color-ok)" }}
-                    >
-                      {m.type === "rating_gain" ? `+${m.threshold} pt` :
-                       m.type === "gap_closed"  ? `${Math.round(m.threshold * 100)}% gap` :
-                       m.label_it}
-                    </span>
-                  ))}
-              </div>
-            )}
-          </Section>
-        );
-      })}
-
-      {/* ── Types that only have in-progress (no achieved yet) ─────────── */}
-      {onlyInProgressCards.length > 0 && (
-        <Section eyebrow="In corso" delay={dedupedCards.length * 60}>
-          {onlyInProgressCards.map((m, i) => {
-            const pct = Math.round((m.progress_pct ?? 0) * 100);
-            return (
-              <div key={`${m.type}-${m.threshold}`}
-                style={{
-                  padding: "0.875rem 0",
-                  borderBottom: i < onlyInProgressCards.length - 1 ? "1px solid var(--color-line)" : undefined,
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.5rem", gap: "0.5rem" }}>
-                  <div style={{ fontWeight: 500, fontSize: "0.88rem", color: "var(--color-text)", lineHeight: 1.3 }}>
-                    {m.label_it}
-                  </div>
-                  <span className="font-mono font-bold" style={{ flexShrink: 0, fontSize: "0.85rem", color: "var(--color-brand-soft)", fontVariantNumeric: "tabular-nums" }}>
-                    {pct}%
-                  </span>
-                </div>
-                <div style={{ height: "4px", borderRadius: "999px", background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
-                  <div style={{
-                    width: `${pct}%`, height: "100%", borderRadius: "999px",
-                    background: pct >= 75 ? "var(--color-ok)" : pct >= 40 ? "var(--color-warn)" : "var(--color-brand-soft)",
-                    transition: "width 600ms cubic-bezier(0.23,1,0.32,1)",
-                  }} />
-                </div>
-              </div>
-            );
-          })}
-        </Section>
-      )}
-    </div>
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB: STORIA
+// COACH JOURNAL parsing (feeds the collapsible diagnosis in Evoluzione)
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface JournalEntry {
@@ -1928,12 +1367,46 @@ function GroupGallery({ positions, onOpeningLink }: { positions: PositionExample
   );
 }
 
+type CaduteGrouping = "ancora" | "giorno";
+
+/** Build per-day groups from positions: key = "YYYY-MM-DD", label from Nonno's day line. */
+function buildDayGroups(
+  positions: PositionExample[],
+  ratingCurve: Record<string, import("../../types").RatingPoint[]> | undefined,
+  anchors: import("../../pipeline/aggregate").Anchor[] | undefined,
+): Array<{ date: string; review: DayReview | null; positions: PositionExample[]; isLatest: boolean }> {
+  // Group positions by played_at date.
+  const byDate = new Map<string, PositionExample[]>();
+  for (const c of positions) {
+    if (!c.played_at) continue;
+    const d = c.played_at.slice(0, 10);
+    if (!byDate.has(d)) byDate.set(d, []);
+    byDate.get(d)!.push(c);
+  }
+
+  // DayReviews give us the Nonno voice line per date (from the Diario logic).
+  const reviews = buildDayReviews(ratingCurve, positions, anchors);
+  const reviewByDate = new Map(reviews.map((r) => [r.date, r]));
+
+  const dates = [...byDate.keys()].sort((a, b) => b.localeCompare(a));
+  const latestDate = dates[0] ?? null;
+
+  return dates.map((date) => ({
+    date,
+    review: reviewByDate.get(date) ?? null,
+    positions: [...byDate.get(date)!].sort((a, b) => b.cp_loss - a.cp_loss),
+    isLatest: date === latestDate,
+  }));
+}
+
 function TabCadute({
   aggregates,
+  pmLite,
   anchorFilter,
   onOpeningLink,
 }: {
   aggregates: Aggregates | null;
+  pmLite: PlayerModelLite | null;
   anchorFilter: string | null;
   onOpeningLink: (eco: string) => void;
 }) {
@@ -1941,6 +1414,8 @@ function TabCadute({
   const [trainingGroup, setTrainingGroup] = useState<string | null>(null);
   // expanded group for gallery view
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  // grouping mode: "ancora" (default) or "giorno" (absorbs the old Diario)
+  const [grouping, setGrouping] = useState<CaduteGrouping>("ancora");
 
   const raw: PositionExample[] = aggregates?.cadute ?? aggregates?.examples ?? [];
 
@@ -1953,9 +1428,18 @@ function TabCadute({
     : raw;
 
   const groups = buildCaduteGroups(basePositions);
+  const dayGroups = buildDayGroups(basePositions, pmLite?.rating_curve, aggregates?.anchors);
+  // How many positions carry a played_at date (needed for the "per giorno" view).
+  const datedCount = basePositions.filter((c) => c.played_at).length;
 
   const nonnoLine = (() => {
     if (raw.length === 0) return null;
+    if (grouping === "giorno") {
+      if (dayGroups.length === 0) {
+        return `Hai ${raw.length} posizioni raccolte, ma senza la data della partita non posso ordinarle per giorno. Resta sulle ancore.`;
+      }
+      return "Le tue cadute, giorno per giorno. La rassegna del mattino dopo: apri un giorno, rivedi gli errori e allena.";
+    }
     const total = raw.length;
     const named = groups.filter((g) => g.key !== "varie");
     if (named.length > 0) {
@@ -1965,8 +1449,23 @@ function TabCadute({
     return `Hai ${total} cadute raccolte. Puoi allenarle una per una o a gruppi.`;
   })();
 
-  // If trainer is active, show full trainer
+  // If trainer is active, show full trainer. trainingGroup may be an anchor key
+  // or a "day:YYYY-MM-DD" key for the per-day view.
   if (trainingGroup !== null) {
+    if (trainingGroup.startsWith("day:")) {
+      const date = trainingGroup.slice(4);
+      const dg = dayGroups.find((g) => g.date === date);
+      if (!dg) { setTrainingGroup(null); return null; }
+      return (
+        <div>
+          <CaduteTrainer
+            positions={dg.positions}
+            groupLabel={dg.isLatest ? "Ieri" : dateIt(dg.date)}
+            onClose={() => setTrainingGroup(null)}
+          />
+        </div>
+      );
+    }
     const grp = groups.find((g) => g.key === trainingGroup);
     if (!grp) {
       setTrainingGroup(null);
@@ -2002,6 +1501,31 @@ function TabCadute({
         </Reveal>
       )}
 
+      {/* Grouping toggle: per ancora | per giorno */}
+      <Reveal delay={0} className="mb-4">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+          <div className="segment" style={{ display: "inline-flex" }}>
+            <button
+              onClick={() => { setGrouping("ancora"); setExpandedGroup(null); }}
+              className={`segment-item${grouping === "ancora" ? " active" : ""}`}
+            >
+              Per ancora
+            </button>
+            <button
+              onClick={() => { setGrouping("giorno"); setExpandedGroup(null); }}
+              className={`segment-item${grouping === "giorno" ? " active" : ""}`}
+            >
+              Per giorno
+            </button>
+          </div>
+          {grouping === "giorno" && datedCount < basePositions.length && (
+            <span style={{ fontSize: "0.72rem", color: "var(--color-faint)", fontVariantNumeric: "tabular-nums" }}>
+              {datedCount} su {basePositions.length} con data
+            </span>
+          )}
+        </div>
+      </Reveal>
+
       {/* Anchor filter banner */}
       {anchorFilter && (
         <Reveal delay={0} className="mb-4">
@@ -2011,76 +1535,152 @@ function TabCadute({
         </Reveal>
       )}
 
-      {/* Group list */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        {groups.map((grp, idx) => {
-          const isExpanded = expandedGroup === grp.key;
-          const avoidable = grp.positions.filter((p) => avoidabilityLabel(p) === "evitabile").length;
-          return (
-            <Reveal key={grp.key} delay={idx * 40}>
-              <div style={{
-                background: "var(--color-surface)", border: "1px solid var(--color-line)",
-                borderRadius: "12px", overflow: "hidden",
-              }}>
-                {/* Group header */}
+      {/* ── Group list — per ancora ──────────────────────────────────────── */}
+      {grouping === "ancora" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          {groups.map((grp, idx) => {
+            const isExpanded = expandedGroup === grp.key;
+            const avoidable = grp.positions.filter((p) => avoidabilityLabel(p) === "evitabile").length;
+            return (
+              <Reveal key={grp.key} delay={idx * 40}>
                 <div style={{
-                  display: "flex", alignItems: "center", gap: "1rem",
-                  padding: "1rem 1.25rem",
+                  background: "var(--color-surface)", border: "1px solid var(--color-line)",
+                  borderRadius: "12px", overflow: "hidden",
                 }}>
-                  {/* Label + count — 3D: avoidable count come numero-titolo */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: "1rem", color: "var(--color-text)", lineHeight: 1.25 }}>
-                      {grp.label}
+                  {/* Group header */}
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: "1rem",
+                    padding: "1rem 1.25rem",
+                  }}>
+                    {/* Label + count — 3D: avoidable count come numero-titolo */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: "1rem", color: "var(--color-text)", lineHeight: 1.25 }}>
+                        {grp.label}
+                      </div>
+                      <div style={{ marginTop: "0.25rem", display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+                        {avoidable > 0 ? (
+                          <>
+                            <span className="font-mono" style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--color-warn)", fontVariantNumeric: "tabular-nums" }}>
+                              {avoidable}
+                            </span>
+                            <span style={{ fontSize: "0.75rem", color: "var(--color-muted)" }}>alla tua portata</span>
+                            <span className="font-mono" style={{ fontSize: "0.72rem", color: "var(--color-faint)", fontVariantNumeric: "tabular-nums" }}>
+                              su {grp.positions.length}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="font-mono" style={{ fontSize: "0.75rem", color: "var(--color-muted)", fontVariantNumeric: "tabular-nums" }}>
+                            {grp.positions.length} {grp.positions.length === 1 ? "posizione" : "posizioni"}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div style={{ marginTop: "0.25rem", display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
-                      {avoidable > 0 ? (
-                        <>
-                          <span className="font-mono" style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--color-warn)", fontVariantNumeric: "tabular-nums" }}>
-                            {avoidable}
-                          </span>
-                          <span style={{ fontSize: "0.75rem", color: "var(--color-muted)" }}>alla tua portata</span>
-                          <span className="font-mono" style={{ fontSize: "0.72rem", color: "var(--color-faint)", fontVariantNumeric: "tabular-nums" }}>
-                            su {grp.positions.length}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="font-mono" style={{ fontSize: "0.75rem", color: "var(--color-muted)", fontVariantNumeric: "tabular-nums" }}>
-                          {grp.positions.length} {grp.positions.length === 1 ? "posizione" : "posizioni"}
-                        </span>
-                      )}
+
+                    {/* Actions */}
+                    <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+                      <button
+                        onClick={() => setExpandedGroup(isExpanded ? null : grp.key)}
+                        className="btn btn-ghost btn-sm"
+                        style={{ fontSize: "0.75rem" }}
+                      >
+                        {isExpanded ? "Nascondi" : "Sfoglia"}
+                      </button>
+                      <button
+                        onClick={() => setTrainingGroup(grp.key)}
+                        className="btn btn-primary btn-sm"
+                        style={{ fontSize: "0.82rem", fontWeight: 700 }}
+                      >
+                        Allena
+                      </button>
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
-                    <button
-                      onClick={() => setExpandedGroup(isExpanded ? null : grp.key)}
-                      className="btn btn-ghost btn-sm"
-                      style={{ fontSize: "0.75rem" }}
-                    >
-                      {isExpanded ? "Nascondi" : "Sfoglia"}
-                    </button>
-                    <button
-                      onClick={() => setTrainingGroup(grp.key)}
-                      className="btn btn-primary btn-sm"
-                      style={{ fontSize: "0.82rem", fontWeight: 700 }}
-                    >
-                      Allena
-                    </button>
-                  </div>
+                  {/* Expanded gallery */}
+                  {isExpanded && (
+                    <div style={{ padding: "0 1.25rem 1rem" }}>
+                      <GroupGallery positions={grp.positions} onOpeningLink={onOpeningLink} />
+                    </div>
+                  )}
                 </div>
+              </Reveal>
+            );
+          })}
+        </div>
+      )}
 
-                {/* Expanded gallery */}
-                {isExpanded && (
-                  <div style={{ padding: "0 1.25rem 1rem" }}>
-                    <GroupGallery positions={grp.positions} onOpeningLink={onOpeningLink} />
+      {/* ── Group list — per giorno (absorbs the old Diario) ─────────────── */}
+      {grouping === "giorno" && (
+        dayGroups.length === 0 ? (
+          <Section delay={0}>
+            <div style={{ textAlign: "center", padding: "2rem 0", color: "var(--color-muted)", fontSize: "0.88rem" }}>
+              Nessuna caduta con la data della partita. Passa alla vista per ancora.
+            </div>
+          </Section>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {dayGroups.map((dg, idx) => {
+              const groupKey = `day:${dg.date}`;
+              const isExpanded = expandedGroup === groupKey;
+              const dateLabel = dg.isLatest ? "Ieri" : dateIt(dg.date);
+              const nonnoDay = dg.review ? nonnoLineDayTemplate(dg.review, dg.isLatest) : null;
+              return (
+                <Reveal key={dg.date} delay={Math.min(idx * 40, 240)}>
+                  <div style={{
+                    background: "var(--color-surface)",
+                    border: `1px solid ${dg.isLatest ? "var(--color-line-strong)" : "var(--color-line)"}`,
+                    borderRadius: "12px", overflow: "hidden",
+                  }}>
+                    {/* Day header */}
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: "1rem", padding: "1rem 1.25rem" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontFamily: "var(--font-mono)", fontSize: "0.78rem",
+                          fontWeight: dg.isLatest ? 700 : 600,
+                          color: dg.isLatest ? "var(--color-text)" : "var(--color-muted)",
+                          marginBottom: "0.35rem",
+                        }}>
+                          {dateLabel}
+                        </div>
+                        {nonnoDay && (
+                          <div style={{ fontSize: "0.82rem", color: "var(--color-text-soft)", lineHeight: 1.55 }}>
+                            {nonnoDay}
+                          </div>
+                        )}
+                        <div className="font-mono" style={{ marginTop: "0.35rem", fontSize: "0.72rem", color: "var(--color-faint)", fontVariantNumeric: "tabular-nums" }}>
+                          {dg.positions.length} {dg.positions.length === 1 ? "posizione" : "posizioni"} da rivedere
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+                        <button
+                          onClick={() => setExpandedGroup(isExpanded ? null : groupKey)}
+                          className="btn btn-ghost btn-sm"
+                          style={{ fontSize: "0.75rem" }}
+                        >
+                          {isExpanded ? "Nascondi" : "Sfoglia"}
+                        </button>
+                        <button
+                          onClick={() => setTrainingGroup(groupKey)}
+                          className="btn btn-primary btn-sm"
+                          style={{ fontSize: "0.82rem", fontWeight: 700 }}
+                        >
+                          Allena
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Expanded gallery */}
+                    {isExpanded && (
+                      <div style={{ padding: "0 1.25rem 1rem" }}>
+                        <GroupGallery positions={dg.positions} onOpeningLink={onOpeningLink} />
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </Reveal>
-          );
-        })}
-      </div>
+                </Reveal>
+              );
+            })}
+          </div>
+        )
+      )}
     </div>
   );
 }
@@ -2226,7 +1826,7 @@ export function Quaderno() {
             Il Quaderno e' ancora vuoto
           </h1>
           <p style={{ color: "var(--color-text-soft)", fontSize: "0.88rem", marginBottom: "1.5rem", lineHeight: 1.6 }}>
-            Dopo la prima analisi troverai le tue ancore, la storia e i traguardi.
+            Dopo la prima analisi troverai la tua evoluzione, le cadute da allenare e il tuo profilo.
           </p>
           <Link to="/" className="btn btn-primary">Torna al Tavolo</Link>
         </div>
@@ -2266,19 +1866,22 @@ export function Quaderno() {
 
         {/* Tab content */}
         <div>
-          {activeTab === "percorso" && (
-            <TabPercorso
+          {activeTab === "evoluzione" && (
+            <TabEvoluzione
               aggregates={aggregates}
               pmLite={pmLite}
               history={history}
               journalRaw={journalRaw}
+              milestones={milestones}
               onSelectAnchor={handleSelectAnchor}
             />
           )}
-          {activeTab === "traguardi" && (
-            <TabTraguardi
-              milestones={milestones}
-              historyLength={history.snapshots.length}
+          {activeTab === "cadute" && (
+            <TabCadute
+              aggregates={aggregates}
+              pmLite={pmLite}
+              anchorFilter={selectedAnchor}
+              onOpeningLink={handleOpeningLink}
             />
           )}
           {activeTab === "profilo" && (
@@ -2286,19 +1889,6 @@ export function Quaderno() {
               aggregates={aggregates}
               pmLite={pmLite}
               targetRating={profile?.goal_rating ?? pmLite?.identity?.goal?.target ?? 0}
-            />
-          )}
-          {activeTab === "cadute" && (
-            <TabCadute
-              aggregates={aggregates}
-              anchorFilter={selectedAnchor}
-              onOpeningLink={handleOpeningLink}
-            />
-          )}
-          {activeTab === "diario" && (
-            <TabDiario
-              pmLite={pmLite}
-              aggregates={aggregates}
             />
           )}
           {activeTab === "repertorio" && (
