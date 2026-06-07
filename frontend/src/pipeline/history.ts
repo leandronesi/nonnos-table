@@ -202,20 +202,41 @@ export function computeMilestones(opts: {
     const firstAnchorMap = new Map(firstSnap.anchors.map((a) => [a.key, a]));
     const lastAnchorMap  = new Map(lastSnap.anchors.map((a)  => [a.key, a]));
 
-    // anchor_improved: mine_pct went up >= 10 pp.
-    const IMPROVED_THRESHOLD_PP = 10;
+    // anchor_improved: the error-per-game FREQUENCY of this anchor fell
+    // significantly between first and last snapshot.
+    //
+    // Honest signal: absolute count is unreliable (it grows with more games
+    // analysed). Frequency = count / games_analyzed is the right denominator.
+    // A drop of >= 20% relative to the first snapshot frequency is the threshold
+    // (e.g. 0.50 errors/game → 0.38 errors/game = −24% → improved).
+    // Minimum first-snapshot count of 3 to avoid noise on sparse data.
+    const IMPROVED_RELATIVE_DROP = 0.20;  // 20% relative fall in frequency
+    const IMPROVED_MIN_COUNT = 3;         // at least 3 errors in first snapshot
     for (const [key, last] of lastAnchorMap) {
       const first = firstAnchorMap.get(key);
-      if (!first || first.mine_pct == null || last.mine_pct == null) continue;
-      const delta = last.mine_pct - first.mine_pct;
-      const achieved = delta >= IMPROVED_THRESHOLD_PP;
+      if (!first) continue;
+      const firstGames = firstSnap.games_analyzed;
+      const lastGames  = lastSnap.games_analyzed;
+      if (firstGames <= 0 || lastGames <= 0) continue;
+      if (first.count < IMPROVED_MIN_COUNT) continue;
+      const firstFreq = first.count / firstGames;
+      const lastFreq  = last.count  / lastGames;
+      // Relative drop: (firstFreq - lastFreq) / firstFreq
+      const relativeDrop = firstFreq > 0 ? (firstFreq - lastFreq) / firstFreq : 0;
+      const achieved = relativeDrop >= IMPROVED_RELATIVE_DROP;
+      void key; // suppress unused-var lint (key used implicitly through map iteration)
+      // FIX A: evidence and threshold must share the same unit (fractions, 0..1).
+      // Previously evidence was Math.round(relativeDrop*100) (integer pct) while
+      // threshold was 0.20 (fraction), causing progress_pct = 10/0.20 = 50 → clamped
+      // to 1 → 100% for a milestone that had NOT been reached yet. Both are now
+      // fractions so progress_pct = relativeDrop/IMPROVED_RELATIVE_DROP is correct.
       milestones.push(makeMilestone({
         type: "anchor_improved",
-        threshold: IMPROVED_THRESHOLD_PP,
+        threshold: IMPROVED_RELATIVE_DROP,
         achieved,
-        evidence: Math.round(delta),
+        evidence: relativeDrop, // fraction (same unit as threshold)
         achieved_at: achieved ? lastSnap.captured_at : null,
-        label_it: `"${last.label_it}" migliorata di ${Math.round(Math.max(0, delta))} pp`,
+        label_it: `"${last.label_it}" in miglioramento (${Math.round(Math.max(0, relativeDrop) * 100)}% meno frequente)`,
       }));
     }
 
@@ -347,16 +368,15 @@ export function buildSnapshot(
   const mw = aggregates.maia_weighted;
 
   // Anchors: compact per-anchor slice (top 10 for history, no exemplars).
+  // mine_pct / target_pct: per-anchor averages from Maia (computed in aggregate.ts).
+  // null when Maia did not run for that anchor — reported honestly, never fabricated.
   const anchorSlices = (aggregates.anchors ?? []).slice(0, 10).map((a) => {
-    // mine_pct / target_pct from Maia weighted — not available per-anchor directly.
-    // Use null: the snapshot's mine/target_pct are global unless explicitly tracked.
-    // The snapshot schema stores them per-anchor for future use; for now null.
     return {
       key: a.type,
       label_it: a.label_it,
       count: a.count,
-      mine_pct: null as number | null,
-      target_pct: null as number | null,
+      mine_pct: a.mine_pct ?? null,
+      target_pct: a.target_pct ?? null,
       rating_upside: a.rating_upside ?? 0,
     };
   });

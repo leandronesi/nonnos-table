@@ -21,7 +21,7 @@ import { supabase } from "../auth/supabaseClient";
 import { pgnPath } from "../auth/storage";
 import { STORAGE_BUCKET } from "../auth/supabaseClient";
 import type { GameInsert, Color, Result } from "../auth/db.types";
-import { FREE_GAME_CAP } from "./config";
+import { FREE_GAME_CAP, ANALYZED_TIME_CLASSES } from "./config";
 
 const MONTHS_TO_PULL = 6;
 
@@ -153,6 +153,11 @@ export async function runIngest(opts: {
           break;
         }
 
+        // FIX B: skip daily/bullet so the quota only counts rapid/blitz games.
+        // This mirrors the SQL filter in aggregate.ts and ensures the cap of
+        // FREE_GAME_CAP contains only the time classes that will actually be analysed.
+        if (!ANALYZED_TIME_CLASSES.includes(g.time_class)) continue;
+
         const uuid = chessComUuidFromUrl(g.url);
         // Salta se già presente (senza contarla verso il cap).
         const { data: existing } = await supabase
@@ -236,6 +241,11 @@ export async function runIngest(opts: {
 
       for (const g of monthGames) {
         if (indexed >= FREE_GAME_CAP) break;
+
+        // FIX B: skip daily/bullet so the quota of FREE_GAME_CAP contains only
+        // the time classes that will actually be analysed (rapid/blitz).
+        if (!ANALYZED_TIME_CLASSES.includes(g.time_class)) continue;
+
         const uuid = chessComUuidFromUrl(g.url);
         // Skip se già presente (conta verso il cap).
         const { data: existing } = await supabase

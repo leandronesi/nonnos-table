@@ -107,7 +107,43 @@ function daysBetween(a: Date, b: Date): number {
 
 // ── Calcolo identity ─────────────────────────────────────────────────────────
 
-function buildIdentity(profile: ProfileRow, games: GameRow[]): Identity {
+/**
+ * FIX C helper: derives the immutable start_rating baseline.
+ * Returns the player_rating of the oldest rapid/blitz game in games[], or
+ * the oldest overall game as fallback (same logic as orchestrator.deriveStartRating
+ * but operating on GameRow[] directly, without requiring history to be read again).
+ *
+ * @param games    All GameRow[] passed to buildPlayerModelLite.
+ * @param goalTc   The player's goal time class.
+ * @param override If provided (e.g. from the orchestrator's deriveStartRating),
+ *                 this value is used directly and the local derivation is skipped.
+ *                 Callers that have already read history should always pass this.
+ */
+function resolveStartRating(
+  games: GameRow[],
+  goalTc: string,
+  override: number | null | undefined,
+): number | null {
+  if (override !== undefined && override !== null) return override;
+  // Local derivation (fallback when orchestrator does not pass an override).
+  const tcGames = games.filter((g) => g.player_rating != null && g.time_class === goalTc);
+  if (tcGames.length > 0) {
+    const oldest = tcGames.reduce((a, b) => (a.played_at < b.played_at ? a : b));
+    return oldest.player_rating!;
+  }
+  const allRated = games.filter((g) => g.player_rating != null);
+  if (allRated.length > 0) {
+    const oldest = allRated.reduce((a, b) => (a.played_at < b.played_at ? a : b));
+    return oldest.player_rating!;
+  }
+  return null;
+}
+
+function buildIdentity(
+  profile: ProfileRow,
+  games: GameRow[],
+  startRatingOverride?: number | null,
+): Identity {
   const now = new Date();
 
   // rating_by_time_class: ultima partita per time_class
@@ -143,22 +179,15 @@ function buildIdentity(profile: ProfileRow, games: GameRow[]): Identity {
   const daysLeft = Math.max(0, daysBetween(now, deadlineDate));
   const daysSinceStart = planDate ? daysBetween(planDate, now) : 0;
 
-  // startRating: rating of the oldest game in goal_time_class (or oldest overall as fallback)
-  const startRating = (() => {
-    const tcGames = games.filter((g) => g.player_rating != null && g.time_class === goalTc);
-    if (tcGames.length > 0) {
-      const oldest = tcGames.reduce((a, b) => (a.played_at < b.played_at ? a : b));
-      return oldest.player_rating!;
-    }
-    const allRated = games.filter((g) => g.player_rating != null);
-    if (allRated.length > 0) {
-      const oldest = allRated.reduce((a, b) => (a.played_at < b.played_at ? a : b));
-      return oldest.player_rating!;
-    }
-    return currentRatingForGoal;
-  })();
+  // FIX C: use resolveStartRating so we get the same baseline as the orchestrator
+  // (immutable from the first snapshot). Without this, start_rating was re-derived
+  // from the oldest game on every run, which zeroed/negated points_gained_since_start
+  // in the GoalHero displayed to the user.
+  const startRating = resolveStartRating(games, goalTc, startRatingOverride);
+  // Clamp to 0: if the player's rating temporarily dipped below start we do not
+  // show negative progress. The milestone logic handles the actual trend separately.
   const pointsGained = currentRatingForGoal != null && startRating != null
-    ? currentRatingForGoal - startRating
+    ? Math.max(0, currentRatingForGoal - startRating)
     : 0;
   const pointsNeeded = currentRatingForGoal != null
     ? Math.max(0, profile.goal_rating - currentRatingForGoal)
@@ -780,17 +809,22 @@ function buildBlindSpots(analyses: GameAnalysis[]): BlindSpot[] {
 /**
  * Costruisce il PlayerModelLite a partire dai dati grezzi browser-side.
  *
- * @param games     GameRow[] — tutte le partite dell'utente (con analysis_status='done').
- * @param analyses  GameAnalysis[] — analisi Stockfish corrispondenti.
- * @param profile   ProfileRow — profilo utente.
+ * @param games              GameRow[] — tutte le partite dell'utente (con analysis_status='done').
+ * @param analyses           GameAnalysis[] — analisi Stockfish corrispondenti.
+ * @param profile            ProfileRow — profilo utente.
+ * @param startRatingOverride Optional immutable baseline from orchestrator's deriveStartRating.
+ *   Callers that have already read history.json (the orchestrator) should always pass this so
+ *   that points_gained_since_start in the GoalHero is measured from the same day-1 baseline
+ *   that the milestone and history code use. If omitted the local derivation is used.
  */
 export function buildPlayerModelLite(
   games: GameRow[],
   analyses: GameAnalysis[],
-  profile: ProfileRow
+  profile: ProfileRow,
+  startRatingOverride?: number | null,
 ): PlayerModelLite {
   return {
-    identity:         buildIdentity(profile, games),
+    identity:         buildIdentity(profile, games, startRatingOverride),
     current_rating:   buildCurrentRating(games, profile),
     rating_curve:     buildRatingCurve(games),
     by_color:         buildByColor(games, analyses),

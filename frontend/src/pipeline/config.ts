@@ -29,3 +29,17 @@ export const CADUTE_LIMIT = 40;
  * grazie ai chunk da 24; la latenza aggiuntiva e' accettabile lato browser.
  */
 export const CADUTE_MAIA_CAP = 400;
+
+/**
+ * Time classes included in error analysis, anchor computation and drill scoring.
+ *
+ * Rationale: the product targets rapid/blitz players. Daily games have no
+ * usable clock data; bullet games are reflex-driven and produce noisy cp_loss
+ * data that pollutes the weakness profile. Both are excluded.
+ *
+ * If a game's time_class field is missing/undefined it is NOT excluded
+ * (conservative: we keep the data rather than silently drop it).
+ *
+ * Change this array to add/remove time classes from the analysis scope.
+ */
+export const ANALYZED_TIME_CLASSES: string[] = ["rapid", "blitz"];
