@@ -2,13 +2,16 @@
  * TavoloHome — Il Tavolo "il perche'", letto da Nonno.
  *
  * Ordine blocchi (SPRINT_OOUX.md §5 — una sola schermata, decisione PO 2026-06-01):
- *   1. INGRESSO   — NonnoGreeting (voce dominante) + memoria visibile (journal)
+ *   1. INGRESSO   — NonnoGreeting (voce dominante, con la memoria visibile fusa
+ *                   come prima riga quiet dentro la card)
  *   2. OBIETTIVO  — GoalHero (oro)
  *   3. MOMENTO    — MomentoDelGiorno (la spina resa posizione)
- *   4. GAP        — maia_weighted, solo testo tagliente (GameArc vive nel Quaderno)
- *   5. ANCORE     — top-3 cliccabili -> /quaderno#percorso ("dove perdi, in breve")
- *   6. VARCO      — card-soglia quiet -> /quaderno (la sala d'analisi)
- *   7. AZIONI     — ghost, in fondo (aggiorna / rianalizza)
+ *   4. ANCORE     — top-3 cliccabili -> /quaderno#percorso ("dove perdi, in breve")
+ *   5. VARCO      — card-soglia quiet -> /quaderno (la sala d'analisi)
+ *   6. AZIONI     — ghost, in fondo (aggiorna / rianalizza)
+ *
+ * Il GAP col target (maia_weighted) NON e' piu' un riquadro: era un muro di sei
+ * numeri in prosa (estetica Aimchess). Vive ora nella VOCE di Nonno e nel Quaderno.
  *
  * Regole visive (DESIGN.md):
  *   - FLAT: profondita' tonal layers, niente ombre decorative
@@ -657,32 +660,15 @@ export function TavoloHome() {
 
       {/* ════════════════════════════════════════════════════════════════════
           ATTO 1 — la spina del giorno (il colpo d'occhio).
-          Ingresso, Obiettivo, Momento, Gap: la testa della pagina. Piu' aria,
+          Ingresso, Obiettivo, Momento: la testa della pagina. Piu' aria,
           piu' peso, entra per prima. E' qui che cade l'occhio aprendo.
           ════════════════════════════════════════════════════════════════════ */}
 
-      {/* ── 1. INGRESSO: voce di Nonno + memoria visibile ──────────────── */}
+      {/* ── 1. INGRESSO: voce di Nonno (memoria visibile fusa dentro la card) ── */}
       <Reveal className="mb-10">
-        {/* Memoria visibile — quiet row above NonnoGreeting, omitted if journal empty */}
-        {memoriaVisibile && (
-          <div
-            style={{
-              marginBottom: "0.875rem",
-              padding: "0.625rem 0.875rem",
-              background: "var(--color-surface-2)",
-              border: "1px solid var(--color-line)",
-              borderRadius: "8px",
-              fontSize: "0.78rem",
-              color: "var(--color-muted)",
-              lineHeight: 1.5,
-            }}
-          >
-            {memoriaVisibile}
-          </div>
-        )}
-
         <NonnoGreeting
           goal={liveGoal}
+          memoria={memoriaVisibile}
           topAnchor={aggregates?.anchors?.[0] ?? null}
           decisions={
             pmLite?.decisions != null
@@ -733,67 +719,10 @@ export function TavoloHome() {
         </Reveal>
       )}
 
-      {/* ── 4. IL GAP COL TARGET (solo testo — il grafico vive nel Quaderno) ── */}
-      {aggregates?.maia_weighted != null && (() => {
-        const mw = aggregates.maia_weighted!;
-        return (
-          <Reveal delay={180} className="mb-10">
-            <div
-              style={{
-                background: "var(--color-surface)",
-                border: "1px solid var(--color-line)",
-                borderRadius: "14px",
-                padding: "clamp(22px, 4vw, 30px)",
-              }}
-            >
-              <div className="tt-eyebrow" style={{ marginBottom: "1rem", color: "var(--color-gold-soft)" }}>
-                Il tuo gap col target
-              </div>
-              <p
-                style={{
-                  fontSize: "0.92rem",
-                  color: "var(--color-text-soft)",
-                  lineHeight: 1.65,
-                  margin: 0,
-                }}
-              >
-                Ho guardato a fondo{" "}
-                <span className="font-mono font-bold" style={{ color: "var(--color-text)", fontVariantNumeric: "tabular-nums" }}>
-                  {mw.errors_scored}
-                </span>{" "}
-                dei tuoi errori:{" "}
-                <span className="font-mono font-bold" style={{ color: "var(--color-danger)", fontVariantNumeric: "tabular-nums" }}>
-                  {mw.avoidable}
-                </span>{" "}
-                erano alla tua portata. Sulle stesse posizioni,{" "}
-                {targetRating > 0 ? (
-                  <>
-                    uno al tuo{" "}
-                    <strong style={{ color: "var(--color-gold-soft)" }}>{targetRating}</strong>
-                  </>
-                ) : (
-                  "il giocatore che vuoi diventare"
-                )}{" "}
-                la mossa giusta la trova il{" "}
-                <span className="font-mono font-bold" style={{ color: "var(--color-gold-soft)", fontVariantNumeric: "tabular-nums" }}>
-                  {Math.round(mw.target_pct)}%
-                </span>{" "}
-                delle volte, tu il{" "}
-                <span className="font-mono font-bold" style={{ color: "var(--color-text)", fontVariantNumeric: "tabular-nums" }}>
-                  {Math.round(mw.mine_pct)}%
-                </span>
-                . Quei{" "}
-                <span className="font-mono font-bold" style={{ color: "var(--color-brand-soft)", fontVariantNumeric: "tabular-nums" }}>
-                  {Math.round(mw.gap_pct)}
-                </span>{" "}
-                punti di scarto sono il tuo margine da prendere.
-              </p>
-            </div>
-          </Reveal>
-        );
-      })()}
-
-      {/* ── 5. DOVE PERDI, IN BREVE (top-3 ancore, cliccabili) ─────────── */}
+      {/* ── DOVE PERDI, IN BREVE (top-3 ancore, cliccabili) ─────────────
+          Il gap col target (maia_weighted) NON vive piu' qui: era un muro di
+          numeri in prosa (estetica Aimchess). Quella verita' ora sta nella VOCE
+          di Nonno (NonnoGreeting riceve maiaWeighted) e nel Quaderno (Evoluzione). */}
       {anchorsTop3.length > 0 && (
         <Reveal delay={220} className="mb-10">
           <div
@@ -852,7 +781,7 @@ export function TavoloHome() {
         </Reveal>
       )}
 
-      {/* ── 6. VARCO AL QUADERNO (quiet, surface-2, flat, no em-dash) ─────── */}
+      {/* ── 5. VARCO AL QUADERNO (quiet, surface-2, flat, no em-dash) ─────── */}
       <Reveal delay={260} className="mb-10">
         <div
           role="button"
@@ -909,7 +838,7 @@ export function TavoloHome() {
         </div>
       </Reveal>
 
-      {/* ── 7. AZIONI SECONDARIE (ghost, in fondo) ─────────────────────── */}
+      {/* ── 6. AZIONI SECONDARIE (ghost, in fondo) ─────────────────────── */}
       <Reveal delay={300} className="mb-8">
         <div
           style={{

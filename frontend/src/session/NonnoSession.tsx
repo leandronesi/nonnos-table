@@ -106,7 +106,13 @@ function EmptyState({ onClose }: { onClose: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// Progress strip — 4 fasi visibili, niente "saluto"
+// Phase marks — senso-di-luogo, NON progress bar.
+//
+// Il rito si attraversa, non si "completa a percentuale" (lista del NO: niente
+// progress-bar di sessione, DESIGN.md §6: l'unica continuita' e' la memoria di
+// Nonno). Quindi: 4 segni di cui UNO acceso (la fase corrente). Niente spunta
+// verde di "fase completata", niente conteggio "N/4". Le fasi gia' attraversate
+// restano un segno tenue neutro, non un trofeo.
 // ---------------------------------------------------------------------------
 
 const PHASE_ORDER: Phase[] = ["guardo", "aiuto", "da-solo", "partita", "saluto"];
@@ -121,18 +127,12 @@ const PHASE_LABELS: Record<Phase, string> = {
 
 function PhasePills({ current }: { current: Phase }) {
   const visible: Phase[] = ["guardo", "aiuto", "da-solo", "partita"];
-  const currentIdx = PHASE_ORDER.indexOf(current);
-  // 1-based number among the 4 visible phases (saluto is hidden)
-  const visibleIndex = visible.indexOf(current);
-  const phaseNumber = visibleIndex >= 0 ? visibleIndex + 1 : currentIdx + 1;
 
   return (
     <>
-      {/* Desktop: 4 pills in a row */}
+      {/* Desktop: 4 labels in a row, only the current one lit */}
       <div className="hidden lg:flex items-center gap-0" aria-label="Fasi della sessione">
         {visible.map((ph, i) => {
-          const phIdx = PHASE_ORDER.indexOf(ph);
-          const done   = phIdx < currentIdx;
           const active = ph === current;
           return (
             <div key={ph} className="flex items-center">
@@ -140,7 +140,6 @@ function PhasePills({ current }: { current: Phase }) {
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: "0.3rem",
                   padding: "0.25rem 0.75rem",
                   borderRadius: "999px",
                   fontSize: "0.6875rem",
@@ -149,22 +148,11 @@ function PhasePills({ current }: { current: Phase }) {
                   letterSpacing: "0.06em",
                   textTransform: "uppercase",
                   transition: "background 180ms var(--ease-out), color 180ms var(--ease-out)",
-                  background: active
-                    ? "rgba(124,92,255,0.18)"
-                    : "transparent",
-                  color: active
-                    ? "var(--color-brand-soft)"
-                    : done
-                    ? "var(--color-muted)"
-                    : "var(--color-faint)",
-                  border: active
-                    ? "1px solid rgba(124,92,255,0.4)"
-                    : "1px solid transparent",
+                  background: active ? "rgba(124,92,255,0.18)" : "transparent",
+                  color: active ? "var(--color-brand-soft)" : "var(--color-faint)",
+                  border: active ? "1px solid rgba(124,92,255,0.4)" : "1px solid transparent",
                 }}
               >
-                {done && (
-                  <span style={{ color: "var(--color-ok)", fontSize: "0.6rem" }}>✓</span>
-                )}
                 {PHASE_LABELS[ph]}
               </div>
               {i < visible.length - 1 && (
@@ -172,9 +160,7 @@ function PhasePills({ current }: { current: Phase }) {
                   style={{
                     width: "1.5rem",
                     height: "1px",
-                    background: done ? "var(--color-brand-soft)" : "var(--color-line)",
-                    opacity: done ? 0.5 : 1,
-                    transition: "background 300ms var(--ease-out)",
+                    background: "var(--color-line)",
                   }}
                 />
               )}
@@ -183,17 +169,15 @@ function PhasePills({ current }: { current: Phase }) {
         })}
       </div>
 
-      {/* Mobile: compact "Fase N/4 · Label" */}
+      {/* Mobile: 4 dots, only the current one lit + the current phase label */}
       <div
         className="flex lg:hidden items-center gap-2"
-        aria-label={`Fase ${phaseNumber} di 4: ${PHASE_LABELS[current]}`}
+        aria-label={`Fase: ${PHASE_LABELS[current]}`}
         style={{ fontFamily: "var(--font-mono)" }}
       >
-        {/* Dot indicators */}
+        {/* Dot indicators — one lit, the rest faint. No "done" colour. */}
         <div className="flex items-center gap-1">
           {visible.map((ph) => {
-            const phIdx = PHASE_ORDER.indexOf(ph);
-            const done   = phIdx < currentIdx;
             const active = ph === current;
             return (
               <div
@@ -202,11 +186,7 @@ function PhasePills({ current }: { current: Phase }) {
                   width: active ? "1.25rem" : "0.45rem",
                   height: "0.45rem",
                   borderRadius: "999px",
-                  background: active
-                    ? "var(--color-brand-soft)"
-                    : done
-                    ? "var(--color-ok)"
-                    : "var(--color-faint)",
+                  background: active ? "var(--color-brand-soft)" : "var(--color-faint)",
                   transition: "width 200ms var(--ease-out), background 200ms var(--ease-out)",
                 }}
                 aria-hidden="true"
@@ -214,7 +194,7 @@ function PhasePills({ current }: { current: Phase }) {
             );
           })}
         </div>
-        {/* Current phase label */}
+        {/* Current phase label — no "N/4" count */}
         <span style={{
           fontSize: "0.6875rem",
           fontWeight: 700,
@@ -222,7 +202,7 @@ function PhasePills({ current }: { current: Phase }) {
           textTransform: "uppercase",
           color: "var(--color-brand-soft)",
         }}>
-          {phaseNumber}/{visible.length} · {PHASE_LABELS[current]}
+          {PHASE_LABELS[current]}
         </span>
       </div>
     </>
@@ -259,8 +239,20 @@ function SessionHeader({ phase, onExit }: { phase: Phase; onExit: () => void }) 
 // Saluto screen — board-centrico, Nonno parla
 // ---------------------------------------------------------------------------
 
-function Saluto({ totalPositions, onClose }: { totalPositions: number; onClose: () => void }) {
-  const phrase = pickIdx(SALUTO_PHRASES, totalPositions);
+function Saluto({
+  totalPositions,
+  dominantMotif,
+  onClose,
+}: {
+  totalPositions: number;
+  dominantMotif: string | null;
+  onClose: () => void;
+}) {
+  // Name the anchor we sat on today, when we have it: reinforces the continuous
+  // memory at zero cost. No invented theme: fall back to the generic close.
+  const phrase = dominantMotif
+    ? `Oggi abbiamo guardato ${dominantMotif}. Domani riprendiamo da li'.`
+    : pickIdx(SALUTO_PHRASES, totalPositions);
   return (
     <div
       className="max-w-lg mx-auto text-center fade-in"
@@ -308,6 +300,9 @@ function PhaseIntro({ text }: { text: string }) {
 
 export function NonnoSession({ cadute, targetRating, currentRating, onClose }: Props) {
   const [phase, setPhase] = useState<Phase>("guardo");
+  // The anchor we sat on today, computed at session completion. Used by the
+  // close screen so Nonno names it ("Oggi abbiamo guardato X."). null = unknown.
+  const [dominantMotif, setDominantMotif] = useState<string | null>(null);
 
   // Escape key exits
   useEffect(() => {
@@ -345,24 +340,26 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose }: P
   }
 
   function handlePlayDone(_result: PlayResult) {
+    // Collect the dominant motif/anchor label across the positions reviewed.
+    // Use the most frequent motif_label_it (or motif) among the session positions.
+    // Computed on every completion so the close screen can name it, even on a
+    // second session of the day (when the journal entry is skipped).
+    const motifCounts = new Map<string, number>();
+    for (const pos of positions) {
+      const label = pos.motif_label_it ?? pos.motif ?? null;
+      if (label) motifCounts.set(label, (motifCounts.get(label) ?? 0) + 1);
+    }
+    let motif: string | null = null;
+    let maxCount = 0;
+    for (const [label, cnt] of motifCounts.entries()) {
+      if (cnt > maxCount) { maxCount = cnt; motif = label; }
+    }
+    setDominantMotif(motif);
+
     // Write journal entry only once, only on full completion (not on early exit).
     if (!hasEntryToday("session_done")) {
-      // Collect the dominant motif/anchor label across the positions reviewed.
-      // Use the most frequent motif_label_it (or motif) among the session positions.
-      // Fallback to generic text if no motif data is available.
-      const motifCounts = new Map<string, number>();
-      for (const pos of positions) {
-        const label = pos.motif_label_it ?? pos.motif ?? null;
-        if (label) motifCounts.set(label, (motifCounts.get(label) ?? 0) + 1);
-      }
-      let dominantMotif: string | null = null;
-      let maxCount = 0;
-      for (const [label, cnt] of motifCounts.entries()) {
-        if (cnt > maxCount) { maxCount = cnt; dominantMotif = label; }
-      }
-
-      const body = dominantMotif
-        ? `Ci siamo seduti su "${dominantMotif}". Hai rivisto i momenti, poi hai giocato.`
+      const body = motif
+        ? `Ci siamo seduti su "${motif}". Hai rivisto i momenti, poi hai giocato.`
         : "Ci siamo seduti, abbiamo rivisto i tuoi momenti e giocato una partita.";
 
       writeEntry({
@@ -370,7 +367,7 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose }: P
         body,
         meta: {
           positions: positions.length,
-          ...(dominantMotif ? { dominant_motif: dominantMotif } : {}),
+          ...(motif ? { dominant_motif: motif } : {}),
         },
       });
     }
@@ -461,7 +458,11 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose }: P
 
         {/* SALUTO */}
         {phase === "saluto" && (
-          <Saluto totalPositions={positions.length} onClose={onClose} />
+          <Saluto
+            totalPositions={positions.length}
+            dominantMotif={dominantMotif}
+            onClose={onClose}
+          />
         )}
 
       </div>

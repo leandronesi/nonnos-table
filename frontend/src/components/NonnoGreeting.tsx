@@ -232,6 +232,12 @@ export interface NonnoGreetingProps {
    * The saluto (greeting line) is still rendered above the voice body.
    */
   voiceMessage?: string | null;
+  /**
+   * "Memoria visibile" — the continuity line ("L'altra volta abbiamo lavorato
+   * su X. Riprendiamo da li'."). Rendered as a quiet first line INSIDE the card,
+   * above the saluto: one voice, not two stacked boxes. Omitted when null.
+   */
+  memoria?: string | null;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -244,6 +250,7 @@ export function NonnoGreeting({
   byPhase,
   onSediamoci,
   voiceMessage,
+  memoria,
 }: NonnoGreetingProps) {
   const saluto = buildSaluto(goal);
 
@@ -263,6 +270,22 @@ export function NonnoGreeting({
         padding: "clamp(20px, 4vw, 28px)",
       }}
     >
+      {/* Memoria visibile — quiet first line, no box/border, color muted.
+          Folds the continuity ("L'altra volta...") into Nonno's single voice. */}
+      {memoria && memoria.trim().length > 0 && (
+        <p
+          style={{
+            margin: 0,
+            marginBottom: "0.75rem",
+            fontSize: "0.82rem",
+            lineHeight: 1.5,
+            color: "var(--color-muted)",
+          }}
+        >
+          {memoria.trim()}
+        </p>
+      )}
+
       {/* Eyebrow */}
       <div
         className="tt-eyebrow"
