@@ -374,6 +374,13 @@ function buildMemoria(): string | null {
   }
 
   if (lastSession != null) {
+    // If the session recorded a dominant motif, surface it here.
+    const motif = typeof lastSession.meta?.dominant_motif === "string"
+      ? lastSession.meta.dominant_motif
+      : null;
+    if (motif) {
+      return `${whenClause} abbiamo lavorato su "${motif}". Riprendiamo da li'.`;
+    }
     return `${whenClause} ci siamo seduti insieme. Riprendiamo da li'.`;
   }
   // No full session yet, but some activity happened: keep it light, no raw body.
@@ -445,6 +452,8 @@ export function TavoloHome() {
 
   const [pmLite, setPmLite] = useState<PlayerModelLite | null>(null);
   const [aggregates, setAggregates] = useState<Aggregates | null>(null);
+  /** voice_message from coach_brief.json. null = missing/not ready. undefined = still loading. */
+  const [llmVoice, setLlmVoice] = useState<string | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -455,13 +464,21 @@ export function TavoloHome() {
     let cancelled = false;
     (async () => {
       try {
-        const [pm, agg] = await Promise.all([
+        // coach_brief.json is optional (new user, or pipeline not yet run).
+        // Graceful: if it fails or is absent, voice falls back to template.
+        const briefPromise = downloadJson<{ voice_message?: string }>(
+          quadernoPath(user.id, "coach_brief.json"),
+        ).catch(() => null);
+
+        const [pm, agg, brief] = await Promise.all([
           downloadJson<PlayerModelLite>(quadernoPath(user.id, "player_model_lite.json")),
           downloadJson<Aggregates>(quadernoPath(user.id, "aggregates.json")),
+          briefPromise,
         ]);
         if (cancelled) return;
         setPmLite(pm);
         setAggregates(agg);
+        setLlmVoice(brief?.voice_message ?? null);
       } catch (e) {
         if (!cancelled) setError(String(e instanceof Error ? e.message : e));
       } finally {
@@ -669,6 +686,7 @@ export function TavoloHome() {
               : null
           }
           onSediamoci={() => nav("/sessione")}
+          voiceMessage={llmVoice ?? null}
         />
       </Reveal>
 

@@ -347,10 +347,31 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose }: P
   function handlePlayDone(_result: PlayResult) {
     // Write journal entry only once, only on full completion (not on early exit).
     if (!hasEntryToday("session_done")) {
+      // Collect the dominant motif/anchor label across the positions reviewed.
+      // Use the most frequent motif_label_it (or motif) among the session positions.
+      // Fallback to generic text if no motif data is available.
+      const motifCounts = new Map<string, number>();
+      for (const pos of positions) {
+        const label = pos.motif_label_it ?? pos.motif ?? null;
+        if (label) motifCounts.set(label, (motifCounts.get(label) ?? 0) + 1);
+      }
+      let dominantMotif: string | null = null;
+      let maxCount = 0;
+      for (const [label, cnt] of motifCounts.entries()) {
+        if (cnt > maxCount) { maxCount = cnt; dominantMotif = label; }
+      }
+
+      const body = dominantMotif
+        ? `Ci siamo seduti su "${dominantMotif}". Hai rivisto i momenti, poi hai giocato.`
+        : "Ci siamo seduti, abbiamo rivisto i tuoi momenti e giocato una partita.";
+
       writeEntry({
         kind: "session_done",
-        body: "Ci siamo seduti, abbiamo rivisto i tuoi momenti e giocato una partita.",
-        meta: { positions: positions.length },
+        body,
+        meta: {
+          positions: positions.length,
+          ...(dominantMotif ? { dominant_motif: dominantMotif } : {}),
+        },
       });
     }
     setPhase("saluto");

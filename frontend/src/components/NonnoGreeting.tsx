@@ -54,7 +54,7 @@ function pickPunch(
 
   // ── (a) Ancora #1 con count >= 3 ──────────────────────────────────────────
   if (topAnchor != null && topAnchor.count >= 3) {
-    const { label_it, count, games_with, rating_upside } = topAnchor;
+    const { label_it, count, games_with, rating_upside, category, type, exemplars } = topAnchor;
     // games_with = partite distinte con almeno un errore di questo tipo
     // (sempre <= partite giocate): numero per-partita, mai assurdo.
     // count = occorrenze per-mossa: usabile solo se diciamo "momenti".
@@ -70,11 +70,36 @@ function pickPunch(
         ? ` Sulle stesse posizioni, uno al tuo livello ci finisce ${Math.round(maiaWeighted.mine_pct)}% delle volte. Un ${target ?? "giocatore come vuoi diventare"} il ${Math.round(maiaWeighted.target_pct)}%.`
         : "";
 
-    const body = pick(0, [
-      `Ho guardato le tue partite. ${label_it}, ${inPartite}, su mosse che uno al tuo livello trovava.${maiaPart}${upsidePart}`,
-      `Ti dico una cosa sola. ${label_it}: ti e' successo ${inPartite}. Non in posizioni impossibili, in quelle che potevi chiudere.${maiaPart}${upsidePart}`,
-      `La cosa piu' netta che ho visto: ${label_it}, ${count} momenti in cui la mossa giusta era li' davanti. Mosse che uno come te trova, non di quelle che non si possono trovare.${maiaPart}${upsidePart}`,
-    ]);
+    // [2E] Time-causal: for zeitnot/rushed anchors, inject real seconds from an exemplar.
+    // Only when a real exemplar with spent_seconds is available — never invented.
+    const isTimingAnchor = category === "timing" || type === "zeitnot" || type === "rushed";
+    const timingExemplar = isTimingAnchor && exemplars && exemplars.length > 0
+      ? exemplars.find((ex) => ex.spent_seconds != null && ex.spent_seconds > 0) ?? null
+      : null;
+
+    let body: string;
+    if (isTimingAnchor && timingExemplar != null && timingExemplar.spent_seconds != null) {
+      // Build a time-causal sentence using real seconds from the exemplar.
+      const secs = Math.round(timingExemplar.spent_seconds);
+      const timeStateLabel =
+        timingExemplar.time_state === "zeitnot" ? "con l'orologio in crisi" :
+        timingExemplar.time_state === "rushed" ? "di fretta" :
+        "in poco tempo";
+      const avoidablePart = games_with >= 3
+        ? ` In ${games_with} partite e' successo su posizioni che potevi risolvere.`
+        : "";
+      body = pick(0, [
+        `Ho guardato le tue partite. ${label_it}: in ${secs} secondi, ${timeStateLabel}, su mosse che valevano la pena di uno stop.${avoidablePart}${upsidePart}`,
+        `Ti dico una cosa sola. ${label_it}: hai mosso in ${secs} secondi, ${timeStateLabel}. Non era una posizione semplice.${avoidablePart}${upsidePart}`,
+        `La cosa piu' netta che ho visto: ${count} momenti mossi ${timeStateLabel} (${secs}s in uno di quelli). Quelle posizioni chiedevano piu' tempo.${avoidablePart}${upsidePart}`,
+      ]);
+    } else {
+      body = pick(0, [
+        `Ho guardato le tue partite. ${label_it}, ${inPartite}, su mosse che uno al tuo livello trovava.${maiaPart}${upsidePart}`,
+        `Ti dico una cosa sola. ${label_it}: ti e' successo ${inPartite}. Non in posizioni impossibili, in quelle che potevi chiudere.${maiaPart}${upsidePart}`,
+        `La cosa piu' netta che ho visto: ${label_it}, ${count} momenti in cui la mossa giusta era li' davanti. Mosse che uno come te trova, non di quelle che non si possono trovare.${maiaPart}${upsidePart}`,
+      ]);
+    }
 
     const close = pick(1, [
       "Una settimana su questo e i punti arrivano.",
@@ -201,6 +226,12 @@ export interface NonnoGreetingProps {
   maiaWeighted: MaiaWeighted | null | undefined;
   byPhase: ByPhaseSlim | null | undefined;
   onSediamoci: () => void;
+  /**
+   * LLM-generated voice from coach_brief.json#voice_message.
+   * When present and non-empty, replaces pickPunch (the template fallback).
+   * The saluto (greeting line) is still rendered above the voice body.
+   */
+  voiceMessage?: string | null;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -212,9 +243,15 @@ export function NonnoGreeting({
   maiaWeighted,
   byPhase,
   onSediamoci,
+  voiceMessage,
 }: NonnoGreetingProps) {
   const saluto = buildSaluto(goal);
-  const { body, close } = pickPunch(goal, topAnchor, decisions, maiaWeighted, byPhase);
+
+  // Use LLM voice when available; fall back to deterministic pickPunch template.
+  const useLlmVoice = voiceMessage != null && voiceMessage.trim().length > 0;
+  const { body, close } = useLlmVoice
+    ? { body: voiceMessage!.trim(), close: "" }
+    : pickPunch(goal, topAnchor, decisions, maiaWeighted, byPhase);
 
   return (
     <div
@@ -250,11 +287,11 @@ export function NonnoGreeting({
         {saluto}
       </p>
 
-      {/* LA FRUSTATA — corpo */}
+      {/* LA FRUSTATA — corpo (or LLM voice when available) */}
       <p
         style={{
           margin: 0,
-          marginBottom: "0.75rem",
+          marginBottom: useLlmVoice ? "1.75rem" : "0.75rem",
           fontSize: "1.05rem",
           lineHeight: 1.65,
           color: "var(--color-text-soft)",
@@ -263,19 +300,21 @@ export function NonnoGreeting({
         {body}
       </p>
 
-      {/* Chiusura con speranza */}
-      <p
-        style={{
-          margin: 0,
-          marginBottom: "1.75rem",
-          fontSize: "1rem",
-          lineHeight: 1.6,
-          color: "var(--color-text)",
-          fontWeight: 500,
-        }}
-      >
-        {close}
-      </p>
+      {/* Chiusura con speranza — omitted when LLM voice is used (already self-contained) */}
+      {close && (
+        <p
+          style={{
+            margin: 0,
+            marginBottom: "1.75rem",
+            fontSize: "1rem",
+            lineHeight: 1.6,
+            color: "var(--color-text)",
+            fontWeight: 500,
+          }}
+        >
+          {close}
+        </p>
+      )}
 
       {/* CTA primaria — vive qui, non in fondo alla pagina */}
       <button
@@ -289,6 +328,7 @@ export function NonnoGreeting({
           letterSpacing: "0.01em",
           transition:
             "transform 160ms cubic-bezier(0.23,1,0.32,1), background 160ms cubic-bezier(0.23,1,0.32,1)",
+          marginTop: close ? undefined : 0,
         }}
       >
         Sediamoci al Tavolo
