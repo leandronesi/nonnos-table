@@ -314,6 +314,23 @@ function AnchorRow({ anchor, rank }: { anchor: Anchor; rank: number }) {
             {anchor.label_it}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+            {/* 3D: mostra count_avoidable (Maia-filtrato) se > 0, altrimenti count grezzo */}
+            {(() => {
+              const avoidable = (anchor.count_avoidable ?? 0);
+              const displayCount = avoidable > 0 ? avoidable : anchor.count;
+              const label = avoidable > 0 ? "alla tua portata" : "errori";
+              if (displayCount > 0) {
+                return (
+                  <span className="tt-chip" style={{ color: "var(--color-muted)", background: "rgba(255,255,255,0.05)", fontVariantNumeric: "tabular-nums" }}>
+                    <span className="font-mono" style={{ fontWeight: 700, color: avoidable > 0 ? "var(--color-warn)" : "var(--color-text)" }}>
+                      {displayCount}
+                    </span>
+                    {" "}{label}
+                  </span>
+                );
+              }
+              return null;
+            })()}
             {anchor.rating_upside != null && anchor.rating_upside > 0 && (
               <span
                 className="tt-chip"

@@ -57,6 +57,53 @@ export interface TransferAggregates {
   prior: TransferMotifStat[];
 }
 
+// ── AnchorTrail — temporal anchor series from history snapshots ──────────────
+
+/**
+ * One data point in an anchor's temporal series.
+ *
+ * `freq` = count / games_analyzed for that snapshot.
+ * null when games_analyzed is 0 (safe — never divide by zero).
+ */
+export interface AnchorTrailPoint {
+  /** ISO datetime of the snapshot (captured_at). */
+  captured_at: string;
+  /** ISO week string for grouping/display (e.g. "2026-W22"). */
+  week_iso: string;
+  /** Error frequency: count / games_analyzed. null if games_analyzed is 0. */
+  freq: number | null;
+  /** Raw error count in this snapshot. */
+  count: number;
+  /** Games analyzed in this snapshot (denominator). */
+  games: number;
+}
+
+/**
+ * Temporal series for one anchor key, derived from HistoryFile snapshots.
+ *
+ * Only emitted when the anchor appears in >= 2 snapshots (otherwise the trend
+ * has no meaning). The `points` array is ordered chronologically (oldest first).
+ *
+ * direction compares the last vs first point using a >= 20% relative change
+ * threshold in freq (same logic as anchor_improved milestone):
+ *   - improving: last.freq / first.freq < 0.80  (≥20% relative drop)
+ *   - worsening: last.freq / first.freq > 1.20   (≥20% relative rise)
+ *   - stable: otherwise
+ * When freq is null in either endpoint, direction = "stable".
+ *
+ * confidence:
+ *   - "high":   >= 4 points AND all counts >= 3
+ *   - "medium": >= 2 points AND min count >= 2
+ *   - "low":    otherwise
+ */
+export interface AnchorTrail {
+  key: string;
+  label_it: string;
+  points: AnchorTrailPoint[];
+  direction: "improving" | "worsening" | "stable";
+  confidence: "low" | "medium" | "high";
+}
+
 // ── Storia temporale (§2.1-2.3 BUILD.md) ─────────────────────────────────────
 
 /**

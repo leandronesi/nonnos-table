@@ -34,9 +34,11 @@ import type {
   Phase,
   Result,
   SpentBucket,
+  ClockBucket,
   TimeManagement,
   BlindSpot,
 } from "../types";
+import { ANALYZED_TIME_CLASSES } from "./config";
 import type { GameRow, ProfileRow } from "../auth/db.types";
 import type { GameAnalysis } from "./analyze";
 
@@ -55,8 +57,10 @@ export interface PlayerModelLite {
   openings: OpeningStat[];
   /**
    * Slice gestione-tempo calcolata browser-side.
-   * Partial perché clock_vs_accuracy e zeitnot richiedono il clock RIMANENTE,
-   * non disponibile nel browser — quei campi sono omessi.
+   * Tutti i campi sono popolati:
+   *   spent_vs_accuracy, instant_moves_in_critical — da spentSeconds.
+   *   clock_vs_accuracy, zeitnot — da clockRemaining (disponibile in analyze.ts).
+   * Maia-dependent fields (avoidable_errors, avoidable_share) remain omitted.
    */
   time_management: Partial<TimeManagement>;
   /**
@@ -666,6 +670,120 @@ function buildOpenings(games: GameRow[], analyses: GameAnalysis[]): OpeningStat[
 
 // ── time_management ───────────────────────────────────────────────────────────
 
+// ── clock_vs_accuracy + zeitnot ───────────────────────────────────────────────
+
+/**
+ * Clock-percentage buckets for clock_vs_accuracy.
+ *
+ * Each bucket represents the fraction of the BASE time control remaining
+ * when the player made a move. This makes the buckets comparable across
+ * different time controls (e.g., 3+0 vs 10+0 both use 0..1 scale).
+ *
+ * Bucket boundaries are fractions of time_control_base_seconds:
+ *   >50%   = plenty of time
+ *   20-50% = mid-game clock
+ *   10-20% = low time
+ *   <10%   = zeitnot territory
+ */
+const CLOCK_BUCKETS: { key: string; bucket: string; minFrac: number; maxFrac: number }[] = [
+  { key: "gt_50pct",  bucket: "> 50%",    minFrac: 0.50, maxFrac: Infinity },
+  { key: "20_50pct",  bucket: "20-50%",   minFrac: 0.20, maxFrac: 0.50 },
+  { key: "10_20pct",  bucket: "10-20%",   minFrac: 0.10, maxFrac: 0.20 },
+  { key: "lt_10pct",  bucket: "< 10% (zeitnot)", minFrac: 0.0, maxFrac: 0.10 },
+];
+
+/**
+ * Builds clock_vs_accuracy (ClockBucket[]) and zeitnot stats from GameAnalysis[].
+ *
+ * Uses clock_remaining / time_control_base_seconds as the bucket dimension.
+ * Only processes rapid/blitz games (ANALYZED_TIME_CLASSES guard — defensive
+ * belt-and-suspenders since ingest already filters, but a stale analysis file
+ * from a daily game would otherwise skew the zeitnot signal).
+ *
+ * Honest rules:
+ *   - A move is included only when BOTH clock_remaining AND
+ *     time_control_base_seconds are non-null and base > 0.
+ *   - If no moves qualify (all-daily corpus, or no clock annotations), returns
+ *     clock_vs_accuracy = [] and zeitnot = { n: 0, avg_cp_loss: 0, blunders: 0 }.
+ *   - Buckets with 0 positions are omitted from clock_vs_accuracy.
+ *   - No NaN: all divisions guarded by > 0 checks.
+ */
+function buildClockRemaining(analyses: GameAnalysis[]): {
+  clock_vs_accuracy: ClockBucket[];
+  zeitnot: { n: number; avg_cp_loss: number; blunders: number };
+} {
+  type BucketAcc = {
+    positions: number;
+    cpLossSum: number;
+    blunders: number;
+    errors: number;
+  };
+
+  const acc: Record<string, BucketAcc> = {};
+  for (const b of CLOCK_BUCKETS) {
+    acc[b.key] = { positions: 0, cpLossSum: 0, blunders: 0, errors: 0 };
+  }
+
+  // Zeitnot = all moves in the lt_10pct bucket across all games.
+  // We accumulate separately so we can also report it as the dedicated metric.
+  let zeitnotN = 0;
+  let zeitnotCpSum = 0;
+  let zeitnotBlunders = 0;
+
+  for (const ga of analyses) {
+    // Belt-and-suspenders: skip non rapid/blitz (daily has no usable clock).
+    if (ga.time_class && !ANALYZED_TIME_CLASSES.includes(ga.time_class)) continue;
+
+    const base = ga.time_control_base_seconds;
+    if (base == null || base <= 0) continue; // no usable time control for this game
+
+    for (const mv of ga.moves) {
+      if (mv.clockRemaining == null) continue;
+
+      const frac = mv.clockRemaining / base;
+      const b = CLOCK_BUCKETS.find((b) => frac >= b.minFrac && frac < b.maxFrac);
+      if (!b) continue; // outside defined range (should not happen with frac >= 0)
+
+      const a = acc[b.key];
+      a.positions++;
+      a.cpLossSum += mv.cpLoss;
+      if (mv.category === "blunder") a.blunders++;
+      if (mv.category === "mistake" || mv.category === "blunder") a.errors++;
+
+      // Track zeitnot separately for the dedicated metric.
+      if (b.key === "lt_10pct") {
+        zeitnotN++;
+        zeitnotCpSum += mv.cpLoss;
+        if (mv.category === "blunder") zeitnotBlunders++;
+      }
+    }
+  }
+
+  const clock_vs_accuracy: ClockBucket[] = CLOCK_BUCKETS
+    .filter((b) => acc[b.key].positions > 0)
+    .map((b) => {
+      const a = acc[b.key];
+      return {
+        bucket: b.bucket,
+        key: b.key,
+        positions: a.positions,
+        avg_cp_loss: Math.round(a.cpLossSum / a.positions),
+        blunders: a.blunders,
+        errors: a.errors,
+        // avoidable_errors / avoidable_share require Maia → omitted (optional)
+        // avg_gap requires target comparison → omitted (optional)
+      };
+    });
+
+  const zeitnot = {
+    n: zeitnotN,
+    avg_cp_loss: zeitnotN > 0 ? Math.round(zeitnotCpSum / zeitnotN) : 0,
+    blunders: zeitnotBlunders,
+  };
+
+  return { clock_vs_accuracy, zeitnot };
+}
+
 /**
  * Definizione dei bucket "tempo speso sulla mossa".
  * La chiave `lt_1s` / `gt_30s` è riconosciuta da SpeedVsErrorsChart
@@ -683,12 +801,10 @@ const SPENT_BUCKETS: { key: string; bucket: string; min: number; max: number }[]
  * Calcola la slice time_management dal lato browser.
  *
  * Campi calcolati:
- *   spent_vs_accuracy — da spentSeconds (disponibile).
+ *   spent_vs_accuracy       — da spentSeconds (disponibile).
  *   instant_moves_in_critical — mosse < 5 s con scoreBeforeCp >= 100.
- *
- * Campi NON calcolati (richiedono clock RIMANENTE — TODO):
- *   clock_vs_accuracy — TODO: richiede clock-rimanente, non estratto dal browser.
- *   zeitnot           — TODO: richiede clock-rimanente, non estratto dal browser.
+ *   clock_vs_accuracy       — da clockRemaining / time_control_base_seconds.
+ *   zeitnot                 — posizioni con clock < 10% del tempo base.
  */
 function buildTimeManagement(analyses: GameAnalysis[]): Partial<TimeManagement> {
   // ── spent_vs_accuracy ────────────────────────────────────────────────────
@@ -756,12 +872,14 @@ function buildTimeManagement(analyses: GameAnalysis[]): Partial<TimeManagement> 
     blunders: instantCritBlunders,
   };
 
-  // clock_vs_accuracy e zeitnot richiedono clock-rimanente — TODO
+  // clock_vs_accuracy and zeitnot from clockRemaining (available since analyze.ts sprint).
+  const { clock_vs_accuracy, zeitnot } = buildClockRemaining(analyses);
+
   return {
     spent_vs_accuracy,
     instant_moves_in_critical,
-    // clock_vs_accuracy: omesso — richiede clock-rimanente, TODO
-    // zeitnot: omesso — richiede clock-rimanente, TODO
+    clock_vs_accuracy,
+    zeitnot,
   };
 }
 

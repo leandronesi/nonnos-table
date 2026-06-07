@@ -20,6 +20,8 @@ import type {
   MilestoneType,
   GoalProgress,
   TransferMotifStat,
+  AnchorTrail,
+  AnchorTrailPoint,
 } from "../types";
 import type { Goal } from "../types";
 import type { Aggregates } from "./aggregate";
@@ -86,40 +88,87 @@ export async function appendSnapshot(
 // ── Derived computations (pure) ──────────────────────────────────────────────
 
 /**
- * Returns series for each anchor key found in the history snapshots.
- * Each point has { week_iso, mine_pct, target_pct, count }.
+ * Returns an AnchorTrail[] for each anchor key that appears in >= 2 snapshots.
  *
- * Prevails over trend_now when there are >= 2 snapshots (§1.2 BUILD.md).
+ * The signal is FREQUENCY PER GAME (count / games_analyzed), not mine_pct
+ * (which is static Maia "obviousness" and does not reflect learning progress).
+ *
+ * Rules:
+ *   - Series with < 2 points are dropped entirely (no meaningful trend).
+ *   - freq is null when games_analyzed == 0 (honest — never divide by zero).
+ *   - direction uses a >= 20% relative threshold on first vs last freq, matching
+ *     the anchor_improved milestone logic for internal consistency.
+ *   - When either endpoint freq is null, direction = "stable".
+ *
+ * Points are ordered chronologically (oldest first).
  */
-export function anchorTrendsFromHistory(
-  history: HistoryFile,
-): Record<
-  string,
-  Array<{ week_iso: string; mine_pct: number | null; target_pct: number | null; count: number }>
-> {
-  const series: Record<
+export function anchorTrendsFromHistory(history: HistoryFile): AnchorTrail[] {
+  // Collect raw points per anchor key from snapshots in chronological order.
+  const rawMap: Map<
     string,
-    Array<{ week_iso: string; mine_pct: number | null; target_pct: number | null; count: number }>
-  > = {};
+    { label_it: string; points: AnchorTrailPoint[] }
+  > = new Map();
 
-  // Walk snapshots in chronological order.
   const sorted = [...history.snapshots].sort((a, b) =>
     a.captured_at.localeCompare(b.captured_at),
   );
 
   for (const snap of sorted) {
+    const games = snap.games_analyzed;
     for (const a of snap.anchors) {
-      if (!series[a.key]) series[a.key] = [];
-      series[a.key].push({
+      if (!rawMap.has(a.key)) {
+        rawMap.set(a.key, { label_it: a.label_it, points: [] });
+      }
+      const entry = rawMap.get(a.key)!;
+      // Honest: label_it may evolve; keep most-recent label (last snap wins as
+      // we iterate chronologically and overwrite).
+      entry.label_it = a.label_it;
+      const freq: number | null = games > 0 ? a.count / games : null;
+      entry.points.push({
+        captured_at: snap.captured_at,
         week_iso: snap.week_iso,
-        mine_pct: a.mine_pct,
-        target_pct: a.target_pct,
+        freq,
         count: a.count,
+        games,
       });
     }
   }
 
-  return series;
+  const trails: AnchorTrail[] = [];
+
+  for (const [key, { label_it, points }] of rawMap.entries()) {
+    // Drop series with < 2 data points — no trend can be inferred.
+    if (points.length < 2) continue;
+
+    const first = points[0];
+    const last = points[points.length - 1];
+
+    // direction: >= 20% relative change in freq (same threshold as anchor_improved).
+    let direction: AnchorTrail["direction"] = "stable";
+    if (first.freq != null && last.freq != null && first.freq > 0) {
+      const ratio = last.freq / first.freq;
+      if (ratio <= 0.80) direction = "improving";    // ≥20% relative drop
+      else if (ratio >= 1.20) direction = "worsening"; // ≥20% relative rise
+    }
+
+    // confidence: based on number of points and minimum count per point.
+    const minCount = Math.min(...points.map((p) => p.count));
+    let confidence: AnchorTrail["confidence"];
+    if (points.length >= 4 && minCount >= 3) {
+      confidence = "high";
+    } else if (points.length >= 2 && minCount >= 2) {
+      confidence = "medium";
+    } else {
+      confidence = "low";
+    }
+
+    trails.push({ key, label_it, points, direction, confidence });
+  }
+
+  // Sort by key for stable output (UI can re-sort by direction/confidence).
+  trails.sort((a, b) => a.key.localeCompare(b.key));
+
+  return trails;
 }
 
 // ── Milestones ───────────────────────────────────────────────────────────────
