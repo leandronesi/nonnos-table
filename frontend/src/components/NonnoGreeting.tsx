@@ -240,6 +240,10 @@ export interface NonnoGreetingProps {
   memoria?: string | null;
 }
 
+// ── Stagger delay slots (for CSS animation-delay) ─────────────────────────────
+// Three stagger layers: saluto (100ms) | body (300ms) | CTA (500ms).
+// CSS classes defined in index.css: .ng-stagger-1, .ng-stagger-2, .ng-stagger-3.
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function NonnoGreeting({
@@ -294,8 +298,9 @@ export function NonnoGreeting({
         Nonno
       </div>
 
-      {/* Saluto + traiettoria */}
+      {/* Saluto + traiettoria — stagger layer 1 (100ms) */}
       <p
+        className="ng-stagger-1"
         style={{
           margin: 0,
           marginBottom: "1rem",
@@ -310,14 +315,16 @@ export function NonnoGreeting({
         {saluto}
       </p>
 
-      {/* LA FRUSTATA — corpo (or LLM voice when available) */}
+      {/* LA FRUSTATA — corpo (or LLM voice) — stagger layer 2 (300ms) */}
       <p
+        className="ng-stagger-2"
         style={{
           margin: 0,
           marginBottom: useLlmVoice ? "1.75rem" : "0.75rem",
           fontSize: "1.05rem",
           lineHeight: 1.65,
           color: "var(--color-text-soft)",
+          maxWidth: "65ch",
         }}
       >
         {body}
@@ -326,6 +333,7 @@ export function NonnoGreeting({
       {/* Chiusura con speranza — omitted when LLM voice is used (already self-contained) */}
       {close && (
         <p
+          className="ng-stagger-2"
           style={{
             margin: 0,
             marginBottom: "1.75rem",
@@ -333,16 +341,17 @@ export function NonnoGreeting({
             lineHeight: 1.6,
             color: "var(--color-text)",
             fontWeight: 500,
+            maxWidth: "65ch",
           }}
         >
           {close}
         </p>
       )}
 
-      {/* CTA primaria — vive qui, non in fondo alla pagina */}
+      {/* CTA primaria — stagger layer 3 (500ms) */}
       <button
         onClick={onSediamoci}
-        className="btn btn-primary btn-lg"
+        className="btn btn-primary btn-lg ng-stagger-3"
         style={{
           width: "100%",
           fontSize: "1rem",
@@ -356,6 +365,22 @@ export function NonnoGreeting({
       >
         Sediamoci al Tavolo
       </button>
+
+      {/* Fallback disclosure — shown only when using the template (no LLM brief) */}
+      {!useLlmVoice && (
+        <p
+          style={{
+            margin: 0,
+            marginTop: "0.875rem",
+            fontSize: "0.72rem",
+            lineHeight: 1.4,
+            color: "var(--color-faint)",
+            textAlign: "center",
+          }}
+        >
+          Non ho ancora letto le ultime partite.
+        </p>
+      )}
     </div>
   );
 }

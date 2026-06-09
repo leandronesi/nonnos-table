@@ -17,6 +17,7 @@ import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useOnboardingRun } from "../pipeline/OnboardingRunContext";
+import { useTavoloActionsRef } from "../context/TavoloActionsContext";
 import { toggleTheme, getCurrentTheme } from "../theme";
 
 // ── Nav definition ─────────────────────────────────────────────────────────────
@@ -35,15 +36,6 @@ function BoardIcon() {
   );
 }
 
-function PlayIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="9" cy="9" r="7"/>
-      <polygon points="7.5,6.5 12.5,9 7.5,11.5" fill="currentColor" stroke="none"/>
-    </svg>
-  );
-}
-
 function BookIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -53,9 +45,9 @@ function BookIcon() {
   );
 }
 
+// Sessione is entered only via the "Sediamoci" CTA on TavoloHome — not from nav.
 const NAV: NavDest[] = [
   { label: "Tavolo",   path: "/",         icon: <BoardIcon /> },
-  { label: "Sessione", path: "/sessione",  icon: <PlayIcon /> },
   { label: "Quaderno", path: "/quaderno",  icon: <BookIcon /> },
 ];
 
@@ -152,11 +144,15 @@ function DesktopSidebar({
   username,
   onSignOut,
   onThemeToggle,
+  onRefresh,
+  onReanalyze,
 }: {
   pathname: string;
   username: string | null;
   onSignOut: () => void;
   onThemeToggle: () => void;
+  onRefresh: (() => void) | null;
+  onReanalyze: (() => void) | null;
 }) {
   return (
     <nav
@@ -262,6 +258,64 @@ function DesktopSidebar({
             whiteSpace: "nowrap",
           }}>
             {username}
+          </div>
+        )}
+        {/* Quiet action links: Aggiorna / Rianalizza — only shown on Tavolo */}
+        {(onRefresh || onReanalyze) && (
+          <div style={{
+            fontSize: "0.72rem",
+            color: "var(--color-faint)",
+            display: "flex",
+            gap: "0.5rem",
+            flexWrap: "wrap",
+          }}>
+            {onRefresh && (
+              <button
+                onClick={onRefresh}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  color: "var(--color-faint)",
+                  fontSize: "inherit",
+                  fontFamily: "inherit",
+                  textDecoration: "underline",
+                  textDecorationColor: "color-mix(in srgb, var(--color-faint) 50%, transparent)",
+                  textUnderlineOffset: "2px",
+                  transition: "color 140ms cubic-bezier(0.23,1,0.32,1)",
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--color-muted)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--color-faint)"; }}
+              >
+                Aggiorna le partite
+              </button>
+            )}
+            {onRefresh && onReanalyze && (
+              <span style={{ color: "var(--color-faint)", userSelect: "none" }}> · </span>
+            )}
+            {onReanalyze && (
+              <button
+                onClick={onReanalyze}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  color: "var(--color-faint)",
+                  fontSize: "inherit",
+                  fontFamily: "inherit",
+                  textDecoration: "underline",
+                  textDecorationColor: "color-mix(in srgb, var(--color-faint) 50%, transparent)",
+                  textUnderlineOffset: "2px",
+                  transition: "color 140ms cubic-bezier(0.23,1,0.32,1)",
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--color-muted)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--color-faint)"; }}
+              >
+                Rianalizza da capo
+              </button>
+            )}
           </div>
         )}
         {/* Row: theme toggle + sign out */}
@@ -441,6 +495,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { profile, signOut } = useAuth();
   const { pathname } = useLocation();
   const { silentRefreshing } = useOnboardingRun();
+  const tavoloActionsRef = useTavoloActionsRef();
   // Local state to force icon re-render on toggle
   const [_theme, setThemeState] = useState(() => getCurrentTheme());
 
@@ -455,6 +510,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const username = profile?.chess_com_username ?? null;
 
+  // Only show quiet action links when on the Tavolo and callbacks are registered.
+  const isTavolo = pathname === "/";
+  const onRefresh = isTavolo ? (() => tavoloActionsRef.current?.handleRefresh()) : null;
+  const onReanalyze = isTavolo ? (() => tavoloActionsRef.current?.handleFullReanalyze()) : null;
+
   return (
     <>
       {/* ── DESKTOP layout (>= 1024px) — hidden on mobile via CSS ──────── */}
@@ -464,6 +524,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           username={username}
           onSignOut={handleSignOut}
           onThemeToggle={handleThemeToggle}
+          onRefresh={onRefresh}
+          onReanalyze={onReanalyze}
         />
         {/* Content */}
         <main className="appshell-content">
