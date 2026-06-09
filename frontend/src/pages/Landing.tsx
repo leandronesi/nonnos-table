@@ -53,20 +53,18 @@ export function Landing() {
       <main className="public-main">
         <section className="public-hero" aria-labelledby="home-title">
           <div className="public-copy">
-            <div className="public-kicker">Coach di scacchi · Beta su invito</div>
+            <div className="public-kicker">Beta su invito</div>
 
             <h1 id="home-title">
               il Tavolo del <span>Nonno</span>
             </h1>
 
             <p className="public-payoff">
-              Scegli il tuo prossimo livello. Nonno si siede un passo piu' avanti.
+              Solo 1 su 8 al tuo livello l&apos;avrebbe trovata. Ce la rivediamo insieme.
             </p>
 
             <p className="public-lede">
-              Come quella persona che ti aspettava per giocare: si metteva al tuo
-              passo, ma vedeva sempre un poco piu' in la'. Qui ogni partita diventa
-              una sera al tavolo, e ogni sera sai meglio dove guardare.
+              Non analizzi le tue partite. Ti siedi col Nonno a rivederle.
             </p>
 
             <TargetRail />
@@ -75,9 +73,8 @@ export function Landing() {
               <img src={NONNO_FACE} alt="Nonno O." className="public-nonno-face" />
               <figcaption>
                 <span>Nonno, quando ti siedi</span>
-                Ti aspetto qui. Giochiamo al tuo passo, ma tengo la sedia appena piu'
-                avanti. Non per farti sentire piccolo: per mostrarti, una mossa alla
-                volta, dove andrai a sederti.
+                Ti aspetto qui. Giochiamo al tuo passo. Ma tengo la sedia un passo
+                piu&apos; avanti: per mostrarti, una mossa alla volta, dove stai andando.
               </figcaption>
             </figure>
 
@@ -107,13 +104,13 @@ export function Landing() {
                 <span />
                 <b>1500</b>
               </div>
-              <p>Il posto al tavolo che hai scelto.</p>
+              <p>Il posto che stai raggiungendo.</p>
             </div>
 
             <div className="public-session-card">
               <span className="public-panel-label">Oggi al tavolo</span>
               <strong>Pezzo in presa</strong>
-              <p>Perdi un pezzo muovendo in meno di 8 secondi. Calma. Respira, prima di muovere.</p>
+              <p>Perdi un pezzo muovendo in meno di 8 secondi. Guarda prima di muovere.</p>
             </div>
 
             <div className="public-board-card">
@@ -185,7 +182,7 @@ function TargetRail() {
         <span />
       </div>
       <div>
-        <span>target</span>
+        <span>dove vai</span>
         <strong>1500</strong>
       </div>
     </div>

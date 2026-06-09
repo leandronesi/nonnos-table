@@ -217,9 +217,15 @@ function ProgressThread({
 function PrimoColpo({
   brief,
   onEnter,
+  username,
+  currentRating,
+  tcLabel,
 }: {
   brief: CoachLlmBrief | null;
   onEnter: () => void;
+  username?: string;
+  currentRating?: number;
+  tcLabel?: string;
 }) {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -227,10 +233,16 @@ function PrimoColpo({
     return () => clearTimeout(t);
   }, []);
 
+  // Fallback phrase: use data-rich version if username+rating+tc are available.
+  const fallback =
+    username && currentRating && tcLabel
+      ? `Ho guardato le tue partite ${tcLabel}, ${username}. Sei a ${currentRating}, e c'e' una cosa che ti tiene li'. Siediti.`
+      : "Ho guardato. C'e' una cosa che si ripete nelle tue partite. Siediti, te la mostro.";
+
   const voiceText =
     brief?.voice_message ??
     brief?.one_line_diagnosis ??
-    "Ho visto abbastanza. Vieni, siediti. C'e' una cosa sola che voglio dirti.";
+    fallback;
 
   return (
     <div
@@ -285,11 +297,17 @@ export interface IncontroSceneProps {
   onEnter: () => void;
   onExit: () => void;
   targetRating?: number;
+  /** Chess.com username for the fallback primo-colpo phrase. */
+  username?: string;
+  /** Player's current rating for the fallback primo-colpo phrase. Not stored in profiles: pass only when available from Chess.com API. */
+  currentRating?: number;
+  /** Time class label (rapid/blitz/bullet) for the fallback primo-colpo phrase. */
+  tcLabel?: string;
 }
 
 // ── Componente scena (pura presentazione) ─────────────────────────────────────
 
-export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, targetRating }: IncontroSceneProps) {
+export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, targetRating, username, currentRating, tcLabel }: IncontroSceneProps) {
   // Stato del ciclo slide
   const [slideIndex, setSlideIndex] = useState(0);
   const [slideVisible, setSlideVisible] = useState(true);
@@ -426,6 +444,9 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, ta
             <PrimoColpo
               brief={readyBrief}
               onEnter={onEnter}
+              username={username}
+              currentRating={currentRating}
+              tcLabel={tcLabel}
             />
           )}
 
@@ -503,7 +524,7 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, ta
                 >
                   {phase === "analyzing"
                     ? "Stockfish gira nel tuo browser. Non chiudere la pagina: ci vuole qualche minuto."
-                    : "Il primo giro scarica circa 44 MB del modello. Poi resta in cache."}
+                    : "La prima volta ci vuole un po' piu' di tempo. Dopo va piu' veloce."}
                 </p>
               )}
             </>
