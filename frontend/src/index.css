@@ -3744,9 +3744,8 @@ button:disabled, [aria-disabled="true"] {
 .sess-nonno {
   position: relative;
   padding: 14px 18px 14px 22px;
-  border-left: 2px solid var(--color-brand);      /* 2px = voce, non side-stripe decorativa */
-  background: color-mix(in srgb, var(--color-brand) 5%, var(--color-surface));
-  border-radius: 0 10px 10px 0;
+  background: color-mix(in srgb, var(--color-brand) 9%, var(--color-surface));
+  border-radius: 10px;
 }
 .sess-nonno .who {
   display: block;
@@ -3987,33 +3986,6 @@ button:disabled, [aria-disabled="true"] {
 .position-puzzle-intro { line-height: 1.55; }
 .position-puzzle-verdict { transition: opacity 200ms ease; }
 
-/* ============================================================================
- * W3 — EvalBar (barra verticale vantaggio Stockfish, PlayStep)
- * ========================================================================== */
-.eval-bar {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  border-radius: 4px;
-  overflow: hidden;
-  background: #888;
-  flex-shrink: 0;
-}
-.eval-bar-black { background: #1a1a1a; }
-.eval-bar-white { background: #f0f0f0; }
-.eval-bar-label {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) rotate(-90deg);
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: var(--color-gold-soft);
-  text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
-  pointer-events: none;
-  white-space: nowrap;
-}
 
 /* ============================================================================
  * OOUX v2 — Pattern as Object

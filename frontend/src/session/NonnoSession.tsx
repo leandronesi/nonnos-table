@@ -16,6 +16,7 @@
 import { useEffect, useState } from "react";
 import type { PositionExample } from "../pipeline/aggregate";
 import type { PlayResult } from "./store";
+import type { PositionRow } from "../types";
 import { toPositionRow } from "./fromCadute";
 import { writeEntry, hasEntryToday } from "./journal";
 import { MomentReview } from "./MomentReview";
@@ -39,26 +40,38 @@ interface Props {
 // Phrase banks — voce Nonno, brevi, 2 varianti
 // ---------------------------------------------------------------------------
 
-const AIUTO_INTROS = [
-  "Adesso ti aiuto io. La casa di partenza e' evidenziata. Trova dove va.",
-  "Ci sono. Muovi il pezzo dalla casa dorata. Trova la mossa.",
-];
-
-const DA_SOLO_INTROS = [
-  "Adesso tocca a te. Senza aiuti. Pensa, poi muovi.",
-  "Niente suggerimenti questa volta. Calma e attenzione.",
-];
 
 const SALUTO_PHRASES = [
-  "Bravo. Hai guardato le tue mosse in faccia. Questo si fa.",
-  "Bene. Adesso sai dove eri. Domani vediamo come va.",
-  "Oooh. Hai rivisto, hai giocato. Per oggi basta.",
-  "Bene cosi. Torna domani con le stesse mosse in testa.",
-  "Hai fermato la mano almeno una volta oggi. Bene cosi.",
+  "Hai visto la posizione, ci hai giocato. Domani riprendiamo da dove hai lasciato.",
+  "Bene. Oggi hai guardato dove eri. Domani vediamo se ci torna quella stessa struttura.",
+  "Oooh. Hai rivisto, hai giocato. Ci siamo. Domani un'altra.",
+  "Bene cosi. Quella posizione adesso la riconosci. Torna domani.",
+  "Hai fermato la mano una volta. Ricordatelo domani quando ci ritrovi quella struttura.",
 ];
 
 function pickIdx<T>(arr: T[], n: number): T {
   return arr[n % arr.length];
+}
+
+// ---------------------------------------------------------------------------
+// Intro builders — frasi Nonno contestualizzate coi dati Maia/clock
+// ---------------------------------------------------------------------------
+
+function buildAiutoIntroLines(pos: PositionRow): string[] {
+  const p = pos.p_maia_mine_top;
+  if (p != null && p > 0 && p <= 0.34) {
+    const n = Math.max(3, Math.round(1 / p));
+    return [`La trova solo 1 su ${n} al tuo livello. La casa di partenza e' evidenziata. Muovi da li'.`];
+  }
+  return ["Hai visto. Adesso proviamo insieme. La casa di partenza e' evidenziata in oro. Muovi da li'."];
+}
+
+function buildDaSoloIntroLines(pos: PositionRow): string[] {
+  const s = pos.spent_seconds;
+  if (s != null && s > 0) {
+    return [`Stavolta niente evidenziazione. In partita hai scelto in ${Math.max(1, Math.round(s))} secondi. Prenditi il tempo.`];
+  }
+  return ["Stavolta da solo, niente casa evidenziata. Calma: guarda prima, poi muovi."];
 }
 
 // ---------------------------------------------------------------------------
@@ -405,13 +418,14 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose }: P
               <div className="sess-phase-dot">2</div>
               <span className="sess-phase-title">Nonno mi aiuta</span>
             </div>
-            <PhaseIntro text={pickIdx(AIUTO_INTROS, positions.length)} />
+            {/* Short bridge only: the data-rich line lives inside the puzzle voice */}
+            <PhaseIntro text="Visto? Adesso proviamo insieme." />
             <PositionPuzzle
               key={`aiuto-${guided.game_id}-${guided.ply}`}
               position={guided}
               patternLabel={patternLabel}
               withHint={true}
-              introLines={AIUTO_INTROS}
+              introLines={buildAiutoIntroLines(guided)}
               onNext={advance}
             />
           </div>
@@ -424,13 +438,13 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose }: P
               <div className="sess-phase-dot">3</div>
               <span className="sess-phase-title">Gioco da solo</span>
             </div>
-            <PhaseIntro text={pickIdx(DA_SOLO_INTROS, positions.length)} />
+            <PhaseIntro text="Bene. Adesso da solo." />
             <PositionPuzzle
               key={`da-solo-${drill.game_id}-${drill.ply}`}
               position={drill}
               patternLabel={drillPatternLabel}
               withHint={false}
-              introLines={DA_SOLO_INTROS}
+              introLines={buildDaSoloIntroLines(drill)}
               onNext={advance}
             />
           </div>
@@ -442,7 +456,7 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose }: P
             <div className="sess-phase-header">
               <div className="sess-phase-dot honey">4</div>
               <span className="sess-phase-title" style={{ color: "var(--color-gold-soft)" }}>
-                Rifaccio la partita vs avversario {targetRating}
+                Hai visto la posizione due volte. Ora giocala.
               </span>
             </div>
             <PlayStep
