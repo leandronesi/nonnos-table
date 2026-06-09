@@ -21,7 +21,7 @@ import { BoardView } from "../components/BoardView";
 import { BoardLegend } from "../components/BoardLegend";
 import { useBoardFit } from "../components/useBoardFit";
 import { useStockfish } from "../engine/useStockfish";
-import { uciToArrow, uciToSan, cpToPawns } from "../pages/quaderno/boardArrows";
+import { uciToArrow, uciToSan } from "../pages/quaderno/boardArrows";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Types & constants
@@ -76,18 +76,17 @@ function dateIt(iso: string | null | undefined): string {
 
 /** Build Nonno's one-liner for GUARDA phase given the position */
 function buildGuardaLine(pos: PositionExample): string {
-  const loss = Math.round(pos.cp_loss / 100 * 10) / 10;
   const bestSan = uciToSan(pos.fen_before, pos.best_uci ?? null);
   const oppCtx = pos.last_opp_san
     ? `Dopo ${pos.last_opp_san}, la mossa giusta era ${bestSan}.`
     : `La mossa giusta era ${bestSan}.`;
 
   if (pos.cp_loss > 200) {
-    return `${oppCtx} Hai perso ${loss} pedoni. Riconosci il pattern.`;
+    return `${oppCtx} Riconosci il pattern.`;
   } else if (pos.cp_loss > 80) {
-    return `${oppCtx} Hai ceduto ${loss} pedoni. Evitabile.`;
+    return `${oppCtx} Era evitabile.`;
   } else {
-    return `${oppCtx} Una piccola imprecisione (${loss} pedoni), ma si ripete.`;
+    return `${oppCtx} Una piccola imprecisione, ma si ripete.`;
   }
 }
 
@@ -234,11 +233,6 @@ function PhaseGuarda({
             <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "#34d399" }}>
               {bestSan}
             </span>
-            {pos.cp_loss > 0 && (
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--color-muted)", fontVariantNumeric: "tabular-nums" }}>
-                (-{cpToPawns(pos.cp_loss)} pedoni)
-              </span>
-            )}
           </div>
 
           {/* Nonno line */}
@@ -584,14 +578,6 @@ function InteractivePuzzle({
                   <div style={{ display: "flex", gap: "0.5rem", fontSize: "0.82rem" }}>
                     <span style={{ color: "var(--color-muted)", width: "7rem" }}>Mossa giusta</span>
                     <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "#34d399" }}>{bestSan}</span>
-                  </div>
-                )}
-                {cpLoss !== null && (
-                  <div style={{ display: "flex", gap: "0.5rem", fontSize: "0.82rem" }}>
-                    <span style={{ color: "var(--color-muted)", width: "7rem" }}>Perdita</span>
-                    <span style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-soft)", fontVariantNumeric: "tabular-nums" }}>
-                      {cpLoss > 0 ? `-${cpToPawns(cpLoss)} pedoni` : "0.0 pedoni"}
-                    </span>
                   </div>
                 )}
               </div>

@@ -27,9 +27,11 @@ import type { TimeManagement, Tilt } from "../types";
 export function TimeManagementChart({
   time_management,
   tilt,
+  target,
 }: {
   time_management: TimeManagement;
   tilt: Tilt;
+  target?: number;
 }) {
   // Deriva blunder_rate per ogni bucket (count / positions).
   const data = time_management.clock_vs_accuracy.map((d) => ({
@@ -70,7 +72,7 @@ export function TimeManagementChart({
               axisLine={false}
               width={66}
               label={{
-                value: "ACPL · alto = peggio",
+                value: "Errore medio · alto = peggio",
                 angle: -90,
                 position: "insideLeft",
                 offset: 16,
@@ -99,7 +101,7 @@ export function TimeManagementChart({
               wrapperStyle={{ paddingTop: 8 }}
               formatter={(v) =>
                 v === "avg_cp_loss"
-                  ? "ACPL · linea (sx)"
+                  ? "Errore medio · linea (sx)"
                   : v === "blunder_pct"
                   ? "% errori gravi · barre (dx)"
                   : v
@@ -185,7 +187,7 @@ export function TimeManagementChart({
         </ResponsiveContainer>
       </div>
 
-      <ClockAvoidabilityStrip data={time_management.clock_vs_accuracy} />
+      <ClockAvoidabilityStrip data={time_management.clock_vs_accuracy} target={target} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6">
         <StatCard
@@ -193,7 +195,7 @@ export function TimeManagementChart({
           sub="< 5 secondi su posizione critica"
           value={time_management.instant_moves_in_critical.n}
           danger={time_management.instant_moves_in_critical.avg_cp_loss > 100}
-          metric={`ACPL ${time_management.instant_moves_in_critical.avg_cp_loss}`}
+          metric=""
           extra={`${time_management.instant_moves_in_critical.blunders} errori gravi`}
         />
         <StatCard
@@ -201,15 +203,15 @@ export function TimeManagementChart({
           sub="sotto il 10% dell'orologio"
           value={time_management.zeitnot.n}
           danger={time_management.zeitnot.avg_cp_loss > 100}
-          metric={`ACPL ${time_management.zeitnot.avg_cp_loss}`}
+          metric=""
           extra={`${time_management.zeitnot.blunders} errori gravi`}
         />
         <StatCard
-          label="Tilt factor"
-          sub="quanto peggiori dopo un tuo errore grave"
+          label="Dopo un errore"
+          sub="come cambiano le mosse che seguono"
           value={`${tilt.tilt_factor}×`}
           danger={tilt.tilt_factor > 1.3}
-          metric={`ACPL ${tilt.after_blunder_avg_cp_loss} · baseline ${tilt.baseline_avg_cp_loss}`}
+          metric=""
           extra=""
         />
       </div>
@@ -222,13 +224,15 @@ export function TimeManagementChart({
  * SpeedVsErrors: di tutti gli errori in questa fascia, quanti il 1600
  * li avrebbe trovati con >40% di probabilita`?
  */
-function ClockAvoidabilityStrip({ data }: { data: TimeManagement["clock_vs_accuracy"] }) {
+function ClockAvoidabilityStrip({ data, target }: { data: TimeManagement["clock_vs_accuracy"]; target?: number }) {
   const anyAvoidable = data.some((d) => (d.avoidable_errors ?? 0) > 0);
   if (!anyAvoidable) return null;
   return (
     <div className="mt-5 pt-4 border-t border-[color:var(--color-line)]">
       <div className="label-eyebrow text-[10px] mb-2">
-        Errori per fascia di clock — quanti evitabili dal target (1600)
+        {target != null && target > 0
+          ? `Errori per fascia di orologio: quanti potevi evitare al tuo livello (${target})`
+          : "Errori per fascia di orologio: quanti potevi evitare al tuo livello"}
       </div>
       <div className="grid grid-cols-5 gap-2">
         {data.map((d) => {
@@ -279,7 +283,7 @@ function RichTooltip({ active, payload }: { active?: boolean; payload?: TooltipP
       <div className="text-[10px] font-mono uppercase tracking-widest text-[color:var(--color-muted)] mb-1.5">
         Tempo rimasto: {p.bucket}
       </div>
-      <Row label="ACPL medio" value={p.avg_cp_loss} color="var(--color-brand-soft)" suffix="" />
+      <Row label="Errore medio" value={p.avg_cp_loss} color="var(--color-brand-soft)" suffix="" />
       <Row label="% errori gravi" value={p.blunder_pct} color="#f43f5e" suffix="%" />
       <div className="my-1.5 h-px bg-[color:var(--color-line)]" />
       <Row label="Mosse totali" value={p.positions} />
@@ -332,10 +336,12 @@ function StatCard({
       <div className="stat-label">{label}</div>
       <div className={`stat-value tabular-nums ${danger ? "text-rose-300" : ""}`}>{value}</div>
       <div className="stat-sub">{sub}</div>
-      <div className="text-[11px] font-mono mt-2 pt-2 border-t border-[color:var(--color-line)] text-[color:var(--color-text-soft)] flex items-baseline justify-between">
-        <span>{metric}</span>
-        {extra && <span className="text-[color:var(--color-muted)]">{extra}</span>}
-      </div>
+      {(metric || extra) && (
+        <div className="text-[11px] font-mono mt-2 pt-2 border-t border-[color:var(--color-line)] text-[color:var(--color-text-soft)] flex items-baseline justify-between">
+          <span>{metric}</span>
+          {extra && <span className="text-[color:var(--color-muted)]">{extra}</span>}
+        </div>
+      )}
     </div>
   );
 }

@@ -49,7 +49,7 @@ import { GameArcChart } from "../../components/GameArcChart";
 import { BoardView } from "../../components/BoardView";
 import { RepertorioPanel } from "../../components/RepertorioPanel";
 import { CaduteTrainer } from "../../session/CaduteTrainer";
-import { uciToArrow, cpToPawns, uciToSan } from "./boardArrows";
+import { uciToArrow, uciToSan } from "./boardArrows";
 
 // ── Tab definition ─────────────────────────────────────────────────────────────
 
@@ -343,7 +343,7 @@ function AnchorTrailsSection({
                       </div>
                     )}
                     <div style={{ marginTop: "0.25rem", fontSize: "0.72rem", color: "var(--color-faint)", fontVariantNumeric: "tabular-nums" }}>
-                      {trail.points.length} snapshot
+                      {trail.points.length} analisi
                     </div>
                   </div>
 
@@ -707,6 +707,9 @@ function TabEvoluzione({
   const goal = pmLite?.identity?.goal ?? null;
   const transfer = aggregates?.transfer ?? null;
 
+  // Target rating for verdicts
+  const evoluzioneTargetRating = pmLite?.identity?.goal?.target ?? null;
+
   // History for "Dal primo giorno"
   const snaps = [...history.snapshots].sort((a, b) =>
     a.captured_at.localeCompare(b.captured_at),
@@ -716,6 +719,20 @@ function TabEvoluzione({
 
   // Journal entries (deduplicated, for the collapsible diagnosis at bottom)
   const journalEntries = journalRaw ? parseJournal(journalRaw) : [];
+
+  // Maia avoidability verdict for Evoluzione tab (C.5)
+  const maiaverdictLine = (() => {
+    const mw = aggregates?.maia_weighted;
+    if (mw == null || mw.mine_pct == null || mw.target_pct == null) return null;
+    const mine = Math.round(mw.mine_pct);
+    const tgt = Math.round(mw.target_pct);
+    // The sentence frames a positive gap toward the target; with no gap it reads wrong.
+    if (tgt <= mine) return null;
+    const ratingLabel = evoluzioneTargetRating != null && evoluzioneTargetRating > 0
+      ? `Uno da ${evoluzioneTargetRating}`
+      : "Uno al tuo obiettivo";
+    return `Degli errori che hai fatto, il ${mine}% erano mosse alla tua portata. ${ratingLabel} ne avrebbe evitati il ${tgt}%. La distanza sta tutta li': non nella fortuna, nella visione.`;
+  })();
 
   // Nonno's intro for Evoluzione: identity-framed, "sto migliorando?"
   const evoluzioneNonno = (() => {
@@ -766,6 +783,13 @@ function TabEvoluzione({
       <Reveal delay={0} className="mb-6">
         <p className="tt-nonno">{evoluzioneNonno}</p>
       </Reveal>
+
+      {/* Maia avoidability verdict */}
+      {maiaverdictLine != null && (
+        <Reveal delay={20} className="mb-6">
+          <p className="tt-nonno">{maiaverdictLine}</p>
+        </Reveal>
+      )}
 
       {/* ── Le tue ancore nel tempo (anchor trails + transfer micro-line) ──── */}
       <AnchorTrailsSection history={history} transfer={transfer} onSelectAnchor={onSelectAnchor} />
@@ -1066,7 +1090,7 @@ function TabProfilo({
   const profiloNonno = (() => {
     if (showTilt && tilt) {
       const factor = tilt.tilt_factor.toFixed(1);
-      return `Dopo un errore, la tua lucidita' cala di un fattore ${factor}. Questo e' il tuo profilo: conosci il punto debole, puoi lavorarci.`;
+      return `Dopo un errore, nelle mosse che seguono sbagli quasi ${factor} volte piu' del solito. Conosci gia' il punto piu' delicato: e' li' che puoi guadagnare di piu'.`;
     }
     if (decisions != null && decisions.blow_rate != null && decisions.blow_rate > 0.35) {
       return `Trasformi meno del 65% delle posizioni vinte. La tua fase critica e' la conversione: guarda le Decisioni.`;
@@ -1180,6 +1204,7 @@ function TabProfilo({
             <TimeManagementChart
               time_management={pmLite.time_management as TimeManagement}
               tilt={pmLite.tilt as Tilt}
+              target={targetRating > 0 ? targetRating : undefined}
             />
           </div>
         </Reveal>
@@ -1199,19 +1224,11 @@ function TabProfilo({
       {showTilt && tilt != null && (
         <Section eyebrow="Tilt" delay={140}>
           <p style={{ fontSize: "0.88rem", color: "var(--color-text-soft)", lineHeight: 1.65, margin: 0 }}>
-            Dopo un errore grave la tua perdita media sale a{" "}
-            <span className="font-mono font-bold" style={{ color: "var(--color-danger)", fontVariantNumeric: "tabular-nums" }}>
-              {Math.round(tilt.after_blunder_avg_cp_loss)}
-            </span>{" "}
-            cp (vs baseline{" "}
-            <span className="font-mono" style={{ color: "var(--color-text)", fontVariantNumeric: "tabular-nums" }}>
-              {Math.round(tilt.baseline_avg_cp_loss)}
-            </span>
-            ). Fattore tilt:{" "}
+            Dopo un errore, nelle mosse che seguono sbagli quasi{" "}
             <span className="font-mono font-bold" style={{ color: "var(--color-warn)", fontVariantNumeric: "tabular-nums" }}>
-              {tilt.tilt_factor.toFixed(2)}
+              {tilt.tilt_factor.toFixed(1)}
             </span>
-            . Dopo un errore, rallenta: la prossima mossa e' piu' critica di quanto pensi.
+            {" "}volte piu' del solito. Te lo porti dietro per qualche mossa, poi passa. Quando senti che hai sbagliato, e' il momento di rallentare, non di recuperare.
           </p>
         </Section>
       )}
@@ -1319,9 +1336,6 @@ function GroupGallery({ positions, onOpeningLink }: { positions: PositionExample
           <div key={i} style={{ background: "var(--color-surface-2)", border: "1px solid var(--color-line)", borderRadius: "8px", padding: "0.625rem" }}>
             <div style={{ display: "flex", justifyContent: "center" }}>
               <BoardView fen={c.fen_before} orientation={c.color} size={180} arrows={arrows} />
-            </div>
-            <div className="font-mono font-bold" style={{ fontSize: "1.1rem", color: "var(--color-danger)", fontVariantNumeric: "tabular-nums", marginTop: "0.375rem" }}>
-              -{cpToPawns(c.cp_loss)}
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem", marginTop: "0.375rem" }}>
               <span className="tt-chip" style={{ background: "rgba(96,165,250,0.10)", color: "var(--color-info)", fontSize: "0.65rem" }}>

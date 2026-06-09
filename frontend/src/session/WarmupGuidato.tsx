@@ -17,7 +17,6 @@ import { BoardLegend } from "../components/BoardLegend";
 import { useBoardFit } from "../components/useBoardFit";
 import { useStockfish, type EvalResult } from "../engine/useStockfish";
 import { turnFromFen } from "../chess-utils";
-import { cpToPawns } from "../pages/quaderno/boardArrows";
 import type { DrillVerdict } from "./store";
 
 // ---------------------------------------------------------------------------
@@ -152,7 +151,7 @@ export function PositionPuzzle({
   const sf = useStockfish();
   const fit = useBoardFit({ min: 232, max: 460 });
   const [verdict, setVerdict] = useState<DrillVerdict | null>(null);
-  const [cpLoss, setCpLoss] = useState<number | null>(null);
+  const [, setCpLoss] = useState<number | null>(null);
   const [playedSan, setPlayedSan] = useState<string | null>(null);
   const [displayFen, setDisplayFen] = useState<string | null>(null);
   const [evaluating, setEvaluating] = useState(false);
@@ -495,18 +494,6 @@ export function PositionPuzzle({
                   <span className="lbl">Mossa giusta</span>
                   <span className="san" style={{ color: "var(--color-ok)" }}>
                     {position.best_san_sf}
-                  </span>
-                </div>
-              )}
-              {cpLoss !== null && (
-                <div className="sess-move-row">
-                  <span className="lbl">Perdita</span>
-                  <span style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: "0.75rem",
-                    color: "var(--color-text-soft)",
-                  }}>
-                    {cpLoss > 0 ? `-${cpToPawns(cpLoss)}` : "0.0"} pedoni
                   </span>
                 </div>
               )}

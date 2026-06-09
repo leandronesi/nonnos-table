@@ -38,23 +38,25 @@ interface TeachSlide {
   component: React.ReactNode;
 }
 
-const TEACH_SLIDES: TeachSlide[] = [
-  {
-    id: "time",
-    voice: "C'e' chi le partite vinte non le perde sulla scacchiera. Le perde sull'orologio. E' la prima cosa che vado a cercare.",
-    component: <TeachTime />,
-  },
-  {
-    id: "maia",
-    voice: "Non ti peso contro il computer perfetto. Ti peso contro chi vuoi diventare.",
-    component: <TeachMaia />,
-  },
-  {
-    id: "ancora",
-    voice: "Non ti do una lista di errori. Ti do la cosa che ti tiene fermo. Una.",
-    component: <TeachAncora />,
-  },
-];
+function buildTeachSlides(targetRating?: number): TeachSlide[] {
+  return [
+    {
+      id: "time",
+      voice: "C'e' chi le partite vinte non le perde sulla scacchiera. Le perde sull'orologio. E' la prima cosa che vado a cercare.",
+      component: <TeachTime />,
+    },
+    {
+      id: "maia",
+      voice: "Non ti peso contro il computer perfetto. Ti peso contro chi vuoi diventare.",
+      component: <TeachMaia targetRating={targetRating} />,
+    },
+    {
+      id: "ancora",
+      voice: "Non ti do una lista di errori. Ti do la cosa che ti tiene fermo. Una.",
+      component: <TeachAncora />,
+    },
+  ];
+}
 
 const SLIDE_DURATION = 8000; // ms per ogni slide (calmo, tempo di leggere + guardare)
 
@@ -282,15 +284,18 @@ export interface IncontroSceneProps {
   error: string | null;
   onEnter: () => void;
   onExit: () => void;
+  targetRating?: number;
 }
 
 // ── Componente scena (pura presentazione) ─────────────────────────────────────
 
-export function IncontroScene({ progress, readyBrief, error, onEnter, onExit }: IncontroSceneProps) {
+export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, targetRating }: IncontroSceneProps) {
   // Stato del ciclo slide
   const [slideIndex, setSlideIndex] = useState(0);
   const [slideVisible, setSlideVisible] = useState(true);
   const slideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const teachSlides = buildTeachSlides(targetRating);
 
   const phase = progress?.phase ?? "pending";
   const voiceKey = `${phase}-${slideIndex}`;
@@ -299,7 +304,7 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit }: 
   const showSlides =
     (phase === "analyzing" || phase === "coaching") && readyBrief === undefined;
   const currentVoice = showSlides
-    ? TEACH_SLIDES[slideIndex]?.voice
+    ? teachSlides[slideIndex]?.voice
     : PHASE_VOICE[phase];
 
   // Ciclo slide durante analyzing/coaching
@@ -311,14 +316,14 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit }: 
     slideTimerRef.current = setTimeout(() => {
       setSlideVisible(false);
       setTimeout(() => {
-        setSlideIndex((i) => (i + 1) % TEACH_SLIDES.length);
+        setSlideIndex((i) => (i + 1) % teachSlides.length);
         setSlideVisible(true);
       }, 500);
     }, SLIDE_DURATION);
     return () => {
       if (slideTimerRef.current) clearTimeout(slideTimerRef.current);
     };
-  }, [showSlides, slideIndex, slideVisible]);
+  }, [showSlides, slideIndex, slideVisible, teachSlides.length]);
 
   // Calcolo progresso per il pendolo
   const ratio =
@@ -450,7 +455,7 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit }: 
                         "opacity 500ms cubic-bezier(0.23,1,0.32,1), transform 500ms cubic-bezier(0.23,1,0.32,1)",
                     }}
                   >
-                    {TEACH_SLIDES[slideIndex]?.component}
+                    {teachSlides[slideIndex]?.component}
                   </div>
                 )}
               </div>

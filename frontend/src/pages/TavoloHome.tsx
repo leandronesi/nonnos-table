@@ -119,11 +119,15 @@ function GoalHero({
   const dl = deadline ? deadlineIt(deadline) : "";
 
   const progressLine = (() => {
-    if (pointsNeeded <= 0) return "Obiettivo raggiunto.";
-    const need = rateNeeded != null ? `+${rateNeeded.toFixed(1)}/sett` : null;
-    const real = rateReal != null ? `vai a ${rateReal.toFixed(1)}` : null;
-    if (need && real) return `Servono ${need}, ${real}.`;
-    if (need) return `Servono ${need}.`;
+    if (pointsNeeded <= 0) return "Ci sei. Sediamoci a guardare cosa hai costruito.";
+    const need = rateNeeded != null ? rateNeeded.toFixed(1) : null;
+    const real = rateReal != null ? rateReal.toFixed(1) : null;
+    if (need && real) {
+      if (onTrack) return `Stai salendo di ${real} punti a settimana. Sei sulla strada.`;
+      if (rateReal != null && rateReal <= 0) return `In queste settimane sei sceso un po'. Capita. Ne servono ${need} a settimana: si riparte da qui.`;
+      return `Stai salendo di ${real} a settimana. Ne servono ${need}. Qualcosa da aggiustare.`;
+    }
+    if (need) return `Per arrivare in tempo ne servono ${need} a settimana.`;
     return `Mancano ${pointsNeeded} punti.`;
   })();
 

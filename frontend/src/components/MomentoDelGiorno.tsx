@@ -228,19 +228,6 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
             </div>
           )}
 
-          {/* cp_loss badge */}
-          <div style={{ marginTop: "0.75rem" }}>
-            <span
-              className="font-mono font-bold"
-              style={{
-                fontSize: "0.88rem",
-                color: "var(--color-danger)",
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              -{(Math.min(1000, momento.cp_loss) / 100).toFixed(1)} pedoni
-            </span>
-          </div>
         </div>
       </div>
 

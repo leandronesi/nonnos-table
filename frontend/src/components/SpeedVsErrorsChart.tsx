@@ -65,8 +65,7 @@ export function SpeedVsErrorsChart({
       <div className="label-eyebrow">Velocità della mossa</div>
       <h3 className="section-title mt-1">Sbagli perché muovi in fretta?</h3>
       <p className="section-sub mb-4">
-        Tempo speso sulla singola mossa (non il tempo rimasto sull'orologio). Linea ACPL: piu' alta,
-        mossa peggiore.{hasAvoidable ? " Sotto ogni fascia: quanti di quegli errori erano evitabili al tuo livello." : ""}
+        Tempo speso sulla singola mossa (non il tempo rimasto sull'orologio). La linea sale quando la mossa e' peggiore.{hasAvoidable ? " Sotto ogni fascia: quanti di quegli errori erano alla tua portata." : ""}
       </p>
 
       <div className="h-[260px]" role="img" aria-label="Grafico velocità mossa vs errori">
@@ -100,7 +99,7 @@ export function SpeedVsErrorsChart({
               cursor={{ fill: "rgba(255,255,255,0.03)" }}
               formatter={(value: number, name: string) => {
                 if (name === "error_pct") return [`${value}%`, "Errori"];
-                if (name === "acpl") return [value, "ACPL"];
+                if (name === "acpl") return [value, "Errore medio"];
                 return [value, name];
               }}
               labelFormatter={(label: string) => `Tempo: ${label}`}
@@ -118,7 +117,7 @@ export function SpeedVsErrorsChart({
             <Legend
               verticalAlign="bottom"
               height={28}
-              formatter={(v: string) => (v === "error_pct" ? "Errori (% mosse)" : "ACPL (precisione)")}
+              formatter={(v: string) => (v === "error_pct" ? "Errori (% mosse)" : "Errore medio")}
               wrapperStyle={{ fontSize: "0.72rem", fontFamily: "var(--font-mono)" }}
             />
             <Bar yAxisId="err" dataKey="error_pct" name="error_pct" radius={[6, 6, 0, 0]} maxBarSize={64}>
@@ -190,8 +189,8 @@ export function SpeedVsErrorsChart({
 
       {hasAvoidable && (
         <div className="mt-3 text-[11px] leading-relaxed" style={{ color: "var(--color-muted)" }}>
-          Evitabili = mosse che un giocatore al tuo livello (Maia) trovava. Tante evitabili sulle mosse
-          veloci = stai correndo su posizioni che potevi risolvere. Poche sulle mosse lente = erano
+          Evitabili = mosse che un giocatore al tuo livello trovava. Tante evitabili sulle mosse
+          veloci: stai correndo su posizioni che potevi risolvere. Poche sulle mosse lente: erano
           difficili davvero, non colpa tua.
         </div>
       )}
