@@ -9,7 +9,7 @@ import { useStockfish } from "../engine/useStockfish";
 import { turnFromFen } from "../chess-utils";
 import type { PlayResult } from "./store";
 import type { CoachSession } from "../types";
-import { stockfishSkillForMaiaLevel, sessionFallbackLine, timeClassLabel } from "../coaching";
+import { stockfishSkillForMaiaLevel, sessionFallbackLine } from "../coaching";
 
 interface Props {
   startFen: string;             // posizione di partenza (di solito da un turning point)
@@ -158,37 +158,11 @@ function pickRandom(arr: string[]): string {
 
 function maiaSubText(currentRating: number | undefined, maiaLevel: number): string {
   const cur = currentRating ?? maiaLevel;
-  if (cur < maiaLevel - 50) return "Il giocatore che vuoi diventare. Vediamo dove ti porta.";
-  if (cur >= maiaLevel) return "Stesso livello. Niente sconti.";
-  return "Vicino al target. Oggi serve precisione.";
+  if (cur < maiaLevel - 50) return `Giochi da una posizione che hai vissuto, contro un ${maiaLevel}. Vediamo come la gestisce lui.`;
+  if (cur >= maiaLevel) return "Sei al suo livello. Niente regali.";
+  return `Ci sei quasi. Gioca la posizione come la giocherebbe lui.`;
 }
 
-// ---------------------------------------------------------------------------
-// EvalBar — barra verticale vantaggio Stockfish (POV bianco, normalizzata tanh)
-// ---------------------------------------------------------------------------
-function EvalBar({ score, mate }: { score: number | null; mate: number | null }) {
-  const H = 500;
-  const W = 14;
-  let pct = 0.5;
-  let label = "0.0";
-  if (mate != null) {
-    pct = mate > 0 ? 1 : 0;
-    label = `M${Math.abs(mate)}`;
-  } else if (score != null) {
-    pct = 0.5 + 0.5 * Math.tanh(score / 400);
-    const pawns = score / 100;
-    label = (pawns >= 0 ? "+" : "") + pawns.toFixed(1);
-  }
-  const whiteH = Math.round(H * pct);
-  const blackH = H - whiteH;
-  return (
-    <div className="eval-bar" style={{ height: H, width: W }}>
-      <div className="eval-bar-black" style={{ height: blackH }} />
-      <div className="eval-bar-white" style={{ height: whiteH }} />
-      <div className="eval-bar-label">{label}</div>
-    </div>
-  );
-}
 
 /**
  * Una partita vs MAIA (Stockfish calibrato sul livello target) dalla
@@ -210,11 +184,10 @@ export function PlayStep({
   maiaLevel,
   skillLevel: skillLevelProp,
   currentRating,
-  timeClass,
+  timeClass: _timeClass,
   coachSession,
   onDone,
 }: Props) {
-  const tcLabel = timeClassLabel(timeClass);
   // Deriva skillLevel da maiaLevel se disponibile, altrimenti prop legacy
   const skillLevel = maiaLevel != null
     ? stockfishSkillForMaiaLevel(maiaLevel)
@@ -240,10 +213,6 @@ export function PlayStep({
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track fen at the time the hint was requested to avoid stale results
   const hintFenRef = useRef<string>("");
-
-  // EvalBar state — score dal POV BIANCO
-  const [evalScore, setEvalScore] = useState<number | null>(null);
-  const [evalMate, setEvalMate] = useState<number | null>(null);
 
   useEffect(() => {
     const sideToMove = turnFromFen(startFen);
@@ -418,39 +387,6 @@ export function PlayStep({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fen, isMyTurn]);
 
-  // Aggiorna eval dopo ogni cambio di fen
-  useEffect(() => {
-    let cancelled = false;
-    async function evalNow() {
-      try {
-        const ev = await sf.evaluate(fen, { depth: 12 });
-        if (cancelled) return;
-        const fenTurn = turnFromFen(fen);
-        const cpWhitePov =
-          ev.mate != null
-            ? null
-            : ev.scoreCp != null
-            ? fenTurn === "white"
-              ? ev.scoreCp
-              : -ev.scoreCp
-            : null;
-        const mateWhitePov =
-          ev.mate != null
-            ? fenTurn === "white"
-              ? ev.mate
-              : -ev.mate
-            : null;
-        setEvalScore(cpWhitePov);
-        setEvalMate(mateWhitePov);
-      } catch {
-        /* ignore */
-      }
-    }
-    evalNow();
-    return () => {
-      cancelled = true;
-    };
-  }, [fen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function engineMove() {
     setEngineThinking(true);
@@ -572,8 +508,6 @@ export function PlayStep({
     setHistory([]);
     setLastMove(null);
     setOutcome(null);
-    setEvalScore(null);
-    setEvalMate(null);
     setPendingSure(null);
     const msgs = ["Rifacciamo da capo.", "Così. Da capo, con calma."];
     setCoachInline(msgs[Math.floor(Math.random() * msgs.length)]);
@@ -644,34 +578,28 @@ export function PlayStep({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-10 items-start">
       <div className="flex flex-col items-center gap-2">
-        {/* Wrapper: ref here measures available width. EvalBar is decorative
-            (14px wide), so board gets fit.size minus its width. */}
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 6, width: "100%", maxWidth: fit.max + 20 }}>
-          <EvalBar score={evalScore} mate={evalMate} />
-          <div ref={fit.ref} style={{ flex: 1, minWidth: 0 }}>
-            <BoardView
-              fen={fen}
-              resetKey={startFen}
-              orientation={myColor}
-              size={fit.size}
-              draggable={!outcome && !engineThinking && !evaluatingMove && !pendingSure && turnFromFen(fen) === myColor}
-              onPieceDrop={onDrop}
-              highlights={highlights}
-              arrows={arrows}
-            />
-          </div>
+        <div ref={fit.ref} style={{ width: "100%", maxWidth: fit.max }}>
+          <BoardView
+            fen={fen}
+            resetKey={startFen}
+            orientation={myColor}
+            size={fit.size}
+            draggable={!outcome && !engineThinking && !evaluatingMove && !pendingSure && turnFromFen(fen) === myColor}
+            onPieceDrop={onDrop}
+            highlights={highlights}
+            arrows={arrows}
+          />
         </div>
         <BoardLegend preset="play" />
       </div>
 
       <div className="space-y-4">
-        {/* Voce di Nonno: messaggio inline o apertura partita */}
-        {coachInline && (
+        {/* Voce di Nonno: inline messages take priority (e.g. restart), else the
+            opening line stays until the first move is played */}
+        {coachInline ? (
           <CoachNote text={coachInline} tone="warm" />
-        )}
-
-        {!coachInline && history.length === 0 && !outcome && (
-          <CoachNote text={openPlayLine} tone="warm" />
+        ) : (
+          history.length === 0 && !outcome && <CoachNote text={openPlayLine} tone="warm" />
         )}
 
         {/* Hint di Nonno — appare dopo 12s idle o su richiesta */}
@@ -699,8 +627,8 @@ export function PlayStep({
             style={{ color: "var(--color-brand-soft)", marginBottom: "0.5rem" }}
           >
             {maiaLevel != null
-              ? `Partita vs avversario ${maiaLevel} ${tcLabel}`
-              : `Partita vs Stockfish livello ${skillLevel}`}
+              ? `Una posizione tua, contro un ${maiaLevel}`
+              : `Partita dalla tua posizione`}
           </div>
           <h3
             className="display-small"
@@ -755,7 +683,7 @@ export function PlayStep({
               }}
             >
               {history.length === 0 ? (
-                <span style={{ opacity: 0.4, color: "var(--color-muted)" }}>nessuna ancora</span>
+                <span style={{ opacity: 0.4, color: "var(--color-muted)" }}>attendo la tua mossa</span>
               ) : (
                 history.map((m, i) => (
                   <span key={i}>
@@ -951,7 +879,7 @@ function NonnoHint({ hint, isMyTurn, onAsk, onEscalate }: NonnoHintProps) {
             textTransform: "uppercase",
             color: "var(--color-faint)",
           }}>
-            indizio {hint.tier}/3
+            {hint.tier === 1 ? "primo sguardo" : hint.tier === 2 ? "casa di partenza" : "mossa completa"}
           </span>
         )}
       </div>
@@ -1057,7 +985,7 @@ function scoreFromMyPov(scoreCp: number | null, mate: number | null, iAmWhite: b
 // ---------------------------------------------------------------------------
 
 function outcomeLabel(o: PlayResult["outcome"]): string {
-  return { win: "Hai vinto!", draw: "Patta", loss: "Hai perso", abandoned: "Sessione terminata" }[o];
+  return { win: "Hai vinto!", draw: "Patta", loss: "Hai perso", abandoned: "Partita interrotta." }[o];
 }
 function outcomeBorder(o: PlayResult["outcome"]): string {
   return { win: "#34d399", draw: "#94a3b8", loss: "#f43f5e", abandoned: "#94a3b8" }[o];

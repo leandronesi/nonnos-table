@@ -224,11 +224,11 @@ export function PositionPuzzle({
       } else {
         if (newAttempts >= 2) {
           const best = position.best_san_sf ?? "";
-          setVerdictMsg(`Hai sbagliato. La giusta era ${best}. Andiamo avanti.`);
+          setVerdictMsg(`Non era quella. La mossa era ${best}. Adesso la sai.`);
           setVerdict("wrong");
           onVerdict?.("wrong", { cpLoss: loss, attempts: newAttempts, playedSan: mv.san });
         } else {
-          setVerdictMsg("Mh. Non era quella. Riprova.");
+          setVerdictMsg("Non era quella. Riprova.");
           setVerdict(null);
           setDisplayFen(null);
           setPlayedSan(null);
@@ -451,7 +451,7 @@ export function PositionPuzzle({
               flexShrink: 0,
               animation: "pulseGlow 1.4s ease-in-out infinite",
             }} />
-            Stockfish sta valutando…
+            Guardo la mossa…
           </div>
         )}
 
@@ -509,18 +509,6 @@ export function PositionPuzzle({
           </div>
         )}
 
-        {/* Contatore tentativi */}
-        {attempts > 0 && verdict === null && (
-          <div style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.625rem",
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-            color: "var(--color-faint)",
-          }}>
-            Tentativo {attempts} / 3
-          </div>
-        )}
       </div>
     </div>
   );
