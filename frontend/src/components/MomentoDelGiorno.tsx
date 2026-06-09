@@ -158,12 +158,12 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
           flexWrap: "wrap",
         }}
       >
-        {/* Board */}
-        <div style={{ flexShrink: 0 }}>
+        {/* Board — 220px on wider screens, 180px on narrow mobile */}
+        <div style={{ flexShrink: 0 }} className="momento-board-wrap">
           <BoardView
             fen={momento.fen_before}
             orientation={momento.color}
-            size={160}
+            size={220}
             arrows={arrows}
           />
         </div>

@@ -26,6 +26,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useOnboardingRun } from "../pipeline/OnboardingRunContext";
+import { useTavoloActionsRef } from "../context/TavoloActionsContext";
 import { downloadJson, quadernoPath } from "../auth/storage";
 import { PRODUCT_NAME } from "../coaching";
 import { runRefresh, runFullReanalyze } from "../pipeline/orchestrator";
@@ -36,6 +37,7 @@ import { NonnoGreeting } from "../components/NonnoGreeting";
 import { MomentoDelGiorno } from "../components/MomentoDelGiorno";
 import { readEntries } from "../session/journal";
 import type { TimeClass } from "../auth/db.types";
+import type { HistorySnapshot } from "../types";
 
 // ── Reveal hook ───────────────────────────────────────────────────────────────
 
@@ -104,6 +106,7 @@ function GoalHero({
   pointsNeeded,
   rateNeeded,
   rateReal,
+  handicapLine,
 }: {
   current: number;
   start: number;
@@ -113,6 +116,7 @@ function GoalHero({
   pointsNeeded: number;
   rateNeeded: number | null;
   rateReal: number | null;
+  handicapLine: string | null;
 }) {
   const progress = Math.max(0, Math.min(1, (current - start) / Math.max(target - start, 1)));
   const fillPct = Math.round(progress * 100);
@@ -141,7 +145,7 @@ function GoalHero({
         `,
         border: "1px solid color-mix(in srgb, var(--color-gold) 30%, transparent)",
         borderRadius: "14px",
-        padding: "clamp(24px, 5vw, 40px)",
+        padding: "clamp(20px, 4vw, 28px)",
       }}
     >
       {/* Eyebrow */}
@@ -159,12 +163,12 @@ function GoalHero({
           flexWrap: "wrap",
         }}
       >
-        {/* Current */}
+        {/* Current — demoted from display to title weight */}
         <div>
           <div
             className="font-mono font-bold"
             style={{
-              fontSize: "clamp(2.5rem, 6vw, 4.25rem)",
+              fontSize: "clamp(1.35rem, 3.5vw, 1.6rem)",
               lineHeight: 1,
               color: "var(--color-text)",
               fontVariantNumeric: "tabular-nums",
@@ -180,7 +184,7 @@ function GoalHero({
           <div
             className="font-mono font-bold"
             style={{
-              fontSize: "clamp(1.5rem, 3.5vw, 2.5rem)",
+              fontSize: "clamp(1.35rem, 3.5vw, 1.6rem)",
               lineHeight: 1,
               color: "var(--color-gold-soft)",
               fontVariantNumeric: "tabular-nums",
@@ -257,6 +261,22 @@ function GoalHero({
           {onTrack ? "In carreggiata" : "Fuori rotta"}
         </span>
       </div>
+
+      {/* Handicap story — shown only when Nonno has measurable improvement to cite */}
+      {handicapLine && (
+        <p
+          style={{
+            margin: 0,
+            marginTop: "0.875rem",
+            fontSize: "0.82rem",
+            lineHeight: 1.55,
+            color: "var(--color-text-soft)",
+            fontStyle: "italic",
+          }}
+        >
+          {handicapLine}
+        </p>
+      )}
     </div>
   );
 }
@@ -353,6 +373,17 @@ function AnchorRow({ anchor, rank }: { anchor: Anchor; rank: number }) {
               <span className="tt-chip good">stai migliorando</span>
             )}
           </div>
+          {/* Spread across games — contextualizes the count */}
+          {anchor.games_with > 0 && (
+            <div style={{
+              marginTop: "0.25rem",
+              fontSize: "0.75rem",
+              color: "var(--color-muted)",
+              lineHeight: 1.3,
+            }}>
+              In {anchor.games_with} partite diverse
+            </div>
+          )}
         </div>
       </div>
     </Link>
@@ -431,6 +462,56 @@ function ratingFromStats(stats: ChessComStats, tc: TimeClass): number | null {
   }
 }
 
+// ── Handicap story (GoalHero) ─────────────────────────────────────────────────
+
+/**
+ * Maps a gap in percentage points (target_pct - mine_pct from maia_weighted)
+ * to a chess-piece metaphor. Returns null when the player is nearly at par.
+ */
+function materialForGap(gapPp: number): { step: number; label: string } | null {
+  if (gapPp >= 25) return { step: 5, label: "la regina" };
+  if (gapPp >= 18) return { step: 4, label: "una torre" };
+  if (gapPp >= 12) return { step: 3, label: "un alfiere" };
+  if (gapPp >= 8)  return { step: 2, label: "due pedoni" };
+  if (gapPp >= 4)  return { step: 1, label: "un pedone" };
+  return null; // quasi alla pari
+}
+
+/**
+ * Derives the handicap story from a history array.
+ * Returns null when there are not enough snapshots, no material step, or no improvement.
+ */
+function buildHandicapLine(snapshots: HistorySnapshot[]): string | null {
+  if (snapshots.length < 2) return null;
+  // history.json order is not guaranteed: sort chronologically before picking ends
+  const sorted = [...snapshots].sort((a, b) => a.captured_at.localeCompare(b.captured_at));
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+
+  const firstMw = first.maia_weighted;
+  const lastMw = last.maia_weighted;
+  if (firstMw.mine_pct == null || firstMw.target_pct == null) return null;
+  // No claim without current data: a missing last snapshot must not read as "alla pari"
+  if (lastMw.mine_pct == null || lastMw.target_pct == null) return null;
+
+  const firstGap = firstMw.target_pct - firstMw.mine_pct;
+  const initialMaterial = materialForGap(firstGap);
+  if (!initialMaterial) return null; // started at par — nothing interesting to say
+
+  // Require improvement: current step must be strictly lower than initial.
+  const lastGap = lastMw.target_pct - lastMw.mine_pct;
+  const currentMaterial = materialForGap(lastGap);
+
+  const initialStep = initialMaterial.step;
+  const currentStep = currentMaterial?.step ?? 0; // 0 = quasi alla pari
+  if (currentStep >= initialStep) return null; // no real improvement
+
+  if (currentMaterial != null) {
+    return `Quando ci siamo seduti la prima volta ti avrei dato ${initialMaterial.label} di vantaggio. Oggi ti darei ${currentMaterial.label}.`;
+  }
+  return `Quando ci siamo seduti la prima volta ti avrei dato ${initialMaterial.label} di vantaggio. Oggi giochiamo quasi alla pari.`;
+}
+
 /**
  * Fetches the live ELO from Chess.com for the user's goal time-class.
  * Returns null while loading or on any failure — caller falls back to stored value.
@@ -473,11 +554,13 @@ export function TavoloHome() {
   const { user, profile, refreshProfile } = useAuth();
   const nav = useNavigate();
   const { dataVersion } = useOnboardingRun();
+  const tavoloActionsRef = useTavoloActionsRef();
 
   const [pmLite, setPmLite] = useState<PlayerModelLite | null>(null);
   const [aggregates, setAggregates] = useState<Aggregates | null>(null);
   /** voice_message from coach_brief.json. null = missing/not ready. undefined = still loading. */
   const [llmVoice, setLlmVoice] = useState<string | null | undefined>(undefined);
+  const [historySnapshots, setHistorySnapshots] = useState<HistorySnapshot[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -488,21 +571,25 @@ export function TavoloHome() {
     let cancelled = false;
     (async () => {
       try {
-        // coach_brief.json is optional (new user, or pipeline not yet run).
-        // Graceful: if it fails or is absent, voice falls back to template.
+        // coach_brief.json and history.json are optional — degrade gracefully.
         const briefPromise = downloadJson<{ voice_message?: string }>(
           quadernoPath(user.id, "coach_brief.json"),
         ).catch(() => null);
+        const historyPromise = downloadJson<{ snapshots?: HistorySnapshot[] }>(
+          quadernoPath(user.id, "history.json"),
+        ).catch(() => null);
 
-        const [pm, agg, brief] = await Promise.all([
+        const [pm, agg, brief, history] = await Promise.all([
           downloadJson<PlayerModelLite>(quadernoPath(user.id, "player_model_lite.json")),
           downloadJson<Aggregates>(quadernoPath(user.id, "aggregates.json")),
           briefPromise,
+          historyPromise,
         ]);
         if (cancelled) return;
         setPmLite(pm);
         setAggregates(agg);
         setLlmVoice(brief?.voice_message ?? null);
+        setHistorySnapshots(history?.snapshots ?? null);
       } catch (e) {
         if (!cancelled) setError(String(e instanceof Error ? e.message : e));
       } finally {
@@ -537,6 +624,20 @@ export function TavoloHome() {
       setReanalyzing(false);
     }
   }
+
+  // Register the action callbacks in the shared context so AppShell sidebar can call them.
+  // Using useEffect with stable refs is not needed here: we write to the mutable ref
+  // every render (same pattern as callback refs), which is safe and avoids stale closures.
+  tavoloActionsRef.current = {
+    handleRefresh,
+    handleFullReanalyze,
+  };
+  // Clear on unmount so the sidebar never holds stale closures from a dead mount.
+  useEffect(() => {
+    return () => {
+      tavoloActionsRef.current = null;
+    };
+  }, [tavoloActionsRef]);
 
   // ── Part A: live ELO from Chess.com (display-only, no persistence) ────────
   // Falls back to stored current_rating if fetch fails or returns null.
@@ -651,6 +752,9 @@ export function TavoloHome() {
   // Momento pool: cadute preferred, fallback to examples
   const momentoPool: PositionExample[] = aggregates?.cadute ?? aggregates?.examples ?? [];
 
+  // Handicap story: derived from history snapshots
+  const handicapLine = historySnapshots ? buildHandicapLine(historySnapshots) : null;
+
   // Journal: "memoria visibile" — recomposed in Nonno's voice (prefers the last
   // full session, leans on the TIME tic). Reads localStorage synchronously.
   const memoriaVisibile = buildMemoria();
@@ -668,8 +772,10 @@ export function TavoloHome() {
           piu' peso, entra per prima. E' qui che cade l'occhio aprendo.
           ════════════════════════════════════════════════════════════════════ */}
 
-      {/* ── 1. INGRESSO: voce di Nonno (memoria visibile fusa dentro la card) ── */}
-      <Reveal className="mb-10">
+      {/* ── 1. INGRESSO: voce di Nonno (memoria visibile fusa dentro la card) ──
+          No Reveal wrapper here: the card owns its mount stagger (ng-stagger-*),
+          a second opacity layer would double-fade the most important scene. */}
+      <div className="mb-10">
         <NonnoGreeting
           goal={liveGoal}
           memoria={memoriaVisibile}
@@ -695,7 +801,7 @@ export function TavoloHome() {
           onSediamoci={() => nav("/sessione")}
           voiceMessage={llmVoice ?? null}
         />
-      </Reveal>
+      </div>
 
       {/* ── 2. OBIETTIVO: hero-goal (oro) ──────────────────────────────── */}
       {currentRating != null && (
@@ -709,6 +815,7 @@ export function TavoloHome() {
             pointsNeeded={gp?.points_needed ?? Math.max(0, targetRating - currentRating)}
             rateNeeded={gp?.rate_needed_per_week ?? null}
             rateReal={gp?.rate_real_per_week ?? null}
+            handicapLine={handicapLine}
           />
         </Reveal>
       )}
@@ -842,34 +949,62 @@ export function TavoloHome() {
         </div>
       </Reveal>
 
-      {/* ── 6. AZIONI SECONDARIE (ghost, in fondo) ─────────────────────── */}
-      <Reveal delay={300} className="mb-8">
-        <div
+      {/* ── 6. AZIONI SECONDARIE (mobile only — desktop uses sidebar links) ── */}
+      {/* On desktop these live as quiet text links in the AppShell sidebar footer. */}
+      <div
+        className="appshell-mobile-actions"
+        style={{
+          borderTop: "1px solid var(--color-line)",
+          paddingTop: "1rem",
+          paddingBottom: "0.5rem",
+          marginBottom: "0.5rem",
+          fontSize: "0.75rem",
+          color: "var(--color-faint)",
+          textAlign: "center",
+          justifyContent: "center",
+          gap: "0",
+        }}
+      >
+        <button
+          onClick={() => void handleRefresh()}
+          disabled={refreshing || reanalyzing}
           style={{
-            borderTop: "1px solid var(--color-line)",
-            paddingTop: "1.25rem",
-            display: "flex",
-            gap: "0.75rem",
+            background: "none",
+            border: "none",
+            padding: 0,
+            cursor: refreshing || reanalyzing ? "default" : "pointer",
+            opacity: refreshing || reanalyzing ? 0.4 : 1,
+            color: "var(--color-faint)",
+            fontSize: "inherit",
+            fontFamily: "inherit",
+            textDecoration: "underline",
+            textDecorationColor: "color-mix(in srgb, var(--color-faint) 50%, transparent)",
+            textUnderlineOffset: "2px",
           }}
         >
-          <button
-            onClick={() => void handleRefresh()}
-            disabled={refreshing || reanalyzing}
-            className="btn btn-ghost btn-sm"
-            style={{ flex: 1 }}
-          >
-            {refreshing ? "Preparo..." : "Aggiorna partite"}
-          </button>
-          <button
-            onClick={() => void handleFullReanalyze()}
-            disabled={refreshing || reanalyzing}
-            className="btn btn-ghost btn-sm"
-            style={{ flex: 1 }}
-          >
-            {reanalyzing ? "Rianalizzando..." : "Rianalizza da capo"}
-          </button>
-        </div>
-      </Reveal>
+          {refreshing ? "Preparo..." : "Aggiorna le partite"}
+        </button>
+        <span style={{ color: "var(--color-faint)", padding: "0 0.4rem", userSelect: "none" }}> · </span>
+        <button
+          onClick={() => void handleFullReanalyze()}
+          disabled={refreshing || reanalyzing}
+          style={{
+            background: "none",
+            border: "none",
+            padding: 0,
+            cursor: refreshing || reanalyzing ? "default" : "pointer",
+            opacity: refreshing || reanalyzing ? 0.4 : 1,
+            color: "var(--color-faint)",
+            fontSize: "inherit",
+            fontFamily: "inherit",
+            textDecoration: "underline",
+            textDecorationColor: "color-mix(in srgb, var(--color-faint) 50%, transparent)",
+            textUnderlineOffset: "2px",
+          }}
+        >
+          {reanalyzing ? "Rianalizzando..." : "Rianalizza da capo"}
+        </button>
+      </div>
 
     </div>
   );

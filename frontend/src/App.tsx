@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { OnboardingRunProvider } from "./pipeline/OnboardingRunContext";
+import { TavoloActionsProvider } from "./context/TavoloActionsContext";
 import { Signup } from "./pages/auth/Signup";
 import { Login } from "./pages/auth/Login";
 import { VerifyEmail } from "./pages/auth/VerifyEmail";
@@ -78,6 +79,7 @@ export function App() {
     <AuthProvider>
       {/* OnboardingRunProvider vede useAuth e sopravvive alle route changes */}
       <OnboardingRunProvider>
+      <TavoloActionsProvider>
       <BrowserRouter basename={basename}>
         {/* Popup globale: seconda battuta di Nonno al completamento del background */}
         <SecondaBattutaPopup />
@@ -129,6 +131,7 @@ export function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
+      </TavoloActionsProvider>
       </OnboardingRunProvider>
     </AuthProvider>
   );
