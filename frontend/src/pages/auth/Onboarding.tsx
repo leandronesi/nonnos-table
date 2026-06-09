@@ -90,28 +90,23 @@ export function Onboarding() {
   const [goalTC, setGoalTC] = useState<TimeClass>("blitz");
   const [weeklyMinutes, setWeeklyMinutes] = useState(120);
 
-  const defaultDeadline = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 112);
-    return d.toISOString().slice(0, 10);
-  }, []);
-  const [goalDeadline, setGoalDeadline] = useState<string>(defaultDeadline);
+  // Deadline: driven by chip selection (13 / 26 / 52 weeks). DEFAULT = 26.
+  const DEADLINE_CHIPS: Array<{ label: string; weeks: number }> = [
+    { label: "Con calma, 3 mesi", weeks: 13 },
+    { label: "Entro 6 mesi", weeks: 26 },
+    { label: "Nell'anno", weeks: 52 },
+  ];
+  const [goalHorizonWeeks, setGoalHorizonWeeks] = useState<number>(26);
 
-  const goalHorizonWeeks = useMemo(() => {
-    const ms = new Date(goalDeadline).getTime() - Date.now();
-    return Math.max(4, Math.min(104, Math.ceil(ms / (7 * 86400000))));
-  }, [goalDeadline]);
-
-  const deadlineMin = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 7);
+  // Derive ISO deadline from weeks (clamped to min +7d / max +730d).
+  const goalDeadline = useMemo(() => {
+    const msWeeks = goalHorizonWeeks * 7 * 86400000;
+    const msMin = 7 * 86400000;
+    const msMax = 730 * 86400000;
+    const ms = Math.max(msMin, Math.min(msMax, msWeeks));
+    const d = new Date(Date.now() + ms);
     return d.toISOString().slice(0, 10);
-  }, []);
-  const deadlineMax = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 730);
-    return d.toISOString().slice(0, 10);
-  }, []);
+  }, [goalHorizonWeeks]);
 
   const currentRating = useMemo(() => {
     if (!stats) return 1200;
@@ -316,55 +311,37 @@ export function Onboarding() {
               </div>
             </div>
 
-            {/* Rating per categoria */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
-                gap: "0.5rem",
-                marginBottom: "1.25rem",
-              }}
-            >
-              {[
-                ["Rapid", stats?.chess_rapid?.last?.rating],
-                ["Blitz", stats?.chess_blitz?.last?.rating],
-                ["Bullet", stats?.chess_bullet?.last?.rating],
-              ].map(([label, val]) => (
+            {/* Nonno phrase for confirmed profile */}
+            {(() => {
+              const tcLabel = defaultTC; // rapid/blitz/bullet
+              const ratingMap: Record<string, number | undefined> = {
+                rapid: stats?.chess_rapid?.last?.rating,
+                blitz: stats?.chess_blitz?.last?.rating,
+                bullet: stats?.chess_bullet?.last?.rating,
+              };
+              const rating = ratingMap[defaultTC];
+              const phrase =
+                rating
+                  ? `Eccoti, ${player.username}. Ho visto le tue partite ${tcLabel}: sei a ${rating}. Siediti, cominciamo da qui.`
+                  : `Eccoti, ${player.username}. Le partite le ho trovate. Siediti, cominciamo da qui.`;
+              return (
                 <div
-                  key={String(label)}
                   style={{
-                    padding: "0.6rem 0.5rem",
-                    background: "var(--color-surface-2)",
-                    border: "1px solid var(--color-line)",
+                    padding: "0.85rem 1rem",
+                    background: "color-mix(in srgb, var(--color-brand) 6%, transparent)",
                     borderRadius: "8px",
-                    textAlign: "center",
+                    marginBottom: "1.25rem",
+                    fontSize: "0.9375rem",
+                    lineHeight: 1.55,
+                    color: "var(--color-text)",
+                    fontFamily: "var(--font-display, Inter Tight, Inter, system-ui, sans-serif)",
+                    fontWeight: 500,
                   }}
                 >
-                  <div
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "0.55rem",
-                      letterSpacing: "0.14em",
-                      textTransform: "uppercase",
-                      color: "var(--color-muted)",
-                      marginBottom: "0.3rem",
-                    }}
-                  >
-                    {label}
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: "1rem",
-                      fontWeight: 600,
-                      color: val ? "var(--color-text)" : "var(--color-faint)",
-                    }}
-                  >
-                    {val ?? "—"}
-                  </div>
+                  {phrase}
                 </div>
-              ))}
-            </div>
+              );
+            })()}
 
             <div style={{ display: "flex", gap: "0.625rem" }}>
               <button
@@ -396,10 +373,10 @@ export function Onboarding() {
     <AuthShell
       eyebrow="2 di 2"
       title="Dove vuoi arrivare?"
-      subtitle="L'oro e' il tuo target. Ti diro' cosa ti separa da lui."
+      subtitle="Dimmi dove punta la sedia. Poi lavoriamo."
     >
       {/* Categoria di tempo */}
-      <Field label="Categoria di tempo" htmlFor="tc" hint="Su quale categoria ti misuri.">
+      <Field label="Categoria di tempo" htmlFor="tc" hint="Su quale cadenza giochi di piu'.">
         <div style={{ display: "flex", gap: "0.5rem" }}>
           {(["bullet", "blitz", "rapid"] as TimeClass[]).map((tc) => {
             const active = goalTC === tc;
@@ -434,7 +411,7 @@ export function Onboarding() {
 
       {/* Slider target rating */}
       <Field
-        label={`Target rating`}
+        label="Dove punta la sedia"
         htmlFor="goal-rating"
         hint={`Oggi sei ${currentRating} in ${goalTC}.`}
       >
@@ -485,29 +462,77 @@ export function Onboarding() {
             2200
           </span>
         </div>
+        {/* Live delta comment — only when currentRating is known */}
+        {stats && (
+          <p
+            style={{
+              margin: "0.5rem 0 0",
+              fontSize: "0.8125rem",
+              lineHeight: 1.5,
+              color: "var(--color-text-soft)",
+              fontFamily: "var(--font-body, Inter, system-ui, sans-serif)",
+            }}
+          >
+            {(() => {
+              const delta = goalRating - currentRating;
+              if (delta <= 0)
+                return "Stai puntando sotto di te. Possiamo lavorarci lo stesso, ma dimmi: sicuro?";
+              if (delta < 100)
+                return `Ci sei quasi. Quei ${delta} punti dipendono da una cosa sola. La troviamo.`;
+              if (delta <= 250)
+                return `${delta} punti. Non e' poco, ma e' esattamente dove posso aiutarti. Si comincia.`;
+              if (delta <= 400)
+                return `Stai puntando in alto. ${delta} punti vogliono tempo e una cosa per volta. Ce la fai.`;
+              return "E' una salita lunga. Tienila, ma sappi che non si fa in fretta. Io ci sono per tutto il percorso.";
+            })()}
+          </p>
+        )}
       </Field>
 
-      {/* Deadline */}
-      <Field
-        label="Deadline"
-        htmlFor="goal-deadline"
-        hint={`= ${goalHorizonWeeks} settimane da oggi`}
-      >
-        <input
-          id="goal-deadline"
-          type="date"
-          className={inputClass}
-          value={goalDeadline}
-          min={deadlineMin}
-          max={deadlineMax}
-          onChange={(e) => setGoalDeadline(e.target.value)}
-        />
+      {/* Deadline — 3 chips */}
+      <Field label="In quanto tempo?" htmlFor="goal-deadline" hint="Nonno calibra il passo su questo.">
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          {DEADLINE_CHIPS.map((chip) => {
+            const active = goalHorizonWeeks === chip.weeks;
+            return (
+              <button
+                key={chip.weeks}
+                type="button"
+                onClick={() => setGoalHorizonWeeks(chip.weeks)}
+                style={{
+                  flex: 1,
+                  padding: "0.5rem 0.375rem",
+                  borderRadius: "8px",
+                  fontSize: "0.7rem",
+                  fontFamily: "var(--font-mono)",
+                  letterSpacing: "0.04em",
+                  fontWeight: 600,
+                  border: "1px solid",
+                  cursor: "pointer",
+                  textAlign: "center",
+                  lineHeight: 1.4,
+                  transition: "background 150ms ease, border-color 150ms ease, color 150ms ease",
+                  background: active ? "var(--color-brand)" : "var(--color-surface-2)",
+                  borderColor: active ? "var(--color-brand)" : "var(--color-line)",
+                  color: active ? "white" : "var(--color-text-soft)",
+                }}
+              >
+                {chip.label}
+              </button>
+            );
+          })}
+        </div>
       </Field>
 
       {/* Minuti a settimana */}
-      <Field label="Tempo disponibile" htmlFor="weekly">
+      <Field label="Quanto puoi sederti a settimana?" htmlFor="weekly">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.5rem" }}>
-          {[30, 60, 120, 180].map((m) => {
+          {([
+            [30, "Mezz'ora"],
+            [60, "Un'ora"],
+            [120, "Due ore"],
+            [180, "Tre ore"],
+          ] as Array<[number, string]>).map(([m, label]) => {
             const active = weeklyMinutes === m;
             return (
               <button
@@ -529,19 +554,10 @@ export function Onboarding() {
                   textAlign: "center",
                 }}
               >
-                {m} min
+                {label}
               </button>
             );
           })}
-        </div>
-        <div
-          style={{
-            fontSize: "0.6875rem",
-            color: "var(--color-faint)",
-            marginTop: "0.375rem",
-          }}
-        >
-          A settimana.
         </div>
       </Field>
 

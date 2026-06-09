@@ -89,6 +89,9 @@ export function OnboardingWaiting() {
       onEnter={() => nav("/", { replace: true })}
       onExit={() => void signOut()}
       targetRating={profile.goal_rating > 0 ? profile.goal_rating : undefined}
+      username={profile.chess_com_username || undefined}
+      tcLabel={profile.goal_time_class || undefined}
+      // currentRating is not stored in ProfileRow — falls back to no-data phrase
     />
   );
 }
