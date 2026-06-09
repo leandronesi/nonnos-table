@@ -213,14 +213,14 @@ function buildCoachContent(p: PositionRow, waitingComputed: WaitingMove[] | null
 // DrillBars — barre grafiche % Maia
 // ---------------------------------------------------------------------------
 
-function DrillBars({ pMine, pTarget }: { pMine: number; pTarget: number }) {
+function DrillBars({ pMine, pTarget, maiaLevel }: { pMine: number; pTarget: number; maiaLevel?: number | null }) {
   const mine   = Math.round(pMine * 100);
   const target = Math.round(pTarget * 100);
   return (
-    <div className="sess-drill-bar" aria-label={`Percentuali: tu ${mine}%, il target ${target}%`}>
-      {/* riga "tu" */}
+    <div className="sess-drill-bar" aria-label={`Percentuali: al tuo livello ${mine}%, ${maiaLevel != null ? `a ${maiaLevel}` : "all'obiettivo"} ${target}%`}>
+      {/* riga "oggi" */}
       <div className="sess-drill-bar-row">
-        <span className="sess-drill-bar-label">tu</span>
+        <span className="sess-drill-bar-label">oggi</span>
         <div className="sess-drill-bar-track">
           <div
             className="sess-drill-bar-fill"
@@ -234,9 +234,9 @@ function DrillBars({ pMine, pTarget }: { pMine: number; pTarget: number }) {
           {mine}%
         </span>
       </div>
-      {/* riga "target" */}
+      {/* riga maiaLevel */}
       <div className="sess-drill-bar-row">
-        <span className="sess-drill-bar-label">target</span>
+        <span className="sess-drill-bar-label">{maiaLevel ?? "obiettivo"}</span>
         <div className="sess-drill-bar-track">
           <div
             className="sess-drill-bar-fill"
@@ -367,7 +367,7 @@ export function MomentReview({ position, index, total, maiaLevel, onNext, onPrev
         {maiaLevel && (
           <>
             <span className="dot">·</span>
-            <span style={{ color: "var(--color-gold-soft)" }}>target {maiaLevel}</span>
+            <span style={{ color: "var(--color-gold-soft)" }}>obiettivo {maiaLevel}</span>
           </>
         )}
       </div>
@@ -440,7 +440,7 @@ export function MomentReview({ position, index, total, maiaLevel, onNext, onPrev
                     {Math.round(pMineCoach * 100)}%
                   </span>.
                 </p>
-                <DrillBars pMine={pMineCoach} pTarget={pTarget} />
+                <DrillBars pMine={pMineCoach} pTarget={pTarget} maiaLevel={maiaLevel} />
               </div>
             )}
           </div>
@@ -491,9 +491,6 @@ export function MomentReview({ position, index, total, maiaLevel, onNext, onPrev
                 {waitingFinal.slice(0, 3).map((wm, i) => (
                   <span key={i} className="tt-chip" style={{ fontFamily: "var(--font-mono)" }}>
                     {wm.san}
-                    <span style={{ opacity: 0.55, fontSize: "0.6rem" }}>
-                      {wm.cp_loss > 0 ? ` -${(wm.cp_loss / 100).toFixed(1)}` : ""}
-                    </span>
                   </span>
                 ))}
               </div>

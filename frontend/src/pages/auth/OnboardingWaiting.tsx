@@ -88,6 +88,7 @@ export function OnboardingWaiting() {
       error={error}
       onEnter={() => nav("/", { replace: true })}
       onExit={() => void signOut()}
+      targetRating={profile.goal_rating > 0 ? profile.goal_rating : undefined}
     />
   );
 }

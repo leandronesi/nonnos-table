@@ -13,7 +13,7 @@ import { useState, useRef, useEffect } from "react";
 import type { PositionExample, RepertoireRow } from "../pipeline/aggregate";
 import { ecoName } from "../eco";
 import { BoardView } from "./BoardView";
-import { uciToArrow, cpToPawns, uciToSan } from "../pages/quaderno/boardArrows";
+import { uciToArrow, uciToSan } from "../pages/quaderno/boardArrows";
 
 // ── Phase label helpers ────────────────────────────────────────────────────────
 
@@ -171,14 +171,6 @@ function MiniPositionCard({ pos }: { pos: PositionExample }) {
       {/* Board */}
       <div style={{ display: "flex", justifyContent: "center" }}>
         <BoardView fen={pos.fen_before} orientation={pos.color} size={164} arrows={arrows} />
-      </div>
-
-      {/* cp_loss */}
-      <div
-        className="font-mono font-bold tabular-nums"
-        style={{ fontSize: "1rem", color: "var(--color-danger)", lineHeight: 1 }}
-      >
-        -{cpToPawns(pos.cp_loss)}
       </div>
 
       {/* Phase chip */}
@@ -533,7 +525,7 @@ function AperturaRow({
           </div>
         </div>
 
-        {/* Secondari: partite, win%, ACPL */}
+        {/* Secondari: partite, win% */}
         <div
           className="shrink-0 flex flex-col items-end gap-0.5"
           style={{ minWidth: "5rem", color: "var(--color-muted)" }}
@@ -544,22 +536,11 @@ function AperturaRow({
           {row.win_rate != null && (
             <div
               className="font-mono tabular-nums"
-              style={{
-                fontSize: "0.72rem",
-                color:
-                  row.win_rate >= 0.55
-                    ? "var(--color-signal-good, #34d399)"
-                    : row.win_rate <= 0.35
-                    ? "var(--color-danger)"
-                    : "var(--color-muted)",
-              }}
+              style={{ fontSize: "0.72rem", color: "var(--color-text-soft)" }}
             >
               {Math.round(row.win_rate * 100)}% V
             </div>
           )}
-          <div className="font-mono tabular-nums" style={{ fontSize: "0.72rem" }}>
-            {Math.round(row.avg_acpl)} ACPL
-          </div>
         </div>
 
         {/* Chevron indicator */}

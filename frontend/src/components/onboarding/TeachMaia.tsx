@@ -20,7 +20,7 @@ function pip(i: number) {
   return { x: CX + R * Math.cos(rad), y: CY + R * Math.sin(rad) };
 }
 
-export function TeachMaia() {
+export function TeachMaia({ targetRating }: { targetRating?: number }) {
   const [t, setT] = useState(0); // 0..1 nel ciclo
   const rafRef = useRef<number | null>(null);
   const startRef = useRef<number | null>(null);
@@ -114,7 +114,7 @@ export function TeachMaia() {
         fontFamily="Inter, sans-serif"
         letterSpacing="0.1em"
       >
-        a 1500
+        {targetRating != null && targetRating > 0 ? `a ${targetRating}` : "al tuo livello"}
       </text>
     </svg>
   );
