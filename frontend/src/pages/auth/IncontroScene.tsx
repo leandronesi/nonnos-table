@@ -10,6 +10,7 @@ import type { OrchestratorProgress } from "../../pipeline/orchestrator";
 import { TeachTime } from "../../components/onboarding/TeachTime";
 import { TeachMaia } from "../../components/onboarding/TeachMaia";
 import { TeachAncora } from "../../components/onboarding/TeachAncora";
+import { prefersReducedMotion } from "../../lib/motion";
 
 // Shape del coach_brief.json scritto dalla Edge Function coach-llm.
 export interface CoachLlmBrief {
@@ -72,9 +73,9 @@ function NonnoVoice({ text }: { text: string }) {
   return (
     <p
       style={{
-        fontFamily: "var(--font-body, Inter, system-ui, sans-serif)",
+        fontFamily: "var(--font-voice)",
         fontSize: "1rem",
-        fontWeight: 400,
+        fontWeight: 500,
         lineHeight: 1.65,
         color: "var(--color-text-soft, #b6bcd6)",
         margin: 0,
@@ -92,6 +93,18 @@ function NonnoVoice({ text }: { text: string }) {
 // ── Lampada decorativa ────────────────────────────────────────────────────────
 
 function RoomLamp() {
+  // One-shot light-on: the glow fades in from opacity 0 at mount.
+  // Structural elements (shade, stem, base) are always visible; only the
+  // radial glow animates so the lamp "switches on" rather than popping.
+  const [lit, setLit] = useState(prefersReducedMotion());
+
+  useEffect(() => {
+    if (prefersReducedMotion()) return;
+    // Start invisible, then trigger on the next frame so the transition fires.
+    const t = requestAnimationFrame(() => setLit(true));
+    return () => cancelAnimationFrame(t);
+  }, []);
+
   return (
     <div
       aria-hidden="true"
@@ -103,7 +116,7 @@ function RoomLamp() {
         flexShrink: 0,
       }}
     >
-      {/* Alone */}
+      {/* Alone — animates opacity 0→1 on mount (lamp-on effect) */}
       <div
         style={{
           position: "absolute",
@@ -114,6 +127,10 @@ function RoomLamp() {
           borderRadius: "999px",
           background: "radial-gradient(circle, color-mix(in srgb, #f6c64a 16%, transparent), color-mix(in srgb, #f6c64a 5%, transparent) 42%, transparent 68%)",
           pointerEvents: "none",
+          opacity: lit ? 1 : 0,
+          transition: prefersReducedMotion()
+            ? "none"
+            : "opacity 900ms ease-out",
         }}
       />
       {/* Paralume */}
@@ -166,7 +183,8 @@ function ProgressThread({
   pct: number;
 }) {
   const isCoaching = phase === "coaching";
-  const width = isCoaching ? 100 : pct;
+  // During coaching the filled portion covers 100% and pulses.
+  const filledPct = isCoaching ? 100 : pct;
 
   return (
     <div
@@ -174,25 +192,35 @@ function ProgressThread({
         display: "flex",
         flexDirection: "column",
         gap: "0.375rem",
-        opacity: 0.45,
+        opacity: 0.55,
       }}
     >
+      {/* Track: dashed background (the "future" part) */}
       <div
         style={{
+          position: "relative",
           height: "2px",
-          borderRadius: "999px",
-          background: "var(--color-surface-3, #1c2138)",
-          overflow: "hidden",
+          // Dashed track for the full width — represents what's ahead.
+          backgroundImage:
+            "repeating-linear-gradient(90deg, var(--color-line-strong) 0 4px, transparent 4px 10px)",
         }}
       >
+        {/* Filled overlay (inchiostro pieno) — what's been covered */}
         <div
           style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
             height: "100%",
-            borderRadius: "999px",
-            background: "var(--color-brand, #7c5cff)",
-            width: `${width}%`,
-            transition: "width 600ms cubic-bezier(0.23,1,0.32,1)",
-            animation: isCoaching ? "pulseGlow 2.4s ease-in-out infinite" : "none",
+            width: `${filledPct}%`,
+            background: "var(--color-brand-soft)",
+            transition: prefersReducedMotion()
+              ? "none"
+              : "width 600ms cubic-bezier(0.23,1,0.32,1)",
+            // Pulse only on the filled portion during coaching phase.
+            animation: isCoaching
+              ? "pulseGlow 2.4s ease-in-out infinite"
+              : "none",
           }}
         />
       </div>
@@ -255,10 +283,10 @@ function PrimoColpo({
         transition: "opacity 800ms cubic-bezier(0.23,1,0.32,1), transform 800ms cubic-bezier(0.23,1,0.32,1)",
       }}
     >
-      {/* La frase */}
+      {/* La frase — voce serif, peso 600 come da spec Onda D */}
       <p
         style={{
-          fontFamily: "var(--font-display, Inter Tight, Inter, system-ui, sans-serif)",
+          fontFamily: "var(--font-voice)",
           fontWeight: 600,
           fontSize: "clamp(1.05rem, 3.5vw, 1.25rem)",
           lineHeight: 1.55,
@@ -471,9 +499,12 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, ta
                       display: "flex",
                       justifyContent: "center",
                       opacity: slideVisible ? 1 : 0,
-                      transform: slideVisible ? "scale(1)" : "scale(0.96)",
-                      transition:
-                        "opacity 500ms cubic-bezier(0.23,1,0.32,1), transform 500ms cubic-bezier(0.23,1,0.32,1)",
+                      transform: slideVisible
+                        ? "translateY(0)"
+                        : "translateY(6px)",
+                      transition: prefersReducedMotion()
+                        ? "none"
+                        : "opacity 400ms var(--ease-settle), transform 400ms var(--ease-settle)",
                     }}
                   >
                     {teachSlides[slideIndex]?.component}
