@@ -5073,6 +5073,14 @@ button:disabled, [aria-disabled="true"] {
   letter-spacing: 0;
 }
 
+/* §2d — topbar wordmark uses font-voice 600 (the Nonno's voice, not UI chrome) */
+.public-brand-wordmark {
+  font-family: var(--font-voice);
+  font-weight: 600;
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
 .public-brand b {
   color: var(--color-gold-soft);
   font-weight: 850;
@@ -5167,15 +5175,16 @@ button:disabled, [aria-disabled="true"] {
   color: var(--color-muted);
 }
 
+/* §2a — h1 wordmark: Fraunces 700 (black is too heavy) */
 .public-copy h1 {
   max-width: 9.2ch;
   margin: 1rem 0 0;
   color: var(--color-text);
-  font-family: var(--font-display);
+  font-family: var(--font-voice);
   font-size: clamp(3.2rem, 7.1vw, 6.25rem);
   line-height: 0.9;
-  letter-spacing: 0;
-  font-weight: 920;
+  letter-spacing: -0.01em;
+  font-weight: 700;
 }
 
 .public-copy h1 span {
@@ -5183,22 +5192,25 @@ button:disabled, [aria-disabled="true"] {
   color: var(--color-gold-soft);
 }
 
+/* §2b — payoff: font-voice 600, la voce del Nonno */
 .public-payoff {
   max-width: 18ch;
   margin: 1.15rem 0 0;
   color: var(--color-text);
-  font-family: var(--font-display);
+  font-family: var(--font-voice);
   font-size: clamp(1.55rem, 3.25vw, 2.55rem);
-  line-height: 1.04;
-  font-weight: 800;
+  line-height: 1.08;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
+/* §2c — lede: claim editoriale, sans weight 500 (contrast with serif above) */
 .public-lede {
   max-width: 50ch;
   margin: 1rem 0 0;
   color: var(--color-text-soft);
   font-size: 1rem;
+  font-weight: 500;
   line-height: 1.64;
 }
 
@@ -5247,32 +5259,22 @@ button:disabled, [aria-disabled="true"] {
   color: var(--color-gold-soft);
 }
 
+/* §4b — rail track now contains an SVG with ink-path / ink-drawn.
+ * The background pill is gone (the SVG carries both track bg and gradient line).
+ * The gold dot is rendered as an SVG circle, always visible. */
 .public-rail-track {
   position: relative;
-  height: 0.55rem;
-  border-radius: 999px;
-  background: var(--color-surface-3);
+  height: 9px;
+  display: flex;
+  align-items: center;
   overflow: visible;
 }
 
-.public-rail-track span {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--color-brand-soft), var(--color-gold-soft));
-}
-
-.public-rail-track span::after {
-  content: "";
-  position: absolute;
-  right: -5px;
-  top: 50%;
-  width: 15px;
-  height: 15px;
-  border-radius: 999px;
-  background: var(--color-gold-soft);
-  border: 2px solid var(--color-bg);
-  transform: translateY(-50%);
+.public-rail-track svg {
+  width: 100%;
+  height: 9px;
+  overflow: visible;
+  display: block;
 }
 
 .public-nonno {
@@ -5296,16 +5298,18 @@ button:disabled, [aria-disabled="true"] {
   background: var(--color-surface-2);
 }
 
+/* §2e — figcaption: font-voice 500 italic, warmth of direct speech */
 .public-nonno figcaption {
   min-width: 0;
   padding: 0.85rem 1rem;
   background: color-mix(in srgb, var(--color-brand) 6%, transparent);
   border-radius: 8px;
   color: var(--color-text);
-  font-family: var(--font-display);
+  font-family: var(--font-voice);
   font-size: clamp(1.05rem, 2vw, 1.28rem);
   line-height: 1.43;
-  font-weight: 680;
+  font-weight: 500;
+  font-style: italic;
 }
 
 .public-nonno span {
@@ -5342,6 +5346,18 @@ button:disabled, [aria-disabled="true"] {
   font-size: 1rem;
 }
 
+/* ── §1c — Copy column stagger: each child settles in at an explicit delay.
+ * Uses settle-in animation already defined in MOTION CORE.
+ * Markup uses classes .public-copy-c0 through .public-copy-c6.
+ * Explicit classes > nth-child (robust against reorder). */
+.public-copy-c0 { animation: settle-in 450ms var(--ease-settle) 80ms both; }
+.public-copy-c1 { animation: settle-in 450ms var(--ease-settle) 160ms both; }
+.public-copy-c2 { animation: settle-in 450ms var(--ease-settle) 240ms both; }
+.public-copy-c3 { animation: settle-in 450ms var(--ease-settle) 320ms both; }
+.public-copy-c4 { animation: settle-in 450ms var(--ease-settle) 400ms both; }
+.public-copy-c5 { animation: settle-in 450ms var(--ease-settle) 480ms both; }
+.public-copy-c6 { animation: settle-in 450ms var(--ease-settle) 560ms both; }
+
 .public-stage {
   min-height: clamp(520px, 63vh, 620px);
   position: relative;
@@ -5371,6 +5387,13 @@ button:disabled, [aria-disabled="true"] {
   height: 9.5rem;
 }
 
+/* §1a — glow fades in one-shot; paralume/stelo/base visibili da subito.
+ * Only the radial glow span is animated. */
+@keyframes lamp-glow-on {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 .public-lamp-glow {
   position: absolute;
   left: -6.4rem;
@@ -5379,6 +5402,8 @@ button:disabled, [aria-disabled="true"] {
   height: 18rem;
   border-radius: 999px;
   background: radial-gradient(circle, color-mix(in srgb, var(--color-gold) 19%, transparent), color-mix(in srgb, var(--color-gold) 6%, transparent) 42%, transparent 68%);
+  /* One-shot: glow appears 150ms after mount, 900ms ease-out */
+  animation: lamp-glow-on 900ms var(--ease-out) 150ms both;
 }
 
 .public-lamp-shade {
@@ -6061,6 +6086,32 @@ button:disabled, [aria-disabled="true"] {
   .settle,
   .settle.in,
   .settle-in {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  /* §1d — landing copy stagger: all visible immediately */
+  .public-copy-c0,
+  .public-copy-c1,
+  .public-copy-c2,
+  .public-copy-c3,
+  .public-copy-c4,
+  .public-copy-c5,
+  .public-copy-c6 {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  /* §1a — lamp glow: skip animation, visible from mount */
+  .public-lamp-glow {
+    animation: none;
+    opacity: 1;
+  }
+  /* §1b — stage cards: skip settle-in, visible from mount */
+  .public-target-card.settle-in,
+  .public-session-card.settle-in,
+  .public-board-card.settle-in,
+  .public-notebook.settle-in {
     animation: none;
     opacity: 1;
     transform: none;
