@@ -22,6 +22,7 @@ import { writeEntry, hasEntryToday } from "./journal";
 import { MomentReview } from "./MomentReview";
 import { PositionPuzzle } from "./WarmupGuidato";
 import { PlayStep } from "./PlayStep";
+import { navigateWithTransition, prefersReducedMotion } from "../lib/motion";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -138,87 +139,136 @@ const PHASE_LABELS: Record<Phase, string> = {
   "saluto":  "Fine",
 };
 
-function PhasePills({ current }: { current: Phase }) {
-  const visible: Phase[] = ["guardo", "aiuto", "da-solo", "partita"];
+// ---------------------------------------------------------------------------
+// PhaseThread — ink-line with 4 stations.
+//
+// The filled portion (inchiostro pieno) tracks the CURRENT position: 0%, 33%,
+// 66%, or 100%.  The remainder is dashed (tratteggio).  A CSS overlay div
+// transitions its width with ease-ink (600ms) so the fill "draws itself in".
+// ---------------------------------------------------------------------------
+
+const THREAD_PHASES: Phase[] = ["guardo", "aiuto", "da-solo", "partita"];
+
+// Station positions as % along the track (0=left, 100=right).
+const STATION_PCT: Record<Phase, number> = {
+  "guardo":   0,
+  "aiuto":    33,
+  "da-solo":  66,
+  "partita":  100,
+  "saluto":   100,
+};
+
+function PhaseThread({ current }: { current: Phase }) {
+  const fillPct = STATION_PCT[current];
+  // "saluto" is past the last station: indexOf is -1, treat as beyond the end
+  // so every station reads as done and the SR label says the ritual is over.
+  const rawIdx = THREAD_PHASES.indexOf(current);
+  const currentIdx = rawIdx === -1 ? THREAD_PHASES.length : rawIdx;
+  const srLabel =
+    rawIdx === -1
+      ? `Sessione completata: ${PHASE_LABELS[current]}`
+      : `Fase ${rawIdx + 1} di 4: ${PHASE_LABELS[current]}`;
 
   return (
-    <>
-      {/* Desktop: 4 labels in a row, only the current one lit */}
-      <div className="hidden lg:flex items-center gap-0" aria-label="Fasi della sessione">
-        {visible.map((ph, i) => {
-          const active = ph === current;
+    <div
+      aria-label={srLabel}
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={fillPct}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        flexDirection: "column",
+        gap: "0.35rem",
+        flex: 1,
+        maxWidth: "22rem",
+        minWidth: "10rem",
+      }}
+    >
+      {/* Track + stations */}
+      <div
+        style={{
+          position: "relative",
+          width: "100%",
+          height: "0.75rem",
+          display: "flex",
+          alignItems: "center",
+        }}
+        aria-hidden="true"
+      >
+        {/* Base dashed track — the "future" part */}
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            height: "2px",
+            backgroundImage: "repeating-linear-gradient(90deg, var(--color-line-strong) 0 4px, transparent 4px 10px)",
+            opacity: 0.7,
+          }}
+        />
+        {/* Filled overlay — the "past + current" part, animates on phase change */}
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            height: "2px",
+            width: `${fillPct}%`,
+            background: "var(--color-brand-soft)",
+            opacity: 0.7,
+            transition: prefersReducedMotion()
+              ? "none"
+              : "width 600ms var(--ease-ink)",
+          }}
+        />
+        {/* Stations */}
+        {THREAD_PHASES.map((ph) => {
+          const pctPos = STATION_PCT[ph];
+          const isCurrent = ph === current;
+          const isPast = THREAD_PHASES.indexOf(ph) < currentIdx;
+
           return (
-            <div key={ph} className="flex items-center">
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  padding: "0.25rem 0.75rem",
-                  borderRadius: "999px",
-                  fontSize: "0.6875rem",
-                  fontFamily: "var(--font-mono)",
-                  fontWeight: active ? 700 : 500,
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  transition: "background 180ms var(--ease-out), color 180ms var(--ease-out)",
-                  background: active ? "rgba(124,92,255,0.18)" : "transparent",
-                  color: active ? "var(--color-brand-soft)" : "var(--color-faint)",
-                  border: active ? "1px solid rgba(124,92,255,0.4)" : "1px solid transparent",
-                }}
-              >
-                {PHASE_LABELS[ph]}
-              </div>
-              {i < visible.length - 1 && (
-                <div
-                  style={{
-                    width: "1.5rem",
-                    height: "1px",
-                    background: "var(--color-line)",
-                  }}
-                />
-              )}
-            </div>
+            <div
+              key={ph}
+              title={PHASE_LABELS[ph]}
+              style={{
+                position: "absolute",
+                left: `${pctPos}%`,
+                transform: "translateX(-50%)",
+                width: isCurrent ? "8px" : "6px",
+                height: isCurrent ? "8px" : "6px",
+                borderRadius: "999px",
+                background: isPast || isCurrent
+                  ? "var(--color-brand-soft)"
+                  : "transparent",
+                border: isPast || isCurrent
+                  ? "none"
+                  : `1px solid var(--color-line-strong)`,
+                transition: prefersReducedMotion()
+                  ? "none"
+                  : "width 300ms var(--ease-out), height 300ms var(--ease-out), background 300ms var(--ease-out)",
+                flexShrink: 0,
+                zIndex: 1,
+                // station labels for the SR label are on the parent
+              }}
+              aria-hidden="true"
+            />
           );
         })}
       </div>
 
-      {/* Mobile: 4 dots, only the current one lit + the current phase label */}
-      <div
-        className="flex lg:hidden items-center gap-2"
-        aria-label={`Fase: ${PHASE_LABELS[current]}`}
-        style={{ fontFamily: "var(--font-mono)" }}
-      >
-        {/* Dot indicators — one lit, the rest faint. No "done" colour. */}
-        <div className="flex items-center gap-1">
-          {visible.map((ph) => {
-            const active = ph === current;
-            return (
-              <div
-                key={ph}
-                style={{
-                  width: active ? "1.25rem" : "0.45rem",
-                  height: "0.45rem",
-                  borderRadius: "999px",
-                  background: active ? "var(--color-brand-soft)" : "var(--color-faint)",
-                  transition: "width 200ms var(--ease-out), background 200ms var(--ease-out)",
-                }}
-                aria-hidden="true"
-              />
-            );
-          })}
-        </div>
-        {/* Current phase label — no "N/4" count */}
-        <span style={{
-          fontSize: "0.6875rem",
-          fontWeight: 700,
-          letterSpacing: "0.06em",
-          textTransform: "uppercase",
+      {/* Current phase label (eyebrow, below the thread) */}
+      <span
+        className="tt-eyebrow"
+        style={{
           color: "var(--color-brand-soft)",
-        }}>
-          {PHASE_LABELS[current]}
-        </span>
-      </div>
-    </>
+          letterSpacing: "0.1em",
+        }}
+      >
+        {PHASE_LABELS[current]}
+      </span>
+    </div>
   );
 }
 
@@ -235,7 +285,7 @@ function SessionHeader({ phase, onExit }: { phase: Phase; onExit: () => void }) 
       <div className="tt-eyebrow" style={{ minWidth: "4rem" }}>
         Sessione
       </div>
-      <PhasePills current={phase} />
+      <PhaseThread current={phase} />
       <button
         onClick={onExit}
         className="btn btn-ghost btn-sm"
@@ -261,32 +311,110 @@ function Saluto({
   dominantMotif: string | null;
   onClose: () => void;
 }) {
-  // Name the anchor we sat on today, when we have it: reinforces the continuous
-  // memory at zero cost. No invented theme: fall back to the generic close.
+  // Click anywhere to reveal everything immediately (skip delays).
+  const [revealed, setRevealedState] = useState(prefersReducedMotion());
+  // Overlay visible on mount; phrase/CTA settle in with delays.
+  // Reduced motion: the curtain is part of the scene, not a transition — shown at once.
+  const [overlayIn, setOverlayIn] = useState(prefersReducedMotion());
+  const [phraseIn, setPhraseIn] = useState(prefersReducedMotion());
+  const [ctaIn, setCtaIn] = useState(prefersReducedMotion());
+
+  useEffect(() => {
+    if (prefersReducedMotion()) return;
+    // Overlay fades in immediately
+    const t0 = setTimeout(() => setOverlayIn(true), 10);
+    // Phrase settles at 400ms
+    const t1 = setTimeout(() => setPhraseIn(true), 400);
+    // CTA settles at 1000ms
+    const t2 = setTimeout(() => setCtaIn(true), 1000);
+    return () => { clearTimeout(t0); clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+
+  function handleReveal() {
+    setRevealedState(true);
+    setOverlayIn(true);
+    setPhraseIn(true);
+    setCtaIn(true);
+  }
+
   const phrase = dominantMotif
     ? `Oggi abbiamo guardato ${dominantMotif}. Domani riprendiamo da li'.`
     : pickIdx(SALUTO_PHRASES, totalPositions);
+
+  // When revealed, all delays are bypassed (transition still runs but from
+  // already-set state so it's instant in practice).
+  const phraseVisible = revealed || phraseIn;
+  const ctaVisible = revealed || ctaIn;
+
   return (
-    <div
-      className="max-w-lg mx-auto text-center fade-in"
-      style={{ padding: "5rem 1.5rem 6rem" }}
-    >
-      <div className="tt-eyebrow" style={{ marginBottom: "1.5rem" }}>
-        Nonno
+    <>
+      {/* Curtain overlay — scuro, sotto il contenuto del saluto */}
+      <div
+        aria-hidden="true"
+        onClick={handleReveal}
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.35)",
+          zIndex: 0,
+          opacity: overlayIn || revealed ? 1 : 0,
+          transition: prefersReducedMotion()
+            ? "none"
+            : "opacity 600ms ease-out",
+          pointerEvents: "auto",
+        }}
+      />
+
+      {/* Saluto content — above the overlay */}
+      <div
+        className="max-w-lg mx-auto text-center"
+        style={{
+          padding: "5rem 1.5rem 6rem",
+          position: "relative",
+          zIndex: 1,
+          cursor: ctaVisible ? "default" : "pointer",
+        }}
+        onClick={!ctaVisible ? handleReveal : undefined}
+      >
+        <div className="tt-eyebrow" style={{ marginBottom: "1.5rem" }}>
+          Nonno
+        </div>
+        <p
+          style={{
+            fontFamily: "var(--font-voice)",
+            fontWeight: 500,
+            fontSize: "clamp(1.6rem, 4vw, 2.2rem)",
+            lineHeight: 1.35,
+            color: "var(--color-text)",
+            margin: "0 auto 2.5rem",
+            textAlign: "center",
+            opacity: phraseVisible ? 1 : 0,
+            transform: phraseVisible ? "translateY(0)" : "translateY(8px)",
+            transition: prefersReducedMotion()
+              ? "none"
+              : "opacity 600ms var(--ease-settle), transform 600ms var(--ease-settle)",
+          }}
+        >
+          {phrase}
+        </p>
+        <div
+          style={{
+            opacity: ctaVisible ? 1 : 0,
+            transform: ctaVisible ? "translateY(0)" : "translateY(8px)",
+            // Invisible must mean untouchable: a hidden CTA that still catches
+            // a tap would close the session before the Nonno finishes speaking.
+            pointerEvents: ctaVisible ? "auto" : "none",
+            transition: prefersReducedMotion()
+              ? "none"
+              : "opacity 600ms var(--ease-settle), transform 600ms var(--ease-settle)",
+          }}
+        >
+          <button onClick={onClose} className="btn btn-primary btn-lg">
+            Vai e respira
+          </button>
+        </div>
       </div>
-      <p className="tt-nonno" style={{
-        margin: "0 auto 2.5rem",
-        paddingLeft: 0,
-        borderLeft: "none",
-        textAlign: "center",
-        fontSize: "clamp(1.4rem, 3.5vw, 1.8rem)",
-      }}>
-        {phrase}
-      </p>
-      <button onClick={onClose} className="btn btn-primary btn-lg">
-        Vai e respira
-      </button>
-    </div>
+    </>
   );
 }
 
@@ -345,10 +473,12 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose }: P
     drill.motif_label_it ?? drill.motif ?? "Posizione";
 
   function advance() {
-    setPhase((current) => {
-      const idx = PHASE_ORDER.indexOf(current);
-      if (idx < PHASE_ORDER.length - 1) return PHASE_ORDER[idx + 1];
-      return current;
+    navigateWithTransition(() => {
+      setPhase((current) => {
+        const idx = PHASE_ORDER.indexOf(current);
+        if (idx < PHASE_ORDER.length - 1) return PHASE_ORDER[idx + 1];
+        return current;
+      });
     });
   }
 
@@ -384,7 +514,7 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose }: P
         },
       });
     }
-    setPhase("saluto");
+    navigateWithTransition(() => setPhase("saluto"));
   }
 
   return (
@@ -401,19 +531,20 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose }: P
 
         {/* Fase 1 — GUARDO */}
         {phase === "guardo" && (
-          <MomentReview
-            key="review-0"
-            position={review}
-            index={0}
-            total={1}
-            maiaLevel={targetRating}
-            onNext={advance}
-          />
+          <div key="phase-guardo" className="settle-in">
+            <MomentReview
+              position={review}
+              index={0}
+              total={1}
+              maiaLevel={targetRating}
+              onNext={advance}
+            />
+          </div>
         )}
 
         {/* Fase 2 — AIUTO */}
         {phase === "aiuto" && (
-          <div className="fade-in">
+          <div key="phase-aiuto" className="settle-in">
             <div className="sess-phase-header">
               <div className="sess-phase-dot">2</div>
               <span className="sess-phase-title">Nonno mi aiuta</span>
@@ -433,7 +564,7 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose }: P
 
         {/* Fase 3 — DA SOLO */}
         {phase === "da-solo" && (
-          <div className="fade-in">
+          <div key="phase-da-solo" className="settle-in">
             <div className="sess-phase-header">
               <div className="sess-phase-dot">3</div>
               <span className="sess-phase-title">Gioco da solo</span>
@@ -452,7 +583,7 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose }: P
 
         {/* Fase 4 — PARTITA vs avversario@target */}
         {phase === "partita" && (
-          <div className="fade-in">
+          <div key="phase-partita" className="settle-in">
             <div className="sess-phase-header">
               <div className="sess-phase-dot honey">4</div>
               <span className="sess-phase-title" style={{ color: "var(--color-gold-soft)" }}>
@@ -472,11 +603,13 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose }: P
 
         {/* SALUTO */}
         {phase === "saluto" && (
-          <Saluto
-            totalPositions={positions.length}
-            dominantMotif={dominantMotif}
-            onClose={onClose}
-          />
+          <div key="phase-saluto" className="settle-in" style={{ position: "relative" }}>
+            <Saluto
+              totalPositions={positions.length}
+              dominantMotif={dominantMotif}
+              onClose={onClose}
+            />
+          </div>
         )}
 
       </div>
