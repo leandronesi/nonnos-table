@@ -32,13 +32,13 @@ import { PRODUCT_NAME } from "../coaching";
 import { runRefresh, runFullReanalyze } from "../pipeline/orchestrator";
 import type { Aggregates, Anchor, PositionExample } from "../pipeline/aggregate";
 import type { PlayerModelLite } from "../pipeline/playerModelLite";
-import { goalProgress } from "../pipeline/history";
-import { navigateWithTransition } from "../lib/motion";
+import { goalProgress, anchorTrendsFromHistory } from "../pipeline/history";
+import { navigateWithTransition, useCountUp, useInkDraw } from "../lib/motion";
 import { NonnoGreeting } from "../components/NonnoGreeting";
 import { MomentoDelGiorno } from "../components/MomentoDelGiorno";
 import { readEntries } from "../session/journal";
 import type { TimeClass } from "../auth/db.types";
-import type { HistorySnapshot } from "../types";
+import type { HistorySnapshot, HistoryFile, AnchorTrail } from "../types";
 
 // ── Reveal hook ───────────────────────────────────────────────────────────────
 
@@ -120,8 +120,20 @@ function GoalHero({
   handicapLine: string | null;
 }) {
   const progress = Math.max(0, Math.min(1, (current - start) / Math.max(target - start, 1)));
-  const fillPct = Math.round(progress * 100);
+  // Clamp fillPct to [2, 98] so dots at the edges are never clipped
+  const fillPct = Math.max(2, Math.min(98, Math.round(progress * 100)));
   const dl = deadline ? deadlineIt(deadline) : "";
+
+  // Count-up: animate from start rating to current on mount.
+  // If start >= current (regression or first login), no count-up.
+  const countedCurrent = useCountUp(
+    current,
+    1100,
+    start < current ? start : undefined,
+  );
+
+  // Ink-draw hook for the SVG progress line (fires once on viewport entry)
+  const { ref: inkRef, drawn } = useInkDraw();
 
   const progressLine = (() => {
     if (pointsNeeded <= 0) return "Ci sei. Sediamoci a guardare cosa hai costruito.";
@@ -138,6 +150,7 @@ function GoalHero({
 
   return (
     <div
+      className="lit obj-card"
       style={{
         background: `
           radial-gradient(480px 240px at 90% -10%, color-mix(in srgb, var(--color-gold) 16%, transparent), transparent 60%),
@@ -154,7 +167,7 @@ function GoalHero({
         Il tuo obiettivo
       </div>
 
-      {/* Main row: current <- track -> target */}
+      {/* Main row: current (counted) <- track -> target (gold) */}
       <div
         style={{
           display: "flex",
@@ -164,7 +177,7 @@ function GoalHero({
           flexWrap: "wrap",
         }}
       >
-        {/* Current — demoted from display to title weight */}
+        {/* Current — count-up on mount */}
         <div>
           <div
             className="font-mono font-bold"
@@ -175,12 +188,12 @@ function GoalHero({
               fontVariantNumeric: "tabular-nums",
             }}
           >
-            {current}
+            {countedCurrent}
           </div>
           <div className="tt-eyebrow tt-muted" style={{ marginTop: "0.25rem" }}>oggi</div>
         </div>
 
-        {/* Target in gold — La Regola del Miele */}
+        {/* Target in gold — La Regola del Miele. Static, not animated. */}
         <div style={{ textAlign: "right" }}>
           <div
             className="font-mono font-bold"
@@ -199,42 +212,68 @@ function GoalHero({
         </div>
       </div>
 
-      {/* Track bar */}
+      {/* Ink-line track — SVG replaces the old CSS bar.
+          Drawn path = journey covered. Dashed remainder = road ahead. */}
       <div
-        style={{
-          marginTop: "1.25rem",
-          height: "6px",
-          borderRadius: "999px",
-          background: "rgba(255,255,255,0.06)",
-          position: "relative",
-          overflow: "visible",
-        }}
+        className={drawn ? "ink-drawn" : ""}
+        style={{ marginTop: "1.25rem" }}
+        ref={inkRef as React.RefCallback<HTMLDivElement>}
       >
-        <div
-          style={{
-            width: `${fillPct}%`,
-            height: "100%",
-            borderRadius: "999px",
-            background: "linear-gradient(90deg, var(--color-brand-soft), var(--color-gold-soft))",
-            transition: "width 700ms cubic-bezier(0.23,1,0.32,1)",
-            position: "relative",
-          }}
+        <svg
+          width="100%"
+          height="28"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+          style={{ display: "block", overflow: "visible" }}
         >
-          {fillPct > 0 && (
-            <div
-              style={{
-                position: "absolute",
-                right: "-4px",
-                top: "50%",
-                transform: "translateY(-50%)",
-                width: "10px",
-                height: "10px",
-                borderRadius: "999px",
-                background: "var(--color-gold-soft)",
-              }}
-            />
-          )}
-        </div>
+          {/* Completed path — ink-drawn stroke.
+              transitionDelay 1250ms: the card settles in at 650ms + 600ms anim,
+              the ink must draw on a visible stage, not behind the curtain. */}
+          <line
+            x1="0%"
+            y1="50%"
+            x2={`${fillPct}%`}
+            y2="50%"
+            pathLength={1}
+            className="ink-path"
+            stroke="color-mix(in srgb, var(--color-brand-soft) 80%, transparent)"
+            strokeWidth="2"
+            strokeLinecap="round"
+            style={{ transitionDelay: "1250ms" }}
+          />
+          {/* Remaining road — dashed, always visible */}
+          <line
+            x1={`${fillPct}%`}
+            y1="50%"
+            x2="100%"
+            y2="50%"
+            stroke="var(--color-line-strong)"
+            strokeWidth="2"
+            strokeDasharray="3 6"
+            strokeLinecap="round"
+            opacity={0.8}
+          />
+          {/* Current position dot — appears after the ink finishes drawing */}
+          <circle
+            cx={`${fillPct}%`}
+            cy="50%"
+            r="3.5"
+            fill="var(--color-brand-soft)"
+            style={{
+              opacity: drawn ? 1 : 0,
+              transition: "opacity 300ms var(--ease-out)",
+              // After the ink: 1250ms stage delay + 900ms draw.
+              transitionDelay: drawn ? "2150ms" : "0ms",
+            }}
+          />
+          {/* Target dot — always visible, gold */}
+          <circle
+            cx="100%"
+            cy="50%"
+            r="4"
+            fill="var(--color-gold-soft)"
+          />
+        </svg>
       </div>
 
       {/* Meta row: progress line + on-track badge */}
@@ -263,16 +302,17 @@ function GoalHero({
         </span>
       </div>
 
-      {/* Handicap story — shown only when Nonno has measurable improvement to cite */}
+      {/* Handicap story — serif italic, wave B. */}
       {handicapLine && (
         <p
           style={{
             margin: 0,
             marginTop: "0.875rem",
+            fontFamily: "var(--font-voice)",
+            fontStyle: "italic",
             fontSize: "0.82rem",
             lineHeight: 1.55,
             color: "var(--color-text-soft)",
-            fontStyle: "italic",
           }}
         >
           {handicapLine}
@@ -282,13 +322,81 @@ function GoalHero({
   );
 }
 
+// ── AnchorMicroTrail — 64x16 ink sparkline for a trail ───────────────────────
+
+function AnchorMicroTrail({ trail }: { trail: AnchorTrail }) {
+  const { ref: inkRef, drawn } = useInkDraw();
+
+  // Build normalised y-points (0=top 1=bottom, y is inverted in SVG)
+  const freqPoints = trail.points
+    .map((p) => p.freq)
+    .filter((f): f is number => f != null);
+
+  if (freqPoints.length < 2) return null;
+
+  const maxF = Math.max(...freqPoints);
+  const minF = Math.min(...freqPoints);
+  const range = maxF - minF || 1;
+
+  const W = 64;
+  const H = 16;
+  const PAD = 2;
+  const usableW = W - PAD * 2;
+  const usableH = H - PAD * 2;
+
+  const pts = freqPoints.map((f, i) => {
+    const x = PAD + (i / (freqPoints.length - 1)) * usableW;
+    const y = PAD + (1 - (f - minF) / range) * usableH;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const polylinePoints = pts.join(" ");
+  const lastPt = pts[pts.length - 1].split(",");
+  const lx = parseFloat(lastPt[0]);
+  const ly = parseFloat(lastPt[1]);
+
+  return (
+    <div
+      className={drawn ? "ink-drawn" : ""}
+      ref={inkRef as React.RefCallback<HTMLDivElement>}
+      style={{ flexShrink: 0, lineHeight: 0 }}
+      aria-hidden="true"
+    >
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+        <polyline
+          points={polylinePoints}
+          pathLength={1}
+          className="ink-path"
+          stroke="var(--color-text-soft)"
+          strokeWidth="1.5"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle
+          cx={lx}
+          cy={ly}
+          r="2"
+          fill="var(--color-text-soft)"
+          style={{
+            opacity: drawn ? 1 : 0,
+            transition: "opacity 300ms var(--ease-out)",
+            transitionDelay: drawn ? "950ms" : "0ms",
+          }}
+        />
+      </svg>
+    </div>
+  );
+}
+
 // ── AnchorRow ─────────────────────────────────────────────────────────────────
 
-function AnchorRow({ anchor, rank }: { anchor: Anchor; rank: number }) {
+function AnchorRow({ anchor, rank, trail }: { anchor: Anchor; rank: number; trail: AnchorTrail | null }) {
   const improving =
     anchor.trend_now != null &&
     anchor.trend_now.direction === "improving" &&
     (anchor.trend_now.confidence === "medium" || anchor.trend_now.confidence === "high");
+
+  const hasTrail = trail != null && trail.points.length >= 2;
 
   return (
     <Link
@@ -386,6 +494,13 @@ function AnchorRow({ anchor, rank }: { anchor: Anchor; rank: number }) {
             </div>
           )}
         </div>
+
+        {/* Micro-trail sparkline — ink, no colour judgment, ink tells the story */}
+        {hasTrail && (
+          <div style={{ display: "flex", alignItems: "center", paddingTop: "0.25rem" }}>
+            <AnchorMicroTrail trail={trail!} />
+          </div>
+        )}
       </div>
     </Link>
   );
@@ -756,6 +871,12 @@ export function TavoloHome() {
   // Handicap story: derived from history snapshots
   const handicapLine = historySnapshots ? buildHandicapLine(historySnapshots) : null;
 
+  // Anchor trails: build from history snapshots for the micro-scia sparklines.
+  // anchorTrendsFromHistory expects a HistoryFile struct.
+  const anchorTrails: AnchorTrail[] = historySnapshots && historySnapshots.length >= 2
+    ? anchorTrendsFromHistory({ schema_version: 1, snapshots: historySnapshots } as HistoryFile)
+    : [];
+
   // Journal: "memoria visibile" — recomposed in Nonno's voice (prefers the last
   // full session, leans on the TIME tic). Reads localStorage synchronously.
   const memoriaVisibile = buildMemoria();
@@ -804,9 +925,13 @@ export function TavoloHome() {
         />
       </div>
 
-      {/* ── 2. OBIETTIVO: hero-goal (oro) ──────────────────────────────── */}
+      {/* ── 2. OBIETTIVO: hero-goal (oro) ──────────────────────────────────
+          settle-in at 650ms: after Nonno finishes speaking (~500ms). */}
       {currentRating != null && (
-        <Reveal delay={80} className="mb-10">
+        <div
+          className="settle-in mb-10"
+          style={{ animationDelay: "650ms" }}
+        >
           <GoalHero
             current={currentRating}
             start={startRating}
@@ -818,17 +943,21 @@ export function TavoloHome() {
             rateReal={gp?.rate_real_per_week ?? null}
             handicapLine={handicapLine}
           />
-        </Reveal>
+        </div>
       )}
 
-      {/* ── 3. IL MOMENTO DEL GIORNO (la spina resa posizione) ─────────── */}
+      {/* ── 3. IL MOMENTO DEL GIORNO (la spina resa posizione) ─────────────
+          settle-in at 850ms: after GoalHero is visible and ink starts drawing. */}
       {momentoPool.length > 0 && (
-        <Reveal delay={140} className="mb-10">
+        <div
+          className="settle-in mb-10"
+          style={{ animationDelay: "850ms" }}
+        >
           <MomentoDelGiorno
             pool={momentoPool}
             targetRating={targetRating > 0 ? targetRating : null}
           />
-        </Reveal>
+        </div>
       )}
 
       {/* ── DOVE PERDI, IN BREVE (top-3 ancore, cliccabili) ─────────────
@@ -838,6 +967,7 @@ export function TavoloHome() {
       {anchorsTop3.length > 0 && (
         <Reveal delay={220} className="mb-10">
           <div
+            className="lit obj-card"
             style={{
               background: "var(--color-surface)",
               border: "1px solid var(--color-line)",
@@ -878,16 +1008,19 @@ export function TavoloHome() {
               Quello che ti tiene ancorato giu'. In cima, l'ancora che ti vale piu' punti se la sciogli.
             </div>
 
-            {/* List — no border on last row */}
+            {/* List — no border on last row. Pass matching trail for the micro-scia. */}
             <div>
-              {anchorsTop3.map((anchor, i) => (
-                <div
-                  key={anchor.type}
-                  style={i === anchorsTop3.length - 1 ? { borderBottom: "none" } : undefined}
-                >
-                  <AnchorRow anchor={anchor} rank={i + 1} />
-                </div>
-              ))}
+              {anchorsTop3.map((anchor, i) => {
+                const trail = anchorTrails.find((t) => t.key === anchor.type) ?? null;
+                return (
+                  <div
+                    key={anchor.type}
+                    style={i === anchorsTop3.length - 1 ? { borderBottom: "none" } : undefined}
+                  >
+                    <AnchorRow anchor={anchor} rank={i + 1} trail={trail} />
+                  </div>
+                );
+              })}
             </div>
           </div>
         </Reveal>
@@ -896,6 +1029,7 @@ export function TavoloHome() {
       {/* ── 5. VARCO AL QUADERNO (quiet, surface-2, flat, no em-dash) ─────── */}
       <Reveal delay={260} className="mb-10">
         <div
+          className="lit obj-card"
           role="button"
           tabIndex={0}
           onClick={() => navigateWithTransition(() => nav("/quaderno"))}
@@ -906,7 +1040,7 @@ export function TavoloHome() {
             borderRadius: "14px",
             padding: "clamp(20px, 4vw, 28px)",
             cursor: "pointer",
-            transition: "border-color 160ms cubic-bezier(0.23,1,0.32,1)",
+            transition: "border-color 160ms cubic-bezier(0.23,1,0.32,1), transform 180ms var(--ease-out)",
           }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--color-line-strong)"; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--color-line)"; }}

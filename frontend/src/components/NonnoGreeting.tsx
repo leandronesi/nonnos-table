@@ -266,7 +266,7 @@ export function NonnoGreeting({
 
   return (
     <div
-      className="mb-8"
+      className="mb-8 lit"
       style={{
         background: "var(--color-surface)",
         border: "1px solid var(--color-line)",
@@ -298,17 +298,16 @@ export function NonnoGreeting({
         Nonno
       </div>
 
-      {/* Saluto + traiettoria — stagger layer 1 (100ms) */}
+      {/* Saluto + traiettoria — stagger layer 1 (100ms). Fraunces serif, wave B. */}
       <p
         className="ng-stagger-1"
         style={{
           margin: 0,
           marginBottom: "1rem",
-          fontFamily: "var(--font-display, 'Inter Tight', Inter, system-ui, sans-serif)",
-          fontSize: "clamp(1.35rem, 3.5vw, 1.75rem)",
-          fontWeight: 700,
+          fontFamily: "var(--font-voice)",
+          fontSize: "clamp(1.5rem, 4vw, 2rem)",
+          fontWeight: 600,
           lineHeight: 1.25,
-          letterSpacing: "-0.01em",
           color: "var(--color-text)",
         }}
       >
@@ -330,13 +329,15 @@ export function NonnoGreeting({
         {body}
       </p>
 
-      {/* Chiusura con speranza — omitted when LLM voice is used (already self-contained) */}
+      {/* Chiusura con speranza — Fraunces italic, wave B. Omitted when LLM voice is used. */}
       {close && (
         <p
           className="ng-stagger-2"
           style={{
             margin: 0,
             marginBottom: "1.75rem",
+            fontFamily: "var(--font-voice)",
+            fontStyle: "italic",
             fontSize: "1rem",
             lineHeight: 1.6,
             color: "var(--color-text)",

@@ -251,10 +251,8 @@ button:disabled, [aria-disabled="true"] {
   min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  /* Warm lamp: a single gold radial at top-right corner, 7% opacity — "una lampada accesa in alto". */
-  background:
-    radial-gradient(600px 400px at 80% 0%, color-mix(in srgb, var(--color-gold) 7%, transparent), transparent 55%),
-    var(--color-bg);
+  /* Warm lamp radial moved to ::before pseudo (lamp-on animation). Background is flat. */
+  background: var(--color-bg);
 }
 /* Mobile (< 1024px): top-bar + content + bottom-tab */
 .appshell-mobile {
@@ -265,10 +263,8 @@ button:disabled, [aria-disabled="true"] {
 .appshell-mobile-main {
   flex: 1;
   padding-bottom: calc(76px + env(safe-area-inset-bottom));
-  /* Same warm lamp as desktop content area. */
-  background:
-    radial-gradient(400px 280px at 80% 0%, color-mix(in srgb, var(--color-gold) 7%, transparent), transparent 55%),
-    var(--color-bg);
+  /* Warm lamp radial moved to ::before pseudo (lamp-on animation). Background is flat. */
+  background: var(--color-bg);
   overflow-x: hidden;
   min-width: 0;
 }
@@ -4853,8 +4849,9 @@ button:disabled, [aria-disabled="true"] {
 /* ── Voce di Nonno (pull-quote dominante) ───────────────────── */
 .tt-nonno {
   position: relative;
-  font-family: var(--font-display);
-  font-weight: 600;
+  /* Wave B: Fraunces serif gives the pull-quote editorial weight */
+  font-family: var(--font-voice);
+  font-weight: 500;
   font-size: clamp(1.25rem, 2.4vw, 1.7rem);
   line-height: 1.42;
   color: var(--color-text);
@@ -4928,12 +4925,12 @@ button:disabled, [aria-disabled="true"] {
 .tt-stat .n.bad   { color: var(--color-danger); }
 .tt-stat .n.warn  { color: var(--color-warn); }
 
-/* ── Reveal on scroll (opacity + translateY) ─────────────────── */
+/* ── Reveal on scroll (opacity + translateY, ease-settle for language consistency) */
 .tt-reveal {
   opacity: 0;
-  transform: translateY(14px);
-  transition: opacity 580ms cubic-bezier(0.23, 1, 0.32, 1),
-              transform 580ms cubic-bezier(0.23, 1, 0.32, 1);
+  transform: translateY(12px);
+  transition: opacity 580ms var(--ease-settle),
+              transform 580ms var(--ease-settle);
 }
 .tt-reveal.in {
   opacity: 1;
@@ -5943,6 +5940,72 @@ button:disabled, [aria-disabled="true"] {
  *   box-shadow: <existing>, inset 0 1px 0 var(--light-warm); */
 .lit {
   box-shadow: inset 0 1px 0 var(--light-warm);
+}
+
+/* ── Lamp-on — one-shot reveal of the gold radial at page load ─────────────
+ * The warm light fades in once on .appshell-content / .appshell-mobile-main,
+ * carrying the sensation that a lamp is being switched on in the room.
+ * Implemented as ::before pseudo so the gradient lives in its own layer
+ * and the page content stacks above via z-index. */
+@keyframes lamp-on {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.appshell-content,
+.appshell-mobile-main {
+  position: relative;
+}
+
+.appshell-content::before,
+.appshell-mobile-main::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  animation: lamp-on 700ms var(--ease-out) both;
+}
+
+/* Desktop warm radial (matches the original inline background) */
+.appshell-content::before {
+  background:
+    radial-gradient(600px 400px at 80% 0%, color-mix(in srgb, var(--color-gold) 7%, transparent), transparent 55%);
+}
+
+/* Mobile warm radial */
+.appshell-mobile-main::before {
+  background:
+    radial-gradient(400px 280px at 80% 0%, color-mix(in srgb, var(--color-gold) 7%, transparent), transparent 55%);
+}
+
+/* Content inside must stack above the ::before layer */
+.appshell-content > *,
+.appshell-mobile-main > * {
+  position: relative;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .appshell-content::before,
+  .appshell-mobile-main::before {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* ── Object card — soft hover lift, composed with existing border hover ────── */
+.obj-card {
+  transition: transform 180ms var(--ease-out), border-color 180ms var(--ease-out);
+}
+.obj-card:hover {
+  transform: translateY(-2px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .obj-card,
+  .obj-card:hover {
+    transform: none;
+  }
 }
 
 /* ============================================================================

@@ -2,24 +2,37 @@
  * MomentoDelGiorno — the "spine made position" block on TavoloHome.
  *
  * Selects the single best Momento from aggregates.cadute (or .examples)
- * and displays it with a mini board + deterministic Nonno voice triplet.
+ * and displays it with a mini board that plays the story of the error in a
+ * calm loop (wave B cinema coreography).
  *
- * Selection logic (from SPRINT_OOUX.md §5 block 3):
+ * BOARD ANIMATION STATE MACHINE (useEffect + setTimeout, max 3 cycles):
+ *   start  → 800ms  → played  (mossa giocata, freccia rossa)
+ *          → 1600ms → back    (torna al before, nessuna freccia)
+ *          → 500ms  → best    (mossa giusta, freccia verde)
+ *          → 2000ms → start
+ *   After 3 full cycles → rest (fen_before con ENTRAMBE le frecce, statico).
+ *
+ * Animation starts only when the card enters the viewport AND
+ * !prefersReducedMotion() AND both FEN derivations succeed.
+ * Otherwise falls back to the static view with both arrows (today's view).
+ *
+ * Selection logic:
  *   1. Among examples with priority_score === 3, pick max drill_value.
- *   2. Fallback (no Maia): pick max cp_loss from all examples.
+ *   2. Fallback: pick max cp_loss from all examples.
  *
- * Voice triplet — shown only when the underlying data is present:
+ * Voice triplet:
  *   a) tempo: spent_seconds when not null.
  *   b) Avversario: p_target_plays_best_sf AND p_mine_plays_best_sf when both not null.
  *   c) best move: always shown when best_uci is present.
- *
- * Clicking the card navigates to /sessione (the "COME" antipasto).
  */
 
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Chess } from "chess.js";
 import type { PositionExample } from "../pipeline/aggregate";
 import { BoardView } from "./BoardView";
 import { uciToArrow, uciToSan } from "../pages/quaderno/boardArrows";
+import { prefersReducedMotion } from "../lib/motion";
 
 // ── Selection ─────────────────────────────────────────────────────────────────
 
@@ -27,9 +40,7 @@ import { uciToArrow, uciToSan } from "../pages/quaderno/boardArrows";
  * Picks the best Momento from a pool.
  * Returns null only if the pool is empty.
  */
-export function selectMomento(
-  pool: PositionExample[],
-): PositionExample | null {
+export function selectMomento(pool: PositionExample[]): PositionExample | null {
   if (pool.length === 0) return null;
 
   // Path 1: Maia ran — priority_score === 3, max drill_value.
@@ -44,6 +55,26 @@ export function selectMomento(
 
   // Path 2: Maia not available (or no priority_score === 3) — max cp_loss.
   return pool.reduce((best, p) => (p.cp_loss > best.cp_loss ? p : best));
+}
+
+// ── FEN derivation helpers ────────────────────────────────────────────────────
+
+/**
+ * Applies a UCI move to a FEN string and returns the resulting FEN.
+ * Returns null if the move is illegal or the FEN is invalid.
+ */
+function fenAfterUci(fenBefore: string, uci: string): string | null {
+  try {
+    const chess = new Chess(fenBefore);
+    const from = uci.slice(0, 2);
+    const to = uci.slice(2, 4);
+    const promotion = uci.length > 4 ? uci[4] : undefined;
+    const result = chess.move({ from, to, promotion });
+    if (!result) return null;
+    return chess.fen();
+  } catch {
+    return null;
+  }
 }
 
 // ── Voice lines (deterministic from data) ─────────────────────────────────────
@@ -83,13 +114,14 @@ function buildBestMoveLine(
   return `La mossa era ${san}.`;
 }
 
+// ── Board scene state machine types ──────────────────────────────────────────
+
+type SceneState = "start" | "played" | "back" | "best" | "rest";
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 interface MomentoDelGiornoProps {
-  /**
-   * Combined pool: prefer aggregates.cadute, fallback to aggregates.examples.
-   * The component itself runs the selection logic.
-   */
+  /** Combined pool: prefer aggregates.cadute, fallback to aggregates.examples. */
   pool: PositionExample[];
   /** Player's goal target rating, used in the Avversario voice line. */
   targetRating: number | null;
@@ -99,16 +131,149 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
   const nav = useNavigate();
   const momento = selectMomento(pool);
 
+  // ── Derive FEN states for the animation ──────────────────────────────────
+  const fenBefore = momento?.fen_before ?? null;
+  const playedUci = momento?.played_uci ?? null;
+  const bestUci = momento?.best_uci ?? null;
+
+  const fenPlayed = fenBefore && playedUci ? fenAfterUci(fenBefore, playedUci) : null;
+  const fenBest = fenBefore && bestUci ? fenAfterUci(fenBefore, bestUci) : null;
+
+  // Can we run the animation?
+  const canAnimate = fenBefore != null && fenPlayed != null && fenBest != null;
+
+  // ── Board animation state machine ────────────────────────────────────────
+  const [scene, setScene] = useState<SceneState>("start");
+  const cycleRef = useRef(0);
+  const startedRef = useRef(false);
+  // Guards against setState from a timer that fired in the same tick as unmount.
+  const disposedRef = useRef(false);
+  // All pending timeouts are tracked so we can cancel them on cleanup.
+  const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  function clearAllTimeouts() {
+    for (const id of timeoutsRef.current) clearTimeout(id);
+    timeoutsRef.current = [];
+  }
+
+  function push(id: ReturnType<typeof setTimeout>) {
+    timeoutsRef.current.push(id);
+  }
+
+  // Intersection observer to start animation on viewport entry.
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!canAnimate || prefersReducedMotion()) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !startedRef.current) {
+          startedRef.current = true;
+          io.disconnect();
+          startCycle();
+        }
+      },
+      { threshold: 0.3 },
+    );
+    io.observe(container);
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAnimate, fenBefore]);
+
+  // Cleanup all timeouts on unmount or when the position identity changes.
+  useEffect(() => {
+    disposedRef.current = false;
+    return () => {
+      disposedRef.current = true;
+      clearAllTimeouts();
+      cycleRef.current = 0;
+      startedRef.current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fenBefore]);
+
+  /**
+   * Runs one animation cycle and schedules the next until MAX_CYCLES.
+   * Timings: start(0) → played(800ms) → back(+1600ms) → best(+500ms) → next(+2000ms).
+   * After MAX_CYCLES → rest state.
+   * All setTimeout ids are tracked for rigorous cleanup.
+   */
+  function startCycle() {
+    const MAX_CYCLES = 3;
+    // Cumulative offsets within this cycle:
+    //   t=0:    start
+    //   t=800:  played
+    //   t=2400: back   (800+1600)
+    //   t=2900: best   (2400+500)
+    //   t=4900: end of cycle / start next cycle (2900+2000)
+    function cycle() {
+      if (disposedRef.current) return;
+      if (cycleRef.current >= MAX_CYCLES) {
+        setScene("rest");
+        return;
+      }
+      setScene("start");
+      const safeSet = (s: SceneState) => {
+        if (!disposedRef.current) setScene(s);
+      };
+      push(setTimeout(() => safeSet("played"), 800));
+      push(setTimeout(() => safeSet("back"),   800 + 1600));
+      push(setTimeout(() => safeSet("best"),   800 + 1600 + 500));
+      push(setTimeout(() => {
+        cycleRef.current += 1;
+        cycle();
+      }, 800 + 1600 + 500 + 2000));
+    }
+    cycle();
+  }
+
   if (!momento) return null;
 
-  // Board arrows: played = red, best = green.
+  // ── Arrow selection based on scene ───────────────────────────────────────
   const arrowPlayed = uciToArrow(momento.played_uci, "rgba(239,68,68,0.85)");
   const arrowBest = uciToArrow(momento.best_uci ?? null, "rgba(34,197,94,0.85)");
-  const arrows = [arrowPlayed, arrowBest].filter(
-    Boolean,
-  ) as { from: string; to: string; color: string }[];
 
-  // Voice triplet — only lines that are truly available.
+  let boardFen: string = momento.fen_before;
+  let boardArrows: { from: string; to: string; color: string }[] = [];
+
+  if (!canAnimate || prefersReducedMotion()) {
+    // Static: show both arrows on fen_before
+    boardFen = momento.fen_before;
+    boardArrows = [arrowPlayed, arrowBest].filter(
+      Boolean,
+    ) as { from: string; to: string; color: string }[];
+  } else {
+    switch (scene) {
+      case "start":
+      case "back":
+        boardFen = momento.fen_before;
+        boardArrows = [];
+        break;
+      case "played":
+        boardFen = fenPlayed!;
+        boardArrows = arrowPlayed ? [arrowPlayed] : [];
+        break;
+      case "best":
+        boardFen = fenBest!;
+        boardArrows = arrowBest ? [arrowBest] : [];
+        break;
+      case "rest":
+        boardFen = momento.fen_before;
+        boardArrows = [arrowPlayed, arrowBest].filter(
+          Boolean,
+        ) as { from: string; to: string; color: string }[];
+        break;
+    }
+  }
+
+  // Stable resetKey: board remounts only when the position identity changes,
+  // not on each scene change (pieces PLANE between FEN transitions via animate).
+  const resetKey = `momento:${momento.fen_before}`;
+
+  // Voice triplet
   const tempoLine = buildTempoLine(momento.spent_seconds);
   const avversarioLine = buildAvversarioLine(
     momento.p_target_plays_best_sf,
@@ -116,13 +281,14 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
     targetRating,
   );
   const bestMoveLine = buildBestMoveLine(momento.fen_before, momento.best_uci);
-
   const hasVoice = tempoLine || avversarioLine || bestMoveLine;
 
   return (
     <div
+      ref={containerRef}
       role="button"
       tabIndex={0}
+      className="lit obj-card"
       onClick={() => nav("/sessione", { state: { focusKey: `${momento.fen_before}:${momento.ply}` } })}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") nav("/sessione", { state: { focusKey: `${momento.fen_before}:${momento.ply}` } });
@@ -133,15 +299,13 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
         borderRadius: "14px",
         padding: "clamp(20px, 4vw, 28px)",
         cursor: "pointer",
-        transition: "border-color 160ms cubic-bezier(0.23,1,0.32,1)",
+        transition: "border-color 160ms cubic-bezier(0.23,1,0.32,1), transform 180ms var(--ease-out)",
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.borderColor =
-          "var(--color-line-strong)";
+        (e.currentTarget as HTMLDivElement).style.borderColor = "var(--color-line-strong)";
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.borderColor =
-          "var(--color-line)";
+        (e.currentTarget as HTMLDivElement).style.borderColor = "var(--color-line)";
       }}
     >
       {/* Eyebrow */}
@@ -161,10 +325,12 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
         {/* Board — 220px on wider screens, 180px on narrow mobile */}
         <div style={{ flexShrink: 0 }} className="momento-board-wrap">
           <BoardView
-            fen={momento.fen_before}
+            key={resetKey}
+            fen={boardFen}
             orientation={momento.color}
             size={220}
-            arrows={arrows}
+            arrows={boardArrows}
+            animate={true}
           />
         </div>
 
@@ -227,7 +393,6 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
               )}
             </div>
           )}
-
         </div>
       </div>
 
