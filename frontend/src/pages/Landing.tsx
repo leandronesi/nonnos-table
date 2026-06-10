@@ -406,8 +406,14 @@ function StoryCard({
 }) {
   const [revealed, setRevealed] = useState(false);
   const cardRef = useRef<HTMLElement | null>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
   const cardCb = useCallback((node: HTMLElement | null) => {
+    // Disconnect any previous observer when node detaches or changes.
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observerRef.current = null;
+    }
     cardRef.current = node;
     if (!node) return;
     if (prefersReducedMotion()) {
@@ -418,12 +424,14 @@ function StoryCard({
       ([entry]) => {
         if (entry.isIntersecting) {
           io.disconnect();
+          observerRef.current = null;
           setRevealed(true);
         }
       },
       { threshold: 0.2 },
     );
     io.observe(node);
+    observerRef.current = io;
   }, []);
 
   return (
