@@ -12,7 +12,7 @@
  * Graceful: returns max immediately, then corrects once the element is measured.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface UseBoardFitOptions {
   /** Minimum board size in px (default: 232 — smallest usable chessboard). */
@@ -23,7 +23,7 @@ interface UseBoardFitOptions {
 
 interface UseBoardFitResult {
   /** Attach to the wrapper div that constrains the board. */
-  ref: React.RefObject<HTMLDivElement | null>;
+  ref: React.RefCallback<HTMLDivElement>;
   /** Clamped size to pass to <BoardView size={...} />. */
   size: number;
   /** The max value passed in (useful for maxWidth). */
@@ -31,22 +31,30 @@ interface UseBoardFitResult {
 }
 
 export function useBoardFit({ min = 232, max = 420 }: UseBoardFitOptions = {}): UseBoardFitResult {
-  const ref = useRef<HTMLDivElement>(null);
+  // Callback ref + state: when the wrapper is re-created (e.g. a keyed remount
+  // for an enter animation), the observer must move to the NEW node. A plain
+  // RefObject with a run-once effect kept observing the detached element,
+  // which reports width 0 and locked the board to `min` ("board piccola").
+  const [node, setNode] = useState<HTMLDivElement | null>(null);
   const [size, setSize] = useState(max);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width ?? max;
+    if (!node) return;
+    const apply = (w: number) => {
+      // Ignore implausibly small / transient reads (detached node, mid-reflow
+      // collapse) — same guard as BoardView (see 8ff0e69). A real container
+      // is never this narrow.
+      if (w < 120) return;
       setSize(Math.max(min, Math.min(max, Math.floor(w))));
+    };
+    const ro = new ResizeObserver((entries) => {
+      apply(entries[0]?.contentRect.width ?? 0);
     });
-    ro.observe(el);
+    ro.observe(node);
     // Initial measure — some browsers fire ResizeObserver asynchronously.
-    const w = el.offsetWidth;
-    if (w > 0) setSize(Math.max(min, Math.min(max, Math.floor(w))));
+    apply(node.offsetWidth);
     return () => ro.disconnect();
-  }, [min, max]);
+  }, [node, min, max]);
 
-  return { ref, size, max };
+  return { ref: setNode, size, max };
 }
