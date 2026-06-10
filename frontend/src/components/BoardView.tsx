@@ -2,6 +2,15 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { Chessboard } from "react-chessboard";
 import type { Color } from "../types";
 
+/**
+ * Returns true if the user has requested reduced motion.
+ * Evaluated once per module load — safe for Vite (no SSR).
+ */
+function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 interface Props {
   fen: string;
   size?: number;
@@ -16,6 +25,14 @@ interface Props {
   onSquareClick?: (square: string) => void;
   /** Key per forzare re-mount del Chessboard (es. cambio puzzle). Se non passata, usa fen. */
   resetKey?: string;
+  /**
+   * When true, pieces animate between positions (animationDurationInMs=260).
+   * The Chessboard key is then resetKey-only (stable), so position changes do
+   * NOT remount — pieces glide instead of snapping.
+   * When false (default), behaviour is identical to before this prop existed.
+   * Reduced-motion: animation is always 0 regardless of this flag.
+   */
+  animate?: boolean;
 }
 
 export function BoardView({
@@ -28,6 +45,7 @@ export function BoardView({
   onPieceDrop,
   onSquareClick,
   resetKey,
+  animate = false,
 }: Props) {
   // Responsive sizing: measure the available container width and clamp to
   // the requested size so the board never overflows on narrow viewports.
@@ -75,6 +93,14 @@ export function BoardView({
     }
   }
 
+  // Determine animation duration: respect reduced-motion regardless of animate prop.
+  const animDuration = (animate && !prefersReducedMotion()) ? 260 : 0;
+
+  // Key strategy:
+  //   animate=true  → key is resetKey only (stable across FEN changes, pieces glide)
+  //   animate=false → key is resetKey ?? fen (remount on every FEN change, original behaviour)
+  const boardKey = animate ? (resetKey ?? "board") : (resetKey ?? fen);
+
   // react-chessboard v5 mantiene gli arrows nel suo state interno quando cambia
   // `position`. Forziamo il reset re-montando il componente con una key dipendente
   // dal FEN, e usiamo anche le opzioni dedicate alla pulizia.
@@ -86,7 +112,7 @@ export function BoardView({
       aria-label="Scacchiera"
     >
       <Chessboard
-        key={resetKey ?? fen}
+        key={boardKey}
         options={{
           position: fen,
           boardOrientation: orientation,
@@ -94,8 +120,11 @@ export function BoardView({
           showNotation: true,
           clearArrowsOnPositionChange: true,
           clearArrowsOnClick: true,
-          darkSquareStyle: { backgroundColor: "#2c3a55" },
-          lightSquareStyle: { backgroundColor: "#a7b2c7" },
+          animationDurationInMs: animDuration,
+          // Board colours via CSS custom properties — resolves to computed style.
+          // var() works in inline styles: the browser resolves them before painting.
+          darkSquareStyle: { backgroundColor: "var(--board-dark)" },
+          lightSquareStyle: { backgroundColor: "var(--board-light)" },
           boardStyle: {
             borderRadius: 12,
             boxShadow: "0 10px 30px rgba(0,0,0,0.4)",

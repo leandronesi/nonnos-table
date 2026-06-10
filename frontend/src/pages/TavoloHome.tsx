@@ -33,6 +33,7 @@ import { runRefresh, runFullReanalyze } from "../pipeline/orchestrator";
 import type { Aggregates, Anchor, PositionExample } from "../pipeline/aggregate";
 import type { PlayerModelLite } from "../pipeline/playerModelLite";
 import { goalProgress } from "../pipeline/history";
+import { navigateWithTransition } from "../lib/motion";
 import { NonnoGreeting } from "../components/NonnoGreeting";
 import { MomentoDelGiorno } from "../components/MomentoDelGiorno";
 import { readEntries } from "../session/journal";
@@ -798,7 +799,7 @@ export function TavoloHome() {
                 }
               : null
           }
-          onSediamoci={() => nav("/sessione")}
+          onSediamoci={() => navigateWithTransition(() => nav("/sessione"))}
           voiceMessage={llmVoice ?? null}
         />
       </div>
@@ -897,8 +898,8 @@ export function TavoloHome() {
         <div
           role="button"
           tabIndex={0}
-          onClick={() => nav("/quaderno")}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); nav("/quaderno"); } }}
+          onClick={() => navigateWithTransition(() => nav("/quaderno"))}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigateWithTransition(() => nav("/quaderno")); } }}
           style={{
             background: "var(--color-surface-2)",
             border: "1px solid var(--color-line)",

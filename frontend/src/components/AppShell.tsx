@@ -14,11 +14,12 @@
  */
 
 import { useState, type ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useOnboardingRun } from "../pipeline/OnboardingRunContext";
 import { useTavoloActionsRef } from "../context/TavoloActionsContext";
 import { toggleTheme, getCurrentTheme } from "../theme";
+import { navigateWithTransition } from "../lib/motion";
 
 // ── Nav definition ─────────────────────────────────────────────────────────────
 
@@ -146,6 +147,7 @@ function DesktopSidebar({
   onThemeToggle,
   onRefresh,
   onReanalyze,
+  onNavigate,
 }: {
   pathname: string;
   username: string | null;
@@ -153,6 +155,7 @@ function DesktopSidebar({
   onThemeToggle: () => void;
   onRefresh: (() => void) | null;
   onReanalyze: (() => void) | null;
+  onNavigate: (path: string) => void;
 }) {
   return (
     <nav
@@ -199,6 +202,12 @@ function DesktopSidebar({
             <Link
               key={dest.path}
               to={dest.path}
+              onClick={(e) => {
+                // Only hijack plain left-clicks: keep ctrl/cmd/middle-click "open in new tab".
+                if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                e.preventDefault();
+                onNavigate(dest.path);
+              }}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -395,7 +404,7 @@ function MobileTopBar({
 
 // ── Mobile Bottom Tab Bar ──────────────────────────────────────────────────────
 
-function MobileTabBar({ pathname }: { pathname: string }) {
+function MobileTabBar({ pathname, onNavigate }: { pathname: string; onNavigate: (path: string) => void }) {
   return (
     <nav
       aria-label="Navigazione principale"
@@ -421,6 +430,12 @@ function MobileTabBar({ pathname }: { pathname: string }) {
           <Link
             key={dest.path}
             to={dest.path}
+            onClick={(e) => {
+              // Only hijack plain left-clicks: keep ctrl/cmd/middle-click "open in new tab".
+              if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+              e.preventDefault();
+              onNavigate(dest.path);
+            }}
             style={{
               flex: 1,
               display: "flex",
@@ -494,6 +509,7 @@ function SilentRefreshPill() {
 export function AppShell({ children }: { children: ReactNode }) {
   const { profile, signOut } = useAuth();
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const { silentRefreshing } = useOnboardingRun();
   const tavoloActionsRef = useTavoloActionsRef();
   // Local state to force icon re-render on toggle
@@ -506,6 +522,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   function handleSignOut() {
     void signOut();
+  }
+
+  /** Navigate with View Transition crossfade when available. */
+  function handleNavigate(path: string) {
+    navigateWithTransition(() => navigate(path));
   }
 
   const username = profile?.chess_com_username ?? null;
@@ -526,6 +547,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           onThemeToggle={handleThemeToggle}
           onRefresh={onRefresh}
           onReanalyze={onReanalyze}
+          onNavigate={handleNavigate}
         />
         {/* Content */}
         <main className="appshell-content">
@@ -553,7 +575,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main className="appshell-mobile-main">
           {children}
         </main>
-        <MobileTabBar pathname={pathname} />
+        <MobileTabBar pathname={pathname} onNavigate={handleNavigate} />
       </div>
     </>
   );

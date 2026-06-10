@@ -81,6 +81,8 @@ export function App() {
       <OnboardingRunProvider>
       <TavoloActionsProvider>
       <BrowserRouter basename={basename}>
+        {/* Room grain — static SVG noise layer, covers every page, pointer-events none */}
+        <div className="room-grain" aria-hidden="true" />
         {/* Popup globale: seconda battuta di Nonno al completamento del background */}
         <SecondaBattutaPopup />
         <Routes>
