@@ -393,6 +393,23 @@ export function goalProgress(goal: Goal): GoalProgress {
   };
 }
 
+// ── materialForGap — shared piece-metaphor helper ─────────────────────────────
+
+/**
+ * Maps a gap in percentage points (target_pct - mine_pct from maia_weighted)
+ * to a chess-piece metaphor. Returns null when the player is nearly at par.
+ *
+ * Exported so both TavoloHome and Viaggio can share the same scale.
+ */
+export function materialForGap(gapPp: number): { step: number; label: string } | null {
+  if (gapPp >= 25) return { step: 5, label: "la regina" };
+  if (gapPp >= 18) return { step: 4, label: "una torre" };
+  if (gapPp >= 12) return { step: 3, label: "un alfiere" };
+  if (gapPp >= 8)  return { step: 2, label: "due pedoni" };
+  if (gapPp >= 4)  return { step: 1, label: "un pedone" };
+  return null; // quasi alla pari
+}
+
 // ── Snapshot builder helper (used by orchestrator.ts) ────────────────────────
 
 /**

@@ -40,6 +40,7 @@ import {
   computeMilestones,
   anchorTrendsFromHistory,
 } from "../../pipeline/history";
+import { Viaggio } from "../../components/Viaggio";
 import { RatingCurveChart } from "../../components/RatingCurveChart";
 import { DecisionsCard } from "../../components/DecisionsCard";
 import { WeeklyTrendCard } from "../../components/WeeklyTrendCard";
@@ -145,8 +146,8 @@ function Section({ children, eyebrow, delay = 0 }: {
   return (
     <Reveal delay={delay} className="mb-8">
       <div
+        className="paper"
         style={{
-          background: "var(--color-surface)",
           border: "1px solid var(--color-line)",
           borderRadius: "14px",
           padding: "clamp(18px,4vw,28px)",
@@ -779,6 +780,19 @@ function TabEvoluzione({
 
   return (
     <div>
+      {/* ── Il viaggio — ink timeline (top of Evoluzione) ─────────────────── */}
+      {goal != null && (
+        <Viaggio
+          snapshots={history.snapshots}
+          milestones={milestones}
+          goal={{
+            target: goal.target,
+            current: goal.current_rating ?? null,
+            deadline: goal.deadline ?? null,
+          }}
+        />
+      )}
+
       {/* Nonno voice */}
       <Reveal delay={0} className="mb-6">
         <p className="tt-nonno">{evoluzioneNonno}</p>
@@ -1869,7 +1883,7 @@ export function Quaderno() {
 
         {/* Page title */}
         <div style={{ marginBottom: "1.75rem" }}>
-          <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "clamp(1.6rem,4vw,2.4rem)", lineHeight: 1.15, color: "var(--color-text)", marginBottom: "0.4rem" }}>
+          <h1 style={{ fontFamily: "var(--font-voice)", fontWeight: 600, fontSize: "clamp(1.6rem,4vw,2.4rem)", lineHeight: 1.15, color: "var(--color-text)", marginBottom: "0.4rem" }}>
             Il tuo Quaderno
           </h1>
           <p style={{ fontSize: "0.88rem", color: "var(--color-muted)", lineHeight: 1.5, maxWidth: "52ch" }}>
