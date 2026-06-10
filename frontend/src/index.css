@@ -5940,7 +5940,7 @@ button:disabled, [aria-disabled="true"] {
 }
 
 /* ============================================================================
- * LA STANZA — v2 room grain + lit highlight utility
+ * LA STANZA — v2 room grain, lit highlight utility, lamp-on animation
  * ========================================================================== */
 
 /* Grain overlay — static SVG feTurbulence, covers every page.
@@ -5962,9 +5962,16 @@ button:disabled, [aria-disabled="true"] {
 /* .lit — single inset light line at the top of a card, as if lamp-lit from above.
  * Apply to cards in waves B/C. Composition note: if a card already carries a
  * box-shadow, extend it by adding the inset shadow alongside (do not replace):
- *   box-shadow: <existing>, inset 0 1px 0 var(--light-warm); */
+ *   box-shadow: <existing>, inset 0 1px 0 var(--light-warm);
+ *
+ * Light theme: --light-warm is rgba(255,255,255,0.65) which is invisible on
+ * white surfaces. Override with a thin dark separator instead (same intent:
+ * a gentle top boundary that says "lamp-lit from above"). */
 .lit {
   box-shadow: inset 0 1px 0 var(--light-warm);
+}
+:root[data-theme="light"] .lit {
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.06);
 }
 
 /* .paper — warm paper under the lamp. Apply to Quaderno section cards.
@@ -5972,6 +5979,9 @@ button:disabled, [aria-disabled="true"] {
 .paper {
   background: color-mix(in srgb, var(--color-gold) 3%, var(--color-surface));
   box-shadow: inset 0 1px 0 var(--light-warm);
+}
+:root[data-theme="light"] .paper {
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.06);
 }
 
 /* ── Lamp-on — one-shot reveal of the gold radial at page load ─────────────
@@ -6009,6 +6019,17 @@ button:disabled, [aria-disabled="true"] {
 .appshell-mobile-main::before {
   background:
     radial-gradient(400px 280px at 80% 0%, color-mix(in srgb, var(--color-gold) 7%, transparent), transparent 55%);
+}
+
+/* Light theme: soften the warm radial from 7% to 5% — gold on white is
+ * heavier than gold on near-black; 5% reads as a warm hint, not a stain. */
+:root[data-theme="light"] .appshell-content::before {
+  background:
+    radial-gradient(600px 400px at 80% 0%, color-mix(in srgb, var(--color-gold) 5%, transparent), transparent 55%);
+}
+:root[data-theme="light"] .appshell-mobile-main::before {
+  background:
+    radial-gradient(400px 280px at 80% 0%, color-mix(in srgb, var(--color-gold) 5%, transparent), transparent 55%);
 }
 
 /* Content inside must stack above the ::before layer */
