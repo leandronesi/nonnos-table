@@ -54,7 +54,8 @@ function FullScreenLoader({ label }: { label: string }) {
   );
 }
 
-/** Smista in base a sessione + stato profile. */
+/** Smista in base a sessione + stato profile.
+ *  Home = LA STANZA (il foyer): arrivi nella stanza, e da li' vai al Tavolo. */
 function HomeGate() {
   const { loading, user, profile } = useAuth();
   if (loading) return <FullScreenLoader label="Carico la sessione…" />;
@@ -64,9 +65,9 @@ function HomeGate() {
     return <Navigate to="/onboarding/waiting" replace />;
   }
   return (
-    <AppShell>
-      <TavoloHome />
-    </AppShell>
+    <Suspense fallback={<div className="stanza-shell"><div className="stanza-attesa">La Stanza</div></div>}>
+      <StanzaHome />
+    </Suspense>
   );
 }
 
@@ -114,8 +115,11 @@ export function App() {
             }
           />
 
-          {/* Home — smista in base a stato */}
+          {/* Home — smista in base a stato: il foyer (la Stanza) */}
           <Route path="/" element={<HomeGate />} />
+
+          {/* Il Tavolo — la superficie operativa, raggiunta dalla Stanza */}
+          <Route path="/tavolo" element={<RequireAuth><AppShell><TavoloHome /></AppShell></RequireAuth>} />
 
           {/* Quaderno — hub a tab + deep-link via hash */}
           <Route path="/quaderno" element={<RequireAuth><AppShell><Quaderno /></AppShell></RequireAuth>} />
@@ -126,17 +130,8 @@ export function App() {
           {/* Sessione di coaching */}
           <Route path="/sessione" element={<RequireAuth><AppShell><Sessione /></AppShell></RequireAuth>} />
 
-          {/* La Stanza del Nonno — anteprima Onda P2, autenticata, full-bleed (no AppShell) */}
-          <Route
-            path="/stanza"
-            element={
-              <RequireAuth>
-                <Suspense fallback={<div className="stanza-shell"><div className="stanza-attesa">La Stanza</div></div>}>
-                  <StanzaHome />
-                </Suspense>
-              </RequireAuth>
-            }
-          />
+          {/* La Stanza e' diventata la home: l'anteprima redirige */}
+          <Route path="/stanza" element={<Navigate to="/" replace />} />
 
           {/* Maia smoke test (dev, pubblica) — da rimuovere dopo la verifica */}
           <Route path="/maia-test" element={<MaiaTest />} />
