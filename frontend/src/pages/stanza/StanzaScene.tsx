@@ -595,11 +595,11 @@ function ScatolaSpine({ thorns }: { thorns: string[] }) {
           <meshStandardMaterial map={tex} roughness={0.9} side={THREE.DoubleSide} />
         </mesh>
       ))}
-      {/* Paper tag leaning on the front of the box, fully clear of the wood,
-          facing the seat: this is what the object IS — what is holding you back */}
+      {/* Paper tag GLUED to the front face of the box: same yaw as the box
+          (no counter-rotation), just a whisper of lean — a label on a crate */}
       <mesh
-        position={[0.02, 0.06, D / 2 + 0.045]}
-        rotation={[-0.12, -YAW, 0]}
+        position={[0, 0.06, D / 2 + 0.012]}
+        rotation={[-0.08, 0, 0]}
         castShadow
       >
         <planeGeometry args={[0.32, 0.09]} />
