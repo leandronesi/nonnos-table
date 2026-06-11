@@ -24,6 +24,7 @@ import {
   cardTexture,
   letterTexture,
   steamTexture,
+  plaqueTexture,
 } from "./textures";
 
 // ── Props from StanzaHome (all real data) ──────────────────────────────────────
@@ -534,10 +535,12 @@ function ScatolaSpine({ thorns }: { thorns: string[] }) {
     [],
   );
   const cards = useMemo(() => thorns.slice(0, 3).map((w) => cardTexture(w)), [thorns]);
+  const plaque = useMemo(() => plaqueTexture(), []);
 
   const W = 0.46, D = 0.3, H = 0.16, T = 0.02;
+  const YAW = 0.5; // group yaw — cards counter-rotate so they read frontally
   return (
-    <group position={[-1.55, 0, -0.55]} rotation={[0, 0.5, 0]}>
+    <group position={[-1.55, 0, -0.55]} rotation={[0, YAW, 0]}>
       {/* Bottom */}
       <mesh material={woodDark} position={[0, T / 2, 0]} receiveShadow castShadow>
         <boxGeometry args={[W, T, D]} />
@@ -555,18 +558,29 @@ function ScatolaSpine({ thorns }: { thorns: string[] }) {
       <mesh material={woodDark} position={[W / 2 - T / 2, H / 2, 0]} castShadow>
         <boxGeometry args={[T, H, D]} />
       </mesh>
-      {/* Cards peeking out, each at its own angle */}
+      {/* Cards: like notes pinned on a wall — they FACE the seat (counter the
+          group yaw), standing upright with only a whisper of fan and lean */}
       {cards.map((tex, i) => (
         <mesh
           key={i}
-          position={[-0.12 + i * 0.12, 0.16, (i - 1) * 0.02]}
-          rotation={[-0.12, 0, (i - 1) * 0.12]}
+          position={[-0.13 + i * 0.13, 0.17, (i - 1) * 0.015]}
+          rotation={[-0.05, -YAW + (i - 1) * 0.08, 0]}
           castShadow
         >
-          <planeGeometry args={[0.13, 0.17]} />
+          <planeGeometry args={[0.14, 0.18]} />
           <meshStandardMaterial map={tex} roughness={0.9} side={THREE.DoubleSide} />
         </mesh>
       ))}
+      {/* Plaque leaning on the front of the box, facing the seat:
+          this is what the object IS — what is holding you back */}
+      <mesh
+        position={[0, 0.052, D / 2 + 0.015]}
+        rotation={[-0.14, -YAW * 0.7, 0]}
+        castShadow
+      >
+        <planeGeometry args={[0.34, 0.095]} />
+        <meshStandardMaterial map={plaque} roughness={0.7} side={THREE.DoubleSide} />
+      </mesh>
     </group>
   );
 }
