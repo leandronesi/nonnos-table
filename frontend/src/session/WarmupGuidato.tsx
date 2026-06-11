@@ -14,6 +14,7 @@ import { Chess } from "chess.js";
 import type { PositionRow } from "../types";
 import { BoardView } from "../components/BoardView";
 import { BoardLegend } from "../components/BoardLegend";
+import { BoardScene } from "../components/BoardScene";
 import { useBoardFit } from "../components/useBoardFit";
 import { useStockfish, type EvalResult } from "../engine/useStockfish";
 import { turnFromFen } from "../chess-utils";
@@ -312,19 +313,26 @@ export function PositionPuzzle({
   return (
     <div className="position-puzzle grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-10 items-start">
       {/* Board + legenda */}
+      {/* BoardScene re-triggers on puzzleKey (position identity): both aiuto and
+          da-solo phases use their own keyed PositionPuzzle mount (NonnoSession.tsx
+          key={`aiuto-...`} / key={`da-solo-...`}), so the entrance repeats each
+          time the component mounts. fit.ref stays on the inner div (callback ref,
+          b10ee1a fix: avoids missing re-observation after keyed remount). */}
       <div className="flex flex-col items-center gap-2">
-        <div ref={fit.ref} className="sess-board-frame" style={{ width: "100%", maxWidth: fit.max }}>
-          <BoardView
-            fen={displayFen || baseFen}
-            resetKey={`${puzzleKey}:${attempts}`}
-            orientation={orientation}
-            size={fit.size}
-            draggable={!evaluating && (verdict === null || false)}
-            onPieceDrop={onDrop}
-            highlights={highlights}
-            arrows={arrows}
-          />
-        </div>
+        <BoardScene sceneKey={puzzleKey}>
+          <div ref={fit.ref} className="sess-board-frame" style={{ width: "100%", maxWidth: fit.max }}>
+            <BoardView
+              fen={displayFen || baseFen}
+              resetKey={`${puzzleKey}:${attempts}`}
+              orientation={orientation}
+              size={fit.size}
+              draggable={!evaluating && (verdict === null || false)}
+              onPieceDrop={onDrop}
+              highlights={highlights}
+              arrows={arrows}
+            />
+          </div>
+        </BoardScene>
         <BoardLegend
           items={(() => {
             const hasOpp = !!(position.last_opp_from && position.last_opp_to);
