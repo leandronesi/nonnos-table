@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { OnboardingRunProvider } from "./pipeline/OnboardingRunContext";
@@ -16,7 +17,10 @@ import { AppShell } from "./components/AppShell";
 import { PRODUCT_NAME } from "./coaching";
 import { IncontroPreview } from "./pages/dev/IncontroPreview";
 import { SecondaBattutaPopup } from "./components/SecondaBattutaPopup";
-import { StanzaHome } from "./pages/StanzaHome";
+// Lazy: the Stanza pulls in three.js — code-split so the main bundle never pays it.
+const StanzaHome = lazy(() =>
+  import("./pages/StanzaHome").then((m) => ({ default: m.StanzaHome })),
+);
 
 /**
  * Root router multi-utente per Nonno's Table.
@@ -127,7 +131,9 @@ export function App() {
             path="/stanza"
             element={
               <RequireAuth>
-                <StanzaHome />
+                <Suspense fallback={<div className="stanza-shell"><div className="stanza-attesa">La Stanza</div></div>}>
+                  <StanzaHome />
+                </Suspense>
               </RequireAuth>
             }
           />
