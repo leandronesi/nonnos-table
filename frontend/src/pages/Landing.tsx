@@ -342,7 +342,14 @@ function TargetRail() {
             strokeLinecap="round"
           />
           <defs>
-            <linearGradient id="rail-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+            {/* userSpaceOnUse: a perfectly horizontal line has a zero-height
+                bounding box, so the default objectBoundingBox gradient is
+                undefined and the stroke is not painted at all. */}
+            <linearGradient
+              id="rail-grad"
+              gradientUnits="userSpaceOnUse"
+              x1="0" y1="4.5" x2="100" y2="4.5"
+            >
               <stop offset="0%" stopColor="var(--color-brand-soft)" />
               <stop offset="100%" stopColor="var(--color-gold-soft)" />
             </linearGradient>
