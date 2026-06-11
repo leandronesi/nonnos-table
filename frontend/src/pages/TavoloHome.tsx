@@ -22,36 +22,16 @@
  *   - mono solo per numeri che Nonno cita nel discorso
  */
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "../auth/AuthContext";
-import { useOnboardingRun } from "../pipeline/OnboardingRunContext";
-import { useTavoloActionsRef } from "../context/TavoloActionsContext";
-import { downloadJson, quadernoPath } from "../auth/storage";
 import { PRODUCT_NAME } from "../coaching";
-import { runRefresh, runFullReanalyze } from "../pipeline/orchestrator";
-import type { Aggregates, Anchor, PositionExample } from "../pipeline/aggregate";
-import type { PlayerModelLite } from "../pipeline/playerModelLite";
-import { goalProgress, anchorTrendsFromHistory, materialForGap } from "../pipeline/history";
-import { setCachedAggregates } from "../pipeline/aggregatesCache";
+import type { Anchor, PositionExample } from "../pipeline/aggregate";
 import { navigateWithTransition, useCountUp, useInkDraw } from "../lib/motion";
 import { NonnoGreeting } from "../components/NonnoGreeting";
 import { NonnoLetter } from "../components/NonnoLetter";
 import { MomentoDelGiorno } from "../components/MomentoDelGiorno";
-import { readEntries } from "../session/journal";
-import type { TimeClass } from "../auth/db.types";
-import type { HistorySnapshot, HistoryFile, AnchorTrail } from "../types";
-
-// ── djb2 hash — simple 5-line string identity for letter freshness ───────────
-
-function djb2(str: string): string {
-  let h = 5381;
-  for (let i = 0; i < str.length; i++) {
-    h = ((h << 5) + h) ^ str.charCodeAt(i);
-    h = h >>> 0; // keep as 32-bit unsigned
-  }
-  return String(h);
-}
+import type { AnchorTrail } from "../types";
+import { useTavoloData } from "./tavolo/useTavoloData";
 
 // ── Reveal hook ───────────────────────────────────────────────────────────────
 
@@ -503,153 +483,6 @@ function AnchorRow({ anchor, rank, trail }: { anchor: Anchor; rank: number; trai
   );
 }
 
-
-// ── Memoria visibile (la frase "L'altra volta...") ───────────────────────────
-
-/**
- * Builds the "memoria visibile" line shown above NonnoGreeting in Nonno's voice.
- *
- * The journal `body` strings are self-contained sentences (some written for the
- * Quaderno feed), so they do NOT read naturally after "L'altra volta": some carry
- * em-dashes or "di oggi" wording that fights the "last time" framing. So we do
- * not concatenate the raw body here — we recompose a short memory line from the
- * entry kind, preferring the last full SESSION over a single exercise/streak,
- * and lean on the TIME tic ("ieri", "tre giorni fa") without inventing facts.
- *
- * Returns null when there is nothing worth surfacing.
- */
-function buildMemoria(): string | null {
-  const entries = readEntries();
-  if (entries.length === 0) return null;
-
-  // Prefer the last actual session; fall back to the most recent entry of any kind.
-  const lastSession = entries.find((e) => e.kind === "session_done");
-  const ref = lastSession ?? entries[0];
-
-  // Days since that entry (from its UTC date string, so clock/time-zone hours
-  // never turn "today" into "yesterday").
-  const today = new Date();
-  const todayUtcMid = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
-  const parts = ref.date.split("-").map((n) => parseInt(n, 10));
-  let whenClause = "L'altra volta";
-  if (parts.length === 3 && parts.every((n) => !Number.isNaN(n))) {
-    const refUtcMid = Date.UTC(parts[0], parts[1] - 1, parts[2]);
-    const days = Math.round((todayUtcMid - refUtcMid) / 86400000);
-    if (days === 1) whenClause = "Ieri";
-    else if (days >= 2 && days <= 6) whenClause = `${days} giorni fa`;
-    else if (days > 6) whenClause = "L'ultima volta";
-    // days <= 0 (same UTC day): keep the neutral "L'altra volta".
-  }
-
-  if (lastSession != null) {
-    // If the session recorded a dominant motif, surface it here.
-    const motif = typeof lastSession.meta?.dominant_motif === "string"
-      ? lastSession.meta.dominant_motif
-      : null;
-    if (motif) {
-      return `${whenClause} abbiamo lavorato su "${motif}". Riprendiamo da li'.`;
-    }
-    return `${whenClause} ci siamo seduti insieme. Riprendiamo da li'.`;
-  }
-  // No full session yet, but some activity happened: keep it light, no raw body.
-  return `${whenClause} sei passato dal Tavolo. Bene, riprendiamo.`;
-}
-
-
-// ── Chess.com stats shape (same as Onboarding.tsx) ───────────────────────────
-
-interface ChessComStats {
-  chess_rapid?: { last?: { rating?: number } };
-  chess_blitz?: { last?: { rating?: number } };
-  chess_bullet?: { last?: { rating?: number } };
-  chess_daily?: { last?: { rating?: number } };
-}
-
-function ratingFromStats(stats: ChessComStats, tc: TimeClass): number | null {
-  switch (tc) {
-    case "rapid":  return stats.chess_rapid?.last?.rating ?? null;
-    case "blitz":  return stats.chess_blitz?.last?.rating ?? null;
-    case "bullet": return stats.chess_bullet?.last?.rating ?? null;
-    case "daily":  return stats.chess_daily?.last?.rating ?? null;
-    default:       return null;
-  }
-}
-
-// ── Handicap story (GoalHero) ─────────────────────────────────────────────────
-
-// materialForGap is now in pipeline/history.ts (shared with Viaggio component).
-
-/**
- * Derives the handicap story from a history array.
- * Returns null when there are not enough snapshots, no material step, or no improvement.
- */
-function buildHandicapLine(snapshots: HistorySnapshot[]): string | null {
-  if (snapshots.length < 2) return null;
-  // history.json order is not guaranteed: sort chronologically before picking ends
-  const sorted = [...snapshots].sort((a, b) => a.captured_at.localeCompare(b.captured_at));
-  const first = sorted[0];
-  const last = sorted[sorted.length - 1];
-
-  const firstMw = first.maia_weighted;
-  const lastMw = last.maia_weighted;
-  if (firstMw.mine_pct == null || firstMw.target_pct == null) return null;
-  // No claim without current data: a missing last snapshot must not read as "alla pari"
-  if (lastMw.mine_pct == null || lastMw.target_pct == null) return null;
-
-  const firstGap = firstMw.target_pct - firstMw.mine_pct;
-  const initialMaterial = materialForGap(firstGap);
-  if (!initialMaterial) return null; // started at par — nothing interesting to say
-
-  // Require improvement: current step must be strictly lower than initial.
-  const lastGap = lastMw.target_pct - lastMw.mine_pct;
-  const currentMaterial = materialForGap(lastGap);
-
-  const initialStep = initialMaterial.step;
-  const currentStep = currentMaterial?.step ?? 0; // 0 = quasi alla pari
-  if (currentStep >= initialStep) return null; // no real improvement
-
-  if (currentMaterial != null) {
-    return `Quando ci siamo seduti la prima volta ti avrei dato ${initialMaterial.label} di vantaggio. Oggi ti darei ${currentMaterial.label}.`;
-  }
-  return `Quando ci siamo seduti la prima volta ti avrei dato ${initialMaterial.label} di vantaggio. Oggi giochiamo quasi alla pari.`;
-}
-
-/**
- * Fetches the live ELO from Chess.com for the user's goal time-class.
- * Returns null while loading or on any failure — caller falls back to stored value.
- * No throttle needed: display-only, one cheap request at mount.
- */
-function useLiveElo(
-  chessComUsername: string | null | undefined,
-  goalTimeClass: TimeClass | null | undefined,
-): number | null {
-  const [liveRating, setLiveRating] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!chessComUsername || !goalTimeClass) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch(
-          `https://api.chess.com/pub/player/${encodeURIComponent(chessComUsername)}/stats`,
-        );
-        if (!r.ok) return; // silently fall back
-        const stats = (await r.json()) as ChessComStats;
-        const rating = ratingFromStats(stats, goalTimeClass);
-        if (!cancelled && rating != null) setLiveRating(rating);
-      } catch (e) {
-        // Network failures are expected (offline, CORS, Chess.com down).
-        // We degrade gracefully — no crash, no UI error.
-        // eslint-disable-next-line no-console
-        console.warn("[TavoloHome] Chess.com live ELO fetch failed:", e);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [chessComUsername, goalTimeClass]);
-
-  return liveRating;
-}
-
 // ── VarcoQuaderno — una riga di testo serif quiet con freccia ────────────────
 // No box, no card. Hover: the arrow advances 4px.
 
@@ -701,120 +534,34 @@ function VarcoQuaderno({ onNavigate }: { onNavigate: () => void }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function TavoloHome() {
-  const { user, profile, refreshProfile } = useAuth();
   const nav = useNavigate();
-  const { dataVersion } = useOnboardingRun();
-  const tavoloActionsRef = useTavoloActionsRef();
 
-  const [pmLite, setPmLite] = useState<PlayerModelLite | null>(null);
-  const [aggregates, setAggregates] = useState<Aggregates | null>(null);
-  /** voice_message from coach_brief.json. null = missing/not ready. undefined = still loading. */
-  const [llmVoice, setLlmVoice] = useState<string | null | undefined>(undefined);
-  /** generated_at from coach_brief.json (optional — undefined when absent). */
-  const [llmGeneratedAt, setLlmGeneratedAt] = useState<string | undefined>(undefined);
-  /**
-   * Whether this letter was already seen on a PREVIOUS visit (read from localStorage at load time).
-   * When true, no letter is shown (fallback to NonnoGreeting).
-   */
-  const [letterSeenBefore, setLetterSeenBefore] = useState(false);
-  /**
-   * Whether the user has opened the letter during THIS visit.
-   * Used only to hide the "Toccala per aprirla." caption after opening.
-   */
-  const [letterOpenedThisVisit, setLetterOpenedThisVisit] = useState(false);
-  const [historySnapshots, setHistorySnapshots] = useState<HistorySnapshot[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [reanalyzing, setReanalyzing] = useState(false);
-
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        // coach_brief.json and history.json are optional — degrade gracefully.
-        const briefPromise = downloadJson<{ voice_message?: string; generated_at?: string }>(
-          quadernoPath(user.id, "coach_brief.json"),
-        ).catch(() => null);
-        const historyPromise = downloadJson<{ snapshots?: HistorySnapshot[] }>(
-          quadernoPath(user.id, "history.json"),
-        ).catch(() => null);
-
-        const [pm, agg, brief, history] = await Promise.all([
-          downloadJson<PlayerModelLite>(quadernoPath(user.id, "player_model_lite.json")),
-          downloadJson<Aggregates>(quadernoPath(user.id, "aggregates.json")),
-          briefPromise,
-          historyPromise,
-        ]);
-        if (cancelled) return;
-        setPmLite(pm);
-        setAggregates(agg);
-        // Warm the handoff cache: Sessione can then mount synchronously, which
-        // both removes its spinner and lets the tavolo-board morph find its pair.
-        if (agg) setCachedAggregates(user.id, dataVersion, agg);
-        const voice = brief?.voice_message ?? null;
-        setLlmVoice(voice);
-        setLlmGeneratedAt(brief?.generated_at ?? undefined);
-        // Check localStorage to determine if this letter was already seen.
-        if (voice && voice.trim().length > 0) {
-          const identity = brief?.generated_at ?? djb2(voice.trim());
-          const seen = localStorage.getItem("nonno_letter_seen");
-          setLetterSeenBefore(seen === identity);
-        }
-        setHistorySnapshots(history?.snapshots ?? null);
-      } catch (e) {
-        if (!cancelled) setError(String(e instanceof Error ? e.message : e));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-    // dataVersion: increments when background pipeline finishes, forces data reload.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, dataVersion]);
-
-  async function handleRefresh() {
-    if (!profile) return;
-    setRefreshing(true);
-    try {
-      await runRefresh(profile);
-      await refreshProfile();
-      nav("/onboarding/waiting", { replace: true });
-    } finally {
-      setRefreshing(false);
-    }
-  }
-
-  async function handleFullReanalyze() {
-    if (!profile) return;
-    setReanalyzing(true);
-    try {
-      await runFullReanalyze(profile);
-      await refreshProfile();
-      nav("/onboarding/waiting", { replace: true });
-    } finally {
-      setReanalyzing(false);
-    }
-  }
-
-  // Register the action callbacks in the shared context so AppShell sidebar can call them.
-  // Using useEffect with stable refs is not needed here: we write to the mutable ref
-  // every render (same pattern as callback refs), which is safe and avoids stale closures.
-  tavoloActionsRef.current = {
-    handleRefresh,
-    handleFullReanalyze,
-  };
-  // Clear on unmount so the sidebar never holds stale closures from a dead mount.
-  useEffect(() => {
-    return () => {
-      tavoloActionsRef.current = null;
-    };
-  }, [tavoloActionsRef]);
-
-  // ── Part A: live ELO from Chess.com (display-only, no persistence) ────────
-  // Falls back to stored current_rating if fetch fails or returns null.
-  const liveElo = useLiveElo(profile?.chess_com_username, profile?.goal_time_class);
+  const {
+    pmLite,
+    aggregates,
+    llmVoice,
+    llmGeneratedAt: _llmGeneratedAt,
+    loading,
+    error,
+    refreshing,
+    reanalyzing,
+    memoriaVisibile,
+    liveGoal,
+    currentRating,
+    startRating,
+    targetRating,
+    deadline,
+    onTrack,
+    goalProgressData: gp,
+    handicapLine,
+    anchorTrails,
+    letterIdentity,
+    letterSeenBefore,
+    letterOpenedThisVisit,
+    markLetterSeen,
+    runRefreshHandler: handleRefresh,
+    runFullReanalyzeHandler: handleFullReanalyze,
+  } = useTavoloData();
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
@@ -896,25 +643,7 @@ export function TavoloHome() {
     );
   }
 
-  // ── Derived values ────────────────────────────────────────────────────────
-
-  const goal = pmLite?.identity?.goal;
-  // Part A: use live ELO from Chess.com if available; fall back to stored value.
-  const storedRating = goal?.current_rating ?? pmLite?.current_rating ?? null;
-  const currentRating = liveElo ?? storedRating;
-  // Single source of truth: a goal whose current_rating is the LIVE ELO. Used by
-  // the greeting, the Obiettivo card AND the rate/points math below — otherwise
-  // the card showed the live rating while the message and "servono +X/sett" still
-  // used the stale stored one (the incoherence the PO caught).
-  const liveGoal = goal ? { ...goal, current_rating: currentRating } : undefined;
-  const targetRating = profile?.goal_rating ?? goal?.target ?? 0;
-  const startRating = goal?.start_rating ?? currentRating ?? 0;
-  const onTrack = goal?.on_track ?? false;
-  const deadline = goal?.deadline ?? "";
-
-  // GoalProgress recomputed from the LIVE goal (rate-needed / points reflect the
-  // current ELO, not the rating at the last coach generation).
-  const gp = liveGoal ? goalProgress(liveGoal) : null;
+  // ── Local derived values (render-only, not worth exporting) ──────────────
 
   // Top-3 anchors by rating_upside desc
   const anchorsRaw: Anchor[] = aggregates?.anchors ?? [];
@@ -925,38 +654,9 @@ export function TavoloHome() {
   // Momento pool: cadute preferred, fallback to examples
   const momentoPool: PositionExample[] = aggregates?.cadute ?? aggregates?.examples ?? [];
 
-  // Handicap story: derived from history snapshots
-  const handicapLine = historySnapshots ? buildHandicapLine(historySnapshots) : null;
-
-  // Anchor trails: build from history snapshots for the micro-scia sparklines.
-  // anchorTrendsFromHistory expects a HistoryFile struct.
-  const anchorTrails: AnchorTrail[] = historySnapshots && historySnapshots.length >= 2
-    ? anchorTrendsFromHistory({ schema_version: 1, snapshots: historySnapshots } as HistoryFile)
-    : [];
-
-  // Journal: "memoria visibile" — recomposed in Nonno's voice (prefers the last
-  // full session, leans on the TIME tic). Reads localStorage synchronously.
-  const memoriaVisibile = buildMemoria();
-
   // Letter: fresh detection.
-  // The letter appears ONLY when (a) there is a real LLM voice AND (b) it is new.
   const hasVoice = llmVoice != null && llmVoice.trim().length > 0;
-  const letterIdentity = hasVoice
-    ? (llmGeneratedAt ?? djb2(llmVoice!.trim()))
-    : null;
-  // Show the letter wrapper only on the fresh visit (not yet seen before this visit).
   const showLetter = hasVoice && !letterSeenBefore;
-
-  function handleLetterOpen() {
-    if (letterIdentity) {
-      // Persist seen so NEXT visits show NonnoGreeting directly.
-      localStorage.setItem("nonno_letter_seen", letterIdentity);
-      // Mark opened this visit so we hide the caption.
-      setLetterOpenedThisVisit(true);
-      // Note: we do NOT set letterSeenBefore(true) here — the letter stays
-      // visible and open for the rest of this visit (no jump to NonnoGreeting).
-    }
-  }
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -989,7 +689,7 @@ export function TavoloHome() {
 
             <NonnoLetter
               identity={letterIdentity!}
-              onOpen={handleLetterOpen}
+              onOpen={markLetterSeen}
             >
               {/* The full NonnoGreeting lives inside the opened letter.
                   inLetter=true removes the top memoria/eyebrow margin (they are
