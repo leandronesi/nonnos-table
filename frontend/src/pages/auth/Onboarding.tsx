@@ -15,7 +15,7 @@
  *   nav('/onboarding/waiting') che fa partire l'orchestratore client-side
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { supabase } from "../../auth/supabaseClient";
@@ -141,6 +141,17 @@ export function Onboarding() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Ink signature state: idle → signing → signed
+  const [signing, setSigning] = useState(false);
+  // The delayed submit must die with the component: a browser-back during the
+  // 1000ms signature would otherwise fire an insert + navigate after unmount.
+  const signTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (signTimerRef.current != null) clearTimeout(signTimerRef.current);
+    };
+  }, []);
+
   async function onConfirmChessCom() {
     setChessError(null);
     if (!usernameInput.trim()) {
@@ -165,10 +176,11 @@ export function Onboarding() {
     }
   }
 
-  async function onConfirmGoal() {
+  // Returns true on success, false on error (sets submitError internally).
+  async function onConfirmGoal(): Promise<boolean> {
     if (!user || !player) {
       setSubmitError("Sessione persa. Ricarica la pagina.");
-      return;
+      return false;
     }
     setSubmitting(true);
     setSubmitError(null);
@@ -188,10 +200,10 @@ export function Onboarding() {
         setSubmitError(
           "Questo username Chess.com e' gia' collegato a un altro account."
         );
-        return;
+        return false;
       }
       setSubmitError(pErr.message);
-      return;
+      return false;
     }
     const { error: jErr } = await supabase.from("ingest_jobs").insert({
       user_id: user.id,
@@ -204,10 +216,11 @@ export function Onboarding() {
     if (jErr) {
       setSubmitting(false);
       setSubmitError(jErr.message);
-      return;
+      return false;
     }
     await refreshProfile();
     nav("/onboarding/waiting", { replace: true });
+    return true;
   }
 
   // ---- Step 1 ----
@@ -487,6 +500,33 @@ export function Onboarding() {
             })()}
           </p>
         )}
+
+        {/* Ink signature — drawn when user commits to the goal */}
+        <div
+          className={signing ? "ink-drawn" : undefined}
+          style={{ marginTop: "0.875rem", lineHeight: 0 }}
+          aria-hidden="true"
+        >
+          <svg
+            viewBox="0 0 200 24"
+            style={{
+              width: "clamp(160px, 60%, 220px)",
+              height: "auto",
+              display: "block",
+            }}
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              pathLength={1}
+              className="ink-path"
+              d="M4 16 C 50 2, 90 26, 140 10 C 160 4, 175 8, 196 14"
+              stroke="var(--color-brand-soft)"
+              strokeWidth={2}
+              strokeLinecap="round"
+            />
+          </svg>
+        </div>
       </Field>
 
       {/* Deadline — 3 chips */}
@@ -586,10 +626,31 @@ export function Onboarding() {
           Indietro
         </button>
         <button
-          onClick={onConfirmGoal}
+          onClick={() => {
+            // Guard: already signing or submitting
+            if (signing || submitting) return;
+
+            // (1) Disable immediately to prevent double-tap
+            setSigning(true);
+
+            // (2) After ink draw completes (900ms transition + small buffer),
+            //     fire the actual submit. If it fails, re-enable.
+            const prefersReducedMotion =
+              typeof window !== "undefined" &&
+              window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+            const delay = prefersReducedMotion ? 0 : 1000;
+
+            signTimerRef.current = setTimeout(async () => {
+              const ok = await onConfirmGoal();
+              // On failure, re-enable the button so the user can retry.
+              // The ink stroke stays drawn (no rewind).
+              if (!ok) setSigning(false);
+            }, delay);
+          }}
           className="btn btn-primary"
           style={{ flex: 1 }}
-          disabled={submitting}
+          disabled={signing || submitting}
         >
           {submitting ? "Salvo…" : "Apparecchia il Tavolo"}
         </button>

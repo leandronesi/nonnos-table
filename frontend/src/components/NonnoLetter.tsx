@@ -79,7 +79,6 @@ export function NonnoLetter({ identity: _identity, onOpen, children }: NonnoLett
           <button
             className="letter-open-btn"
             aria-label="Apri la lettera del Nonno"
-            aria-expanded={false}
             onClick={handleOpen}
           />
         )}
