@@ -6920,6 +6920,42 @@ button:disabled, [aria-disabled="true"] {
   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.75);
 }
 
+/* The brand moment — you have arrived at Nonno's table */
+.scena-marchio {
+  position: fixed;
+  top: clamp(1.6rem, 6vh, 3.4rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  font-family: var(--font-voice);
+  font-weight: 600;
+  font-size: clamp(1.5rem, 3.4vw, 2.4rem);
+  color: rgba(238, 240, 250, 0.92);
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+  pointer-events: none;
+  /* Appears once the camera has nearly sat down */
+  opacity: 0;
+  animation: marchio-in 1800ms cubic-bezier(0.16, 1, 0.3, 1) 2200ms both;
+}
+.scena-marchio b {
+  color: var(--color-gold-soft);
+  font-weight: 700;
+}
+@keyframes marchio-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* The foyer CTA — the one loud action under the greeting */
+.scena-cta {
+  margin-top: 0.9rem;
+  pointer-events: auto;
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 0.7rem 1.6rem;
+}
+
 /* The focus chip — leaning over an object, one more tap enters it */
 .scena-focus-chip {
   position: fixed;
@@ -6985,5 +7021,9 @@ button:disabled, [aria-disabled="true"] {
   }
   .scena-focus-chip {
     animation: none;
+  }
+  .scena-marchio {
+    animation: none;
+    opacity: 1;
   }
 }

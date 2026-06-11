@@ -47,13 +47,13 @@ function BookIcon() {
 }
 
 // Sessione is entered only via the "Sediamoci" CTA on TavoloHome — not from nav.
+// "/" is the foyer (la Stanza); the working surface lives at /tavolo.
 const NAV: NavDest[] = [
-  { label: "Tavolo",   path: "/",         icon: <BoardIcon /> },
+  { label: "Tavolo",   path: "/tavolo",    icon: <BoardIcon /> },
   { label: "Quaderno", path: "/quaderno",  icon: <BookIcon /> },
 ];
 
 function isActive(dest: NavDest, pathname: string): boolean {
-  if (dest.path === "/") return pathname === "/";
   return pathname.startsWith(dest.path);
 }
 
@@ -489,7 +489,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const username = profile?.chess_com_username ?? null;
 
   // Only show quiet action links when on the Tavolo and callbacks are registered.
-  const isTavolo = pathname === "/";
+  const isTavolo = pathname.startsWith("/tavolo");
   const onRefresh = isTavolo ? (() => tavoloActionsRef.current?.handleRefresh()) : null;
   const onReanalyze = isTavolo ? (() => tavoloActionsRef.current?.handleFullReanalyze()) : null;
 

@@ -73,7 +73,7 @@ class SceneBoundary extends Component<{ children: ReactNode }, { broken: boolean
       return (
         <div className="stanza-errore">
           <p>Questa stanza chiede un dispositivo piu&apos; recente.</p>
-          <Link to="/">Torna al Tavolo</Link>
+          <Link to="/tavolo">Vai al Tavolo</Link>
         </div>
       );
     }
@@ -117,14 +117,14 @@ export function StanzaHome() {
   const [focus, setFocus] = useState<Focus>("tavolo");
 
   // A room must have a door: Escape steps back from an object first,
-  // then leaves the scene.
+  // then walks to the Tavolo (the working surface).
   const nav = useNavigate();
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
       setFocus((f) => {
         if (f !== "tavolo") return "tavolo";
-        nav("/");
+        nav("/tavolo");
         return f;
       });
     }
@@ -161,7 +161,7 @@ export function StanzaHome() {
       <div className="stanza-shell">
         <div className="stanza-errore">
           <p>Qualcosa si e&apos; inceppato.</p>
-          <Link to="/">Torna al Tavolo</Link>
+          <Link to="/tavolo">Vai al Tavolo</Link>
         </div>
       </div>
     );
@@ -194,7 +194,7 @@ export function StanzaHome() {
           }
           onNotebookClick={() => nav("/quaderno")}
           onBoxClick={() => nav("/quaderno#cadute")}
-          onLetterClick={() => nav("/")}
+          onLetterClick={() => nav("/tavolo")}
           focus={focus}
           onFocusRequest={setFocus}
         />
@@ -204,9 +204,14 @@ export function StanzaHome() {
       {/* Vignette above the canvas: screen edges fall into the dark */}
       <div className="scena-vignetta" aria-hidden="true" />
 
-      {/* The door */}
-      <Link to="/" className="scena-uscita" aria-label="Torna al Tavolo">
-        Torna al Tavolo
+      {/* The brand moment: you have arrived at Nonno's table */}
+      <div className="scena-marchio" aria-hidden="true">
+        il Tavolo del <b>Nonno</b>
+      </div>
+
+      {/* The door to the working surface */}
+      <Link to="/tavolo" className="scena-uscita" aria-label="Vai al Tavolo">
+        Il Tavolo
       </Link>
 
       {/* The focus chip: leaning over an object, one more tap enters it */}
@@ -238,6 +243,13 @@ export function StanzaHome() {
             {memoriaVisibile && (
               <p className="scena-dialogo-memoria">{memoriaVisibile}</p>
             )}
+            {/* The one loud action of the foyer: walk to the table */}
+            <button
+              className="btn btn-primary scena-cta"
+              onClick={() => nav("/tavolo")}
+            >
+              Vieni al Tavolo
+            </button>
           </>
         )}
       </div>
