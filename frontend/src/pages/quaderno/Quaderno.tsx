@@ -1884,8 +1884,9 @@ export function Quaderno() {
         </p>
       </div>
 
-      {/* Physical notebook: tabs (linguette) sit on top of the sheet */}
-      <div>
+      {/* Physical notebook: tabs (linguette) sit on top of the sheet.
+          .quaderno-scene provides perspective for the prospective tabletop below. */}
+      <div className="quaderno-scene">
         {/* Tab row — linguette attaccate al bordo superiore del foglio */}
         <div
           role="tablist"
@@ -1965,8 +1966,8 @@ export function Quaderno() {
           </div>
         </div>
 
-        {/* The wood under the paper — the sheet rests on the table */}
-        <div className="quaderno-desk" aria-hidden="true" />
+        {/* The wood under the paper — prospective tabletop; widens toward the viewer */}
+        <div className="quaderno-tabletop" aria-hidden="true" />
       </div>
 
     </div>

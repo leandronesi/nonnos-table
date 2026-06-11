@@ -118,6 +118,13 @@ function buildBestMoveLine(
 
 type SceneState = "start" | "played" | "back" | "best" | "rest";
 
+// How long (ms) after IO intersection before:
+//   - the board starts rising     → RISE_DELAY
+//   - the replay loop starts      → LOOP_DELAY
+// These are tracked in timeoutsRef alongside the animation timeouts.
+const RISE_DELAY = 400;
+const LOOP_DELAY = 1700;
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 interface MomentoDelGiornoProps {
@@ -142,6 +149,11 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
   // Can we run the animation?
   const canAnimate = fenBefore != null && fenPlayed != null && fenBest != null;
 
+  // ── 3-D rise state — board lifts from table to flat overhead view ────────
+  // risen=true when rotateX(52deg) → rotateX(0): happens RISE_DELAY after IO.
+  // Stays true = false only on reduced-motion or canAnimate=false.
+  const [risen, setRisen] = useState(false);
+
   // ── Board animation state machine ────────────────────────────────────────
   const [scene, setScene] = useState<SceneState>("start");
   const cycleRef = useRef(0);
@@ -164,7 +176,11 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!canAnimate || prefersReducedMotion()) return;
+    if (!canAnimate || prefersReducedMotion()) {
+      // No animation: show final (risen) state immediately.
+      setRisen(true);
+      return;
+    }
     const container = containerRef.current;
     if (!container) return;
 
@@ -173,7 +189,13 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
         if (entry.isIntersecting && !startedRef.current) {
           startedRef.current = true;
           io.disconnect();
-          startCycle();
+          // Coreography: IO fires → board rises (RISE_DELAY) → loop starts (LOOP_DELAY).
+          push(setTimeout(() => {
+            if (!disposedRef.current) setRisen(true);
+          }, RISE_DELAY));
+          push(setTimeout(() => {
+            if (!disposedRef.current) startCycle();
+          }, LOOP_DELAY));
         }
       },
       { threshold: 0.3 },
@@ -191,6 +213,7 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
       clearAllTimeouts();
       cycleRef.current = 0;
       startedRef.current = false;
+      setRisen(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fenBefore]);
@@ -315,26 +338,28 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
           flexWrap: "wrap",
         }}
       >
-        {/* Board column: board + wooden desk strip below */}
-        <div style={{ flexShrink: 0, display: "flex", flexDirection: "column" }}>
-          {/* Board with contact shadow — the only shadow allowed, physical not decorative */}
-          <div
-            className="momento-board-wrap"
-            style={{
-              boxShadow: "0 10px 24px -12px rgba(0,0,0,0.5)",
-            }}
-          >
-            <BoardView
-              key={resetKey}
-              fen={boardFen}
-              orientation={momento.color}
-              size={220}
-              arrows={boardArrows}
-              animate={true}
-            />
+        {/* Board column: 3-D scene — board tilted on the table, rises to overhead */}
+        <div style={{ flexShrink: 0 }}>
+          <div className="momento-scene">
+            {/* Prospective tabletop — visible in the gap below the tilted board */}
+            <div className="momento-tabletop" aria-hidden="true" />
+            {/* Board with contact shadow; tilts 52° until risen=true */}
+            <div className={`momento-board-rise${risen ? " risen" : ""}`}>
+              <div
+                className="momento-board-wrap"
+                style={{ boxShadow: "0 10px 24px -12px rgba(0,0,0,0.5)" }}
+              >
+                <BoardView
+                  key={resetKey}
+                  fen={boardFen}
+                  orientation={momento.color}
+                  size={220}
+                  arrows={boardArrows}
+                  animate={true}
+                />
+              </div>
+            </div>
           </div>
-          {/* Wooden desk strip — the board rests on the table */}
-          <div className="momento-desk" aria-hidden="true" />
         </div>
 
         {/* Voice + meta — free text on the wall, no box */}
