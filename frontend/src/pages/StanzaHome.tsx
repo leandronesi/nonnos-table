@@ -1,5 +1,5 @@
 /**
- * StanzaHome — Onda P2: La Stanza Vera.
+ * StanzaHome — Onda P3: La Qualità della Materia.
  *
  * Full-viewport scene. Wall + lamp above the horizon, wooden table below.
  * Six objects anchored by their base using the Gravity Law (see DESIGN spec).
@@ -18,6 +18,15 @@
  *   FAR  : baseline ~52-56vh, scale 0.8,  z-index 2
  *   MID  : baseline ~62-68vh, scale 1.0,  z-index 3
  *   NEAR : baseline ~72-78vh, scale 1.15, z-index 4
+ *
+ * Changes in P3:
+ *   - MiniBoard removed: replaced with BoardView (real SVG pieces + real arrows)
+ *   - Board wrapped in scena-board-frame (wood border) at 420px fixed width
+ *   - parseFen / GLIFI / MiniArrow / MiniBoard: DELETED (dead code)
+ *   - Tazza: SVG 3/4 with rim ellipse, coffee interior, saucer, handle
+ *   - Scatola: two-face 3/4 box (front + top edge) via scena-scatola-wrap
+ *   - Vignetta overlay: darkens screen edges so only lit objects are visible
+ *   - Occhiali: remain inside quaderno wrapper (position absolute) — smaller SVG
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -25,32 +34,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTavoloData } from "./tavolo/useTavoloData";
 import { selectMomento } from "../components/MomentoDelGiorno";
 import { materialForGap } from "../pipeline/history";
+import { BoardView } from "../components/BoardView";
 import type { HistorySnapshot } from "../types";
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-/** Piece unicode glyphs (white set — rendered in warm ivory via CSS). */
-const GLIFI: Record<string, string> = {
-  K: "♔", Q: "♕", R: "♖", B: "♗", N: "♘", P: "♙",
-  k: "♚", q: "♛", r: "♜", b: "♝", n: "♞", p: "♟",
-};
-
-/** Parse a FEN position string into an 8×8 array of piece codes or "". */
-function parseFen(fen: string): string[][] {
-  const position = fen.split(" ")[0];
-  const ranks = position.split("/");
-  return ranks.map((rank) => {
-    const row: string[] = [];
-    for (const ch of rank) {
-      if (ch >= "1" && ch <= "8") {
-        for (let i = 0; i < parseInt(ch, 10); i++) row.push("");
-      } else {
-        row.push(ch);
-      }
-    }
-    return row;
-  });
-}
+// ── Handicap helpers ───────────────────────────────────────────────────────────
 
 /** Handicap step → piece glyphs and display. Step 1..5 from materialForGap. */
 const HANDICAP_GLYPHS: Record<number, string> = {
@@ -91,154 +78,6 @@ function buildHandicapDisplay(snapshots: HistorySnapshot[]): {
 }
 
 // ── CSS contact shadow (elliptic, below base) ──────────────────────────────────
-// Applied via ::after in index.css (.scena-oggetto::after).
-
-// ── Mini chess board ──────────────────────────────────────────────────────────
-
-interface MiniArrow {
-  from: string;
-  to: string;
-  color: string;
-}
-
-interface MiniBoardProps {
-  fen: string;
-  orientation: "white" | "black";
-  arrows: MiniArrow[];
-}
-
-function MiniBoard({ fen, orientation, arrows }: MiniBoardProps) {
-  const board = parseFen(fen);
-  // Black orientation flips BOTH axes: ranks (rows) and files (columns).
-  // sqToXY mirrors the same convention; flipping only rows would land the
-  // arrows one cell off for every black-side momento.
-  const rows =
-    orientation === "black"
-      ? [...board].reverse().map((row) => [...row].reverse())
-      : board;
-
-  // Build arrow paths for SVG overlay
-  // Cell size = 100/8 = 12.5% of board width
-  const CELL = 12.5;
-
-  function sqToXY(sq: string): { x: number; y: number } {
-    const file = sq.charCodeAt(0) - 97; // 0..7
-    const rank = 8 - parseInt(sq[1], 10); // 0..7 (top = rank 8)
-    // If flipped for black
-    const displayFile = orientation === "black" ? 7 - file : file;
-    const displayRank = orientation === "black" ? 7 - rank : rank;
-    return {
-      x: displayFile * CELL + CELL / 2,
-      y: displayRank * CELL + CELL / 2,
-    };
-  }
-
-  return (
-    <div
-      style={{
-        position: "relative",
-        width: "100%",
-        aspectRatio: "1",
-        display: "grid",
-        gridTemplate: "repeat(8, 1fr) / repeat(8, 1fr)",
-        border: "8px solid #1b1410",
-        borderRadius: "4px",
-        overflow: "hidden",
-      }}
-    >
-      {rows.flatMap((row, ri) =>
-        row.map((piece, fi) => {
-          const isDark = (ri + fi) % 2 !== 0;
-          const glyph = piece ? GLIFI[piece] ?? "" : "";
-          const isWhitePiece = piece === piece.toUpperCase() && piece !== "";
-          return (
-            <div
-              key={`${ri}-${fi}`}
-              style={{
-                background: isDark ? "#2c3a55" : "#a7b2c7",
-                position: "relative",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "clamp(14px, 2.8vw, 22px)",
-                lineHeight: 1,
-              }}
-            >
-              {glyph && (
-                <span
-                  style={{
-                    color: isWhitePiece ? "#f3efe4" : "#15131f",
-                    textShadow: isWhitePiece
-                      ? "0 1px 2px rgba(0,0,0,0.65)"
-                      : "0 1px 1px rgba(255,255,255,0.14)",
-                    userSelect: "none",
-                    zIndex: 2,
-                    position: "relative",
-                  }}
-                >
-                  {glyph}
-                </span>
-              )}
-            </div>
-          );
-        }),
-      )}
-
-      {/* SVG arrow overlay */}
-      {arrows.length > 0 && (
-        <svg
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            pointerEvents: "none",
-            zIndex: 3,
-            overflow: "visible",
-          }}
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-        >
-          <defs>
-            {arrows.map((a, i) => (
-              <marker
-                key={`m${i}`}
-                id={`arrowhead-${i}`}
-                markerWidth="6"
-                markerHeight="6"
-                refX="3"
-                refY="3"
-                orient="auto"
-              >
-                <path d="M0,0 L0,6 L6,3 z" fill={a.color} />
-              </marker>
-            ))}
-          </defs>
-          {arrows.map((a, i) => {
-            const { x: x1, y: y1 } = sqToXY(a.from);
-            const { x: x2, y: y2 } = sqToXY(a.to);
-            return (
-              <line
-                key={i}
-                x1={x1}
-                y1={y1}
-                x2={x2}
-                y2={y2}
-                stroke={a.color}
-                strokeWidth="3.5"
-                strokeLinecap="round"
-                markerEnd={`url(#arrowhead-${i})`}
-              />
-            );
-          })}
-        </svg>
-      )}
-    </div>
-  );
-}
-
-// ── Contact shadow component (elliptic) ───────────────────────────────────────
 
 function ContactShadow() {
   return (
@@ -250,7 +89,7 @@ function ContactShadow() {
         left: "6%",
         width: "88%",
         height: 14,
-        background: "radial-gradient(ellipse at center, rgba(0,0,0,0.50) 0%, transparent 70%)",
+        background: "radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, transparent 70%)",
         filter: "blur(4px)",
         zIndex: 0,
         pointerEvents: "none",
@@ -259,28 +98,84 @@ function ContactShadow() {
   );
 }
 
-// ── Glasses line-art (SVG) ─────────────────────────────────────────────────────
+// ── Glasses SVG — smaller, warm metal, resting on the notebook ─────────────────
 
 function OcchialiSvg() {
   return (
     <svg
-      width="86"
-      height="32"
-      viewBox="0 0 92 34"
+      width="110"
+      height="40"
+      viewBox="0 0 110 40"
       aria-hidden="true"
-      style={{ display: "block", opacity: 0.82 }}
+      style={{ display: "block", opacity: 0.80 }}
     >
-      <circle cx="20" cy="20" r="12" stroke="#c8b98f" strokeWidth="2.4" fill="none" />
-      <circle cx="58" cy="20" r="12" stroke="#c8b98f" strokeWidth="2.4" fill="none" />
-      <path d="M32 18 Q 39 13 46 18" stroke="#c8b98f" strokeWidth="2.4" fill="none" />
-      {/* Both temple arms, folded — glasses resting on the notebook */}
-      <path d="M70 18 Q 84 14 90 6" stroke="#c8b98f" strokeWidth="2.4" fill="none" />
-      <path d="M8 18 Q 2 14 2 6" stroke="#c8b98f" strokeWidth="2.4" fill="none" />
+      {/* Left lens */}
+      <ellipse cx="25" cy="25" rx="15" ry="11" stroke="#b9a87c" strokeWidth="1.6" fill="none" />
+      {/* Right lens */}
+      <ellipse cx="72" cy="25" rx="15" ry="11" stroke="#b9a87c" strokeWidth="1.6" fill="none" />
+      {/* Bridge */}
+      <path d="M40 23 Q 48.5 17 57 23" stroke="#b9a87c" strokeWidth="1.6" fill="none" />
+      {/* Right temple */}
+      <path d="M87 22 Q 100 17 106 8" stroke="#b9a87c" strokeWidth="1.6" fill="none" />
+      {/* Left temple */}
+      <path d="M10 22 Q 4 17 2 8" stroke="#b9a87c" strokeWidth="1.6" fill="none" />
+    </svg>
+  );
+}
+
+// ── Tazza SVG — 3/4 top view: rim ellipse, coffee inside, saucer, handle ──────
+
+function TazzaSvg() {
+  return (
+    <svg
+      width="64"
+      height="72"
+      viewBox="0 0 64 72"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      {/* Saucer — wide ellipse at the bottom */}
+      <ellipse cx="32" cy="62" rx="28" ry="8" fill="#b0a898" />
+      <ellipse cx="32" cy="62" rx="28" ry="8" fill="none" stroke="#8a8070" strokeWidth="0.8" />
+
+      {/* Cup body */}
+      <rect x="10" y="30" width="44" height="30" rx="6" fill="url(#cup-body)" />
+      {/* Highlight on lamp side (left) */}
+      <rect x="10" y="30" width="14" height="30" rx="6" fill="rgba(255,230,180,0.08)" />
+
+      {/* Rim top ellipse — visible from 3/4 */}
+      <ellipse cx="32" cy="30" rx="22" ry="7" fill="#cec8bc" />
+      <ellipse cx="32" cy="30" rx="22" ry="7" fill="none" stroke="#a8a093" strokeWidth="0.8" />
+
+      {/* Coffee inside — dark ellipse seen through the rim */}
+      <ellipse cx="32" cy="31" rx="18" ry="5.5" fill="#1a0e07" />
+      {/* Coffee highlight */}
+      <ellipse cx="27" cy="30" rx="4" ry="1.5" fill="rgba(255,200,120,0.10)" />
+
+      {/* Handle — thin C on right side */}
+      <path
+        d="M54 38 C 63 38, 63 54, 54 54"
+        stroke="#a89e8e"
+        strokeWidth="2.2"
+        fill="none"
+        strokeLinecap="round"
+      />
+
+      <defs>
+        <linearGradient id="cup-body" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#d0c8ba" />
+          <stop offset="60%" stopColor="#b8b0a2" />
+          <stop offset="100%" stopColor="#9a9285" />
+        </linearGradient>
+      </defs>
     </svg>
   );
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
+
+// Board size for the scene — fixed so ResizeObserver inside BoardView reads correctly.
+const BOARD_SCENE_SIZE = 420;
 
 export function StanzaHome() {
   const {
@@ -404,7 +299,7 @@ export function StanzaHome() {
         style={{
           position: "fixed",
           inset: 0,
-          background: "var(--color-bg)",
+          background: "#04060e",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -449,6 +344,9 @@ export function StanzaHome() {
       {/* ── PARETE (wall above horizon) ── */}
       <div className="scena-parete" aria-hidden="true" />
 
+      {/* ── VIGNETTA: darkens screen edges, pointer-events none ── */}
+      <div className="scena-vignetta" aria-hidden="true" />
+
       {/* ── LAMPADA ── */}
       <div className="scena-lampada-filo" aria-hidden="true" />
       <div className="scena-lampada-corpo" aria-hidden="true" />
@@ -481,12 +379,15 @@ export function StanzaHome() {
         >
           <div style={{ position: "relative" }}>
             <ContactShadow />
-            <div className="scena-scatola">
-              {topAnchors.map((a, i) => (
-                <div key={a.key} className="scena-scatola-carta" data-i={i}>
-                  {a.label_it.split(" ")[0]}
-                </div>
-              ))}
+            {/* Two-face 3/4 box: top edge + front face are separate divs */}
+            <div className="scena-scatola-wrap">
+              <div className="scena-scatola">
+                {topAnchors.map((a, i) => (
+                  <div key={a.key} className="scena-scatola-carta" data-i={i}>
+                    {a.label_it.split(" ")[0]}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
           <div
@@ -514,7 +415,8 @@ export function StanzaHome() {
         >
           <div style={{ position: "relative" }}>
             <ContactShadow />
-            <div className="scena-tazza">
+            {/* SVG vapore lives above TazzaSvg, inside scena-tazza-wrap */}
+            <div className="scena-tazza-wrap">
               <svg
                 className="scena-vapore"
                 viewBox="0 0 40 70"
@@ -523,6 +425,7 @@ export function StanzaHome() {
                 <path d="M14 64 C 8 52, 22 46, 16 34 C 11 24, 21 18, 18 8" />
                 <path d="M27 62 C 22 52, 33 44, 27 34 C 22 26, 30 18, 26 10" />
               </svg>
+              <TazzaSvg />
             </div>
           </div>
         </div>
@@ -562,9 +465,7 @@ export function StanzaHome() {
               })}
             </div>
           </div>
-          <div
-            className="scena-handicap-dida"
-          >
+          <div className="scena-handicap-dida">
             {handicapData.currentStep === 0
               ? "Giochiamo quasi alla pari."
               : "Quel che resta del vantaggio che ti davo."}
@@ -597,34 +498,59 @@ export function StanzaHome() {
         </div>
       )}
 
-      {/* ── 1. SCACCHIERA — NEAR, baseline 74vh, x 47%, scale 1.15, z-index 4 ── */}
+      {/* ── 1. SCACCHIERA — NEAR, baseline 74vh, x 46%, scale 1.15, z-index 4 ──
+          BoardView gets a fixed-width parent = BOARD_SCENE_SIZE px so the
+          internal ResizeObserver reads the correct size despite CSS transforms. ── */}
       {momento && (
         <div
           className={`scena-oggetto scena-oggetto-near${nearVisible ? " scena-in" : ""}`}
-          style={{ top: "74vh", left: "47%" }}
+          style={{ top: "74vh", left: "46%" }}
           aria-label={`Posizione dal ${momento.phase}`}
         >
           <div style={{ position: "relative" }}>
-            <ContactShadow />
-            {/* Board inclined toward viewer */}
+            {/* Contact shadow wider — the board is the heaviest object */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                bottom: -10,
+                left: "4%",
+                width: "92%",
+                height: 18,
+                background: "radial-gradient(ellipse at center, rgba(0,0,0,0.65) 0%, transparent 70%)",
+                filter: "blur(6px)",
+                zIndex: 0,
+                pointerEvents: "none",
+              }}
+            />
+            {/* Board inclined toward viewer — perspective on the inner wrapper */}
             <div className="scena-board-wrap">
               <div className="scena-board-inner">
-                <MiniBoard
-                  fen={momento.fen_before}
-                  orientation={momento.color}
-                  arrows={[
-                    momento.played_uci
-                      ? { from: momento.played_uci.slice(0, 2), to: momento.played_uci.slice(2, 4), color: "rgba(239,68,68,0.85)" }
-                      : null,
-                    momento.best_uci
-                      ? { from: momento.best_uci.slice(0, 2), to: momento.best_uci.slice(2, 4), color: "rgba(34,197,94,0.85)" }
-                      : null,
-                  ].filter(Boolean) as MiniArrow[]}
-                />
+                {/* Wooden frame around the real board */}
+                <div className="scena-board-frame">
+                  {/* Fixed-size div = BOARD_SCENE_SIZE so ResizeObserver reads right */}
+                  <div style={{ width: BOARD_SCENE_SIZE, height: BOARD_SCENE_SIZE }}>
+                    <BoardView
+                      fen={momento.fen_before}
+                      orientation={momento.color}
+                      size={BOARD_SCENE_SIZE}
+                      draggable={false}
+                      animate={false}
+                      arrows={[
+                        momento.played_uci
+                          ? { from: momento.played_uci.slice(0, 2), to: momento.played_uci.slice(2, 4), color: "rgba(239,68,68,0.85)" }
+                          : null,
+                        momento.best_uci
+                          ? { from: momento.best_uci.slice(0, 2), to: momento.best_uci.slice(2, 4), color: "rgba(34,197,94,0.85)" }
+                          : null,
+                      ].filter(Boolean) as { from: string; to: string; color: string }[]}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-          {/* Caption mono */}
+          {/* Caption mono — very faint */}
           <div className="scena-board-dida">
             {[
               momento.phase,
@@ -636,7 +562,8 @@ export function StanzaHome() {
         </div>
       )}
 
-      {/* ── 3. QUADERNO — NEAR, baseline 76vh, x 80%, scale 1.15, z-index 4 ── */}
+      {/* ── 3. QUADERNO — NEAR, baseline 76vh, x 80%, scale 1.15, z-index 4 ──
+          Glasses sit on the notebook page (position absolute inside wrapper). ── */}
       {showQuaderno && (
         <div
           className={`scena-oggetto scena-oggetto-near${nearVisible ? " scena-in" : ""}`}
@@ -645,16 +572,16 @@ export function StanzaHome() {
         >
           <div style={{ position: "relative" }}>
             <ContactShadow />
-            {/* Glasses resting on top of the notebook */}
-            <div className="scena-occhiali" aria-hidden="true">
-              <OcchialiSvg />
-            </div>
             <div className="scena-quaderno">
+              {/* Glasses resting in top-right corner of the page */}
+              <div className="scena-occhiali" aria-hidden="true">
+                <OcchialiSvg />
+              </div>
               <h4
                 style={{
                   fontFamily: "var(--font-voice)",
                   fontWeight: 600,
-                  fontSize: "0.9rem",
+                  fontSize: "0.85rem",
                   marginBottom: "0.6rem",
                   color: "#3a2f1d",
                 }}
@@ -686,8 +613,8 @@ export function StanzaHome() {
                       position: "absolute",
                       left: 0,
                       top: "0.34em",
-                      width: 5,
-                      height: 5,
+                      width: 4,
+                      height: 4,
                       borderRadius: "50%",
                       background: "#b8860b",
                       display: "inline-block",
@@ -697,7 +624,7 @@ export function StanzaHome() {
                     style={{
                       fontFamily: "var(--font-mono)",
                       fontWeight: 600,
-                      fontSize: "0.75rem",
+                      fontSize: "0.70rem",
                       color: "#8a6508",
                     }}
                   >
@@ -749,6 +676,7 @@ export function StanzaHome() {
                 lineHeight: 1.4,
                 color: "var(--color-text)",
                 margin: 0,
+                textShadow: "0 2px 18px rgba(0,0,0,0.65)",
               }}
             >
               Oooh. Eccoti.
@@ -761,6 +689,7 @@ export function StanzaHome() {
                   color: "var(--color-muted)",
                   margin: "0.45rem 0 0",
                   lineHeight: 1.5,
+                  textShadow: "0 1px 8px rgba(0,0,0,0.55)",
                 }}
               >
                 {memoriaVisibile}
