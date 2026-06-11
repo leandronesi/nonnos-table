@@ -45,22 +45,28 @@ const KNIGHT_BASE: [number, number][] = [
   [0, 0], [0.058, 0], [0.052, 0.014], [0.038, 0.045], [0.033, 0.075], [0.028, 0.085], [0, 0.085],
 ];
 
-// ── Materials (shared) ─────────────────────────────────────────────────────────
+// ── Materials (shared) — polished wood, not plastic ───────────────────────────
 
-export const IVORY = new THREE.MeshStandardMaterial({
-  color: "#ded5bf",
-  roughness: 0.42,
-  metalness: 0.02,
+export const IVORY = new THREE.MeshPhysicalMaterial({
+  color: "#e3dcc6",
+  roughness: 0.32,
+  metalness: 0.0,
+  clearcoat: 0.35,
+  clearcoatRoughness: 0.4,
 });
-export const WALNUT = new THREE.MeshStandardMaterial({
-  color: "#241c14",
-  roughness: 0.38,
+export const WALNUT = new THREE.MeshPhysicalMaterial({
+  color: "#1b1410",
+  roughness: 0.3,
   metalness: 0.05,
+  clearcoat: 0.5,
+  clearcoatRoughness: 0.32,
 });
 
 function latheFrom(points: [number, number][]): THREE.LatheGeometry {
   const v = points.map(([r, y]) => new THREE.Vector2(r, y));
-  return new THREE.LatheGeometry(v, 40);
+  const geo = new THREE.LatheGeometry(v, 48);
+  geo.computeVertexNormals();
+  return geo;
 }
 
 // Geometry cache (module-level: built once, shared by every piece instance).
@@ -73,6 +79,40 @@ let knightBaseGeo: THREE.LatheGeometry | null = null;
 function knightBase(): THREE.LatheGeometry {
   if (!knightBaseGeo) knightBaseGeo = latheFrom(KNIGHT_BASE);
   return knightBaseGeo;
+}
+
+/**
+ * The knight head: a horse silhouette extruded with a bevel — the classic
+ * trick of real-world minimal sets. Outline drawn in XY (x = muzzle forward,
+ * y = up from the base top), extruded along Z and beveled.
+ */
+let knightHeadGeo: THREE.ExtrudeGeometry | null = null;
+function knightHead(): THREE.ExtrudeGeometry {
+  if (knightHeadGeo) return knightHeadGeo;
+  const s = new THREE.Shape();
+  s.moveTo(-0.030, 0.000);          // back-bottom of the neck
+  s.bezierCurveTo(-0.046, 0.030, -0.044, 0.070, -0.034, 0.092); // nape rising
+  s.lineTo(-0.030, 0.118);          // back of the head
+  s.lineTo(-0.038, 0.142);          // back ear
+  s.lineTo(-0.020, 0.134);          // notch between ears
+  s.lineTo(-0.010, 0.155);          // ear tip
+  s.bezierCurveTo(0.004, 0.138, 0.018, 0.124, 0.040, 0.108);    // forehead
+  s.lineTo(0.062, 0.090);           // muzzle top
+  s.lineTo(0.064, 0.072);           // nose
+  s.lineTo(0.044, 0.062);           // mouth
+  s.bezierCurveTo(0.030, 0.058, 0.022, 0.052, 0.020, 0.040);    // jaw / throat
+  s.bezierCurveTo(0.018, 0.022, 0.016, 0.010, 0.014, 0.000);    // front of the neck
+  s.closePath();
+  knightHeadGeo = new THREE.ExtrudeGeometry(s, {
+    depth: 0.042,
+    bevelEnabled: true,
+    bevelThickness: 0.007,
+    bevelSize: 0.006,
+    bevelSegments: 3,
+    curveSegments: 14,
+  });
+  knightHeadGeo.translate(0, 0, -0.021); // center the thickness
+  return knightHeadGeo;
 }
 
 // ── Single piece ───────────────────────────────────────────────────────────────
@@ -93,26 +133,17 @@ export function Pezzo({
   const mat = white ? IVORY : WALNUT;
 
   if (kind === "n") {
-    // Stylized knight: turned base + tilted wedge head + small muzzle.
+    // Knight: turned base + extruded horse-head silhouette.
     return (
       <group position={position} rotation={rotation} scale={scale}>
         <mesh geometry={knightBase()} material={mat} castShadow receiveShadow />
         <mesh
+          geometry={knightHead()}
           material={mat}
-          position={[0.008, 0.135, 0]}
-          rotation={[0, 0, -0.5]}
+          position={[0, 0.08, 0]}
           castShadow
-        >
-          <boxGeometry args={[0.045, 0.13, 0.052]} />
-        </mesh>
-        <mesh
-          material={mat}
-          position={[0.045, 0.175, 0]}
-          rotation={[0, 0, -1.05]}
-          castShadow
-        >
-          <boxGeometry args={[0.034, 0.07, 0.044]} />
-        </mesh>
+          receiveShadow
+        />
       </group>
     );
   }
@@ -202,8 +233,13 @@ export function PezziFromFen({
           kind={p.kind}
           white={p.white}
           position={[(p.file - 3.5) * square, y, (3.5 - p.rank) * square]}
-          // Knights face the opponent
-          rotation={p.kind === "n" && !p.white ? [0, Math.PI, 0] : undefined}
+          // Knights face the opponent: the head shape's muzzle is +x,
+          // rotY +PI/2 maps +x onto -z (white looks away from the camera).
+          rotation={
+            p.kind === "n"
+              ? [0, p.white ? Math.PI / 2 : -Math.PI / 2, 0]
+              : undefined
+          }
           scale={square / 0.18}
         />
       ))}

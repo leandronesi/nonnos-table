@@ -140,6 +140,17 @@ export function StanzaHome() {
           thorns={thorns}
           showLetter={showLetter}
           reducedMotion={reduced}
+          onBoardClick={
+            momento
+              ? () =>
+                  nav("/sessione", {
+                    state: { focusKey: `${momento.fen_before}:${momento.ply}` },
+                  })
+              : undefined
+          }
+          onNotebookClick={() => nav("/quaderno")}
+          onBoxClick={() => nav("/quaderno#cadute")}
+          onLetterClick={() => nav("/")}
         />
       </Suspense>
 
