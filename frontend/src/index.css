@@ -6920,10 +6920,41 @@ button:disabled, [aria-disabled="true"] {
   text-shadow: 0 2px 14px rgba(0, 0, 0, 0.75);
 }
 
+/* The focus chip — leaning over an object, one more tap enters it */
+.scena-focus-chip {
+  position: fixed;
+  right: clamp(1.2rem, 3vw, 2.4rem);
+  bottom: clamp(1.2rem, 5vh, 3rem);
+  z-index: 55;
+  font-family: var(--font-voice);
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #f0ead8;
+  background: rgba(20, 16, 10, 0.72);
+  border: 1px solid rgba(246, 198, 74, 0.35);
+  border-radius: 999px;
+  padding: 0.65rem 1.5rem;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: border-color 200ms var(--ease-out), transform 200ms var(--ease-out);
+  animation: settle-in 500ms var(--ease-settle) both;
+}
+.scena-focus-chip:hover {
+  border-color: rgba(246, 198, 74, 0.7);
+  transform: translateY(-2px);
+}
+.scena-focus-chip:focus-visible {
+  outline: 2px solid var(--color-brand-soft);
+  outline-offset: 3px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .scena-dialogo {
     transition: none;
     opacity: 1;
     transform: none;
+  }
+  .scena-focus-chip {
+    animation: none;
   }
 }
