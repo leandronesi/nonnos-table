@@ -365,24 +365,60 @@ button:disabled, [aria-disabled="true"] {
   }
 }
 
-/* ── momento-desk — la striscia di legno fisica sotto la board
- * Replica una variante compatta del .public-desk della Landing.
- * Dimensioni: altezza fissa 22px, larghezza 110% della board (margin negativo). */
-.momento-desk {
-  width: 110%;
-  margin-left: -5%;
-  height: 22px;
-  border-radius: 2px 2px 0 0;
-  border-top: 1px solid color-mix(in srgb, var(--color-gold) 18%, transparent);
-  background:
-    repeating-linear-gradient(10deg, rgba(255,255,255,0.022) 0 1px, transparent 1px 14px),
-    linear-gradient(180deg, #5b3b24 0%, #33231a 60%, #17100d 100%);
-  flex-shrink: 0;
+/* ── MomentoDelGiorno 3-D scene — board rests on a perspective table, then rises
+ * to an overhead (flat) view as the IntersectionObserver fires.
+ *
+ * Layout:
+ *   .momento-scene      — perspective container; clips horizontal overflow
+ *   .momento-tabletop   — prospective wooden plane below the board
+ *   .momento-board-rise — wrapper that rotates from 52° to 0° (risen class)
+ *
+ * Coreography (IO trigger → risen class added after RISE_DELAY=400ms):
+ *   t=0ms    IO fires (card enters viewport 30%)
+ *   t=400ms  risen class → board rotates from rotateX(52deg) to rotateX(0)
+ *             transition: 1100ms ease-settle
+ *   t=1700ms replay loop starts (startCycle)
+ */
+
+.momento-scene {
+  perspective: 950px;
+  position: relative;
+  overflow-x: hidden; /* clip wide tabletop without cutting contact shadow below */
+  /* Give the scene enough height to show the tilted board + tabletop bottom */
+  padding-bottom: 10px;
 }
-@media (max-width: 420px) {
-  .momento-desk {
-    width: 108%;
-    margin-left: -4%;
+
+.momento-tabletop {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 150%;
+  height: 110px;
+  transform: translateX(-50%) rotateX(58deg);
+  transform-origin: top center;
+  border-radius: 4px;
+  /* Timber: grain texture + lamp pool at center top, dark gradient below */
+  background:
+    radial-gradient(60% 50% at 50% 18%, rgba(255, 220, 160, 0.10), transparent 70%),
+    repeating-linear-gradient(10deg, rgba(255,255,255,0.022) 0 1px, transparent 1px 14px),
+    linear-gradient(180deg, #5b3b24 0%, #33231a 55%, #17100d 100%);
+  border-top: 1px solid color-mix(in srgb, var(--color-gold) 18%, transparent);
+}
+
+.momento-board-rise {
+  transform-origin: bottom center;
+  transform: rotateX(52deg) scale(0.97);
+  transition: transform 1100ms var(--ease-settle);
+  /* contact shadow — physical, not decorative; lives on the inner board-wrap */
+}
+.momento-board-rise.risen {
+  transform: rotateX(0deg) scale(1);
+}
+
+@media (max-width: 480px) {
+  .momento-tabletop {
+    width: 125%;
+    height: 70px;
   }
 }
 
@@ -1628,6 +1664,8 @@ button:disabled, [aria-disabled="true"] {
   padding: clamp(20px, 4vw, 36px);
   min-height: 60vh;
   position: relative;
+  /* One-shot settle: the sheet appears to be placed on the desk at page mount */
+  animation: sheet-place 700ms var(--ease-settle) both;
 }
 
 /* Light theme: white paper, pencil-grey rules, soft contact shadow */
@@ -1647,24 +1685,62 @@ button:disabled, [aria-disabled="true"] {
   background: color-mix(in srgb, var(--color-gold) 4%, var(--color-surface));
 }
 
-/* ── Il legno sotto il foglio — the sheet rests on the table ──
-   In-flow strip after the sheet; the sheet (position: relative) paints above
-   the overlap, so the paper visibly RESTS on the wood. Same timber family as
-   .momento-desk / .public-desk. */
-.quaderno-desk {
-  height: 30px;
-  width: calc(100% + 36px);
-  margin: -12px 0 0 -18px;
+/* ── Il legno sotto il foglio — prospective tabletop (Quaderno)
+ *
+ * Replaces the old flat .quaderno-desk strip with a CSS 3-D plane that widens
+ * toward the viewer, giving the same physical-table illusion as .momento-tabletop.
+ *
+ * The wrapper .quaderno-scene (set on the notebook container in JSX) provides
+ * the perspective context. overflow-x: hidden on .appshell-content clips it.
+ *
+ * sheet-place: one-shot animation on mount — the sheet appears to be placed on
+ * the desk (small rotateX + translateY settle). Runs once; no replay on tab change
+ * because .quaderno-sheet is not re-mounted on tab switch.
+ */
+
+@keyframes sheet-place {
+  from {
+    transform: rotateX(6deg) translateY(18px);
+    opacity: 0.85;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* Scene wrapper — provides the perspective context for the tabletop */
+.quaderno-scene {
+  perspective: 1100px;
+  overflow-x: hidden; /* clip wide tabletop; vertical remains open */
+}
+
+.quaderno-tabletop {
+  width: 120%;
+  margin-left: -10%;
+  height: 90px;
+  transform: rotateX(58deg);
+  transform-origin: top center;
   border-radius: 3px;
   border-top: 1px solid color-mix(in srgb, var(--color-gold) 18%, transparent);
   background:
+    radial-gradient(60% 50% at 50% 18%, rgba(255, 220, 160, 0.08), transparent 70%),
     repeating-linear-gradient(10deg, rgba(255,255,255,0.022) 0 1px, transparent 1px 14px),
-    linear-gradient(180deg, #5b3b24 0%, #33231a 60%, #17100d 100%);
+    linear-gradient(180deg, #5b3b24 0%, #33231a 55%, #17100d 100%);
+  /* Slight margin-top overlap so the sheet bottom edge bleeds into the wood */
+  margin-top: -8px;
 }
+
 @media (max-width: 480px) {
-  .quaderno-desk {
-    width: calc(100% + 16px);
-    margin-left: -8px;
+  .quaderno-tabletop {
+    height: 56px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quaderno-tabletop {
+    /* Keep the tabletop visible; skip any 3-D transition on parent */
+    transform: rotateX(58deg);
   }
 }
 
@@ -6431,6 +6507,16 @@ button:disabled, [aria-disabled="true"] {
     animation: none;
     opacity: 1;
     transform: none;
+  }
+  /* Sheet-place and board-rise: skip all 3-D motion */
+  .quaderno-sheet {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .momento-board-rise {
+    transform: none;
+    transition: none;
   }
   ::view-transition-old(root),
   ::view-transition-new(root) {
