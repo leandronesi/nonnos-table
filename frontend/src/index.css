@@ -1576,8 +1576,9 @@ button:disabled, [aria-disabled="true"] {
 
 /* Active tab merges with the sheet: same paper background, no bottom gap */
 .quaderno-tab-tab[aria-selected="true"] {
-  /* Paper background — same formula as .quaderno-sheet */
-  background: color-mix(in srgb, var(--color-gold) 3%, var(--color-surface));
+  /* Paper background — same base formula as .quaderno-sheet (no ruled lines:
+     the first rule starts below the seam, so the fusion stays seamless) */
+  background: color-mix(in srgb, var(--color-gold) 6%, var(--color-surface-2));
   color: var(--color-text);
   /* Sit flush with the sheet top border — the -1px overlap hides the border seam */
   transform: translateY(1px);
@@ -1604,27 +1605,67 @@ button:disabled, [aria-disabled="true"] {
   }
 }
 
-/* ── Il foglio — grande carta posata sul tavolo ── */
+/* ── Il foglio — grande carta posata sul tavolo ──
+   The paper must READ as paper in a dark room: noticeably warmer and lighter
+   than the wall (6% gold over surface-2, not 3% over surface), with the faint
+   horizontal RULES of a real notebook page. First rule starts at 44px so the
+   seam with the active tab stays clean. */
 .quaderno-sheet {
-  /* Paper warmth: 3% gold over surface — identical to .paper */
-  background: color-mix(in srgb, var(--color-gold) 3%, var(--color-surface));
-  border: 1px solid var(--color-line);
+  background:
+    repeating-linear-gradient(
+      180deg,
+      transparent 0 43px,
+      color-mix(in srgb, var(--color-line) 60%, transparent) 43px 44px
+    ),
+    color-mix(in srgb, var(--color-gold) 6%, var(--color-surface-2));
+  border: 1px solid var(--color-line-strong);
   /* Top-left corner is "under" the active tab — rounded on the other three */
   border-radius: 0 12px 12px 12px;
   /* Inset lamp line at the top */
   box-shadow:
     inset 0 1px 0 var(--light-warm),
-    0 12px 28px -18px rgba(0, 0, 0, 0.45);
+    0 16px 36px -18px rgba(0, 0, 0, 0.55);
   padding: clamp(20px, 4vw, 36px);
   min-height: 60vh;
   position: relative;
 }
 
-/* Light theme: soften the contact shadow */
+/* Light theme: white paper, pencil-grey rules, soft contact shadow */
 :root[data-theme="light"] .quaderno-sheet {
+  background:
+    repeating-linear-gradient(
+      180deg,
+      transparent 0 43px,
+      rgba(0, 0, 0, 0.05) 43px 44px
+    ),
+    color-mix(in srgb, var(--color-gold) 4%, var(--color-surface));
   box-shadow:
     inset 0 -1px 0 rgba(0, 0, 0, 0.06),
     0 12px 28px -18px rgba(0, 0, 0, 0.18);
+}
+:root[data-theme="light"] .quaderno-tab-tab[aria-selected="true"] {
+  background: color-mix(in srgb, var(--color-gold) 4%, var(--color-surface));
+}
+
+/* ── Il legno sotto il foglio — the sheet rests on the table ──
+   In-flow strip after the sheet; the sheet (position: relative) paints above
+   the overlap, so the paper visibly RESTS on the wood. Same timber family as
+   .momento-desk / .public-desk. */
+.quaderno-desk {
+  height: 30px;
+  width: calc(100% + 36px);
+  margin: -12px 0 0 -18px;
+  border-radius: 3px;
+  border-top: 1px solid color-mix(in srgb, var(--color-gold) 18%, transparent);
+  background:
+    repeating-linear-gradient(10deg, rgba(255,255,255,0.022) 0 1px, transparent 1px 14px),
+    linear-gradient(180deg, #5b3b24 0%, #33231a 60%, #17100d 100%);
+}
+@media (max-width: 480px) {
+  .quaderno-desk {
+    width: calc(100% + 16px);
+    margin-left: -8px;
+  }
 }
 
 /* ── Riga del margine verticale (>= 768px) ── */

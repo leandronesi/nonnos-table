@@ -1964,6 +1964,9 @@ export function Quaderno() {
             )}
           </div>
         </div>
+
+        {/* The wood under the paper — the sheet rests on the table */}
+        <div className="quaderno-desk" aria-hidden="true" />
       </div>
 
     </div>

@@ -319,7 +319,45 @@ export function Viaggio({ snapshots, milestones, goal }: ViaggioProps) {
     // Sort chronologically by achieved_at
     achieved.sort((a, b) => (a.achieved_at ?? "").localeCompare(b.achieved_at ?? ""));
 
+    // Group anchor milestones of the same type achieved on the same day:
+    // three identical sentences with the same date read as noise,
+    // one combined note reads as a memory.
+    const joinIt = (labels: string[]) =>
+      labels.length <= 1
+        ? labels[0]
+        : `${labels.slice(0, -1).join(", ")} e ${labels[labels.length - 1]}`;
+
+    const consumed = new Set<Milestone>();
     for (const m of achieved) {
+      if (consumed.has(m)) continue;
+
+      if (m.type === "anchor_improved" || m.type === "anchor_domata") {
+        const day = m.achieved_at!.slice(0, 10);
+        const peers = achieved.filter(
+          (o) => o.type === m.type && o.achieved_at!.slice(0, 10) === day,
+        );
+        peers.forEach((p) => consumed.add(p));
+        const labels = peers.map((p) => {
+          const match = p.label_it.match(/^"([^"]+)"/);
+          return match ? match[1] : p.label_it;
+        });
+        const text =
+          m.type === "anchor_improved"
+            ? peers.length === 1
+              ? `${labels[0]}: ci cadi piu' di rado. Si vede il lavoro.`
+              : `${joinIt(labels)}: ci cadi piu' di rado. Si vede il lavoro.`
+            : peers.length === 1
+              ? `${labels[0]} e' fuori dai tuoi primi tre problemi. Domata.`
+              : `${joinIt(labels)} sono fuori dai tuoi primi tre problemi. Domate.`;
+        nodes.push({
+          key: `ms-${m.type}-${day}-${labels.join("|")}`,
+          date: dateIt(m.achieved_at!),
+          text,
+        });
+        continue;
+      }
+
+      consumed.add(m);
       const text = milestoneText(m);
       if (text == null) continue;
       nodes.push({
