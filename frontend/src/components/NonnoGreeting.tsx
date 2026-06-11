@@ -238,6 +238,11 @@ export interface NonnoGreetingProps {
    * above the saluto: one voice, not two stacked boxes. Omitted when null.
    */
   memoria?: string | null;
+  /**
+   * When true, the component is rendered inside a NonnoLetter.
+   * Removes the outer mb-8 wrapper margin (the letter provides its own padding).
+   */
+  inLetter?: boolean;
 }
 
 // ── Stagger delay slots (for CSS animation-delay) ─────────────────────────────
@@ -255,6 +260,7 @@ export function NonnoGreeting({
   onSediamoci,
   voiceMessage,
   memoria,
+  inLetter = false,
 }: NonnoGreetingProps) {
   const saluto = buildSaluto(goal);
 
@@ -265,8 +271,9 @@ export function NonnoGreeting({
     : pickPunch(goal, topAnchor, decisions, maiaWeighted, byPhase);
 
   // Voice written on the wall — no box, no card. Content rests directly on the room.
+  // When inside a letter, remove the outer margin (the letter padding takes over).
   return (
-    <div className="mb-8">
+    <div className={inLetter ? undefined : "mb-8"}>
       {/* Memoria visibile — quiet line above the greeting, no box */}
       {memoria && memoria.trim().length > 0 && (
         <p
