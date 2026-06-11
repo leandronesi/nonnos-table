@@ -35,6 +35,12 @@ interface MomentReviewProps {
   maiaLevel: number;
   onNext: () => void;
   onPrev?: () => void;
+  /**
+   * If true, the BoardScene starts already risen (no entrance animation).
+   * Pass when arriving via a View Transition morph from the Tavolo so the
+   * board doesn't double-enter. Only meaningful on the first mount.
+   */
+  startRisen?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -259,7 +265,7 @@ function DrillBars({ pMine, pTarget, maiaLevel }: { pMine: number; pTarget: numb
 // MomentReview
 // ---------------------------------------------------------------------------
 
-export function MomentReview({ position, index, total, maiaLevel, onNext, onPrev }: MomentReviewProps) {
+export function MomentReview({ position, index, total, maiaLevel, onNext, onPrev, startRisen = false }: MomentReviewProps) {
   const sf = useStockfish();
   const fit = useBoardFit({ min: 232, max: 460 });
   const orientation = position.my_color || "white";
@@ -378,9 +384,19 @@ export function MomentReview({ position, index, total, maiaLevel, onNext, onPrev
 
         {/* Board — BoardScene wraps from outside; fit.ref stays on the inner
               frame (callback ref pattern, fix b10ee1a: avoids missing re-observation
-              after a keyed remount). BoardScene blocks interaction until risen. */}
-        <BoardScene sceneKey={`review-${position.game_id}:${position.ply}`}>
-          <div ref={fit.ref} className="sess-board-frame" style={{ width: "100%", maxWidth: fit.max }}>
+              after a keyed remount). BoardScene blocks interaction until risen.
+              viewTransitionName on sess-board-frame pairs with the same name on
+              momento-board-wrap in MomentoDelGiorno for the shared-element morph. */}
+        <BoardScene sceneKey={`review-${position.game_id}:${position.ply}`} startRisen={startRisen}>
+          <div
+            ref={fit.ref}
+            className="sess-board-frame"
+            style={{
+              width: "100%",
+              maxWidth: fit.max,
+              viewTransitionName: "tavolo-board",
+            }}
+          >
             <BoardView
               fen={position.fen_before}
               orientation={orientation}

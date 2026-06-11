@@ -15,7 +15,14 @@ import { useOnboardingRun } from "../pipeline/OnboardingRunContext";
 import { downloadJson, quadernoPath } from "../auth/storage";
 import { NonnoSession } from "../session/NonnoSession";
 import type { Aggregates, PositionExample } from "../pipeline/aggregate";
+import { getCachedAggregates, setCachedAggregates } from "../pipeline/aggregatesCache";
 import { PRODUCT_NAME } from "../coaching";
+
+function caduteOf(agg: Aggregates | null): PositionExample[] | null {
+  if (!agg) return null;
+  // Supporta sia aggregates.cadute (nuovo) sia aggregates.examples (legacy)
+  return agg.cadute ?? agg.examples ?? [];
+}
 
 export function Sessione() {
   const { user, profile } = useAuth();
@@ -26,24 +33,42 @@ export function Sessione() {
   const { dataVersion } = useOnboardingRun();
 
   // Deep-link from MomentoDelGiorno: bring the clicked position to front.
-  const focusKey = (location.state as { focusKey?: string } | null)?.focusKey;
+  // viaMorph: set when the user arrived via a View Transition shared-element morph
+  // from the Tavolo board. Used to suppress the BoardScene rise (already arrived).
+  // location.state is read once at mount — safe: if the user navigates internally
+  // (phase restart, back) the state does not change and viaMorph stays false.
+  const locationState = location.state as { focusKey?: string; viaMorph?: boolean } | null;
+  const focusKey = locationState?.focusKey;
+  const viaMorph = locationState?.viaMorph === true;
 
-  const [cadute, setCadute] = useState<PositionExample[] | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Synchronous mount from the Tavolo handoff cache: no spinner, and the
+  // tavolo-board View Transition morph finds its destination pair in the
+  // very first frame. Cache miss (deep link, stale dataVersion) -> fetch.
+  const cachedAtMount = user ? getCachedAggregates(user.id, dataVersion) : null;
+  const [cadute, setCadute] = useState<PositionExample[] | null>(caduteOf(cachedAtMount));
+  const [loading, setLoading] = useState(cachedAtMount == null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user || !profile) return;
-    let cancelled = false;
 
+    // Cache hit for the current dataVersion: state is already correct
+    // (set at mount, or re-synced here when dataVersion bumps).
+    const cached = getCachedAggregates(user.id, dataVersion);
+    if (cached) {
+      setCadute(caduteOf(cached));
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
     (async () => {
       try {
         const agg = await downloadJson<Aggregates>(quadernoPath(user.id, "aggregates.json"));
         if (cancelled) return;
 
-        // Supporta sia aggregates.cadute (nuovo) sia aggregates.examples (legacy)
-        const loaded = agg?.cadute ?? agg?.examples ?? [];
-        setCadute(loaded);
+        if (agg) setCachedAggregates(user.id, dataVersion, agg);
+        setCadute(caduteOf(agg) ?? []);
       } catch (e) {
         if (!cancelled) setError(String(e instanceof Error ? e.message : e));
       } finally {
@@ -128,6 +153,7 @@ export function Sessione() {
       targetRating={profile?.goal_rating ?? 1600}
       currentRating={null}
       onClose={() => nav("/")}
+      viaMorph={viaMorph}
     />
   );
 }

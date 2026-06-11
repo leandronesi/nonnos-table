@@ -33,15 +33,23 @@ interface BoardSceneProps {
   sceneKey: string;
   /** Delay in ms before the rise starts. Default 500. */
   holdMs?: number;
+  /**
+   * If true, the board starts already risen (no entrance animation).
+   * Used when the board arrives via a View Transition morph from the Tavolo:
+   * the VT already carried the object, a second rise would be a double entrance.
+   * Only applies on the FIRST mount of this sceneKey — subsequent sceneKey
+   * changes (e.g. phase restart) always run the full entrance.
+   */
+  startRisen?: boolean;
   children: React.ReactNode;
 }
 
-export function BoardScene({ children, sceneKey, holdMs = 500 }: BoardSceneProps) {
-  // With reduced-motion start already risen so no transition ever fires.
-  const [risen, setRisen] = useState(() => prefersReducedMotion());
+export function BoardScene({ children, sceneKey, holdMs = 500, startRisen = false }: BoardSceneProps) {
+  // With reduced-motion (or morph arrival) start already risen so no transition fires.
+  const [risen, setRisen] = useState(() => prefersReducedMotion() || startRisen);
 
   useEffect(() => {
-    if (prefersReducedMotion()) {
+    if (prefersReducedMotion() || startRisen) {
       setRisen(true);
       return;
     }
@@ -54,7 +62,7 @@ export function BoardScene({ children, sceneKey, holdMs = 500 }: BoardSceneProps
     }, holdMs);
 
     return () => clearTimeout(t);
-  }, [sceneKey, holdMs]);
+  }, [sceneKey, holdMs, startRisen]);
 
   return (
     <div className="board-scene">

@@ -6699,6 +6699,20 @@ button:disabled, [aria-disabled="true"] {
 @keyframes vt-out { to   { opacity: 0; } }
 @keyframes vt-in  { from { opacity: 0; } }
 
+/* Shared-element morph: tavolo-board travels from MomentoDelGiorno to MomentReview.
+ * Strong ease-out: board decelerates into its new position, never floats.
+ * mix-blend-mode: normal prevents the double-crossfade milky overlay that the
+ * default UA would paint on top of the travelling element. */
+::view-transition-group(tavolo-board) {
+  animation-duration: 650ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+::view-transition-old(tavolo-board),
+::view-transition-new(tavolo-board) {
+  animation-duration: 650ms;
+  mix-blend-mode: normal;
+}
+
 /* Respect reduced-motion: disable every decorative animation/transition */
 @media (prefers-reduced-motion: reduce) {
   .ink-path {
@@ -6770,6 +6784,12 @@ button:disabled, [aria-disabled="true"] {
   ::view-transition-old(root),
   ::view-transition-new(root) {
     animation: none;
+  }
+  /* Morph tavolo-board: cut to 0 duration so there is no motion at all */
+  ::view-transition-group(tavolo-board),
+  ::view-transition-old(tavolo-board),
+  ::view-transition-new(tavolo-board) {
+    animation-duration: 0s;
   }
 }
 
