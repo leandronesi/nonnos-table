@@ -153,6 +153,30 @@ function CameraRig({
   return null;
 }
 
+// ── Inspection light: when you lean over an object, the light leans with you ──
+
+function FocusLight({ focus }: { focus: Focus }) {
+  const ref = useRef<THREE.PointLight>(null);
+  useFrame(() => {
+    if (!ref.current) return;
+    const f = FOCI[focus];
+    const wantIntensity = focus === "tavolo" ? 0 : 4.2;
+    const wantPos = new THREE.Vector3(f.tgt.x, f.tgt.y + 1.05, f.tgt.z + 0.3);
+    ref.current.position.lerp(wantPos, 0.08);
+    ref.current.intensity += (wantIntensity - ref.current.intensity) * 0.08;
+  });
+  return (
+    <pointLight
+      ref={ref}
+      position={[0, 1.2, 0.3]}
+      intensity={0}
+      distance={3.2}
+      decay={2}
+      color="#ffdcae"
+    />
+  );
+}
+
 // ── The lamp: visible body + the one true light of the room ───────────────────
 
 function Lampada() {
@@ -531,7 +555,7 @@ function Tazza({ reducedMotion }: { reducedMotion: boolean }) {
 
 function ScatolaSpine({ thorns }: { thorns: string[] }) {
   const woodDark = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#231507", roughness: 0.6 }),
+    () => new THREE.MeshStandardMaterial({ color: "#33200d", roughness: 0.52 }),
     [],
   );
   const cards = useMemo(() => thorns.slice(0, 3).map((w) => cardTexture(w)), [thorns]);
@@ -571,15 +595,15 @@ function ScatolaSpine({ thorns }: { thorns: string[] }) {
           <meshStandardMaterial map={tex} roughness={0.9} side={THREE.DoubleSide} />
         </mesh>
       ))}
-      {/* Plaque leaning on the front of the box, facing the seat:
-          this is what the object IS — what is holding you back */}
+      {/* Paper tag leaning on the front of the box, fully clear of the wood,
+          facing the seat: this is what the object IS — what is holding you back */}
       <mesh
-        position={[0, 0.052, D / 2 + 0.015]}
-        rotation={[-0.14, -YAW * 0.7, 0]}
+        position={[0.02, 0.06, D / 2 + 0.045]}
+        rotation={[-0.12, -YAW, 0]}
         castShadow
       >
-        <planeGeometry args={[0.34, 0.095]} />
-        <meshStandardMaterial map={plaque} roughness={0.7} side={THREE.DoubleSide} />
+        <planeGeometry args={[0.32, 0.09]} />
+        <meshStandardMaterial map={plaque} roughness={0.85} side={THREE.DoubleSide} />
       </mesh>
     </group>
   );
@@ -661,7 +685,9 @@ function Stanza3D(props: StanzaSceneProps & { focus: Focus; onObject: (f: Focus,
       <Lampada />
       {/* Lamp spill: the notebook corner and the box side get their share of warmth */}
       <pointLight position={[1.5, 1.15, 0.62]} intensity={2.8} distance={3} decay={2} color="#ffd2a0" />
-      <pointLight position={[-1.55, 1.0, -0.1]} intensity={1.5} distance={2.8} decay={2} color="#e8c294" />
+      <pointLight position={[-1.5, 1.15, -0.35]} intensity={2.6} distance={3} decay={2} color="#e8c294" />
+      {/* Leaning over an object brings the light with you */}
+      <FocusLight focus={focus} />
 
       {/* Back wall, barely touched by the lamp */}
       <mesh position={[0, 1.4, -2.6]} receiveShadow>
