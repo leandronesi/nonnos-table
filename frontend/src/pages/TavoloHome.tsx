@@ -35,10 +35,22 @@ import type { PlayerModelLite } from "../pipeline/playerModelLite";
 import { goalProgress, anchorTrendsFromHistory, materialForGap } from "../pipeline/history";
 import { navigateWithTransition, useCountUp, useInkDraw } from "../lib/motion";
 import { NonnoGreeting } from "../components/NonnoGreeting";
+import { NonnoLetter } from "../components/NonnoLetter";
 import { MomentoDelGiorno } from "../components/MomentoDelGiorno";
 import { readEntries } from "../session/journal";
 import type { TimeClass } from "../auth/db.types";
 import type { HistorySnapshot, HistoryFile, AnchorTrail } from "../types";
+
+// ── djb2 hash — simple 5-line string identity for letter freshness ───────────
+
+function djb2(str: string): string {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) + h) ^ str.charCodeAt(i);
+    h = h >>> 0; // keep as 32-bit unsigned
+  }
+  return String(h);
+}
 
 // ── Reveal hook ───────────────────────────────────────────────────────────────
 
@@ -697,6 +709,18 @@ export function TavoloHome() {
   const [aggregates, setAggregates] = useState<Aggregates | null>(null);
   /** voice_message from coach_brief.json. null = missing/not ready. undefined = still loading. */
   const [llmVoice, setLlmVoice] = useState<string | null | undefined>(undefined);
+  /** generated_at from coach_brief.json (optional — undefined when absent). */
+  const [llmGeneratedAt, setLlmGeneratedAt] = useState<string | undefined>(undefined);
+  /**
+   * Whether this letter was already seen on a PREVIOUS visit (read from localStorage at load time).
+   * When true, no letter is shown (fallback to NonnoGreeting).
+   */
+  const [letterSeenBefore, setLetterSeenBefore] = useState(false);
+  /**
+   * Whether the user has opened the letter during THIS visit.
+   * Used only to hide the "Toccala per aprirla." caption after opening.
+   */
+  const [letterOpenedThisVisit, setLetterOpenedThisVisit] = useState(false);
   const [historySnapshots, setHistorySnapshots] = useState<HistorySnapshot[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -709,7 +733,7 @@ export function TavoloHome() {
     (async () => {
       try {
         // coach_brief.json and history.json are optional — degrade gracefully.
-        const briefPromise = downloadJson<{ voice_message?: string }>(
+        const briefPromise = downloadJson<{ voice_message?: string; generated_at?: string }>(
           quadernoPath(user.id, "coach_brief.json"),
         ).catch(() => null);
         const historyPromise = downloadJson<{ snapshots?: HistorySnapshot[] }>(
@@ -725,7 +749,15 @@ export function TavoloHome() {
         if (cancelled) return;
         setPmLite(pm);
         setAggregates(agg);
-        setLlmVoice(brief?.voice_message ?? null);
+        const voice = brief?.voice_message ?? null;
+        setLlmVoice(voice);
+        setLlmGeneratedAt(brief?.generated_at ?? undefined);
+        // Check localStorage to determine if this letter was already seen.
+        if (voice && voice.trim().length > 0) {
+          const identity = brief?.generated_at ?? djb2(voice.trim());
+          const seen = localStorage.getItem("nonno_letter_seen");
+          setLetterSeenBefore(seen === identity);
+        }
         setHistorySnapshots(history?.snapshots ?? null);
       } catch (e) {
         if (!cancelled) setError(String(e instanceof Error ? e.message : e));
@@ -902,6 +934,26 @@ export function TavoloHome() {
   // full session, leans on the TIME tic). Reads localStorage synchronously.
   const memoriaVisibile = buildMemoria();
 
+  // Letter: fresh detection.
+  // The letter appears ONLY when (a) there is a real LLM voice AND (b) it is new.
+  const hasVoice = llmVoice != null && llmVoice.trim().length > 0;
+  const letterIdentity = hasVoice
+    ? (llmGeneratedAt ?? djb2(llmVoice!.trim()))
+    : null;
+  // Show the letter wrapper only on the fresh visit (not yet seen before this visit).
+  const showLetter = hasVoice && !letterSeenBefore;
+
+  function handleLetterOpen() {
+    if (letterIdentity) {
+      // Persist seen so NEXT visits show NonnoGreeting directly.
+      localStorage.setItem("nonno_letter_seen", letterIdentity);
+      // Mark opened this visit so we hide the caption.
+      setLetterOpenedThisVisit(true);
+      // Note: we do NOT set letterSeenBefore(true) here — the letter stays
+      // visible and open for the rest of this visit (no jump to NonnoGreeting).
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div
@@ -917,33 +969,96 @@ export function TavoloHome() {
 
       {/* ── 1. INGRESSO: voce scritta sulla parete ──────────────────────────
           No Reveal wrapper here: the card owns its mount stagger (ng-stagger-*),
-          a second opacity layer would double-fade the most important scene. */}
+          a second opacity layer would double-fade the most important scene.
+          When the letter is fresh (new LLM voice, not yet seen), show it folded.
+          After opening (or on repeat visits), fall back to NonnoGreeting as usual. */}
       <div className="mb-16">
-        <NonnoGreeting
-          goal={liveGoal}
-          memoria={memoriaVisibile}
-          topAnchor={aggregates?.anchors?.[0] ?? null}
-          decisions={
-            pmLite?.decisions != null
-              ? {
-                  blow_rate: pmLite.decisions.blow_rate,
-                  blew_winning: pmLite.decisions.blew_winning,
+        {showLetter ? (
+          <div>
+            {/* Eyebrow above the closed letter */}
+            <div
+              className="tt-eyebrow"
+              style={{ color: "var(--color-brand-soft)", marginBottom: "1rem" }}
+            >
+              E' arrivata una lettera
+            </div>
+
+            <NonnoLetter
+              identity={letterIdentity!}
+              onOpen={handleLetterOpen}
+            >
+              {/* The full NonnoGreeting lives inside the opened letter.
+                  inLetter=true removes the top memoria/eyebrow margin (they are
+                  handled by the letter chrome above), but the CTA must stay. */}
+              <NonnoGreeting
+                goal={liveGoal}
+                memoria={memoriaVisibile}
+                topAnchor={aggregates?.anchors?.[0] ?? null}
+                decisions={
+                  pmLite?.decisions != null
+                    ? {
+                        blow_rate: pmLite.decisions.blow_rate,
+                        blew_winning: pmLite.decisions.blew_winning,
+                      }
+                    : null
                 }
-              : null
-          }
-          maiaWeighted={aggregates?.maia_weighted ?? null}
-          byPhase={
-            aggregates?.by_phase != null
-              ? {
-                  opening: aggregates.by_phase.opening.blunder_pct,
-                  middlegame: aggregates.by_phase.middlegame.blunder_pct,
-                  endgame: aggregates.by_phase.endgame.blunder_pct,
+                maiaWeighted={aggregates?.maia_weighted ?? null}
+                byPhase={
+                  aggregates?.by_phase != null
+                    ? {
+                        opening: aggregates.by_phase.opening.blunder_pct,
+                        middlegame: aggregates.by_phase.middlegame.blunder_pct,
+                        endgame: aggregates.by_phase.endgame.blunder_pct,
+                      }
+                    : null
                 }
-              : null
-          }
-          onSediamoci={() => navigateWithTransition(() => nav("/sessione"))}
-          voiceMessage={llmVoice ?? null}
-        />
+                onSediamoci={() => navigateWithTransition(() => nav("/sessione"))}
+                voiceMessage={llmVoice ?? null}
+                inLetter
+              />
+            </NonnoLetter>
+
+            {/* Caption below the closed letter — fades out once the user opens it */}
+            {!letterOpenedThisVisit && (
+              <p
+                style={{
+                  marginTop: "0.75rem",
+                  fontSize: "0.82rem",
+                  color: "var(--color-faint)",
+                  lineHeight: 1.4,
+                }}
+              >
+                Toccala per aprirla.
+              </p>
+            )}
+          </div>
+        ) : (
+          <NonnoGreeting
+            goal={liveGoal}
+            memoria={memoriaVisibile}
+            topAnchor={aggregates?.anchors?.[0] ?? null}
+            decisions={
+              pmLite?.decisions != null
+                ? {
+                    blow_rate: pmLite.decisions.blow_rate,
+                    blew_winning: pmLite.decisions.blew_winning,
+                  }
+                : null
+            }
+            maiaWeighted={aggregates?.maia_weighted ?? null}
+            byPhase={
+              aggregates?.by_phase != null
+                ? {
+                    opening: aggregates.by_phase.opening.blunder_pct,
+                    middlegame: aggregates.by_phase.middlegame.blunder_pct,
+                    endgame: aggregates.by_phase.endgame.blunder_pct,
+                  }
+                : null
+            }
+            onSediamoci={() => navigateWithTransition(() => nav("/sessione"))}
+            voiceMessage={llmVoice ?? null}
+          />
+        )}
       </div>
 
       {/* ── 2. OBIETTIVO: il Patto scritto sulla parete ─────────────────────
