@@ -143,23 +143,16 @@ function MiniSparkline({ points, improving, neutral = false }: { points: number[
 function Section({ children, eyebrow, delay = 0 }: {
   children: React.ReactNode; eyebrow?: string; delay?: number;
 }) {
+  // Inside the physical sheet: sections are ink-on-paper notes, not boxes.
+  // The separator border-bottom and margin come from .quaderno-section in CSS.
   return (
-    <Reveal delay={delay} className="mb-8">
-      <div
-        className="paper"
-        style={{
-          border: "1px solid var(--color-line)",
-          borderRadius: "14px",
-          padding: "clamp(18px,4vw,28px)",
-        }}
-      >
-        {eyebrow && (
-          <div className="tt-eyebrow" style={{ marginBottom: "1rem", color: "var(--color-muted)" }}>
-            {eyebrow}
-          </div>
-        )}
-        {children}
-      </div>
+    <Reveal delay={delay} className="quaderno-section">
+      {eyebrow && (
+        <div className="tt-eyebrow" style={{ marginBottom: "1rem", color: "var(--color-muted)" }}>
+          {eyebrow}
+        </div>
+      )}
+      {children}
     </Reveal>
   );
 }
@@ -382,7 +375,7 @@ function DiagnosiCollapsible({ entry }: { entry: JournalEntry }) {
           style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
             width: "100%", padding: "0.75rem 1rem",
-            background: "var(--color-surface)", border: "none", cursor: "pointer",
+            background: "transparent", border: "none", cursor: "pointer",
             textAlign: "left", gap: "0.75rem",
           }}
         >
@@ -394,7 +387,7 @@ function DiagnosiCollapsible({ entry }: { entry: JournalEntry }) {
           </span>
         </button>
         {open && (
-          <div style={{ padding: "0.75rem 1rem 1rem", borderTop: "1px solid var(--color-line)", background: "var(--color-surface)" }}>
+          <div style={{ padding: "0.75rem 1rem 1rem", borderTop: "1px solid var(--color-line)", background: "transparent" }}>
             <div style={{ fontSize: "0.84rem", color: "var(--color-text-soft)", lineHeight: 1.65 }}>
               {entry.text.split("\n").map((line, j, arr) => (
                 <span key={j}>{renderInline(line)}{j < arr.length - 1 && <br />}</span>
@@ -1881,63 +1874,97 @@ export function Quaderno() {
   return (
     <div className="mx-auto px-5 py-8 md:px-8 md:py-12" style={{ maxWidth: "58rem" }}>
 
-        {/* Page title */}
-        <div style={{ marginBottom: "1.75rem" }}>
-          <h1 style={{ fontFamily: "var(--font-voice)", fontWeight: 600, fontSize: "clamp(1.6rem,4vw,2.4rem)", lineHeight: 1.15, color: "var(--color-text)", marginBottom: "0.4rem" }}>
-            Il tuo Quaderno
-          </h1>
-          <p style={{ fontSize: "0.88rem", color: "var(--color-muted)", lineHeight: 1.5, maxWidth: "52ch" }}>
-            La casa continua della tua storia a scacchi. Tutto quello che costruisci nel tempo.
-          </p>
+      {/* Page title — written on the room, above the physical notebook */}
+      <div style={{ marginBottom: "1.5rem" }}>
+        <h1 style={{ fontFamily: "var(--font-voice)", fontWeight: 600, fontSize: "clamp(1.6rem,4vw,2.4rem)", lineHeight: 1.15, color: "var(--color-text)", marginBottom: "0.4rem" }}>
+          Il tuo Quaderno
+        </h1>
+        <p style={{ fontSize: "0.88rem", color: "var(--color-muted)", lineHeight: 1.5, maxWidth: "52ch" }}>
+          La casa continua della tua storia a scacchi. Tutto quello che costruisci nel tempo.
+        </p>
+      </div>
+
+      {/* Physical notebook: tabs (linguette) sit on top of the sheet */}
+      <div>
+        {/* Tab row — linguette attaccate al bordo superiore del foglio */}
+        <div
+          role="tablist"
+          aria-label="Sezioni del Quaderno"
+          className="quaderno-tab-list"
+          onKeyDown={(e) => {
+            // WAI-ARIA tablist: arrows move between tabs, Home/End jump.
+            const idx = TABS.findIndex((t) => t.key === activeTab);
+            let next: number | null = null;
+            if (e.key === "ArrowRight") next = (idx + 1) % TABS.length;
+            else if (e.key === "ArrowLeft") next = (idx - 1 + TABS.length) % TABS.length;
+            else if (e.key === "Home") next = 0;
+            else if (e.key === "End") next = TABS.length - 1;
+            if (next == null) return;
+            e.preventDefault();
+            const t = TABS[next];
+            goTab(t.key);
+            document.getElementById(`quaderno-tab-${t.key}`)?.focus();
+          }}
+        >
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              role="tab"
+              aria-selected={activeTab === tab.key}
+              aria-controls={`quaderno-panel-${tab.key}`}
+              id={`quaderno-tab-${tab.key}`}
+              // Roving tabindex: only the active tab sits in the Tab sequence.
+              tabIndex={activeTab === tab.key ? 0 : -1}
+              onClick={() => goTab(tab.key)}
+              className="quaderno-tab-tab"
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {/* Tab bar */}
-        <div style={{ overflowX: "auto", marginBottom: "2rem" }}>
-          <div className="segment" style={{ display: "inline-flex", minWidth: "max-content" }}>
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => goTab(tab.key)}
-                className={`segment-item${activeTab === tab.key ? " active" : ""}`}
-              >
-                {tab.label}
-              </button>
-            ))}
+        {/* The sheet — il foglio fisico poggiato sul tavolo */}
+        <div className="quaderno-sheet">
+          {/* Tab panel — content animates on tab change via key */}
+          <div
+            key={activeTab}
+            role="tabpanel"
+            id={`quaderno-panel-${activeTab}`}
+            aria-labelledby={`quaderno-tab-${activeTab}`}
+            className="quaderno-sheet-content"
+          >
+            {activeTab === "evoluzione" && (
+              <TabEvoluzione
+                aggregates={aggregates}
+                pmLite={pmLite}
+                history={history}
+                journalRaw={journalRaw}
+                milestones={milestones}
+                onSelectAnchor={handleSelectAnchor}
+              />
+            )}
+            {activeTab === "cadute" && (
+              <TabCadute
+                aggregates={aggregates}
+                pmLite={pmLite}
+                anchorFilter={selectedAnchor}
+                onClearAnchorFilter={() => setSelectedAnchor(null)}
+                onOpeningLink={handleOpeningLink}
+              />
+            )}
+            {activeTab === "profilo" && (
+              <TabProfilo
+                aggregates={aggregates}
+                pmLite={pmLite}
+                targetRating={profile?.goal_rating ?? pmLite?.identity?.goal?.target ?? 0}
+              />
+            )}
+            {activeTab === "repertorio" && (
+              <TabRepertorio aggregates={aggregates} />
+            )}
           </div>
         </div>
-
-        {/* Tab content */}
-        <div>
-          {activeTab === "evoluzione" && (
-            <TabEvoluzione
-              aggregates={aggregates}
-              pmLite={pmLite}
-              history={history}
-              journalRaw={journalRaw}
-              milestones={milestones}
-              onSelectAnchor={handleSelectAnchor}
-            />
-          )}
-          {activeTab === "cadute" && (
-            <TabCadute
-              aggregates={aggregates}
-              pmLite={pmLite}
-              anchorFilter={selectedAnchor}
-              onClearAnchorFilter={() => setSelectedAnchor(null)}
-              onOpeningLink={handleOpeningLink}
-            />
-          )}
-          {activeTab === "profilo" && (
-            <TabProfilo
-              aggregates={aggregates}
-              pmLite={pmLite}
-              targetRating={profile?.goal_rating ?? pmLite?.identity?.goal?.target ?? 0}
-            />
-          )}
-          {activeTab === "repertorio" && (
-            <TabRepertorio aggregates={aggregates} />
-          )}
-        </div>
+      </div>
 
     </div>
   );

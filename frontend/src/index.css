@@ -1528,6 +1528,148 @@ button:disabled, [aria-disabled="true"] {
 }
 
 /* ============================================================================
+ * Quaderno — Il Quaderno fisico (Onda H)
+ * Tab come linguette incollate al foglio. Un foglio poggiato sul tavolo.
+ * ========================================================================== */
+
+/* ── Linguette — fila attaccata al bordo superiore del foglio ── */
+.quaderno-tab-list {
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+  padding-left: 2px;
+  /* No bottom padding: the tabs sit flush against the sheet border */
+}
+
+.quaderno-tab-tab {
+  /* Eyebrow typography */
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px 8px 0 0;
+  border: 1px solid var(--color-line);
+  border-bottom: none;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  cursor: pointer;
+  /* Slightly lower than the active tab */
+  transform: translateY(2px);
+  z-index: 1;
+  position: relative;
+  /* Keep the right tab-to-tab gap minimal but avoid overlap */
+  margin-right: 3px;
+
+  transition:
+    background-color 180ms var(--ease-out),
+    color 180ms var(--ease-out),
+    transform 180ms var(--ease-out);
+}
+
+.quaderno-tab-tab:hover {
+  color: var(--color-text-soft);
+}
+
+/* Active tab merges with the sheet: same paper background, no bottom gap */
+.quaderno-tab-tab[aria-selected="true"] {
+  /* Paper background — same formula as .quaderno-sheet */
+  background: color-mix(in srgb, var(--color-gold) 3%, var(--color-surface));
+  color: var(--color-text);
+  /* Sit flush with the sheet top border — the -1px overlap hides the border seam */
+  transform: translateY(1px);
+  z-index: 3;
+}
+
+.quaderno-tab-tab:focus-visible {
+  outline: 2px solid var(--color-brand-soft);
+  outline-offset: 2px;
+}
+
+/* Mobile: tighter padding, smaller text; overflow-x if still too wide */
+@media (max-width: 480px) {
+  .quaderno-tab-list {
+    overflow-x: auto;
+    scrollbar-width: none;   /* Firefox */
+    -ms-overflow-style: none; /* IE 11 */
+  }
+  .quaderno-tab-list::-webkit-scrollbar { display: none; }
+  .quaderno-tab-tab {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.66rem;
+    margin-right: 2px;
+  }
+}
+
+/* ── Il foglio — grande carta posata sul tavolo ── */
+.quaderno-sheet {
+  /* Paper warmth: 3% gold over surface — identical to .paper */
+  background: color-mix(in srgb, var(--color-gold) 3%, var(--color-surface));
+  border: 1px solid var(--color-line);
+  /* Top-left corner is "under" the active tab — rounded on the other three */
+  border-radius: 0 12px 12px 12px;
+  /* Inset lamp line at the top */
+  box-shadow:
+    inset 0 1px 0 var(--light-warm),
+    0 12px 28px -18px rgba(0, 0, 0, 0.45);
+  padding: clamp(20px, 4vw, 36px);
+  min-height: 60vh;
+  position: relative;
+}
+
+/* Light theme: soften the contact shadow */
+:root[data-theme="light"] .quaderno-sheet {
+  box-shadow:
+    inset 0 -1px 0 rgba(0, 0, 0, 0.06),
+    0 12px 28px -18px rgba(0, 0, 0, 0.18);
+}
+
+/* ── Riga del margine verticale (>= 768px) ── */
+.quaderno-sheet::before {
+  content: "";
+  position: absolute;
+  left: 2.25rem;
+  top: 16px;
+  bottom: 16px;
+  width: 1px;
+  background: color-mix(in srgb, var(--color-brand) 22%, transparent);
+  pointer-events: none;
+}
+
+@media (max-width: 767px) {
+  .quaderno-sheet::before { display: none; }
+}
+
+/* Push content right of the margin line on desktop */
+@media (min-width: 768px) {
+  .quaderno-sheet {
+    padding-left: 3.25rem;
+  }
+}
+
+/* ── Contenuto animato sul cambio tab ── */
+.quaderno-sheet-content {
+  animation: quaderno-tab-in 220ms var(--ease-out);
+}
+
+/* ── Sezione-appunto: voce sulla carta, senza scatola ── */
+.quaderno-section {
+  padding-bottom: 2rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid var(--color-line);
+}
+
+/* Last section in a tab: no separator */
+.quaderno-section:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+/* ============================================================================
  * Quaderno (/coach) — single-scroll narrativo. Override del .coach-hero
  * grosso vecchio: hero ora è una intro compatta, non occupa schermo intero.
  * ========================================================================== */
@@ -6065,7 +6207,9 @@ button:disabled, [aria-disabled="true"] {
   box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.06);
 }
 
-/* .paper — warm paper under the lamp. Apply to Quaderno section cards.
+/* .paper — warm paper under the lamp. Available for future paper objects.
+ * (Onda H: Quaderno now uses .quaderno-sheet for the full physical sheet;
+ * individual sections use .quaderno-section instead of .paper cards.)
  * Adds a 3% gold tint over the surface colour + an inset lamp line at the top. */
 .paper {
   background: color-mix(in srgb, var(--color-gold) 3%, var(--color-surface));
@@ -6241,7 +6385,8 @@ button:disabled, [aria-disabled="true"] {
     transform: none !important;
     transition: none !important;
   }
-  .quaderno-content {
+  .quaderno-content,
+  .quaderno-sheet-content {
     animation: none;
     opacity: 1;
     transform: none;
