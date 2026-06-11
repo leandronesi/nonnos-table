@@ -158,99 +158,56 @@ function DesktopSidebar({
   onNavigate: (path: string) => void;
 }) {
   return (
+    // Wall nav: transparent column, no border-right, no background box.
+    // The nav items are pure eyebrow text with an ink underline on hover/active.
     <nav
       aria-label="Navigazione principale"
-      style={{
-        position: "sticky",
-        top: 0,
-        height: "100vh",
-        width: "232px",
-        flexShrink: 0,
-        display: "flex",
-        flexDirection: "column",
-        borderRight: "1px solid var(--color-line)",
-        background: "var(--color-bg)",
-        overflowY: "auto",
-        zIndex: 30,
-      }}
+      className="sidebar-wall-nav"
     >
       {/* Brand */}
-      <div style={{ padding: "1.5rem 1.25rem 1rem" }}>
+      <div style={{ padding: "1.5rem 1rem 1.25rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
-          <NonnoMark size={34} />
-          <div>
-            <div style={{
-              fontFamily: "var(--font-display)",
-              fontWeight: 700,
-              fontSize: "0.875rem",
-              lineHeight: 1.2,
-              color: "var(--color-text)",
-              letterSpacing: "-0.01em",
-            }}>
-              il Tavolo del{" "}
-              <span style={{ color: "var(--color-gold-soft)" }}>Nonno</span>
-            </div>
+          <NonnoMark size={32} />
+          <div style={{
+            fontFamily: "var(--font-display)",
+            fontWeight: 700,
+            fontSize: "0.82rem",
+            lineHeight: 1.2,
+            color: "var(--color-text)",
+            letterSpacing: "-0.01em",
+          }}>
+            il Tavolo del{" "}
+            <span style={{ color: "var(--color-gold-soft)" }}>Nonno</span>
           </div>
         </div>
       </div>
 
-      {/* Nav items */}
-      <div style={{ padding: "0 0.75rem", display: "flex", flexDirection: "column", gap: "2px" }}>
+      {/* Nav items — eyebrow text, ink underline */}
+      <div style={{ padding: "0 0.25rem", display: "flex", flexDirection: "column", gap: "2px" }}>
         {NAV.map((dest) => {
           const active = isActive(dest, pathname);
           return (
             <Link
               key={dest.path}
               to={dest.path}
+              className={`sidebar-wall-item${active ? " active" : ""}`}
               onClick={(e) => {
                 // Only hijack plain left-clicks: keep ctrl/cmd/middle-click "open in new tab".
                 if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                 e.preventDefault();
                 onNavigate(dest.path);
               }}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.625rem",
-                padding: "0.5rem 0.625rem",
-                borderRadius: "0.5rem",
-                fontSize: "0.8125rem",
-                fontWeight: active ? 600 : 500,
-                color: active ? "var(--color-brand-soft)" : "var(--color-text-soft)",
-                textDecoration: "none",
-                background: active
-                  ? "color-mix(in srgb, var(--color-brand) 10%, transparent)"
-                  : "transparent",
-                border: "1px solid",
-                borderColor: active
-                  ? "color-mix(in srgb, var(--color-brand) 22%, transparent)"
-                  : "transparent",
-                transition: "background 120ms, color 120ms, border-color 120ms",
-              }}
-              onMouseEnter={(e) => {
-                if (!active) {
-                  (e.currentTarget as HTMLAnchorElement).style.background = "rgba(255,255,255,0.03)";
-                  (e.currentTarget as HTMLAnchorElement).style.color = "var(--color-text)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!active) {
-                  (e.currentTarget as HTMLAnchorElement).style.background = "transparent";
-                  (e.currentTarget as HTMLAnchorElement).style.color = "var(--color-text-soft)";
-                }
-              }}
             >
-              <span style={{ opacity: active ? 1 : 0.65, flexShrink: 0 }}>{dest.icon}</span>
-              <span>{dest.label}</span>
+              {dest.label}
             </Link>
           );
         })}
       </div>
 
-      {/* Footer: theme + user + signout */}
+      {/* Footer: theme + user + signout — quiet, no box */}
       <div style={{
         marginTop: "auto",
-        padding: "1rem 1.25rem 1.25rem",
+        padding: "1rem 1rem 1.25rem",
         borderTop: "1px solid var(--color-line)",
         display: "flex",
         flexDirection: "column",
@@ -259,9 +216,9 @@ function DesktopSidebar({
         {/* Username */}
         {username && (
           <div style={{
-            fontSize: "0.72rem",
+            fontSize: "0.68rem",
             fontFamily: "var(--font-mono)",
-            color: "var(--color-muted)",
+            color: "var(--color-faint)",
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
@@ -272,7 +229,7 @@ function DesktopSidebar({
         {/* Quiet action links: Aggiorna / Rianalizza — only shown on Tavolo */}
         {(onRefresh || onReanalyze) && (
           <div style={{
-            fontSize: "0.72rem",
+            fontSize: "0.68rem",
             color: "var(--color-faint)",
             display: "flex",
             gap: "0.5rem",
@@ -333,7 +290,7 @@ function DesktopSidebar({
           <button
             onClick={onSignOut}
             className="btn btn-ghost btn-sm"
-            style={{ flex: 1, fontSize: "0.75rem" }}
+            style={{ flex: 1, fontSize: "0.72rem" }}
           >
             Esci
           </button>
@@ -563,7 +520,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <SilentRefreshPill />
             </div>
           )}
-          <div style={{ maxWidth: "960px", margin: "0 auto", padding: "0 1.5rem" }}>
+          <div style={{ maxWidth: "64rem", margin: "0 auto", padding: "0 1.5rem" }}>
             {children}
           </div>
         </main>

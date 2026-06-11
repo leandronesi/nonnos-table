@@ -264,26 +264,19 @@ export function NonnoGreeting({
     ? { body: voiceMessage!.trim(), close: "" }
     : pickPunch(goal, topAnchor, decisions, maiaWeighted, byPhase);
 
+  // Voice written on the wall — no box, no card. Content rests directly on the room.
   return (
-    <div
-      className="mb-8 lit"
-      style={{
-        background: "var(--color-surface)",
-        border: "1px solid var(--color-line)",
-        borderRadius: "14px",
-        padding: "clamp(20px, 4vw, 28px)",
-      }}
-    >
-      {/* Memoria visibile — quiet first line, no box/border, color muted.
-          Folds the continuity ("L'altra volta...") into Nonno's single voice. */}
+    <div className="mb-8">
+      {/* Memoria visibile — quiet line above the greeting, no box */}
       {memoria && memoria.trim().length > 0 && (
         <p
           style={{
             margin: 0,
             marginBottom: "0.75rem",
-            fontSize: "0.82rem",
+            fontSize: "0.78rem",
             lineHeight: 1.5,
-            color: "var(--color-muted)",
+            color: "var(--color-faint)",
+            letterSpacing: "0.01em",
           }}
         >
           {memoria.trim()}
@@ -293,21 +286,21 @@ export function NonnoGreeting({
       {/* Eyebrow */}
       <div
         className="tt-eyebrow"
-        style={{ color: "var(--color-brand-soft)", marginBottom: "1.25rem" }}
+        style={{ color: "var(--color-brand-soft)", marginBottom: "1rem" }}
       >
         Nonno
       </div>
 
-      {/* Saluto + traiettoria — stagger layer 1 (100ms). Fraunces serif, wave B. */}
+      {/* Saluto — large serif voice on the wall, stagger layer 1 (100ms) */}
       <p
         className="ng-stagger-1"
         style={{
           margin: 0,
-          marginBottom: "1rem",
+          marginBottom: "1.25rem",
           fontFamily: "var(--font-voice)",
-          fontSize: "clamp(1.5rem, 4vw, 2rem)",
+          fontSize: "clamp(1.8rem, 5vw, 2.6rem)",
           fontWeight: 600,
-          lineHeight: 1.25,
+          lineHeight: 1.2,
           color: "var(--color-text)",
         }}
       >
@@ -320,10 +313,10 @@ export function NonnoGreeting({
         style={{
           margin: 0,
           marginBottom: useLlmVoice ? "1.75rem" : "0.75rem",
-          fontSize: "1.05rem",
-          lineHeight: 1.65,
+          fontSize: "1.125rem",
+          lineHeight: 1.7,
           color: "var(--color-text-soft)",
-          maxWidth: "65ch",
+          maxWidth: "36rem",
         }}
       >
         {body}
@@ -342,26 +335,25 @@ export function NonnoGreeting({
             lineHeight: 1.6,
             color: "var(--color-text)",
             fontWeight: 500,
-            maxWidth: "65ch",
+            maxWidth: "36rem",
           }}
         >
           {close}
         </p>
       )}
 
-      {/* CTA primaria — stagger layer 3 (500ms) */}
+      {/* CTA primaria — width auto: a button resting on the floor, not a full band */}
       <button
         onClick={onSediamoci}
         className="btn btn-primary btn-lg ng-stagger-3"
         style={{
-          width: "100%",
+          width: "auto",
           fontSize: "1rem",
           fontWeight: 700,
-          padding: "0.875rem 1.5rem",
+          padding: "0.875rem 2rem",
           letterSpacing: "0.01em",
           transition:
             "transform 160ms cubic-bezier(0.23,1,0.32,1), background 160ms cubic-bezier(0.23,1,0.32,1)",
-          marginTop: close ? undefined : 0,
         }}
       >
         Sediamoci al Tavolo
@@ -376,7 +368,6 @@ export function NonnoGreeting({
             fontSize: "0.72rem",
             lineHeight: 1.4,
             color: "var(--color-faint)",
-            textAlign: "center",
           }}
         >
           Non ho ancora letto le ultime partite.

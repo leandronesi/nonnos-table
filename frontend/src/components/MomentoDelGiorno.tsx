@@ -283,30 +283,23 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
   const bestMoveLine = buildBestMoveLine(momento.fen_before, momento.best_uci);
   const hasVoice = tempoLine || avversarioLine || bestMoveLine;
 
+  // La scena del legno: the board rests on wood, no card chrome.
+  // One contact shadow only below the board — physical, not decorative.
   return (
     <div
       ref={containerRef}
       role="button"
       tabIndex={0}
-      className="lit obj-card"
       onClick={() => nav("/sessione", { state: { focusKey: `${momento.fen_before}:${momento.ply}` } })}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") nav("/sessione", { state: { focusKey: `${momento.fen_before}:${momento.ply}` } });
       }}
       style={{
-        background: "var(--color-surface)",
-        border: "1px solid var(--color-line)",
-        borderRadius: "14px",
-        padding: "clamp(20px, 4vw, 28px)",
         cursor: "pointer",
-        transition: "border-color 160ms cubic-bezier(0.23,1,0.32,1), transform 180ms var(--ease-out)",
+        transition: "opacity 160ms cubic-bezier(0.23,1,0.32,1)",
       }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.borderColor = "var(--color-line-strong)";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.borderColor = "var(--color-line)";
-      }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = "0.88"; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = "1"; }}
     >
       {/* Eyebrow */}
       <div className="tt-eyebrow" style={{ marginBottom: "1rem" }}>
@@ -317,25 +310,35 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
       <div
         style={{
           display: "flex",
-          gap: "1.25rem",
+          gap: "1.5rem",
           alignItems: "flex-start",
           flexWrap: "wrap",
         }}
       >
-        {/* Board — 220px on wider screens, 180px on narrow mobile */}
-        <div style={{ flexShrink: 0 }} className="momento-board-wrap">
-          <BoardView
-            key={resetKey}
-            fen={boardFen}
-            orientation={momento.color}
-            size={220}
-            arrows={boardArrows}
-            animate={true}
-          />
+        {/* Board column: board + wooden desk strip below */}
+        <div style={{ flexShrink: 0, display: "flex", flexDirection: "column" }}>
+          {/* Board with contact shadow — the only shadow allowed, physical not decorative */}
+          <div
+            className="momento-board-wrap"
+            style={{
+              boxShadow: "0 10px 24px -12px rgba(0,0,0,0.5)",
+            }}
+          >
+            <BoardView
+              key={resetKey}
+              fen={boardFen}
+              orientation={momento.color}
+              size={220}
+              arrows={boardArrows}
+              animate={true}
+            />
+          </div>
+          {/* Wooden desk strip — the board rests on the table */}
+          <div className="momento-desk" aria-hidden="true" />
         </div>
 
-        {/* Voice + meta */}
-        <div style={{ flex: 1, minWidth: "180px" }}>
+        {/* Voice + meta — free text on the wall, no box */}
+        <div style={{ flex: 1, minWidth: "180px", paddingTop: "0.25rem" }}>
           {/* Phase chip */}
           <div style={{ marginBottom: "0.75rem" }}>
             <span
@@ -393,21 +396,21 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
               )}
             </div>
           )}
-        </div>
-      </div>
 
-      {/* Subtle CTA hint */}
-      <div
-        style={{
-          marginTop: "1rem",
-          fontSize: "0.72rem",
-          color: "var(--color-muted)",
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          fontWeight: 700,
-        }}
-      >
-        Sediamoci su questa
+          {/* Subtle CTA hint */}
+          <div
+            style={{
+              marginTop: "1.25rem",
+              fontSize: "0.72rem",
+              color: "var(--color-muted)",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              fontWeight: 700,
+            }}
+          >
+            Sediamoci su questa
+          </div>
+        </div>
       </div>
     </div>
   );
