@@ -35,6 +35,14 @@ interface Props {
   targetRating: number;
   currentRating: number | null;
   onClose: () => void;
+  /**
+   * When true, the first MomentReview's BoardScene starts already risen.
+   * Set from Sessione when the user arrives via a View Transition morph from
+   * the Tavolo: the board was already carried as a shared element, a second
+   * rise would be a double entrance. Only the first phase (guardo) is affected;
+   * later phases (aiuto, da-solo, partita) always run the normal entrance.
+   */
+  viaMorph?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -439,7 +447,7 @@ function PhaseIntro({ text }: { text: string }) {
 // NonnoSession — orchestratore principale
 // ---------------------------------------------------------------------------
 
-export function NonnoSession({ cadute, targetRating, currentRating, onClose }: Props) {
+export function NonnoSession({ cadute, targetRating, currentRating, onClose, viaMorph = false }: Props) {
   const [phase, setPhase] = useState<Phase>("guardo");
   // The anchor we sat on today, computed at session completion. Used by the
   // close screen so Nonno names it ("Oggi abbiamo guardato X."). null = unknown.
@@ -538,6 +546,7 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose }: P
               total={1}
               maiaLevel={targetRating}
               onNext={advance}
+              startRisen={viaMorph}
             />
           </div>
         )}

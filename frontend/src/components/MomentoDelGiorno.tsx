@@ -32,7 +32,7 @@ import { Chess } from "chess.js";
 import type { PositionExample } from "../pipeline/aggregate";
 import { BoardView } from "./BoardView";
 import { uciToArrow, uciToSan } from "../pages/quaderno/boardArrows";
-import { prefersReducedMotion } from "../lib/motion";
+import { prefersReducedMotion, navigateWithTransition } from "../lib/motion";
 
 // ── Selection ─────────────────────────────────────────────────────────────────
 
@@ -316,9 +316,17 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
       ref={containerRef}
       role="button"
       tabIndex={0}
-      onClick={() => nav("/sessione", { state: { focusKey: `${momento.fen_before}:${momento.ply}` } })}
+      onClick={() => {
+        navigateWithTransition(() =>
+          nav("/sessione", { state: { focusKey: `${momento.fen_before}:${momento.ply}`, viaMorph: true } }),
+        );
+      }}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") nav("/sessione", { state: { focusKey: `${momento.fen_before}:${momento.ply}` } });
+        if (e.key === "Enter" || e.key === " ") {
+          navigateWithTransition(() =>
+            nav("/sessione", { state: { focusKey: `${momento.fen_before}:${momento.ply}`, viaMorph: true } }),
+          );
+        }
       }}
       style={{
         cursor: "pointer",
@@ -350,7 +358,10 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
             <div className={`momento-board-rise${risen ? " risen" : ""}`}>
               <div
                 className="momento-board-wrap"
-                style={{ boxShadow: "0 10px 24px -12px rgba(0,0,0,0.5)" }}
+                style={{
+                  boxShadow: "0 10px 24px -12px rgba(0,0,0,0.5)",
+                  viewTransitionName: "tavolo-board",
+                }}
               >
                 <BoardView
                   key={resetKey}

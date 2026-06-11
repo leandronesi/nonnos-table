@@ -33,6 +33,7 @@ import { runRefresh, runFullReanalyze } from "../pipeline/orchestrator";
 import type { Aggregates, Anchor, PositionExample } from "../pipeline/aggregate";
 import type { PlayerModelLite } from "../pipeline/playerModelLite";
 import { goalProgress, anchorTrendsFromHistory, materialForGap } from "../pipeline/history";
+import { setCachedAggregates } from "../pipeline/aggregatesCache";
 import { navigateWithTransition, useCountUp, useInkDraw } from "../lib/motion";
 import { NonnoGreeting } from "../components/NonnoGreeting";
 import { NonnoLetter } from "../components/NonnoLetter";
@@ -749,6 +750,9 @@ export function TavoloHome() {
         if (cancelled) return;
         setPmLite(pm);
         setAggregates(agg);
+        // Warm the handoff cache: Sessione can then mount synchronously, which
+        // both removes its spinner and lets the tavolo-board morph find its pair.
+        if (agg) setCachedAggregates(user.id, dataVersion, agg);
         const voice = brief?.voice_message ?? null;
         setLlmVoice(voice);
         setLlmGeneratedAt(brief?.generated_at ?? undefined);
