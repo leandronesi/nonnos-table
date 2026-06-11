@@ -180,18 +180,67 @@ export function paperTexture(title: string, lines: string[], goldLine: string | 
   return tex;
 }
 
-/** A small cream card with one mono word — the thorn slips in the box. */
-export function cardTexture(word: string): THREE.CanvasTexture {
+/**
+ * A cream card with the REAL anchor label (word-wrapped, up to 3 lines) and
+ * the standing invitation at the bottom. Live text per user — it is a canvas.
+ */
+export function cardTexture(label: string): THREE.CanvasTexture {
   const [c, ctx] = makeCanvas(256, 320);
   ctx.fillStyle = "#ece2cb";
   ctx.fillRect(0, 0, 256, 320);
   ctx.strokeStyle = "rgba(110, 85, 45, 0.4)";
   ctx.lineWidth = 3;
   ctx.strokeRect(3, 3, 250, 314);
+
+  // Label, wrapped on word boundaries (max 3 lines)
   ctx.fillStyle = "#5d4c2e";
-  ctx.font = "500 34px 'JetBrains Mono', monospace";
+  ctx.font = "600 27px 'JetBrains Mono', monospace";
   ctx.textAlign = "center";
-  ctx.fillText(word.toUpperCase().slice(0, 9), 128, 64);
+  const words = label.toUpperCase().split(/\s+/);
+  const lines: string[] = [];
+  let cur = "";
+  for (const w of words) {
+    const probe = cur ? `${cur} ${w}` : w;
+    if (ctx.measureText(probe).width <= 220 || !cur) {
+      cur = probe;
+    } else {
+      lines.push(cur);
+      cur = w;
+    }
+    if (lines.length === 3) break;
+  }
+  if (cur && lines.length < 3) lines.push(cur);
+  let y = 64;
+  for (const line of lines) {
+    ctx.fillText(line, 128, y);
+    y += 38;
+  }
+
+  // The invitation
+  ctx.fillStyle = "#7a6336";
+  ctx.font = "italic 500 30px Fraunces, Georgia, serif";
+  ctx.fillText("esercitiamoci.", 128, 282);
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** Small dark plaque naming the box: what is holding you back. */
+export function plaqueTexture(): THREE.CanvasTexture {
+  const [c, ctx] = makeCanvas(512, 144);
+  const bg = ctx.createLinearGradient(0, 0, 0, 144);
+  bg.addColorStop(0, "#2b1c0e");
+  bg.addColorStop(1, "#160d05");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, 512, 144);
+  ctx.strokeStyle = "rgba(246, 198, 74, 0.35)";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(6, 6, 500, 132);
+  ctx.fillStyle = "#d8b86a";
+  ctx.font = "italic 600 52px Fraunces, Georgia, serif";
+  ctx.textAlign = "center";
+  ctx.fillText("Quello che ti frena", 256, 92);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
