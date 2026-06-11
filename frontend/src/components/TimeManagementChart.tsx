@@ -209,7 +209,7 @@ export function TimeManagementChart({
         <StatCard
           label="Dopo un errore"
           sub="come cambiano le mosse che seguono"
-          value={`${tilt.tilt_factor}×`}
+          value={`${tilt.tilt_factor.toFixed(1)}×`}
           danger={tilt.tilt_factor > 1.3}
           metric=""
           extra=""
