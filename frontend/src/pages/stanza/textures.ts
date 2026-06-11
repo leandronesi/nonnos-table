@@ -237,10 +237,12 @@ export function plaqueTexture(): THREE.CanvasTexture {
   ctx.strokeStyle = "rgba(110, 85, 45, 0.45)";
   ctx.lineWidth = 4;
   ctx.strokeRect(6, 6, 500, 132);
+  // Canon (PRODUCT.md / nonno-voice): anchors are named with their upside,
+  // never as blame. Same wording as the Tavolo section title.
   ctx.fillStyle = "#4a3a1e";
   ctx.font = "italic 600 50px Fraunces, Georgia, serif";
   ctx.textAlign = "center";
-  ctx.fillText("Quello che ti frena", 256, 90);
+  ctx.fillText("Le tue ancore", 256, 90);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;

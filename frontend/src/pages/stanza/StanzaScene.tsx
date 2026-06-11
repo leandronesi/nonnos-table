@@ -12,7 +12,7 @@
  * This file is lazy-loaded so three.js never touches the main bundle.
  */
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Billboard, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
@@ -81,6 +81,25 @@ const COARSE =
   window.matchMedia("(pointer: coarse)").matches;
 
 /**
+ * useMemo + dispose-on-unmount for GPU resources (textures, geometries).
+ * Without this every visit to /stanza would strand its canvas textures in
+ * GPU memory — ~12MB per entry, fatal on low-end mobile after a few laps.
+ */
+function useDisposable<T extends { dispose: () => void }>(
+  make: () => T,
+  deps: React.DependencyList,
+): T {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const res = useMemo(make, deps);
+  useEffect(() => {
+    return () => {
+      res.dispose();
+    };
+  }, [res]);
+  return res;
+}
+
+/**
  * One rig owns the camera life:
  *   entering — 3s dolly to the chair (the act of sitting down)
  *   gliding  — 1.6s pursuit toward the focused object (controls disabled)
@@ -108,23 +127,26 @@ function CameraRig({
   // Portrait phones see the same room from a little further back and wider,
   // otherwise the table overflows the frame on both sides.
   const portrait = size.height > size.width;
+  const prevPortrait = useRef(portrait);
   const back = portrait ? 1.4 : 1;
   const wantFov = portrait ? 54 : 42;
   if (camera.fov !== wantFov) {
     camera.fov = wantFov;
     camera.updateProjectionMatrix();
   }
-  const focusPos = (f: (typeof FOCI)[Focus]) =>
-    f.tgt.clone().add(f.pos.clone().sub(f.tgt).multiplyScalar(back));
-  const seatPos = focusPos(FOCI.tavolo);
+  // Scratch vectors: useFrame runs at 60fps, allocating clones there is GC churn.
+  const scratch = useRef(new THREE.Vector3()).current;
+  const focusPosInto = (f: (typeof FOCI)[Focus], out: THREE.Vector3) =>
+    out.copy(f.pos).sub(f.tgt).multiplyScalar(back).add(f.tgt);
 
   useFrame((state) => {
     const now = state.clock.elapsedTime;
 
     // 1) Sitting down
     if (!seated.current) {
+      focusPosInto(FOCI.tavolo, scratch);
       if (reducedMotion) {
-        camera.position.copy(seatPos);
+        camera.position.copy(scratch);
         camera.lookAt(LOOK_AT);
         seated.current = true;
         onSeated();
@@ -133,7 +155,7 @@ function CameraRig({
       if (t0.current === null) t0.current = now;
       const k = Math.min((now - t0.current) / 3.0, 1);
       const e = 1 - Math.pow(1 - k, 3);
-      camera.position.lerpVectors(ENTER_POS, seatPos, e);
+      camera.position.lerpVectors(ENTER_POS, scratch, e);
       camera.lookAt(LOOK_AT);
       if (k >= 1) {
         seated.current = true;
@@ -144,25 +166,30 @@ function CameraRig({
 
     if (!controls) return;
     const f = FOCI[focus];
-    const pos = focusPos(f);
 
-    // 2) A new sguardo: start a glide window
-    if (focus !== prevFocus.current) {
+    // 2) A new sguardo (or the phone rotated): retune the rails
+    if (focus !== prevFocus.current || portrait !== prevPortrait.current) {
+      const focusChanged = focus !== prevFocus.current;
       prevFocus.current = focus;
-      glideUntil.current = now + (reducedMotion ? 0 : 1.6);
+      prevPortrait.current = portrait;
       controls.minDistance = f.minD;
       controls.maxDistance = f.maxD * back;
-      if (reducedMotion) {
-        camera.position.copy(pos);
-        controls.target.copy(f.tgt);
-        controls.update();
+      if (focusChanged) {
+        glideUntil.current = now + (reducedMotion ? 0 : 1.6);
+        if (reducedMotion) {
+          focusPosInto(f, scratch);
+          camera.position.copy(scratch);
+          controls.target.copy(f.tgt);
+          controls.update();
+        }
       }
     }
 
     // 3) Glide: pursue the preset, hands off the wheel
     if (now < glideUntil.current) {
       controls.enabled = false;
-      camera.position.lerp(pos, 0.065);
+      focusPosInto(f, scratch);
+      camera.position.lerp(scratch, 0.065);
       controls.target.lerp(f.tgt, 0.065);
       controls.update();
     } else {
@@ -176,12 +203,14 @@ function CameraRig({
 
 function FocusLight({ focus }: { focus: Focus }) {
   const ref = useRef<THREE.PointLight>(null);
+  // Scratch vector: no per-frame allocation in useFrame.
+  const want = useRef(new THREE.Vector3()).current;
   useFrame(() => {
     if (!ref.current) return;
     const f = FOCI[focus];
     const wantIntensity = focus === "tavolo" ? 0 : 4.2;
-    const wantPos = new THREE.Vector3(f.tgt.x, f.tgt.y + 1.05, f.tgt.z + 0.3);
-    ref.current.position.lerp(wantPos, 0.08);
+    want.set(f.tgt.x, f.tgt.y + 1.05, f.tgt.z + 0.3);
+    ref.current.position.lerp(want, 0.08);
     ref.current.intensity += (wantIntensity - ref.current.intensity) * 0.08;
   });
   return (
@@ -244,7 +273,7 @@ function Lampada() {
 // ── The table ──────────────────────────────────────────────────────────────────
 
 function Tavolo({ onClick }: { onClick?: () => void }) {
-  const wood = useMemo(() => woodTexture(), []);
+  const wood = useDisposable(() => woodTexture(), []);
   return (
     <mesh
       position={[0, -0.1, 0]}
@@ -352,7 +381,7 @@ function Scacchiera({
   bestMove: [string, string] | null;
   orientation: "white" | "black";
 }) {
-  const squares = useMemo(() => boardTexture(), []);
+  const squares = useDisposable(() => boardTexture(), []);
   const flipped = orientation === "black";
 
   return (
@@ -431,8 +460,13 @@ function Quaderno({
   showLetter: boolean;
   onLetterClick?: () => void;
 }) {
-  const paper = useMemo(() => paperTexture("Il nostro viaggio", lines, gold), [lines, gold]);
+  const paper = useDisposable(() => paperTexture("Il nostro viaggio", lines, gold), [lines, gold]);
   const letter = useMemo(() => (showLetter ? letterTexture() : null), [showLetter]);
+  useEffect(() => {
+    return () => {
+      letter?.dispose();
+    };
+  }, [letter]);
 
   return (
     <group position={[1.52, 0, 0.62]} rotation={[0, -0.22, 0]}>
@@ -502,7 +536,7 @@ const CUP_PROFILE: [number, number][] = [
 ];
 
 function Tazza({ reducedMotion }: { reducedMotion: boolean }) {
-  const cupGeo = useMemo(() => {
+  const cupGeo = useDisposable(() => {
     const pts = CUP_PROFILE.map(([r, y]) => new THREE.Vector2(r, y));
     return new THREE.LatheGeometry(pts, 36);
   }, []);
@@ -510,7 +544,7 @@ function Tazza({ reducedMotion }: { reducedMotion: boolean }) {
     () => new THREE.MeshStandardMaterial({ color: "#c9c2b4", roughness: 0.35 }),
     [],
   );
-  const steam = useMemo(() => steamTexture(), []);
+  const steam = useDisposable(() => steamTexture(), []);
   const s1 = useRef<THREE.Mesh>(null);
   const s2 = useRef<THREE.Mesh>(null);
 
@@ -578,7 +612,12 @@ function ScatolaSpine({ thorns }: { thorns: string[] }) {
     [],
   );
   const cards = useMemo(() => thorns.slice(0, 3).map((w) => cardTexture(w)), [thorns]);
-  const plaque = useMemo(() => plaqueTexture(), []);
+  useEffect(() => {
+    return () => {
+      cards.forEach((c) => c.dispose());
+    };
+  }, [cards]);
+  const plaque = useDisposable(() => plaqueTexture(), []);
 
   const W = 0.46, D = 0.3, H = 0.16, T = 0.02;
   const YAW = 0.5; // group yaw — cards counter-rotate so they read frontally

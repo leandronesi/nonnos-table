@@ -142,7 +142,9 @@ export function StanzaHome() {
   const notebookGold =
     targetRating > 0 ? `${targetRating}. Il posto che stai raggiungendo.` : null;
 
-  const thorns = anchorTrails.slice(0, 3).map((t) => t.label_it.split(" ")[0]);
+  // The box holds the canonical top-3 anchors (by weighted score, same as the
+  // Tavolo section) — not the alphabetical trails.
+  const thorns = (aggregates?.anchors ?? []).slice(0, 3).map((a) => a.label_it);
   const showLetter = !!(letterIdentity && !letterSeenBefore);
 
   // ── Loading / error ──────────────────────────────────────────────────────────
