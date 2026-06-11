@@ -226,21 +226,21 @@ export function cardTexture(label: string): THREE.CanvasTexture {
   return tex;
 }
 
-/** Small dark plaque naming the box: what is holding you back. */
+/** Cream paper tag naming the box: readable even in shade, kin to the cards. */
 export function plaqueTexture(): THREE.CanvasTexture {
   const [c, ctx] = makeCanvas(512, 144);
   const bg = ctx.createLinearGradient(0, 0, 0, 144);
-  bg.addColorStop(0, "#2b1c0e");
-  bg.addColorStop(1, "#160d05");
+  bg.addColorStop(0, "#efe5cd");
+  bg.addColorStop(1, "#ddcfae");
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, 512, 144);
-  ctx.strokeStyle = "rgba(246, 198, 74, 0.35)";
+  ctx.strokeStyle = "rgba(110, 85, 45, 0.45)";
   ctx.lineWidth = 4;
   ctx.strokeRect(6, 6, 500, 132);
-  ctx.fillStyle = "#d8b86a";
-  ctx.font = "italic 600 52px Fraunces, Georgia, serif";
+  ctx.fillStyle = "#4a3a1e";
+  ctx.font = "italic 600 50px Fraunces, Georgia, serif";
   ctx.textAlign = "center";
-  ctx.fillText("Quello che ti frena", 256, 92);
+  ctx.fillText("Quello che ti frena", 256, 90);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
