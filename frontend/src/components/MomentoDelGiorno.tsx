@@ -122,8 +122,11 @@ type SceneState = "start" | "played" | "back" | "best" | "rest";
 //   - the board starts rising     → RISE_DELAY
 //   - the replay loop starts      → LOOP_DELAY
 // These are tracked in timeoutsRef alongside the animation timeouts.
-const RISE_DELAY = 400;
-const LOOP_DELAY = 1700;
+// PO direction: "rallentalo tantissimo e dagli tempo" — the scene is a moment,
+// not a transition. Hold on the table (1200ms), rise very slowly (2800ms in
+// CSS, keep in sync), breathe (800ms), then the replay begins.
+const RISE_DELAY = 1200;
+const LOOP_DELAY = 1200 + 2800 + 800;
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
