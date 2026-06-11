@@ -6794,7 +6794,7 @@ button:disabled, [aria-disabled="true"] {
 }
 
 /* ============================================================================
- * LA SCENA — StanzaHome full-viewport 3-D room (Onda P2)
+ * LA SCENA — StanzaHome full-viewport 3-D room (Onda P3: La Qualità della Materia)
  *
  * GRAVITY LAW: every .scena-oggetto is anchored by its BASE.
  *   top: <baseline in vh>
@@ -6809,14 +6809,16 @@ button:disabled, [aria-disabled="true"] {
  *   NEAR   : scale 1.15, z-index 4
  *
  * Horizon: --orizzonte: 44vh. Wall above, wood below.
+ * Night is absolute: dark walls, lamp is the only source.
  * ========================================================================== */
 
 :root {
   --orizzonte: 44vh;
   --curve-scena: cubic-bezier(0.16, 1, 0.3, 1);
-  --wood-1: #5b3b24;
-  --wood-2: #33231a;
-  --wood-3: #150f0b;
+  /* Rich, dark wood — three stops for vertical gradient */
+  --wood-1: #4a3120;
+  --wood-2: #241710;
+  --wood-3: #0d0906;
 }
 
 /* ── LA SCENA: il contenitore full-viewport con prospettiva ── */
@@ -6826,17 +6828,28 @@ button:disabled, [aria-disabled="true"] {
   perspective: 1300px;
   perspective-origin: 50% 30%;
   overflow: hidden;
-  background: var(--color-bg);
+  background: #04060e;
 }
 
-/* ── PARETE (wall above horizon) ── */
+/* ── PARETE: molto più scura, solo l'alone della lampada la rivela ── */
 .scena-parete {
   position: absolute;
   inset: 0;
+  /* Warm halo from lamp — tight and contained */
   background:
-    radial-gradient(58% 50% at 50% 8%, rgba(255, 222, 160, 0.12), transparent 62%),
-    linear-gradient(180deg, #0a0d1a 0%, var(--color-bg) 70%);
+    radial-gradient(38% 28% at 50% 11%, rgba(255, 220, 150, 0.09), transparent 55%),
+    linear-gradient(180deg, #04060e 0%, #0c0f1c 100%);
   z-index: 0;
+}
+
+/* ── VIGNETTA: overlay fisso sopra tutto (tranne dialogo/uscita).
+   I bordi dello schermo cadono nel buio — nasconde il povero. ── */
+.scena-vignetta {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
+  background: radial-gradient(120% 100% at 50% 40%, transparent 55%, rgba(0, 0, 0, 0.52) 100%);
 }
 
 /* ── LAMPADA: filo ── */
@@ -6845,59 +6858,57 @@ button:disabled, [aria-disabled="true"] {
   top: 0;
   left: 50%;
   width: 1px;
-  height: 9vh;
-  background: rgba(255, 255, 255, 0.16);
+  height: 11vh;
+  background: rgba(255, 255, 255, 0.14);
   z-index: 1;
 }
 
-/* ── LAMPADA: corpo trapezoidale ── */
+/* ── LAMPADA: corpo trapezoidale — più grande, scende più in basso ── */
 .scena-lampada-corpo {
   position: absolute;
-  top: 9vh;
+  top: 11vh;
   left: 50%;
   transform: translateX(-50%);
-  width: 120px;
-  height: 56px;
-  background: linear-gradient(180deg, #2a2118, #11100c 80%);
-  clip-path: polygon(28% 0, 72% 0, 100% 100%, 0 100%);
+  width: 150px;
+  height: 66px;
+  background: linear-gradient(180deg, #352a1c, #141210 80%);
+  clip-path: polygon(26% 0, 74% 0, 100% 100%, 0 100%);
   z-index: 1;
 }
 
-/* ── LAMPADA: alone caldo (uno-shot, si accende col delay CSS) ── */
+/* ── LAMPADA: alone caldo sotto il paralume ── */
 .scena-lampada-luce {
   position: absolute;
-  top: calc(9vh + 50px);
+  top: calc(11vh + 60px);
   left: 50%;
   transform: translateX(-50%);
-  width: 96px;
-  height: 16px;
+  width: 80px;
+  height: 14px;
   border-radius: 50%;
-  background: radial-gradient(50% 50%, rgba(255, 224, 150, 0.85), rgba(255, 200, 110, 0) 70%);
-  filter: blur(2px);
-  z-index: 1;
-  /* opacity controlled by inline style (lampOn state) */
+  background: radial-gradient(50% 50%, rgba(255, 224, 150, 0.9), rgba(255, 200, 110, 0) 68%);
+  filter: blur(3px);
+  z-index: 2;
   transition: opacity 1200ms ease-out 300ms;
 }
 
-/* ── LAMPADA: cono di luce ── */
+/* ── LAMPADA: cono visibile — trapezio caldo verticale ── */
 .scena-lampada-cono {
   position: absolute;
-  top: 0;
+  top: calc(11vh + 60px);
   left: 50%;
   transform: translateX(-50%);
-  width: 64vw;
-  height: 78vh;
+  width: 52vw;
+  height: 72vh;
   pointer-events: none;
-  background: radial-gradient(50% 88% at 50% 0%, rgba(255, 222, 160, 0.09), transparent 75%);
+  /* Thin warm trapezoid — visible but not glaring */
+  background: radial-gradient(50% 92% at 50% 0%, rgba(255, 218, 140, 0.06), transparent 72%);
   z-index: 0;
-  /* opacity controlled by inline style (lampOn state) */
   transition: opacity 2400ms ease-out 400ms;
 }
 
-/* ── LEGNO: piano del tavolo prospettico ──
+/* ── LEGNO: piano del tavolo prospettico — scuro e ricco ──
    height 95vh: rotated 52deg about the top edge the plane projects
-   95 x cos(52) ~ 58vh, so the wood reaches ~102vh and the table meets the
-   bottom of the screen with no dark gap under it (gravity law). */
+   95 x cos(52) ~ 58vh, so the wood reaches ~102vh (gravity law). */
 .scena-legno {
   position: absolute;
   top: var(--orizzonte);
@@ -6908,10 +6919,15 @@ button:disabled, [aria-disabled="true"] {
   transform-origin: top center;
   z-index: 1;
   background:
-    radial-gradient(46% 36% at 50% 12%, rgba(255, 222, 160, 0.13), transparent 70%),
-    repeating-linear-gradient(94deg, rgba(255,255,255,0.025) 0 2px, transparent 2px 26px),
+    /* Lamp pool — centred on the table, warm and tight */
+    radial-gradient(32% 22% at 50% 8%, rgba(255, 218, 140, 0.16), transparent 60%),
+    /* Grain: thin vertical planks, converge with the perspective rotation */
+    repeating-linear-gradient(90deg, transparent 0 120px, rgba(0, 0, 0, 0.35) 120px 122px),
+    /* Fine veneer lines — barely there */
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.015) 0 1px, transparent 1px 7px),
+    /* Depth gradient — very dark at the far end */
     linear-gradient(180deg, var(--wood-1) 0%, var(--wood-2) 48%, var(--wood-3) 100%);
-  border-top: 1px solid rgba(246, 198, 74, 0.22);
+  border-top: 1px solid rgba(246, 198, 74, 0.18);
 }
 
 /* ── L'USCITA: la porta della stanza, quieta in alto a destra ── */
@@ -6951,9 +6967,7 @@ button:disabled, [aria-disabled="true"] {
   position: absolute;
   transform-origin: bottom center;
   pointer-events: none;
-  /* Entrance: settle dal basso 20px, curva di casa ease-out */
   opacity: 0;
-  /* start offset is in the variant classes below */
 }
 
 /* Entrance trigger: added by React state */
@@ -7009,86 +7023,110 @@ button:disabled, [aria-disabled="true"] {
   transform: translate(-50%, -100%) scale(1.15) translateY(0);
 }
 
-/* ── SCATOLA DELLE SPINE ── */
-.scena-scatola {
-  width: 150px;
-  height: 64px;
+/* ── SCATOLA DELLE SPINE — vera scatola di legno vista di 3/4 ── */
+.scena-scatola-wrap {
   position: relative;
-  background: linear-gradient(180deg, #483019, #241708);
-  border: 1px solid rgba(246, 198, 74, 0.16);
-  border-radius: 5px;
+  width: 144px;
+}
+/* Faccia frontale */
+.scena-scatola {
+  width: 144px;
+  height: 52px;
+  position: relative;
+  background: linear-gradient(180deg, #3a2410, #1e120a);
+  border: 1px solid rgba(90, 65, 30, 0.55);
+  border-radius: 3px 3px 3px 3px;
+}
+/* Bordo superiore visibile — angolo 3/4 */
+.scena-scatola::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  height: 12px;
+  background: linear-gradient(180deg, #4e3318, #3a2410);
+  border: 1px solid rgba(90, 65, 30, 0.55);
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
 }
 
 .scena-scatola-carta {
   position: absolute;
   bottom: 56%;
-  width: 40px;
-  height: 46px;
-  background: linear-gradient(180deg, #efe6d2, #ddd0b4);
-  border-radius: 3px 3px 0 0;
-  border: 1px solid rgba(110, 85, 45, 0.4);
+  width: 38px;
+  height: 44px;
+  background: linear-gradient(180deg, #f0e8d5, #ddd0b5);
+  border-radius: 2px 2px 0 0;
+  border: 1px solid rgba(110, 85, 45, 0.35);
   display: flex;
   align-items: flex-start;
   justify-content: center;
   padding-top: 4px;
   font-family: var(--font-mono);
-  font-size: 0.42rem;
+  font-size: 0.40rem;
   letter-spacing: 0.04em;
-  color: #5d4c2e;
+  color: #6b5438;
   text-transform: uppercase;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.scena-scatola-carta[data-i="0"] { left: 12px;  transform: rotate(-5deg); }
-.scena-scatola-carta[data-i="1"] { left: 56px;  transform: rotate(2deg);  bottom: 60%; }
-.scena-scatola-carta[data-i="2"] { left: 98px;  transform: rotate(7deg); }
+.scena-scatola-carta[data-i="0"] { left: 10px;  transform: rotate(-6deg); }
+.scena-scatola-carta[data-i="1"] { left: 52px;  transform: rotate(3deg);  bottom: 60%; }
+.scena-scatola-carta[data-i="2"] { left: 94px;  transform: rotate(9deg); }
 
-/* ── TAZZA ── */
-.scena-tazza {
-  width: 56px;
-  height: 44px;
+/* ── TAZZA: vista 3/4 dall'alto, con piattino ── */
+.scena-tazza-wrap {
   position: relative;
-  background: linear-gradient(180deg, #d8d2c4, #a89e8c);
-  border-radius: 6px 6px 22px 22px;
+  width: 64px;
+  /* Vapore lives above the cup */
 }
-.scena-tazza::after {
-  content: "";
+.scena-tazza-piattino {
   position: absolute;
-  right: -16px;
-  top: 8px;
-  width: 18px;
-  height: 20px;
-  border: 4px solid #b6ac99;
-  border-left: none;
-  border-radius: 0 12px 12px 0;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 64px;
+  height: 8px;
+  background: linear-gradient(180deg, #c4bdb0, #9e978c);
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.45);
 }
+.scena-tazza {
+  position: relative;
+  width: 56px;
+  margin: 0 auto;
+  /* Cup body */
+}
+/* SVG tazza — defined in TSX, this is a positioning placeholder */
 
 /* ── VAPORE ── */
 .scena-vapore {
   position: absolute;
   left: 50%;
   bottom: 100%;
-  width: 40px;
-  height: 70px;
+  width: 36px;
+  height: 60px;
   transform: translateX(-50%);
   overflow: visible;
 }
 .scena-vapore path {
-  stroke: rgba(255, 255, 255, 0.22);
-  stroke-width: 2.5;
+  /* More subtle — opacity 0.12 max */
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 2;
   fill: none;
   stroke-linecap: round;
-  animation: scena-vapora 5s ease-in-out infinite;
+  animation: scena-vapora 7s ease-in-out infinite;
 }
 .scena-vapore path:nth-child(2) {
-  animation-delay: 1.6s;
-  stroke: rgba(255, 255, 255, 0.13);
+  animation-delay: 2.4s;
+  stroke: rgba(255, 255, 255, 0.07);
 }
 @keyframes scena-vapora {
-  0%   { transform: translateY(6px) scaleY(0.9); opacity: 0; }
-  30%  { opacity: 1; }
-  100% { transform: translateY(-26px) scaleY(1.15); opacity: 0; }
+  0%   { transform: translateY(4px) scaleY(0.9); opacity: 0; }
+  30%  { opacity: 0.12; }
+  100% { transform: translateY(-22px) scaleY(1.1); opacity: 0; }
 }
 
 /* ── HANDICAP: i pezzi come materia ── */
@@ -7132,14 +7170,35 @@ button:disabled, [aria-disabled="true"] {
   text-align: center;
 }
 
-/* ── SCACCHIERA: board inclinata verso di te ── */
+/* ── SCACCHIERA: BoardView vera con frame di legno ──
+   Parent width fisso = la size passata a BoardView (420px) per evitare
+   misure sbagliate del ResizeObserver dentro i CSS transform. ── */
 .scena-board-wrap {
-  width: min(330px, 36vh);
+  /* Fixed width so BoardView's ResizeObserver reads the right size */
+  width: 420px;
   position: relative;
 }
 
+.scena-board-frame {
+  /* Wooden frame around the real board */
+  border: 11px solid transparent;
+  border-image: linear-gradient(
+    135deg,
+    #6b4a28 0%,
+    #3d2610 35%,
+    #5c3e22 55%,
+    #2e1c0d 100%
+  ) 1;
+  border-radius: 6px;
+  box-shadow:
+    0 0 0 1px rgba(90, 60, 20, 0.4),
+    0 18px 52px rgba(0, 0, 0, 0.72);
+  overflow: hidden;
+  border-radius: 6px;
+}
+
 .scena-board-inner {
-  transform: perspective(900px) rotateX(16deg);
+  transform: perspective(900px) rotateX(18deg);
   transform-origin: bottom center;
 }
 
@@ -7150,33 +7209,49 @@ button:disabled, [aria-disabled="true"] {
   font-size: 0.66rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--color-faint);
+  color: rgba(255, 255, 255, 0.32);
 }
 
-/* ── QUADERNO ── */
+/* ── QUADERNO: carta calda, annotazioni a mano ── */
 .scena-quaderno {
-  width: min(280px, 34vw);
+  width: min(273px, 34vw);
   min-height: 190px;
   background:
-    repeating-linear-gradient(180deg, transparent 0 23px, rgba(80, 60, 30, 0.18) 23px 24px),
-    linear-gradient(135deg, #f2ead9 0%, #efe7d6 55%, #e2d7c0 100%);
+    /* Faint page-fold shadow along the binding */
+    linear-gradient(90deg, rgba(0,0,0,0.08) 0 3px, transparent 3px),
+    /* Ruled lines — tenui */
+    repeating-linear-gradient(180deg, transparent 0 22px, rgba(80, 60, 30, 0.13) 22px 23px),
+    /* Warm cream base */
+    linear-gradient(160deg, #f2e8d2 0%, #ede0c6 55%, #e0d4b5 100%);
   border-radius: 4px 10px 10px 4px;
-  padding: 1rem 1.1rem 0.9rem 1.5rem;
+  padding: 1rem 1.2rem 1rem 1.6rem;
   position: relative;
   color: #2c2417;
   transform: perspective(800px) rotateX(48deg) rotateZ(-6deg);
   transform-origin: bottom center;
-  /* Long milestone labels must never spill off the paper edge */
   overflow: hidden;
+  /* Subtle page-curl corner — created via ::after */
 }
+/* Margin line in red — tenuous */
 .scena-quaderno::before {
   content: "";
   position: absolute;
-  left: 1rem;
+  left: 1.1rem;
   top: 8px;
   bottom: 8px;
   width: 1px;
-  background: rgba(168, 32, 32, 0.34);
+  background: rgba(168, 32, 32, 0.22);
+}
+/* Micro page-curl corner bottom-right */
+.scena-quaderno::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(225deg, #d8ccb0 40%, transparent 40%);
+  border-radius: 0 0 10px 0;
 }
 
 .scena-viaggio-mini {
@@ -7187,12 +7262,12 @@ button:disabled, [aria-disabled="true"] {
 .scena-viaggio-mini li {
   position: relative;
   padding-left: 1rem;
-  margin-bottom: 0.38rem;
+  margin-bottom: 0.36rem;
   font-family: var(--font-voice);
-  font-size: 0.72rem;
-  color: #4d4128;
+  font-style: italic;
+  font-size: 0.68rem;
+  color: #4a3e24;
   line-height: 1.4;
-  /* Two lines at most, then the sentence ends like a note that ran out of room */
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -7203,34 +7278,37 @@ button:disabled, [aria-disabled="true"] {
   position: absolute;
   left: 0;
   top: 0.34em;
-  width: 5px;
-  height: 5px;
+  width: 3px;
+  height: 3px;
   border-radius: 50%;
-  background: #7c5cff;
+  background: rgba(80, 60, 30, 0.45);
 }
 
-/* ── OCCHIALI (appoggiati sul quaderno) ── */
+/* ── OCCHIALI: poggiano SUL quaderno (wrapper nel quaderno-oggetto) ── */
 .scena-occhiali {
   position: absolute;
-  top: -20px;
-  right: 12px;
-  transform: rotate(-14deg);
+  /* Sits on top of the notebook page, anchored to its top-right */
+  top: -16px;
+  right: 10px;
+  transform: rotate(-12deg);
   z-index: 5;
 }
 
-/* ── LETTERA piegata ── */
+/* ── LETTERA piegata — busta con piega ── */
 .scena-lettera {
-  width: 100px;
-  height: 60px;
-  background: linear-gradient(170deg, #f5edd9, #e6dabe);
-  border: 1px solid rgba(120, 95, 50, 0.35);
+  width: 108px;
+  height: 68px;
+  background: linear-gradient(160deg, #f5edd8, #e8dcc2);
+  border: 1px solid rgba(120, 95, 50, 0.30);
   border-radius: 3px;
   transform: rotate(5deg);
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.38);
 }
+/* Envelope flap fold */
 .scena-lettera::before {
   content: "";
   position: absolute;
@@ -7238,8 +7316,18 @@ button:disabled, [aria-disabled="true"] {
   right: 0;
   top: 0;
   height: 50%;
-  background: linear-gradient(180deg, rgba(120, 95, 50, 0.13), transparent);
-  clip-path: polygon(0 0, 100% 0, 50% 95%);
+  background: linear-gradient(180deg, rgba(110, 82, 40, 0.10), transparent);
+  clip-path: polygon(0 0, 100% 0, 50% 90%);
+}
+/* Bottom crease */
+.scena-lettera::after {
+  content: "";
+  position: absolute;
+  bottom: 18px;
+  left: 8%;
+  right: 8%;
+  height: 1px;
+  background: rgba(100, 75, 35, 0.18);
 }
 
 /* ── IL DIALOGO: battuta fissa in basso a sinistra ── */
@@ -7264,7 +7352,7 @@ button:disabled, [aria-disabled="true"] {
 /* ── RESPONSIVE: mobile adjustments ── */
 @media (max-width: 760px) {
   .scena-board-wrap {
-    width: min(260px, 44vw);
+    width: min(300px, 80vw);
   }
   .scena-quaderno {
     width: min(220px, 42vw);
