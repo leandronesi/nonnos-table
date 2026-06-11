@@ -295,6 +295,97 @@ button:disabled, [aria-disabled="true"] {
   .appshell-mobile  { display: flex; }
 }
 
+/* ── Sidebar wall — La Stanza del Nonno (desktop nav without chrome)
+ * The nav sits transparently inside the room: no box, no border-right.
+ * Active state: brand-soft color + 2px ink underline.
+ * Hover: color rises + underline appears with transition.
+ * prefers-reduced-motion: underline appears immediately, no transition. */
+.sidebar-wall-nav {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  overflow-y: auto;
+  z-index: 30;
+}
+.sidebar-wall-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--color-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 160ms cubic-bezier(0.23,1,0.32,1);
+}
+.sidebar-wall-item::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0.75rem;
+  right: 0.75rem;
+  height: 2px;
+  background: currentColor;
+  border-radius: 1px;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 180ms cubic-bezier(0.23,1,0.32,1);
+}
+.sidebar-wall-item:hover {
+  color: var(--color-text);
+}
+.sidebar-wall-item:hover::after {
+  transform: scaleX(1);
+}
+.sidebar-wall-item.active {
+  color: var(--color-brand-soft);
+}
+.sidebar-wall-item.active::after {
+  transform: scaleX(1);
+  background: var(--color-brand-soft);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-wall-item,
+  .sidebar-wall-item::after {
+    transition: none;
+  }
+  .sidebar-wall-item:hover::after {
+    transform: scaleX(1);
+  }
+}
+
+/* ── momento-desk — la striscia di legno fisica sotto la board
+ * Replica una variante compatta del .public-desk della Landing.
+ * Dimensioni: altezza fissa 22px, larghezza 110% della board (margin negativo). */
+.momento-desk {
+  width: 110%;
+  margin-left: -5%;
+  height: 22px;
+  border-radius: 2px 2px 0 0;
+  border-top: 1px solid color-mix(in srgb, var(--color-gold) 18%, transparent);
+  background:
+    repeating-linear-gradient(10deg, rgba(255,255,255,0.022) 0 1px, transparent 1px 14px),
+    linear-gradient(180deg, #5b3b24 0%, #33231a 60%, #17100d 100%);
+  flex-shrink: 0;
+}
+@media (max-width: 420px) {
+  .momento-desk {
+    width: 108%;
+    margin-left: -4%;
+  }
+}
+
 /* ---- Sidebar ---- */
 .sidebar {
   position: sticky;

@@ -148,21 +148,10 @@ function GoalHero({
     return `Mancano ${pointsNeeded} punti.`;
   })();
 
+  // Il Patto — ink on the wall. No box, no chrome. Gold lives only in the numbers and the dot.
   return (
-    <div
-      className="lit obj-card"
-      style={{
-        background: `
-          radial-gradient(480px 240px at 90% -10%, color-mix(in srgb, var(--color-gold) 16%, transparent), transparent 60%),
-          linear-gradient(180deg, color-mix(in srgb, var(--color-brand) 8%, transparent) 0%, transparent 55%),
-          var(--color-surface-2)
-        `,
-        border: "1px solid color-mix(in srgb, var(--color-gold) 30%, transparent)",
-        borderRadius: "14px",
-        padding: "clamp(20px, 4vw, 28px)",
-      }}
-    >
-      {/* Eyebrow */}
+    <div>
+      {/* Eyebrow gold — La Regola del Miele */}
       <div className="tt-eyebrow tt-honey" style={{ marginBottom: "1.25rem" }}>
         Il tuo obiettivo
       </div>
@@ -415,22 +404,16 @@ function AnchorRow({ anchor, rank, trail }: { anchor: Anchor; rank: number; trai
         onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = "0.78"; }}
         onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = "1"; }}
       >
-        {/* Rank number */}
+        {/* Rank number — mono small muted, no bubble */}
         <div
           style={{
             flexShrink: 0,
-            width: "2rem",
-            height: "2rem",
-            borderRadius: "999px",
-            background: "var(--color-surface-3)",
-            border: "1px solid var(--color-line-strong)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            width: "1.25rem",
             fontFamily: "var(--font-mono)",
-            fontWeight: 700,
-            fontSize: "0.8rem",
-            color: "var(--color-brand-soft)",
+            fontWeight: 600,
+            fontSize: "0.72rem",
+            color: "var(--color-faint)",
+            paddingTop: "0.15rem",
           }}
         >
           {rank}
@@ -440,8 +423,9 @@ function AnchorRow({ anchor, rank, trail }: { anchor: Anchor; rank: number; trai
         <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
-              fontWeight: 600,
-              fontSize: "0.95rem",
+              fontFamily: "var(--font-voice)",
+              fontWeight: 500,
+              fontSize: "1.1rem",
               color: "var(--color-text)",
               lineHeight: 1.3,
               marginBottom: "0.375rem",
@@ -651,6 +635,54 @@ function useLiveElo(
   }, [chessComUsername, goalTimeClass]);
 
   return liveRating;
+}
+
+// ── VarcoQuaderno — una riga di testo serif quiet con freccia ────────────────
+// No box, no card. Hover: the arrow advances 4px.
+
+function VarcoQuaderno({ onNavigate }: { onNavigate: () => void }) {
+  const [arrowShift, setArrowShift] = React.useState(0);
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onNavigate}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onNavigate(); } }}
+      onMouseEnter={() => setArrowShift(4)}
+      onMouseLeave={() => setArrowShift(0)}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.625rem",
+        cursor: "pointer",
+        userSelect: "none",
+      }}
+    >
+      <span
+        style={{
+          fontFamily: "var(--font-voice)",
+          fontSize: "0.95rem",
+          fontWeight: 400,
+          color: "var(--color-text-soft)",
+          lineHeight: 1.5,
+        }}
+      >
+        La sala dove guardiamo tutto con calma: la curva, dove perdi tempo, le aperture.
+      </span>
+      <span
+        aria-hidden="true"
+        style={{
+          fontSize: "1rem",
+          color: "var(--color-muted)",
+          flexShrink: 0,
+          transform: `translateX(${arrowShift}px)`,
+          transition: "transform 180ms cubic-bezier(0.23,1,0.32,1)",
+        }}
+      >
+        &rarr;
+      </span>
+    </div>
+  );
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -874,7 +906,7 @@ export function TavoloHome() {
   return (
     <div
       className="mx-auto px-5 py-10 md:px-8 md:py-14"
-      style={{ maxWidth: "56rem" }}
+      style={{ maxWidth: "60rem" }}
     >
 
       {/* ════════════════════════════════════════════════════════════════════
@@ -883,10 +915,10 @@ export function TavoloHome() {
           piu' peso, entra per prima. E' qui che cade l'occhio aprendo.
           ════════════════════════════════════════════════════════════════════ */}
 
-      {/* ── 1. INGRESSO: voce di Nonno (memoria visibile fusa dentro la card) ──
+      {/* ── 1. INGRESSO: voce scritta sulla parete ──────────────────────────
           No Reveal wrapper here: the card owns its mount stagger (ng-stagger-*),
           a second opacity layer would double-fade the most important scene. */}
-      <div className="mb-10">
+      <div className="mb-16">
         <NonnoGreeting
           goal={liveGoal}
           memoria={memoriaVisibile}
@@ -914,11 +946,11 @@ export function TavoloHome() {
         />
       </div>
 
-      {/* ── 2. OBIETTIVO: hero-goal (oro) ──────────────────────────────────
+      {/* ── 2. OBIETTIVO: il Patto scritto sulla parete ─────────────────────
           settle-in at 650ms: after Nonno finishes speaking (~500ms). */}
       {currentRating != null && (
         <div
-          className="settle-in mb-10"
+          className="settle-in mb-16"
           style={{ animationDelay: "650ms" }}
         >
           <GoalHero
@@ -935,11 +967,11 @@ export function TavoloHome() {
         </div>
       )}
 
-      {/* ── 3. IL MOMENTO DEL GIORNO (la spina resa posizione) ─────────────
+      {/* ── 3. LA SCENA DEL LEGNO — la scacchiera sul tavolo ───────────────
           settle-in at 850ms: after GoalHero is visible and ink starts drawing. */}
       {momentoPool.length > 0 && (
         <div
-          className="settle-in mb-10"
+          className="settle-in mb-16"
           style={{ animationDelay: "850ms" }}
         >
           <MomentoDelGiorno
@@ -953,17 +985,10 @@ export function TavoloHome() {
           Il gap col target (maia_weighted) NON vive piu' qui: era un muro di
           numeri in prosa (estetica Aimchess). Quella verita' ora sta nella VOCE
           di Nonno (NonnoGreeting riceve maiaWeighted) e nel Quaderno (Evoluzione). */}
+      {/* Ancore — appunti sulla parete, nessuna scatola. Righe separate da bordo sottile. */}
       {anchorsTop3.length > 0 && (
-        <Reveal delay={220} className="mb-10">
-          <div
-            className="lit obj-card"
-            style={{
-              background: "var(--color-surface)",
-              border: "1px solid var(--color-line)",
-              borderRadius: "14px",
-              padding: "clamp(20px, 4vw, 32px)",
-            }}
-          >
+        <Reveal delay={220} className="mb-16">
+          <div>
             <div
               style={{
                 display: "flex",
@@ -997,7 +1022,7 @@ export function TavoloHome() {
               Quello che ti tiene ancorato giu'. In cima, l'ancora che ti vale piu' punti se la sciogli.
             </div>
 
-            {/* List — no border on last row. Pass matching trail for the micro-scia. */}
+            {/* List — rows divided by border-bottom. Last row no border (handled in AnchorRow). */}
             <div>
               {anchorsTop3.map((anchor, i) => {
                 const trail = anchorTrails.find((t) => t.key === anchor.type) ?? null;
@@ -1015,62 +1040,9 @@ export function TavoloHome() {
         </Reveal>
       )}
 
-      {/* ── 5. VARCO AL QUADERNO (quiet, surface-2, flat, no em-dash) ─────── */}
-      <Reveal delay={260} className="mb-10">
-        <div
-          className="lit obj-card"
-          role="button"
-          tabIndex={0}
-          onClick={() => navigateWithTransition(() => nav("/quaderno"))}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigateWithTransition(() => nav("/quaderno")); } }}
-          style={{
-            background: "var(--color-surface-2)",
-            border: "1px solid var(--color-line)",
-            borderRadius: "14px",
-            padding: "clamp(20px, 4vw, 28px)",
-            cursor: "pointer",
-            transition: "border-color 160ms cubic-bezier(0.23,1,0.32,1), transform 180ms var(--ease-out)",
-          }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--color-line-strong)"; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "var(--color-line)"; }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              justifyContent: "space-between",
-              gap: "1rem",
-            }}
-          >
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="tt-eyebrow tt-muted" style={{ marginBottom: "0.5rem" }}>
-                Il perche', a fondo
-              </div>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "0.92rem",
-                  color: "var(--color-text-soft)",
-                  lineHeight: 1.6,
-                  maxWidth: "56ch",
-                }}
-              >
-                La sala dove guardiamo tutto con calma: la curva, dove perdi tempo, le aperture.
-              </p>
-            </div>
-            <div
-              style={{
-                flexShrink: 0,
-                fontSize: "1.1rem",
-                color: "var(--color-muted)",
-                paddingTop: "0.25rem",
-              }}
-              aria-hidden="true"
-            >
-              &rarr;
-            </div>
-          </div>
-        </div>
+      {/* ── 5. VARCO AL QUADERNO — una riga, non una porta di cartone */}
+      <Reveal delay={260} className="mb-16">
+        <VarcoQuaderno onNavigate={() => navigateWithTransition(() => nav("/quaderno"))} />
       </Reveal>
 
       {/* ── 6. AZIONI SECONDARIE (mobile only — desktop uses sidebar links) ── */}
