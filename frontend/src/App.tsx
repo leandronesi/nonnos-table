@@ -16,6 +16,7 @@ import { AppShell } from "./components/AppShell";
 import { PRODUCT_NAME } from "./coaching";
 import { IncontroPreview } from "./pages/dev/IncontroPreview";
 import { SecondaBattutaPopup } from "./components/SecondaBattutaPopup";
+import { StanzaHome } from "./pages/StanzaHome";
 
 /**
  * Root router multi-utente per Nonno's Table.
@@ -120,6 +121,16 @@ export function App() {
 
           {/* Sessione di coaching */}
           <Route path="/sessione" element={<RequireAuth><AppShell><Sessione /></AppShell></RequireAuth>} />
+
+          {/* La Stanza del Nonno — anteprima Onda P2, autenticata, full-bleed (no AppShell) */}
+          <Route
+            path="/stanza"
+            element={
+              <RequireAuth>
+                <StanzaHome />
+              </RequireAuth>
+            }
+          />
 
           {/* Maia smoke test (dev, pubblica) — da rimuovere dopo la verifica */}
           <Route path="/maia-test" element={<MaiaTest />} />
