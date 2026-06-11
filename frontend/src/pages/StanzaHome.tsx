@@ -17,8 +17,17 @@ import { selectMomento } from "../components/MomentoDelGiorno";
 import { materialForGap } from "../pipeline/history";
 import { prefersReducedMotion } from "../lib/motion";
 import type { HistorySnapshot } from "../types";
+// Type-only import: erased at build time, three.js stays in the lazy chunk.
+import type { Focus } from "./stanza/StanzaScene";
 
 const StanzaScene = lazy(() => import("./stanza/StanzaScene"));
+
+/** Hint chip copy per focused object — the second tap enters. */
+const FOCUS_HINTS: Record<Exclude<Focus, "tavolo">, string> = {
+  scacchiera: "Sediamoci su questa",
+  quaderno: "Apri il Quaderno",
+  scatola: "Vai alle Cadute",
+};
 
 // ── Handicap derivation (same guards as buildHandicapLine) ────────────────────
 
@@ -81,11 +90,21 @@ export function StanzaHome() {
     return () => clearTimeout(t);
   }, [loading, error, reduced]);
 
-  // A room must have a door: Escape leaves the scene.
+  // Gli sguardi: which object the camera leans over. StanzaHome owns it so
+  // Escape and the DOM chip can drive it alongside the in-canvas clicks.
+  const [focus, setFocus] = useState<Focus>("tavolo");
+
+  // A room must have a door: Escape steps back from an object first,
+  // then leaves the scene.
   const nav = useNavigate();
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") nav("/");
+      if (e.key !== "Escape") return;
+      setFocus((f) => {
+        if (f !== "tavolo") return "tavolo";
+        nav("/");
+        return f;
+      });
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -151,6 +170,8 @@ export function StanzaHome() {
           onNotebookClick={() => nav("/quaderno")}
           onBoxClick={() => nav("/quaderno#cadute")}
           onLetterClick={() => nav("/")}
+          focus={focus}
+          onFocusRequest={setFocus}
         />
       </Suspense>
 
@@ -161,6 +182,26 @@ export function StanzaHome() {
       <Link to="/" className="scena-uscita" aria-label="Torna al Tavolo">
         Torna al Tavolo
       </Link>
+
+      {/* The focus chip: leaning over an object, one more tap enters it */}
+      {focus !== "tavolo" && (
+        <button
+          className="scena-focus-chip"
+          onClick={() => {
+            if (focus === "scacchiera" && momento) {
+              nav("/sessione", {
+                state: { focusKey: `${momento.fen_before}:${momento.ply}` },
+              });
+            } else if (focus === "quaderno") {
+              nav("/quaderno");
+            } else if (focus === "scatola") {
+              nav("/quaderno#cadute");
+            }
+          }}
+        >
+          {FOCUS_HINTS[focus]}
+        </button>
+      )}
 
       {/* The dialogue — arrives when the camera has sat down */}
       <div className={`scena-dialogo${spoken ? " scena-dialogo-in" : ""}`} aria-live="polite">

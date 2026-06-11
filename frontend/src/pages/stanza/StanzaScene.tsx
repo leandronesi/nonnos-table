@@ -53,45 +53,100 @@ export interface StanzaSceneProps {
   onNotebookClick?: () => void;
   onBoxClick?: () => void;
   onLetterClick?: () => void;
+  /** Controlled focus: StanzaHome owns it (Escape and the DOM chip drive it too). */
+  focus: Focus;
+  onFocusRequest: (focus: Focus) => void;
 }
 
-// ── Camera: dolly to the chair, then breathe with the pointer ─────────────────
+// ── Gli sguardi: where the camera can lean ─────────────────────────────────────
 
-const SEAT_POS = new THREE.Vector3(0, 1.42, 2.95);
+export type Focus = "tavolo" | "scacchiera" | "quaderno" | "scatola";
+
+const FOCI: Record<Focus, { pos: THREE.Vector3; tgt: THREE.Vector3; minD: number; maxD: number }> = {
+  tavolo:     { pos: new THREE.Vector3(0, 1.42, 2.95),     tgt: new THREE.Vector3(0, 0.18, -0.15),    minD: 1.6, maxD: 4.6 },
+  scacchiera: { pos: new THREE.Vector3(-0.28, 1.18, 1.5),  tgt: new THREE.Vector3(-0.28, 0.08, 0.1),  minD: 0.7, maxD: 3.2 },
+  quaderno:   { pos: new THREE.Vector3(1.38, 0.95, 1.5),   tgt: new THREE.Vector3(1.52, 0.02, 0.62),  minD: 0.5, maxD: 2.6 },
+  scatola:    { pos: new THREE.Vector3(-1.35, 0.85, 0.4),  tgt: new THREE.Vector3(-1.55, 0.08, -0.55), minD: 0.5, maxD: 2.6 },
+};
+
+// ── Camera rig: sit down, then glide between gli sguardi ──────────────────────
+
+const SEAT_POS = FOCI.tavolo.pos;
 const ENTER_POS = new THREE.Vector3(0, 2.6, 5.6);
-const LOOK_AT = new THREE.Vector3(0, 0.18, -0.15);
+const LOOK_AT = FOCI.tavolo.tgt;
 
-function SitDownCamera({
+/**
+ * One rig owns the camera life:
+ *   entering — 3s dolly to the chair (the act of sitting down)
+ *   gliding  — 1.6s pursuit toward the focused object (controls disabled)
+ *   free     — OrbitControls active around the current focus target
+ */
+function CameraRig({
   reducedMotion,
+  focus,
   onSeated,
 }: {
   reducedMotion: boolean;
+  focus: Focus;
   onSeated: () => void;
 }) {
-  const { camera } = useThree();
+  const { camera, controls } = useThree() as unknown as {
+    camera: THREE.PerspectiveCamera;
+    controls: { target: THREE.Vector3; enabled: boolean; minDistance: number; maxDistance: number; update: () => void } | null;
+  };
   const t0 = useRef<number | null>(null);
-  const done = useRef(false);
+  const seated = useRef(false);
+  const prevFocus = useRef<Focus>("tavolo");
+  const glideUntil = useRef(0);
 
   useFrame((state) => {
-    if (done.current) return;
-    if (reducedMotion) {
-      camera.position.copy(SEAT_POS);
+    const now = state.clock.elapsedTime;
+
+    // 1) Sitting down
+    if (!seated.current) {
+      if (reducedMotion) {
+        camera.position.copy(SEAT_POS);
+        camera.lookAt(LOOK_AT);
+        seated.current = true;
+        onSeated();
+        return;
+      }
+      if (t0.current === null) t0.current = now;
+      const k = Math.min((now - t0.current) / 3.0, 1);
+      const e = 1 - Math.pow(1 - k, 3);
+      camera.position.lerpVectors(ENTER_POS, SEAT_POS, e);
       camera.lookAt(LOOK_AT);
-      done.current = true;
-      onSeated();
+      if (k >= 1) {
+        seated.current = true;
+        onSeated();
+      }
       return;
     }
-    if (t0.current === null) t0.current = state.clock.elapsedTime;
-    const t = state.clock.elapsedTime - t0.current;
 
-    // 3s dolly with a long easeOut tail — the act of sitting down.
-    const k = Math.min(t / 3.0, 1);
-    const e = 1 - Math.pow(1 - k, 3);
-    camera.position.lerpVectors(ENTER_POS, SEAT_POS, e);
-    camera.lookAt(LOOK_AT);
-    if (k >= 1) {
-      done.current = true;
-      onSeated();
+    if (!controls) return;
+    const f = FOCI[focus];
+
+    // 2) A new sguardo: start a glide window
+    if (focus !== prevFocus.current) {
+      prevFocus.current = focus;
+      glideUntil.current = now + (reducedMotion ? 0 : 1.6);
+      controls.minDistance = f.minD;
+      controls.maxDistance = f.maxD;
+      if (reducedMotion) {
+        camera.position.copy(f.pos);
+        controls.target.copy(f.tgt);
+        controls.update();
+      }
+    }
+
+    // 3) Glide: pursue the preset, hands off the wheel
+    if (now < glideUntil.current) {
+      controls.enabled = false;
+      camera.position.lerp(f.pos, 0.065);
+      controls.target.lerp(f.tgt, 0.065);
+      controls.update();
+    } else {
+      controls.enabled = true;
     }
   });
   return null;
@@ -144,10 +199,21 @@ function Lampada() {
 
 // ── The table ──────────────────────────────────────────────────────────────────
 
-function Tavolo() {
+function Tavolo({ onClick }: { onClick?: () => void }) {
   const wood = useMemo(() => woodTexture(), []);
   return (
-    <mesh position={[0, -0.1, 0]} receiveShadow>
+    <mesh
+      position={[0, -0.1, 0]}
+      receiveShadow
+      onClick={
+        onClick
+          ? (e) => {
+              e.stopPropagation();
+              onClick();
+            }
+          : undefined
+      }
+    >
       <boxGeometry args={[7.2, 0.2, 3.8]} />
       <meshStandardMaterial map={wood} roughness={0.62} metalness={0.04} />
     </mesh>
@@ -549,18 +615,21 @@ function Cliccabile({
 
 // ── The room shell: wall + floor void ──────────────────────────────────────────
 
-function Stanza3D(props: StanzaSceneProps) {
+function Stanza3D(props: StanzaSceneProps & { focus: Focus; onObject: (f: Focus, navigate?: () => void) => void }) {
   const [seated, setSeated] = useState(false);
+  const { focus, onObject } = props;
 
   return (
     <>
       <color attach="background" args={["#04060e"]} />
       <fog attach="fog" args={["#04060e", 5.2, 11]} />
 
-      <SitDownCamera reducedMotion={props.reducedMotion} onSeated={() => setSeated(true)} />
+      <CameraRig reducedMotion={props.reducedMotion} focus={focus} onSeated={() => setSeated(true)} />
       {/* Once seated, the chair is yours: drag to look around, scroll to lean in.
-          Rails keep the scene unbreakable (never under the table, never past the wall). */}
+          Rails keep the scene unbreakable (never under the table, never past the wall).
+          makeDefault registers the controls so the rig can drive their target. */}
       <OrbitControls
+        makeDefault
         enabled={seated}
         target={[LOOK_AT.x, LOOK_AT.y, LOOK_AT.z]}
         enablePan={false}
@@ -573,8 +642,12 @@ function Stanza3D(props: StanzaSceneProps) {
         minAzimuthAngle={-0.85}
         maxAzimuthAngle={0.85}
       />
-      <hemisphereLight intensity={0.12} color="#2a3148" groundColor="#100a06" />
+      {/* Lifted just enough that shadows stay shadows, not voids */}
+      <hemisphereLight intensity={0.17} color="#2a3148" groundColor="#100a06" />
       <Lampada />
+      {/* Lamp spill: the notebook corner and the box side get their share of warmth */}
+      <pointLight position={[1.5, 1.15, 0.62]} intensity={2.8} distance={3} decay={2} color="#ffd2a0" />
+      <pointLight position={[-1.55, 1.0, -0.1]} intensity={1.5} distance={2.8} decay={2} color="#e8c294" />
 
       {/* Back wall, barely touched by the lamp */}
       <mesh position={[0, 1.4, -2.6]} receiveShadow>
@@ -582,10 +655,11 @@ function Stanza3D(props: StanzaSceneProps) {
         <meshStandardMaterial color="#0a0e1a" roughness={0.95} />
       </mesh>
 
-      <Tavolo />
+      {/* Clicking the bare wood brings you back to the seat */}
+      <Tavolo onClick={() => onObject("tavolo")} />
 
       {props.fen && (
-        <Cliccabile onClick={props.onBoardClick}>
+        <Cliccabile onClick={() => onObject("scacchiera", props.onBoardClick)}>
           <Scacchiera
             fen={props.fen}
             playedMove={props.playedMove}
@@ -601,7 +675,7 @@ function Stanza3D(props: StanzaSceneProps) {
         />
       )}
       {props.showNotebook && (
-        <Cliccabile onClick={props.onNotebookClick}>
+        <Cliccabile onClick={() => onObject("quaderno", props.onNotebookClick)}>
           <Quaderno
             lines={props.notebookLines}
             gold={props.notebookGold}
@@ -612,7 +686,7 @@ function Stanza3D(props: StanzaSceneProps) {
       )}
       <Tazza reducedMotion={props.reducedMotion} />
       {props.thorns.length > 0 && (
-        <Cliccabile onClick={props.onBoxClick}>
+        <Cliccabile onClick={() => onObject("scatola", props.onBoxClick)}>
           <ScatolaSpine thorns={props.thorns} />
         </Cliccabile>
       )}
@@ -623,6 +697,16 @@ function Stanza3D(props: StanzaSceneProps) {
 // ── Public component: the Canvas ───────────────────────────────────────────────
 
 export default function StanzaScene(props: StanzaSceneProps) {
+  // First click leans the camera over the object; a second click (or the DOM
+  // chip) enters its surface. Clicking the bare wood returns to the seat.
+  function handleObject(f: Focus, navigate?: () => void) {
+    if (f === props.focus && navigate) {
+      navigate();
+      return;
+    }
+    props.onFocusRequest(f);
+  }
+
   return (
     <Canvas
       shadows
@@ -634,9 +718,10 @@ export default function StanzaScene(props: StanzaSceneProps) {
         gl.toneMappingExposure = 1.05;
         gl.shadowMap.type = THREE.PCFSoftShadowMap;
       }}
+      onPointerMissed={() => props.onFocusRequest("tavolo")}
       style={{ position: "absolute", inset: 0 }}
     >
-      <Stanza3D {...props} />
+      <Stanza3D {...props} onObject={handleObject} />
     </Canvas>
   );
 }
