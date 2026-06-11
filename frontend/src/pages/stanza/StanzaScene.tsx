@@ -72,9 +72,13 @@ const FOCI: Record<Focus, { pos: THREE.Vector3; tgt: THREE.Vector3; minD: number
 
 // ── Camera rig: sit down, then glide between gli sguardi ──────────────────────
 
-const SEAT_POS = FOCI.tavolo.pos;
 const ENTER_POS = new THREE.Vector3(0, 2.6, 5.6);
 const LOOK_AT = FOCI.tavolo.tgt;
+
+/** Coarse pointer = phone/tablet: lighter shadows, capped DPR. */
+const COARSE =
+  typeof window !== "undefined" &&
+  window.matchMedia("(pointer: coarse)").matches;
 
 /**
  * One rig owns the camera life:
@@ -91,14 +95,28 @@ function CameraRig({
   focus: Focus;
   onSeated: () => void;
 }) {
-  const { camera, controls } = useThree() as unknown as {
+  const { camera, controls, size } = useThree() as unknown as {
     camera: THREE.PerspectiveCamera;
     controls: { target: THREE.Vector3; enabled: boolean; minDistance: number; maxDistance: number; update: () => void } | null;
+    size: { width: number; height: number };
   };
   const t0 = useRef<number | null>(null);
   const seated = useRef(false);
   const prevFocus = useRef<Focus>("tavolo");
   const glideUntil = useRef(0);
+
+  // Portrait phones see the same room from a little further back and wider,
+  // otherwise the table overflows the frame on both sides.
+  const portrait = size.height > size.width;
+  const back = portrait ? 1.4 : 1;
+  const wantFov = portrait ? 54 : 42;
+  if (camera.fov !== wantFov) {
+    camera.fov = wantFov;
+    camera.updateProjectionMatrix();
+  }
+  const focusPos = (f: (typeof FOCI)[Focus]) =>
+    f.tgt.clone().add(f.pos.clone().sub(f.tgt).multiplyScalar(back));
+  const seatPos = focusPos(FOCI.tavolo);
 
   useFrame((state) => {
     const now = state.clock.elapsedTime;
@@ -106,7 +124,7 @@ function CameraRig({
     // 1) Sitting down
     if (!seated.current) {
       if (reducedMotion) {
-        camera.position.copy(SEAT_POS);
+        camera.position.copy(seatPos);
         camera.lookAt(LOOK_AT);
         seated.current = true;
         onSeated();
@@ -115,7 +133,7 @@ function CameraRig({
       if (t0.current === null) t0.current = now;
       const k = Math.min((now - t0.current) / 3.0, 1);
       const e = 1 - Math.pow(1 - k, 3);
-      camera.position.lerpVectors(ENTER_POS, SEAT_POS, e);
+      camera.position.lerpVectors(ENTER_POS, seatPos, e);
       camera.lookAt(LOOK_AT);
       if (k >= 1) {
         seated.current = true;
@@ -126,15 +144,16 @@ function CameraRig({
 
     if (!controls) return;
     const f = FOCI[focus];
+    const pos = focusPos(f);
 
     // 2) A new sguardo: start a glide window
     if (focus !== prevFocus.current) {
       prevFocus.current = focus;
       glideUntil.current = now + (reducedMotion ? 0 : 1.6);
       controls.minDistance = f.minD;
-      controls.maxDistance = f.maxD;
+      controls.maxDistance = f.maxD * back;
       if (reducedMotion) {
-        camera.position.copy(f.pos);
+        camera.position.copy(pos);
         controls.target.copy(f.tgt);
         controls.update();
       }
@@ -143,7 +162,7 @@ function CameraRig({
     // 3) Glide: pursue the preset, hands off the wheel
     if (now < glideUntil.current) {
       controls.enabled = false;
-      camera.position.lerp(f.pos, 0.065);
+      camera.position.lerp(pos, 0.065);
       controls.target.lerp(f.tgt, 0.065);
       controls.update();
     } else {
@@ -202,7 +221,7 @@ function Lampada() {
         <circleGeometry args={[0.3, 32]} />
         <meshBasicMaterial color="#ffd9a0" toneMapped={false} transparent opacity={0.85} />
       </mesh>
-      {/* The light itself */}
+      {/* The light itself — lighter shadow map on coarse-pointer devices */}
       <spotLight
         position={[0, 1.75, 0]}
         angle={0.62}
@@ -212,8 +231,8 @@ function Lampada() {
         decay={1.4}
         color="#ffd9a8"
         castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
+        shadow-mapSize-width={COARSE ? 1024 : 2048}
+        shadow-mapSize-height={COARSE ? 1024 : 2048}
         shadow-bias={-0.0004}
       />
       {/* Warm fill so blacks don't clip to void */}
@@ -750,7 +769,7 @@ export default function StanzaScene(props: StanzaSceneProps) {
   return (
     <Canvas
       shadows
-      dpr={[1, 2]}
+      dpr={[1, COARSE ? 1.5 : 2]}
       camera={{ fov: 42, near: 0.1, far: 30, position: ENTER_POS.toArray() }}
       gl={{ antialias: true }}
       onCreated={({ gl }) => {
