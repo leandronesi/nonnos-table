@@ -123,10 +123,10 @@ type SceneState = "start" | "played" | "back" | "best" | "rest";
 //   - the replay loop starts      → LOOP_DELAY
 // These are tracked in timeoutsRef alongside the animation timeouts.
 // PO direction: "rallentalo tantissimo e dagli tempo" — the scene is a moment,
-// not a transition. Hold on the table (1200ms), rise very slowly (2800ms in
-// CSS, keep in sync), breathe (800ms), then the replay begins.
+// not a transition. Hold on the table (1200ms), rise very slowly (3400ms in
+// CSS, keep in sync), breathe (900ms), then the replay begins.
 const RISE_DELAY = 1200;
-const LOOP_DELAY = 1200 + 2800 + 800;
+const LOOP_DELAY = 1200 + 3400 + 900;
 
 // ── Component ─────────────────────────────────────────────────────────────────
 

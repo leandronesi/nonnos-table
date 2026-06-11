@@ -376,9 +376,9 @@ button:disabled, [aria-disabled="true"] {
  * Coreography (IO trigger → risen class added after RISE_DELAY=1200ms):
  *   t=0ms    IO fires (card enters viewport 30%) — hold: you SEE the table
  *   t=1200ms risen class → board rotates from rotateX(52deg) to rotateX(0)
- *             transition: 2800ms, long cinematic landing (no overshoot at
- *             this duration — a 2.8s wobble would read as seasickness)
- *   t=4800ms replay loop starts (startCycle), after an 800ms breath
+ *             transition: 3400ms, long cinematic landing (no overshoot at
+ *             this duration — a wobble this slow would read as seasickness)
+ *   t=5500ms replay loop starts (startCycle), after a 900ms breath
  */
 
 .momento-scene {
@@ -409,10 +409,10 @@ button:disabled, [aria-disabled="true"] {
 .momento-board-rise {
   transform-origin: bottom center;
   transform: rotateX(52deg) scale(0.97);
-  /* Very slow rise (PO: "rallentalo tantissimo"): easeOutExpo-like curve,
-     moves early then lands over a long calm tail. Keep duration in sync
-     with RISE_DELAY/LOOP_DELAY in MomentoDelGiorno.tsx. */
-  transition: transform 2800ms cubic-bezier(0.16, 1, 0.3, 1);
+  /* Very slow rise (PO: "rallentalo tantissimo... leggermente piu' lenta"):
+     easeOutExpo-like curve, moves early then lands over a long calm tail.
+     Keep duration in sync with RISE_DELAY/LOOP_DELAY in MomentoDelGiorno.tsx. */
+  transition: transform 3400ms cubic-bezier(0.16, 1, 0.3, 1);
   /* contact shadow — physical, not decorative; lives on the inner board-wrap */
 }
 .momento-board-rise.risen {
@@ -423,6 +423,76 @@ button:disabled, [aria-disabled="true"] {
   .momento-tabletop {
     width: 125%;
     height: 70px;
+  }
+}
+
+/* ── BoardScene — session entry: board arrives lying on the table, then rises.
+ * Gemelle delle classi momento-* sopra, con timing diverso:
+ *   - momento-* usa 3400ms (one-shot del giorno, cinematico lento)
+ *   - board-scene-rise usa 2000ms (rituale ripetuto ad ogni posizione:
+ *     deve restare rito, non diventare attesa)
+ *
+ * Cross-reference: MomentoDelGiorno usa momento-* (RISE_DELAY 1200ms,
+ * 3400ms transition). BoardScene usa board-scene-rise (holdMs=500ms,
+ * 2000ms transition). NON unificare: i due contesti hanno ritmi diversi.
+ *
+ * Layout:
+ *   .board-scene           — perspective container; clips horizontal overflow
+ *   .board-scene-tabletop  — prospective wooden plane below the board
+ *   .board-scene-rise      — wrapper that rotates from 48° to 0° (risen class)
+ */
+
+.board-scene {
+  perspective: 950px;
+  position: relative;
+  overflow-x: hidden;
+  padding-bottom: 10px;
+}
+
+.board-scene-tabletop {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 150%;
+  height: 90px;
+  transform: translateX(-50%) rotateX(58deg);
+  transform-origin: top center;
+  border-radius: 4px;
+  /* Timber: grain texture + lamp pool at center top, dark gradient below */
+  background:
+    radial-gradient(60% 50% at 50% 18%, rgba(255, 220, 160, 0.10), transparent 70%),
+    repeating-linear-gradient(10deg, rgba(255,255,255,0.022) 0 1px, transparent 1px 14px),
+    linear-gradient(180deg, #5b3b24 0%, #33231a 55%, #17100d 100%);
+  border-top: 1px solid color-mix(in srgb, var(--color-gold) 18%, transparent);
+}
+
+.board-scene-rise {
+  transform-origin: bottom center;
+  transform: rotateX(48deg) scale(0.97);
+  /* Session rhythm: faster than the Tavolo one-shot (repeats each position,
+     must stay a ritual not a friction): 2000ms, same long-landing curve.
+     Keep in sync with BoardScene.tsx holdMs default (500ms). */
+  transition: transform 2000ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.board-scene-rise.risen {
+  transform: rotateX(0deg) scale(1);
+}
+
+@media (max-width: 480px) {
+  .board-scene-tabletop {
+    width: 125%;
+    height: 70px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-scene-rise {
+    transform: none;
+    transition: none;
+  }
+  .board-scene-rise.risen {
+    transform: none;
   }
 }
 
@@ -1670,7 +1740,7 @@ button:disabled, [aria-disabled="true"] {
   position: relative;
   /* One-shot settle: the sheet appears to be placed on the desk at page mount.
      Slowed with the board rise (PO: "dagli tempo") — same long calm landing. */
-  animation: sheet-place 1400ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: sheet-place 1600ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Light theme: white paper, pencil-grey rules, soft contact shadow */

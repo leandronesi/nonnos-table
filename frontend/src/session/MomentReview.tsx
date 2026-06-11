@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import { Chess } from "chess.js";
 import type { PositionRow } from "../types";
 import { BoardView } from "../components/BoardView";
+import { BoardScene } from "../components/BoardScene";
 import { useBoardFit } from "../components/useBoardFit";
 import { useStockfish } from "../engine/useStockfish";
 
@@ -375,18 +376,21 @@ export function MomentReview({ position, index, total, maiaLevel, onNext, onPrev
       {/* Layout board + pannello destra */}
       <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-10 items-start">
 
-        {/* Board — ref on the frame; on desktop the auto-col sizes to fit.max,
-              on mobile (grid-cols-1) the frame fills the row and clamps to fit.max. */}
-        <div ref={fit.ref} className="sess-board-frame" style={{ width: "100%", maxWidth: fit.max }}>
-          <BoardView
-            fen={position.fen_before}
-            orientation={orientation}
-            size={fit.size}
-            resetKey={`review-${position.game_id}:${position.ply}`}
-            arrows={arrows}
-            highlights={highlights}
-          />
-        </div>
+        {/* Board — BoardScene wraps from outside; fit.ref stays on the inner
+              frame (callback ref pattern, fix b10ee1a: avoids missing re-observation
+              after a keyed remount). BoardScene blocks interaction until risen. */}
+        <BoardScene sceneKey={`review-${position.game_id}:${position.ply}`}>
+          <div ref={fit.ref} className="sess-board-frame" style={{ width: "100%", maxWidth: fit.max }}>
+            <BoardView
+              fen={position.fen_before}
+              orientation={orientation}
+              size={fit.size}
+              resetKey={`review-${position.game_id}:${position.ply}`}
+              arrows={arrows}
+              highlights={highlights}
+            />
+          </div>
+        </BoardScene>
 
         {/* Pannello destra */}
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>

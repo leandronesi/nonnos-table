@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Chess } from "chess.js";
 import { BoardView } from "../components/BoardView";
 import { BoardLegend } from "../components/BoardLegend";
+import { BoardScene } from "../components/BoardScene";
 import { useBoardFit } from "../components/useBoardFit";
 import { CoachNote } from "../components/CoachNote";
 import { SureCheck } from "../components/SureCheck";
@@ -577,19 +578,28 @@ export function PlayStep({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-10 items-start">
+      {/* BoardScene entrance: sceneKey = startFen (the game position).
+          Does NOT re-trigger on every move — only on the initial position entry.
+          fit.ref stays on the inner div (callback ref, b10ee1a fix).
+          pointerEvents are blocked during the rise by BoardScene, so the
+          draggable board cannot be touched while rotated. The engine may start
+          thinking at mount (if sideToMove !== myColor) — that is fine since the
+          engine move has its own natural delay and plays after the board is up. */}
       <div className="flex flex-col items-center gap-2">
-        <div ref={fit.ref} style={{ width: "100%", maxWidth: fit.max }}>
-          <BoardView
-            fen={fen}
-            resetKey={startFen}
-            orientation={myColor}
-            size={fit.size}
-            draggable={!outcome && !engineThinking && !evaluatingMove && !pendingSure && turnFromFen(fen) === myColor}
-            onPieceDrop={onDrop}
-            highlights={highlights}
-            arrows={arrows}
-          />
-        </div>
+        <BoardScene sceneKey={startFen}>
+          <div ref={fit.ref} style={{ width: "100%", maxWidth: fit.max }}>
+            <BoardView
+              fen={fen}
+              resetKey={startFen}
+              orientation={myColor}
+              size={fit.size}
+              draggable={!outcome && !engineThinking && !evaluatingMove && !pendingSure && turnFromFen(fen) === myColor}
+              onPieceDrop={onDrop}
+              highlights={highlights}
+              arrows={arrows}
+            />
+          </div>
+        </BoardScene>
         <BoardLegend preset="play" />
       </div>
 
