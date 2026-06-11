@@ -10,7 +10,7 @@
  * Route: /stanza (authenticated, no AppShell). Home swap is Onda S.
  */
 
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { Component, Suspense, lazy, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTavoloData } from "./tavolo/useTavoloData";
 import { selectMomento } from "../components/MomentoDelGiorno";
@@ -57,6 +57,28 @@ function buildHandicapDisplay(snapshots: HistorySnapshot[]): {
 function uciToPair(uci: string | null | undefined): [string, string] | null {
   if (!uci || uci.length < 4) return null;
   return [uci.slice(0, 2), uci.slice(2, 4)];
+}
+
+/**
+ * WebGL safety net: if the scene throws (no WebGL, driver loss, old device),
+ * the user gets a door instead of a black screen.
+ */
+class SceneBoundary extends Component<{ children: ReactNode }, { broken: boolean }> {
+  state = { broken: false };
+  static getDerivedStateFromError() {
+    return { broken: true };
+  }
+  render() {
+    if (this.state.broken) {
+      return (
+        <div className="stanza-errore">
+          <p>Questa stanza chiede un dispositivo piu&apos; recente.</p>
+          <Link to="/">Torna al Tavolo</Link>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -146,6 +168,7 @@ export function StanzaHome() {
   // ── The room ─────────────────────────────────────────────────────────────────
   return (
     <div className="stanza-shell" role="main" aria-label="La stanza del Nonno">
+      <SceneBoundary>
       <Suspense fallback={<div className="stanza-attesa">La Stanza</div>}>
         <StanzaScene
           fen={momento?.fen_before ?? null}
@@ -174,6 +197,7 @@ export function StanzaHome() {
           onFocusRequest={setFocus}
         />
       </Suspense>
+      </SceneBoundary>
 
       {/* Vignette above the canvas: screen edges fall into the dark */}
       <div className="scena-vignetta" aria-hidden="true" />
