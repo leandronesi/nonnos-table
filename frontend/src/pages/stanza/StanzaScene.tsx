@@ -12,9 +12,9 @@
  * This file is lazy-loaded so three.js never touches the main bundle.
  */
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Billboard } from "@react-three/drei";
+import { Billboard, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { Pezzo, PezziFromFen, type PieceKind } from "./Pezzi";
 import {
@@ -48,6 +48,11 @@ export interface StanzaSceneProps {
   showLetter: boolean;
   /** Reduced motion: camera starts seated, no drift, no steam animation. */
   reducedMotion: boolean;
+  /** Object navigation — the room IS the menu. */
+  onBoardClick?: () => void;
+  onNotebookClick?: () => void;
+  onBoxClick?: () => void;
+  onLetterClick?: () => void;
 }
 
 // ── Camera: dolly to the chair, then breathe with the pointer ─────────────────
@@ -56,35 +61,38 @@ const SEAT_POS = new THREE.Vector3(0, 1.42, 2.95);
 const ENTER_POS = new THREE.Vector3(0, 2.6, 5.6);
 const LOOK_AT = new THREE.Vector3(0, 0.18, -0.15);
 
-function SitDownCamera({ reducedMotion }: { reducedMotion: boolean }) {
-  const { camera, pointer } = useThree();
+function SitDownCamera({
+  reducedMotion,
+  onSeated,
+}: {
+  reducedMotion: boolean;
+  onSeated: () => void;
+}) {
+  const { camera } = useThree();
   const t0 = useRef<number | null>(null);
-  const seated = useRef(reducedMotion);
+  const done = useRef(false);
 
   useFrame((state) => {
+    if (done.current) return;
     if (reducedMotion) {
       camera.position.copy(SEAT_POS);
       camera.lookAt(LOOK_AT);
+      done.current = true;
+      onSeated();
       return;
     }
     if (t0.current === null) t0.current = state.clock.elapsedTime;
     const t = state.clock.elapsedTime - t0.current;
 
-    if (!seated.current) {
-      // 3s dolly with a long easeOut tail — the act of sitting down.
-      const k = Math.min(t / 3.0, 1);
-      const e = 1 - Math.pow(1 - k, 3);
-      camera.position.lerpVectors(ENTER_POS, SEAT_POS, e);
-      if (k >= 1) seated.current = true;
-    } else {
-      // Seated: tiny parallax with the pointer, like shifting in the chair.
-      const targetX = SEAT_POS.x + pointer.x * 0.09;
-      const targetY = SEAT_POS.y + pointer.y * 0.045;
-      camera.position.x += (targetX - camera.position.x) * 0.04;
-      camera.position.y += (targetY - camera.position.y) * 0.04;
-      camera.position.z = SEAT_POS.z;
-    }
+    // 3s dolly with a long easeOut tail — the act of sitting down.
+    const k = Math.min(t / 3.0, 1);
+    const e = 1 - Math.pow(1 - k, 3);
+    camera.position.lerpVectors(ENTER_POS, SEAT_POS, e);
     camera.lookAt(LOOK_AT);
+    if (k >= 1) {
+      done.current = true;
+      onSeated();
+    }
   });
   return null;
 }
@@ -187,16 +195,40 @@ function MoveArrow({
     <group position={[x1, y, z1]} rotation={[0, angle, 0]}>
       {/* Shaft — a thin flat box hovering just above the squares */}
       <mesh position={[0, 0, bodyLen / 2]} rotation={[0, 0, 0]}>
-        <boxGeometry args={[0.028, 0.004, bodyLen]} />
+        <boxGeometry args={[0.022, 0.004, bodyLen]} />
         <meshBasicMaterial color={color} toneMapped={false} transparent opacity={0.85} />
       </mesh>
-      {/* Head — flat cone lying on the board plane */}
-      <mesh position={[0, 0, bodyLen + headLen / 2]} rotation={[Math.PI / 2, Math.PI, 0]}>
-        <coneGeometry args={[0.055, headLen, 3]} />
-        <meshBasicMaterial color={color} toneMapped={false} transparent opacity={0.85} />
+      {/* Head — a flat triangle lying on the board plane (no paper planes) */}
+      <mesh position={[0, 0.001, bodyLen]} rotation={[-Math.PI / 2, 0, Math.PI]} geometry={arrowHeadGeo(headLen)}>
+        <meshBasicMaterial
+          color={color}
+          toneMapped={false}
+          transparent
+          opacity={0.85}
+          side={THREE.DoubleSide}
+        />
       </mesh>
     </group>
   );
+}
+
+// Flat triangular arrowhead (a 2D shape, not a 3-segment cone).
+// With mesh rotation [-PI/2, 0, PI] a shape point (x, y) maps to (-x, 0, y):
+// the tip (0, len) lands at local z=len, i.e. exactly on the target square
+// when the mesh sits at z=bodyLen (bodyLen + headLen = full move length).
+const ARROW_HEADS = new Map<number, THREE.ShapeGeometry>();
+function arrowHeadGeo(len: number): THREE.ShapeGeometry {
+  let g = ARROW_HEADS.get(len);
+  if (!g) {
+    const s = new THREE.Shape();
+    s.moveTo(0, len);
+    s.lineTo(-0.046, 0);
+    s.lineTo(0.046, 0);
+    s.closePath();
+    g = new THREE.ShapeGeometry(s);
+    ARROW_HEADS.set(len, g);
+  }
+  return g;
 }
 
 function Scacchiera({
@@ -282,10 +314,12 @@ function Quaderno({
   lines,
   gold,
   showLetter,
+  onLetterClick,
 }: {
   lines: string[];
   gold: string | null;
   showLetter: boolean;
+  onLetterClick?: () => void;
 }) {
   const paper = useMemo(() => paperTexture("Il nostro viaggio", lines, gold), [lines, gold]);
   const letter = useMemo(() => (showLetter ? letterTexture() : null), [showLetter]);
@@ -299,9 +333,21 @@ function Quaderno({
       </mesh>
       {/* Glasses resting on the page, top-right */}
       <Occhiali position={[0.26, 0.018, -0.18]} />
-      {/* Fresh letter tucked on the page corner */}
+      {/* Fresh letter tucked on the page corner — its own click, not the notebook's */}
       {letter && (
-        <mesh position={[-0.3, 0.012, 0.24]} rotation={[-Math.PI / 2, 0, 0.26]} castShadow>
+        <mesh
+          position={[-0.3, 0.012, 0.24]}
+          rotation={[-Math.PI / 2, 0, 0.26]}
+          castShadow
+          onClick={
+            onLetterClick
+              ? (e) => {
+                  e.stopPropagation();
+                  onLetterClick();
+                }
+              : undefined
+          }
+        >
           <planeGeometry args={[0.42, 0.27]} />
           <meshStandardMaterial map={letter} roughness={0.85} />
         </mesh>
@@ -459,15 +505,74 @@ function ScatolaSpine({ thorns }: { thorns: string[] }) {
   );
 }
 
+// ── Clickable object wrapper: the room IS the menu ─────────────────────────────
+
+function Cliccabile({
+  onClick,
+  children,
+}: {
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<THREE.Group>(null);
+  const hover = useRef(false);
+
+  useFrame(() => {
+    if (!ref.current) return;
+    const target = hover.current ? 1.02 : 1;
+    const s = ref.current.scale.x + (target - ref.current.scale.x) * 0.14;
+    ref.current.scale.setScalar(s);
+  });
+
+  if (!onClick) return <group>{children}</group>;
+  return (
+    <group
+      ref={ref}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        hover.current = true;
+        document.body.style.cursor = "pointer";
+      }}
+      onPointerOut={() => {
+        hover.current = false;
+        document.body.style.cursor = "";
+      }}
+    >
+      {children}
+    </group>
+  );
+}
+
 // ── The room shell: wall + floor void ──────────────────────────────────────────
 
 function Stanza3D(props: StanzaSceneProps) {
+  const [seated, setSeated] = useState(false);
+
   return (
     <>
       <color attach="background" args={["#04060e"]} />
       <fog attach="fog" args={["#04060e", 5.2, 11]} />
 
-      <SitDownCamera reducedMotion={props.reducedMotion} />
+      <SitDownCamera reducedMotion={props.reducedMotion} onSeated={() => setSeated(true)} />
+      {/* Once seated, the chair is yours: drag to look around, scroll to lean in.
+          Rails keep the scene unbreakable (never under the table, never past the wall). */}
+      <OrbitControls
+        enabled={seated}
+        target={[LOOK_AT.x, LOOK_AT.y, LOOK_AT.z]}
+        enablePan={false}
+        enableDamping
+        dampingFactor={0.07}
+        minDistance={1.6}
+        maxDistance={4.6}
+        minPolarAngle={0.55}
+        maxPolarAngle={1.32}
+        minAzimuthAngle={-0.85}
+        maxAzimuthAngle={0.85}
+      />
       <hemisphereLight intensity={0.12} color="#2a3148" groundColor="#100a06" />
       <Lampada />
 
@@ -480,12 +585,14 @@ function Stanza3D(props: StanzaSceneProps) {
       <Tavolo />
 
       {props.fen && (
-        <Scacchiera
-          fen={props.fen}
-          playedMove={props.playedMove}
-          bestMove={props.bestMove}
-          orientation={props.orientation}
-        />
+        <Cliccabile onClick={props.onBoardClick}>
+          <Scacchiera
+            fen={props.fen}
+            playedMove={props.playedMove}
+            bestMove={props.bestMove}
+            orientation={props.orientation}
+          />
+        </Cliccabile>
       )}
       {props.handicap && (
         <Handicap
@@ -494,14 +601,21 @@ function Stanza3D(props: StanzaSceneProps) {
         />
       )}
       {props.showNotebook && (
-        <Quaderno
-          lines={props.notebookLines}
-          gold={props.notebookGold}
-          showLetter={props.showLetter}
-        />
+        <Cliccabile onClick={props.onNotebookClick}>
+          <Quaderno
+            lines={props.notebookLines}
+            gold={props.notebookGold}
+            showLetter={props.showLetter}
+            onLetterClick={props.onLetterClick}
+          />
+        </Cliccabile>
       )}
       <Tazza reducedMotion={props.reducedMotion} />
-      {props.thorns.length > 0 && <ScatolaSpine thorns={props.thorns} />}
+      {props.thorns.length > 0 && (
+        <Cliccabile onClick={props.onBoxClick}>
+          <ScatolaSpine thorns={props.thorns} />
+        </Cliccabile>
+      )}
     </>
   );
 }
