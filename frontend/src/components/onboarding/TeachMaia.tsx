@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { tr } from "../../i18n/lang";
 
 const CX = 50;
 const CY = 50;
@@ -101,7 +102,7 @@ export function TeachMaia({ targetRating }: { targetRating?: number }) {
         fontSize="6"
         fontFamily="JetBrains Mono, monospace"
       >
-        su 8
+        {tr("su 8", "in 8")}
       </text>
 
       {/* Livello */}
@@ -114,7 +115,9 @@ export function TeachMaia({ targetRating }: { targetRating?: number }) {
         fontFamily="Inter, sans-serif"
         letterSpacing="0.1em"
       >
-        {targetRating != null && targetRating > 0 ? `a ${targetRating}` : "al tuo livello"}
+        {targetRating != null && targetRating > 0
+          ? tr(`a ${targetRating}`, `at ${targetRating}`)
+          : tr("al tuo livello", "at your level")}
       </text>
     </svg>
   );

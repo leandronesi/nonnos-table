@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../../auth/supabaseClient";
 import { AuthShell, Field, inputClass } from "./AuthShell";
+import { tr } from "../../i18n/lang";
 
 /**
  * Signup — email + password + codice invito.
@@ -21,15 +22,15 @@ export function Signup() {
     e.preventDefault();
     setError(null);
     if (!tos) {
-      setError("Devi accettare i termini per continuare.");
+      setError(tr("Devi accettare i termini per continuare.", "You need to accept the terms to continue."));
       return;
     }
     if (password.length < 8) {
-      setError("La password deve essere lunga almeno 8 caratteri.");
+      setError(tr("La password deve essere lunga almeno 8 caratteri.", "Password must be at least 8 characters."));
       return;
     }
     if (!inviteCode.trim()) {
-      setError("Inserisci il codice invito.");
+      setError(tr("Inserisci il codice invito.", "Enter your invite code."));
       return;
     }
     setSubmitting(true);
@@ -40,8 +41,8 @@ export function Signup() {
       setSubmitting(false);
       setError(
         codeErr
-          ? "Non riesco a validare il codice, riprova."
-          : "Codice invito non valido. Chiedi un codice a chi ti ha invitato."
+          ? tr("Non riesco a validare il codice, riprova.", "Could not validate the code. Try again.")
+          : tr("Codice invito non valido. Chiedi un codice a chi ti ha invitato.", "Invite code is not valid. Ask the person who invited you for a code.")
       );
       return;
     }
@@ -68,25 +69,25 @@ export function Signup() {
 
   return (
     <AuthShell
-      title="Sediamoci."
-      subtitle="Crea un account per costruire il tuo Tavolo."
+      title={tr("Sediamoci.", "Let's sit down.")}
+      subtitle={tr("Crea un account per costruire il tuo Tavolo.", "Create an account to build your Table.")}
       footer={
         <>
-          Hai gia' un account?{" "}
+          {tr("Hai gia' un account?", "Already have an account?")}{" "}
           <Link
             to="/login"
             style={{ color: "var(--color-brand-soft)", textDecoration: "underline" }}
           >
-            Entra
+            {tr("Entra", "Sign in")}
           </Link>
         </>
       }
     >
       <form onSubmit={onSubmit}>
         <Field
-          label="Codice invito"
+          label={tr("Codice invito", "Invite code")}
           htmlFor="invite"
-          hint="Serve un codice per entrare in beta."
+          hint={tr("Serve un codice per entrare in beta.", "You need a code to join the beta.")}
         >
           <input
             id="invite"
@@ -98,7 +99,7 @@ export function Signup() {
             placeholder="es. AMICI2026"
           />
         </Field>
-        <Field label="Email" htmlFor="email">
+        <Field label={tr("Email", "Email")} htmlFor="email">
           <input
             id="email"
             type="email"
@@ -110,7 +111,7 @@ export function Signup() {
             placeholder="tu@example.com"
           />
         </Field>
-        <Field label="Password" htmlFor="password" hint="Almeno 8 caratteri.">
+        <Field label={tr("Password", "Password")} htmlFor="password" hint={tr("Almeno 8 caratteri.", "At least 8 characters.")}>
           <input
             id="password"
             type="password"
@@ -144,8 +145,10 @@ export function Signup() {
             style={{ marginTop: "0.15rem", flexShrink: 0, accentColor: "var(--color-brand)" }}
           />
           <span>
-            Accetto che Nonno's Table legga le mie partite pubbliche da Chess.com
-            per costruire il mio Tavolo.
+            {tr(
+              "Accetto che Nonno's Table legga le mie partite pubbliche da Chess.com per costruire il mio Tavolo.",
+              "I agree that Nonno's Table reads my public games from Chess.com to build my Table."
+            )}
           </span>
         </label>
 
@@ -170,7 +173,7 @@ export function Signup() {
           className="btn btn-primary btn-lg w-full"
           disabled={submitting}
         >
-          {submitting ? "Creo l'account…" : "Crea il mio Tavolo"}
+          {submitting ? tr("Creo l'account…", "Creating your account…") : tr("Crea il mio Tavolo", "Set up my Table")}
         </button>
       </form>
     </AuthShell>

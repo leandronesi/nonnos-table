@@ -11,6 +11,7 @@ import { TeachTime } from "../../components/onboarding/TeachTime";
 import { TeachMaia } from "../../components/onboarding/TeachMaia";
 import { TeachAncora } from "../../components/onboarding/TeachAncora";
 import { prefersReducedMotion } from "../../lib/motion";
+import { tr } from "../../i18n/lang";
 
 // Shape del coach_brief.json scritto dalla Edge Function coach-llm.
 export interface CoachLlmBrief {
@@ -22,14 +23,19 @@ export interface CoachLlmBrief {
 
 // ── Frasi di Nonno per fase ───────────────────────────────────────────────────
 
-const PHASE_VOICE: Record<OrchestratorProgress["phase"], string> = {
-  pending:   "Dammi un attimo. Mi metto a posto.",
-  ingesting: "Dammi un minuto. Sto scaricando le tue ultime partite.",
-  analyzing: "Comincio dalle tue ultime partite e vado indietro, una per una. Quelle dove il tempo ti ha tradito le segno.",
-  coaching:  "Ci sono quasi. Sto mettendo insieme la prima cosa da dirti.",
-  ready:     "Fatto. Vieni, siediti.",
-  error:     "Mi sono inceppato su qualcosa. Riprova, per favore.",
-};
+function getPhaseVoice(): Record<OrchestratorProgress["phase"], string> {
+  return {
+    pending:   tr("Dammi un attimo. Mi metto a posto.", "One moment. Getting ready."),
+    ingesting: tr("Dammi un minuto. Sto scaricando le tue ultime partite.", "One moment. Downloading your recent games."),
+    analyzing: tr(
+      "Comincio dalle tue ultime partite e vado indietro, una per una. Quelle dove il tempo ti ha tradito le segno.",
+      "Starting from your most recent games and working back. I mark the ones where the clock caught you.",
+    ),
+    coaching:  tr("Ci sono quasi. Sto mettendo insieme la prima cosa da dirti.", "Almost there. Putting together the first thing to show you."),
+    ready:     tr("Fatto. Vieni, siediti.", "Done. Come, sit down."),
+    error:     tr("Mi sono inceppato su qualcosa. Riprova, per favore.", "Something went wrong on my end. Please try again."),
+  };
+}
 
 // ── Mini-animazioni didattiche (fase analyzing/coaching) ─────────────────────
 
@@ -43,17 +49,26 @@ function buildTeachSlides(targetRating?: number): TeachSlide[] {
   return [
     {
       id: "time",
-      voice: "C'e' chi le partite vinte non le perde sulla scacchiera. Le perde sull'orologio. E' la prima cosa che vado a cercare.",
+      voice: tr(
+        "C'e' chi le partite vinte non le perde sulla scacchiera. Le perde sull'orologio. E' la prima cosa che vado a cercare.",
+        "Some players do not lose won games on the board. They lose them on the clock. That is the first thing I look for.",
+      ),
       component: <TeachTime />,
     },
     {
       id: "maia",
-      voice: "Non ti peso contro il computer perfetto. Ti peso contro chi vuoi diventare.",
+      voice: tr(
+        "Non ti peso contro il computer perfetto. Ti peso contro chi vuoi diventare.",
+        "I do not measure you against the perfect computer. I measure you against the player you are becoming.",
+      ),
       component: <TeachMaia targetRating={targetRating} />,
     },
     {
       id: "ancora",
-      voice: "Non ti do una lista di errori. Ti do la cosa che ti tiene fermo. Una.",
+      voice: tr(
+        "Non ti do una lista di errori. Ti do la cosa che ti tiene fermo. Una.",
+        "I do not give you a list of mistakes. I give you the one thing that is keeping you here.",
+      ),
       component: <TeachAncora />,
     },
   ];
@@ -264,8 +279,14 @@ function PrimoColpo({
   // Fallback phrase: use data-rich version if username+rating+tc are available.
   const fallback =
     username && currentRating && tcLabel
-      ? `Ho guardato le tue ${tcLabel}, ${username}. Sei a ${currentRating} e c'e' qualcosa che si ripete. Una cosa sola: te la mostro, poi giochiamo. Siediti. Domani ne apriamo un'altra.`
-      : "Ho guardato. C'e' una cosa che torna, partita dopo partita. Non e' la mossa: e' il momento in cui la cerchi. Siediti, te la mostro. Domani ripartiamo da li'.";
+      ? tr(
+          `Ho guardato le tue ${tcLabel}, ${username}. Sei a ${currentRating} e c'e' qualcosa che si ripete. Una cosa sola: te la mostro, poi giochiamo. Siediti. Domani ne apriamo un'altra.`,
+          `I looked at your ${tcLabel} games, ${username}. You are at ${currentRating} and there is something that keeps coming up. One thing. I will show you, then we play. Sit down. Tomorrow we open another one.`,
+        )
+      : tr(
+          "Ho guardato. C'e' una cosa che torna, partita dopo partita. Non e' la mossa: e' il momento in cui la cerchi. Siediti, te la mostro. Domani ripartiamo da li'.",
+          "I looked. There is something that comes back, game after game. It is not the move: it is the moment you go looking for it. Sit down, I will show you. Tomorrow we pick it up from there.",
+        );
 
   const voiceText =
     brief?.voice_message ??
@@ -310,7 +331,7 @@ function PrimoColpo({
           letterSpacing: "0.01em",
         }}
       >
-        Sediamoci
+        {tr("Sediamoci", "Let's sit down.")}
       </button>
     </div>
   );
@@ -337,13 +358,25 @@ export interface IncontroSceneProps {
 
 // The five lines of "il Patto" — shown once at the very start of the wait,
 // before the TEACH_SLIDES cycle begins. Each line is a short breath.
-const PATTO_LINES = [
-  "Ogni mattina prendo una tua partita vera e la guardo bene.",
-  "Non tutta: trovo il momento che conta davvero, e te lo mostro.",
-  "Poi giochiamo insieme, contro uno del tuo livello.",
-  "Un quarto d'ora. Poi vai.",
-  "Torna domani, e ricominciamo.",
-];
+// Must be a function so tr() is evaluated at render-time (not frozen at module load).
+function getPattoLines(): string[] {
+  return [
+    tr(
+      "Ogni mattina prendo una tua partita vera e la guardo bene.",
+      "Every morning I take one of your real games and look at it carefully.",
+    ),
+    tr(
+      "Non tutta: trovo il momento che conta davvero, e te lo mostro.",
+      "Not the whole thing. I find the moment that matters, and I show you.",
+    ),
+    tr(
+      "Poi giochiamo insieme, contro uno del tuo livello.",
+      "Then we play together, against someone at your level.",
+    ),
+    tr("Un quarto d'ora. Poi vai.", "Fifteen minutes. Then you go."),
+    tr("Torna domani, e ricominciamo.", "Come back tomorrow, and we start again."),
+  ];
+}
 
 // Duration the Patto is shown before yielding to TEACH_SLIDES (ms).
 // ~9-10 s covers ingesting and the early analyzing phase.
@@ -352,6 +385,7 @@ const PATTO_DURATION = 9500;
 // Renders the Patto text: five lines separated by small gaps, in Nonno's voice.
 function PattoCard({ visible }: { visible: boolean }) {
   const reduced = prefersReducedMotion();
+  const lines = getPattoLines();
   return (
     <div
       style={{
@@ -365,16 +399,16 @@ function PattoCard({ visible }: { visible: boolean }) {
           : "opacity 700ms cubic-bezier(0.23,1,0.32,1), transform 700ms cubic-bezier(0.23,1,0.32,1)",
       }}
     >
-      {PATTO_LINES.map((line, i) => (
+      {lines.map((line, i) => (
         <p
           key={i}
           style={{
             fontFamily: "var(--font-voice)",
             fontSize: "1rem",
-            fontWeight: i === PATTO_LINES.length - 1 ? 600 : 500,
+            fontWeight: i === lines.length - 1 ? 600 : 500,
             lineHeight: 1.65,
             color:
-              i === PATTO_LINES.length - 1
+              i === lines.length - 1
                 ? "var(--color-text, #eef0fa)"
                 : "var(--color-text-soft, #b6bcd6)",
             margin: 0,
@@ -432,7 +466,7 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, ta
     readyBrief === undefined;
   const currentVoice = showSlides
     ? teachSlides[slideIndex]?.voice
-    : PHASE_VOICE[phase];
+    : getPhaseVoice()[phase];
 
   // Ciclo slide durante analyzing/coaching
   useEffect(() => {
@@ -489,7 +523,7 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, ta
           marginBottom: "2.5rem",
         }}
       >
-        il Tavolo del Nonno
+        Nonno&apos;s Table
       </div>
 
       {/* Scena */}
@@ -537,13 +571,13 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, ta
                   lineHeight: 1.55,
                 }}
               >
-                {error ?? PHASE_VOICE.error}
+                {error ?? getPhaseVoice().error}
               </p>
               <button
                 onClick={() => window.location.reload()}
                 className="btn btn-ghost btn-sm"
               >
-                Riprova
+                {tr("Riprova", "Try again")}
               </button>
             </div>
           )}
@@ -614,7 +648,7 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, ta
                       fontFamily: "var(--font-mono, JetBrains Mono, monospace)",
                     }}
                   >
-                    {progress.monthsDone}/{progress.monthsTotal} mesi
+                    {progress.monthsDone}/{progress.monthsTotal} {tr("mesi", "months")}
                   </p>
                 )}
                 {phase === "coaching" && progress?.message && (
@@ -642,8 +676,14 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, ta
                   }}
                 >
                   {phase === "analyzing"
-                    ? "Comincio dalle tue ultime dieci partite e vado indietro nel tempo. Stockfish gira nel tuo browser: non chiudere la pagina, ci vuole qualche minuto."
-                    : "La prima volta ci vuole un po' piu' di tempo. Dopo va piu' veloce."}
+                    ? tr(
+                        "Comincio dalle tue ultime dieci partite e vado indietro nel tempo. Stockfish gira nel tuo browser: non chiudere la pagina, ci vuole qualche minuto.",
+                        "Starting from your last ten games and going back in time. Stockfish runs in your browser: do not close the page, it takes a few minutes.",
+                      )
+                    : tr(
+                        "La prima volta ci vuole un po' piu' di tempo. Dopo va piu' veloce.",
+                        "The first time takes a little longer. After that it is faster.",
+                      )}
                 </p>
               )}
             </>
@@ -673,7 +713,7 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, ta
                 onClick={() => window.location.reload()}
                 className="btn btn-ghost btn-sm"
               >
-                Riprova
+                {tr("Riprova", "Try again")}
               </button>
             </div>
           )}
@@ -689,7 +729,7 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, ta
               onClick={onExit}
               className="btn btn-ghost btn-sm"
             >
-              Esci dall&rsquo;account
+              {tr("Esci dall'account", "Sign out")}
             </button>
           </div>
         </div>

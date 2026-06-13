@@ -19,6 +19,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { downloadJson, quadernoPath } from "../../auth/storage";
 import { useOnboardingRun } from "../../pipeline/OnboardingRunContext";
 import { IncontroScene, type CoachLlmBrief } from "./IncontroScene";
+import { tr } from "../../i18n/lang";
 
 export function OnboardingWaiting() {
   const nav = useNavigate();
@@ -75,7 +76,7 @@ export function OnboardingWaiting() {
             color: "var(--color-muted, #717892)",
           }}
         >
-          Recupero il tuo profilo.
+          {tr("Recupero il tuo profilo.", "Loading your profile.")}
         </p>
       </div>
     );

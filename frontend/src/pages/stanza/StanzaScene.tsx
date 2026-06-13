@@ -26,6 +26,7 @@ import {
   steamTexture,
   plaqueTexture,
 } from "./textures";
+import { tr } from "../../i18n/lang";
 
 // ── Props from StanzaHome (all real data) ──────────────────────────────────────
 
@@ -467,7 +468,7 @@ function Quaderno({
   showLetter: boolean;
   onLetterClick?: () => void;
 }) {
-  const paper = useDisposable(() => paperTexture("Il nostro viaggio", lines, gold), [lines, gold]);
+  const paper = useDisposable(() => paperTexture(tr("Il nostro viaggio", "Our story"), lines, gold), [lines, gold]);
   const letter = useMemo(() => (showLetter ? letterTexture() : null), [showLetter]);
   useEffect(() => {
     return () => {

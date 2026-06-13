@@ -34,7 +34,7 @@ export function AuthShell({
           letterSpacing: "0.16em",
         }}
       >
-        il Tavolo del Nonno
+        Nonno&apos;s Table
       </div>
 
       <div

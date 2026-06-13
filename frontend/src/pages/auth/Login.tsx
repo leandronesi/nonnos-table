@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../../auth/supabaseClient";
 import { AuthShell, Field, inputClass } from "./AuthShell";
+import { tr } from "../../i18n/lang";
 
 export function Login() {
   const nav = useNavigate();
@@ -22,7 +23,7 @@ export function Login() {
     if (error) {
       setError(
         error.message === "Invalid login credentials"
-          ? "Email o password non corrette."
+          ? tr("Email o password non corrette.", "Email or password is incorrect.")
           : error.message
       );
       return;
@@ -34,22 +35,22 @@ export function Login() {
 
   return (
     <AuthShell
-      title="Bentornato."
-      subtitle="Sediamoci di nuovo al Tavolo."
+      title={tr("Bentornato.", "There you are.")}
+      subtitle={tr("Sediamoci di nuovo al Tavolo.", "Let's sit down again.")}
       footer={
         <>
-          Nuovo qui?{" "}
+          {tr("Nuovo qui?", "New here?")}{" "}
           <Link
             to="/signup"
             style={{ color: "var(--color-brand-soft)", textDecoration: "underline" }}
           >
-            Crea un account
+            {tr("Crea un account", "Create an account")}
           </Link>
         </>
       }
     >
       <form onSubmit={onSubmit}>
-        <Field label="Email" htmlFor="email">
+        <Field label={tr("Email", "Email")} htmlFor="email">
           <input
             id="email"
             type="email"
@@ -61,7 +62,7 @@ export function Login() {
             placeholder="tu@example.com"
           />
         </Field>
-        <Field label="Password" htmlFor="password">
+        <Field label={tr("Password", "Password")} htmlFor="password">
           <input
             id="password"
             type="password"
@@ -92,7 +93,7 @@ export function Login() {
           className="btn btn-primary btn-lg w-full"
           disabled={submitting}
         >
-          {submitting ? "Entro…" : "Entra"}
+          {submitting ? tr("Entro…", "Signing in…") : tr("Entra", "Sign in")}
         </button>
       </form>
     </AuthShell>

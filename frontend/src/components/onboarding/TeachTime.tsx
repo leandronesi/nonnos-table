@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { tr } from "../../i18n/lang";
 
 export function TeachTime() {
   const [tick, setTick] = useState(0);
@@ -108,7 +109,7 @@ export function TeachTime() {
         fontSize="5"
         fontFamily="JetBrains Mono, monospace"
       >
-        tempo
+        {tr("tempo", "clock")}
       </text>
     </svg>
   );
