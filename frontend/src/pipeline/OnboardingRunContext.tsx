@@ -92,8 +92,14 @@ export function OnboardingRunProvider({ children }: { children: ReactNode }) {
   const [silentRefreshing, setSilentRefreshing] = useState(false);
 
   // backgroundRunning: il secondo lotto è partito ma non ancora finito.
-  // Lo deriviamo: firstBatchReady è true, backgroundDone è false.
-  const backgroundRunning = firstBatchReady && !backgroundDone;
+  // Lo deriviamo: firstBatchReady è true, backgroundDone è false, E il run non è
+  // già fermo su un emit terminale 'ready'. L'ultimo guard è cruciale per il caso
+  // "quota <= FIRST_BATCH_SIZE": lì l'orchestratore finisce SENZA chiamare
+  // onBackgroundDone (non c'è un resto da annunciare) ed emette phase 'ready'.
+  // Senza questo guard backgroundRunning resterebbe true per sempre e il Tavolo
+  // mostrerebbe "sto ancora guardando" anche quando non arriveranno altre partite.
+  const backgroundRunning =
+    firstBatchReady && !backgroundDone && progress?.phase !== "ready";
 
   // Ref per evitare che il cleanup di StrictMode / re-mount annulli i setter
   // dopo che il provider è già stato rimontato.

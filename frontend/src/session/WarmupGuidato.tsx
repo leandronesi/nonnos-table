@@ -54,7 +54,7 @@ const DRILL_INTROS = [
 
 const VERDICT_PERFECT = [
   "Bravo. Hai trovato.",
-  "Oooh. Esatta.",
+  "Esatta.",
   "Vista. Bene cosi.",
 ];
 

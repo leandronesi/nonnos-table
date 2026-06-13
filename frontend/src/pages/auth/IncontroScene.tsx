@@ -25,7 +25,7 @@ export interface CoachLlmBrief {
 const PHASE_VOICE: Record<OrchestratorProgress["phase"], string> = {
   pending:   "Dammi un attimo. Mi metto a posto.",
   ingesting: "Dammi un minuto. Sto scaricando le tue ultime partite.",
-  analyzing: "Le sto guardando una per una. Quelle dove il tempo ti ha tradito le segno.",
+  analyzing: "Comincio dalle tue ultime partite e vado indietro, una per una. Quelle dove il tempo ti ha tradito le segno.",
   coaching:  "Ci sono quasi. Sto mettendo insieme la prima cosa da dirti.",
   ready:     "Fatto. Vieni, siediti.",
   error:     "Mi sono inceppato su qualcosa. Riprova, per favore.",
@@ -264,8 +264,8 @@ function PrimoColpo({
   // Fallback phrase: use data-rich version if username+rating+tc are available.
   const fallback =
     username && currentRating && tcLabel
-      ? `Ho guardato le tue partite ${tcLabel}, ${username}. Sei a ${currentRating}, e c'e' una cosa che ti tiene li'. Siediti.`
-      : "Ho guardato. C'e' una cosa che si ripete nelle tue partite. Siediti, te la mostro.";
+      ? `Ho guardato le tue ${tcLabel}, ${username}. Sei a ${currentRating} e c'e' qualcosa che si ripete. Una cosa sola: te la mostro, poi giochiamo. Siediti. Domani ne apriamo un'altra.`
+      : "Ho guardato. C'e' una cosa che torna, partita dopo partita. Non e' la mossa: e' il momento in cui la cerchi. Siediti, te la mostro. Domani ripartiamo da li'.";
 
   const voiceText =
     brief?.voice_message ??
@@ -333,9 +333,69 @@ export interface IncontroSceneProps {
   tcLabel?: string;
 }
 
+// ── Il Patto (one-shot, prima delle slide didattiche) ───────────────────────
+
+// The five lines of "il Patto" — shown once at the very start of the wait,
+// before the TEACH_SLIDES cycle begins. Each line is a short breath.
+const PATTO_LINES = [
+  "Ogni mattina prendo una tua partita vera e la guardo bene.",
+  "Non tutta: trovo il momento che conta davvero, e te lo mostro.",
+  "Poi giochiamo insieme, contro uno del tuo livello.",
+  "Un quarto d'ora. Poi vai.",
+  "Torna domani, e ricominciamo.",
+];
+
+// Duration the Patto is shown before yielding to TEACH_SLIDES (ms).
+// ~9-10 s covers ingesting and the early analyzing phase.
+const PATTO_DURATION = 9500;
+
+// Renders the Patto text: five lines separated by small gaps, in Nonno's voice.
+function PattoCard({ visible }: { visible: boolean }) {
+  const reduced = prefersReducedMotion();
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.6rem",
+        opacity: visible ? 1 : 0,
+        transform: !reduced && !visible ? "translateY(6px)" : "none",
+        transition: reduced
+          ? "none"
+          : "opacity 700ms cubic-bezier(0.23,1,0.32,1), transform 700ms cubic-bezier(0.23,1,0.32,1)",
+      }}
+    >
+      {PATTO_LINES.map((line, i) => (
+        <p
+          key={i}
+          style={{
+            fontFamily: "var(--font-voice)",
+            fontSize: "1rem",
+            fontWeight: i === PATTO_LINES.length - 1 ? 600 : 500,
+            lineHeight: 1.65,
+            color:
+              i === PATTO_LINES.length - 1
+                ? "var(--color-text, #eef0fa)"
+                : "var(--color-text-soft, #b6bcd6)",
+            margin: 0,
+            maxWidth: "36ch",
+          }}
+        >
+          {line}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 // ── Componente scena (pura presentazione) ─────────────────────────────────────
 
 export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, targetRating, username, currentRating, tcLabel }: IncontroSceneProps) {
+  // Patto: shown once at the very start; never re-enters the slide cycle.
+  const [pattoShown, setPattoShown] = useState(false);
+  const [pattoVisible, setPattoVisible] = useState(false);
+  const pattoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Stato del ciclo slide
   const [slideIndex, setSlideIndex] = useState(0);
   const [slideVisible, setSlideVisible] = useState(true);
@@ -344,11 +404,32 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, ta
   const teachSlides = buildTeachSlides(targetRating);
 
   const phase = progress?.phase ?? "pending";
-  const voiceKey = `${phase}-${slideIndex}`;
+  const voiceKey = pattoShown ? `${phase}-${slideIndex}` : "patto";
 
-  // Testo voce: durante analyzing/coaching usa la slide, altrimenti la fase
+  // Trigger Patto on first render (one-shot): fade in immediately, then after
+  // PATTO_DURATION mark it done so TEACH_SLIDES can start. If readyBrief
+  // arrives before the timer fires, the Patto is simply replaced by PrimoColpo
+  // (the `isReady` branch hides the whole in-progress block).
+  useEffect(() => {
+    if (pattoShown) return;
+    // Fade in on next frame so CSS transition fires.
+    const rafId = requestAnimationFrame(() => setPattoVisible(true));
+    pattoTimerRef.current = setTimeout(() => {
+      setPattoShown(true);
+    }, PATTO_DURATION);
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (pattoTimerRef.current) clearTimeout(pattoTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty: runs once at mount
+
+  // Testo voce: durante analyzing/coaching usa la slide, altrimenti la fase.
+  // While Patto is showing, we suppress the phase voice (Patto owns the slot).
   const showSlides =
-    (phase === "analyzing" || phase === "coaching") && readyBrief === undefined;
+    pattoShown &&
+    (phase === "analyzing" || phase === "coaching") &&
+    readyBrief === undefined;
   const currentVoice = showSlides
     ? teachSlides[slideIndex]?.voice
     : PHASE_VOICE[phase];
@@ -489,8 +570,15 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, ta
                   gap: "1.25rem",
                 }}
               >
-                {/* Testo voce */}
-                <NonnoVoice text={currentVoice} key={voiceKey} />
+                {/* Il Patto (one-shot): shown before TEACH_SLIDES cycle starts */}
+                {!pattoShown && (
+                  <PattoCard visible={pattoVisible} />
+                )}
+
+                {/* Phase voice — only when Patto is done */}
+                {pattoShown && (
+                  <NonnoVoice text={currentVoice} key={voiceKey} />
+                )}
 
                 {/* Animazione didattica (solo analyzing/coaching) */}
                 {showSlides && (
@@ -554,7 +642,7 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, ta
                   }}
                 >
                   {phase === "analyzing"
-                    ? "Stockfish gira nel tuo browser. Non chiudere la pagina: ci vuole qualche minuto."
+                    ? "Comincio dalle tue ultime dieci partite e vado indietro nel tempo. Stockfish gira nel tuo browser: non chiudere la pagina, ci vuole qualche minuto."
                     : "La prima volta ci vuole un po' piu' di tempo. Dopo va piu' veloce."}
                 </p>
               )}

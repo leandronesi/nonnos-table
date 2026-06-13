@@ -128,6 +128,12 @@ type SceneState = "start" | "played" | "back" | "best" | "rest";
 const RISE_DELAY = 1200;
 const LOOP_DELAY = 1200 + 3400 + 900;
 
+// When the rise was already seen before, skip straight to the loop (no long wait).
+const LOOP_DELAY_SKIP_RISE = 600;
+
+// localStorage key: set once after the first full rise, never cleared.
+const RISE_SEEN_KEY = "mygotham_momento_rise_seen";
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 interface MomentoDelGiornoProps {
@@ -192,13 +198,27 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
         if (entry.isIntersecting && !startedRef.current) {
           startedRef.current = true;
           io.disconnect();
-          // Coreography: IO fires → board rises (RISE_DELAY) → loop starts (LOOP_DELAY).
-          push(setTimeout(() => {
-            if (!disposedRef.current) setRisen(true);
-          }, RISE_DELAY));
-          push(setTimeout(() => {
-            if (!disposedRef.current) startCycle();
-          }, LOOP_DELAY));
+
+          const alreadySeen = localStorage.getItem(RISE_SEEN_KEY) === "1";
+
+          if (alreadySeen) {
+            // Skip the slow rise: board is already up, start the loop shortly after.
+            setRisen(true);
+            push(setTimeout(() => {
+              if (!disposedRef.current) startCycle();
+            }, LOOP_DELAY_SKIP_RISE));
+          } else {
+            // First time ever: full magic — slow rise, then loop.
+            push(setTimeout(() => {
+              if (!disposedRef.current) {
+                setRisen(true);
+                localStorage.setItem(RISE_SEEN_KEY, "1");
+              }
+            }, RISE_DELAY));
+            push(setTimeout(() => {
+              if (!disposedRef.current) startCycle();
+            }, LOOP_DELAY));
+          }
         }
       },
       { threshold: 0.3 },

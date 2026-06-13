@@ -49,6 +49,13 @@ export interface StanzaSceneProps {
   showLetter: boolean;
   /** Reduced motion: camera starts seated, no drift, no steam animation. */
   reducedMotion: boolean;
+  /**
+   * Breathing affordance on the board: a slow sinusoidal scale pulse that
+   * signals "this is alive, touch it" before the first interaction.
+   * Disabled once the user has visited the board (StanzaHome gates it).
+   * Ignored when reducedMotion is true.
+   */
+  boardBreathing: boolean;
   /** Object navigation — the room IS the menu. */
   onBoardClick?: () => void;
   onNotebookClick?: () => void;
@@ -709,6 +716,72 @@ function Cliccabile({
   );
 }
 
+// ── Board wrapper with breathing affordance ────────────────────────────────────
+//
+// A slow sinusoidal scale (amplitude 1.5%, period ~4 s) makes the board feel
+// alive under the lamp — "viva sotto la lampada", not a flashy pulse.
+// The breath stops the moment the user first interacts, so it never competes
+// with the lean/glide camera moves. Hover overrides it cleanly because
+// Cliccabile targets scale 1.02 which wins over the 1.015 max of the breath.
+//
+// Constraints respected:
+//   • transform only (no layout, no color change) — nonno-motion §2
+//   • period 4 s → 0.25 Hz, well below the 2 Hz upper limit — nonno-motion §8
+//   • amplitude 1.5 %: imperceptible as levitation, readable as life
+//   • disabled when reducedMotion — the object stays at scale 1.
+
+function CliccabileBoard({
+  onClick,
+  breathing,
+  reducedMotion,
+  children,
+}: {
+  onClick?: () => void;
+  breathing: boolean;
+  reducedMotion: boolean;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<THREE.Group>(null);
+  const hover = useRef(false);
+  const PERIOD = 4.0; // seconds per full cycle
+  const AMPLITUDE = 0.015; // ±1.5 % — below the hover 1.02 ceiling
+
+  useFrame((state) => {
+    if (!ref.current) return;
+    const t = state.clock.elapsedTime;
+    const breathe =
+      breathing && !reducedMotion
+        ? 1 + AMPLITUDE * Math.sin((2 * Math.PI * t) / PERIOD)
+        : 1;
+    // Hover wins: target is 1.02 on hover, breathe value otherwise.
+    const target = hover.current ? 1.02 : breathe;
+    const s = ref.current.scale.x + (target - ref.current.scale.x) * 0.14;
+    ref.current.scale.setScalar(s);
+  });
+
+  if (!onClick) return <group>{children}</group>;
+  return (
+    <group
+      ref={ref}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        hover.current = true;
+        document.body.style.cursor = "pointer";
+      }}
+      onPointerOut={() => {
+        hover.current = false;
+        document.body.style.cursor = "";
+      }}
+    >
+      {children}
+    </group>
+  );
+}
+
 // ── The room shell: wall + floor void ──────────────────────────────────────────
 
 function Stanza3D(props: StanzaSceneProps & { focus: Focus; onObject: (f: Focus, navigate?: () => void) => void }) {
@@ -757,14 +830,18 @@ function Stanza3D(props: StanzaSceneProps & { focus: Focus; onObject: (f: Focus,
       <Tavolo onClick={() => onObject("tavolo")} />
 
       {props.fen && (
-        <Cliccabile onClick={() => onObject("scacchiera", props.onBoardClick)}>
+        <CliccabileBoard
+          onClick={() => onObject("scacchiera", props.onBoardClick)}
+          breathing={props.boardBreathing}
+          reducedMotion={props.reducedMotion}
+        >
           <Scacchiera
             fen={props.fen}
             playedMove={props.playedMove}
             bestMove={props.bestMove}
             orientation={props.orientation}
           />
-        </Cliccabile>
+        </CliccabileBoard>
       )}
       {props.handicap && (
         <Handicap
@@ -795,10 +872,11 @@ function Stanza3D(props: StanzaSceneProps & { focus: Focus; onObject: (f: Focus,
 // ── Public component: the Canvas ───────────────────────────────────────────────
 
 export default function StanzaScene(props: StanzaSceneProps) {
-  // First click leans the camera over the object; a second click (or the DOM
-  // chip) enters its surface. Clicking the bare wood returns to the seat.
+  // The board is the declared shortcut: a single click enters its surface
+  // (today's game review) straight away. Every other object leans the camera
+  // first, then a second click (or the DOM chip) enters. Bare wood = back to seat.
   function handleObject(f: Focus, navigate?: () => void) {
-    if (f === props.focus && navigate) {
+    if (navigate && (f === "scacchiera" || f === props.focus)) {
       navigate();
       return;
     }

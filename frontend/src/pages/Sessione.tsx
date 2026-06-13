@@ -114,7 +114,7 @@ export function Sessione() {
         <div className="surface surface-padded max-w-xl text-center">
           <div className="label-eyebrow text-rose-300 mb-2">Errore</div>
           <p className="text-[color:var(--color-text-soft)]">{error}</p>
-          <Link to="/" className="btn btn-ghost mt-4 inline-block">
+          <Link to="/tavolo" className="btn btn-ghost mt-4 inline-block">
             Torna al Tavolo
           </Link>
         </div>
@@ -152,7 +152,7 @@ export function Sessione() {
       cadute={orderedCadute}
       targetRating={profile?.goal_rating ?? 1600}
       currentRating={null}
-      onClose={() => nav("/")}
+      onClose={() => nav("/tavolo")}
       viaMorph={viaMorph}
     />
   );

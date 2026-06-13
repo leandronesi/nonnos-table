@@ -13,7 +13,7 @@
  * Token: tt-nonno, sess-*, DESIGN.md compliant (flat, no card-dentro-card).
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PositionExample } from "../pipeline/aggregate";
 import type { PlayResult } from "./store";
 import type { PositionRow } from "../types";
@@ -23,6 +23,7 @@ import { MomentReview } from "./MomentReview";
 import { PositionPuzzle } from "./WarmupGuidato";
 import { PlayStep } from "./PlayStep";
 import { navigateWithTransition, prefersReducedMotion } from "../lib/motion";
+import { resetBoardSceneRitual } from "../components/BoardScene";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,8 +40,8 @@ interface Props {
    * When true, the first MomentReview's BoardScene starts already risen.
    * Set from Sessione when the user arrives via a View Transition morph from
    * the Tavolo: the board was already carried as a shared element, a second
-   * rise would be a double entrance. Only the first phase (guardo) is affected;
-   * later phases (aiuto, da-solo, partita) always run the normal entrance.
+   * rise would be a double entrance. The morph counts as the session's
+   * sit-down, so later phases (aiuto, da-solo, partita) stay already up too.
    */
   viaMorph?: boolean;
 }
@@ -53,7 +54,7 @@ interface Props {
 const SALUTO_PHRASES = [
   "Hai visto la posizione, ci hai giocato. Domani riprendiamo da dove hai lasciato.",
   "Bene. Oggi hai guardato dove eri. Domani vediamo se ci torna quella stessa struttura.",
-  "Oooh. Hai rivisto, hai giocato. Ci siamo. Domani un'altra.",
+  "Hai rivisto, hai giocato. Ci siamo. Domani un'altra.",
   "Bene cosi. Quella posizione adesso la riconosci. Torna domani.",
   "Hai fermato la mano una volta. Ricordatelo domani quando ci ritrovi quella struttura.",
 ];
@@ -448,6 +449,16 @@ function PhaseIntro({ text }: { text: string }) {
 // ---------------------------------------------------------------------------
 
 export function NonnoSession({ cadute, targetRating, currentRating, onClose, viaMorph = false }: Props) {
+  // Reset the once-per-session board rise so the sit-down ritual plays once on
+  // entry, then never again until the next session. Done during render (before
+  // any child BoardScene mounts, so the first board reads a fresh flag) and
+  // guarded to run a single time per session mount.
+  const ritualResetRef = useRef(false);
+  if (!ritualResetRef.current) {
+    ritualResetRef.current = true;
+    resetBoardSceneRitual();
+  }
+
   const [phase, setPhase] = useState<Phase>("guardo");
   // The anchor we sat on today, computed at session completion. Used by the
   // close screen so Nonno names it ("Oggi abbiamo guardato X."). null = unknown.

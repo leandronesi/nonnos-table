@@ -4,8 +4,8 @@
  * Desktop (>= 1024px): slim sidebar left (~232px) + scrollable content right.
  * Mobile (< 1024px): sticky top-bar + bottom tab bar + scrollable content.
  *
- * Navigation: Tavolo "/", Sessione "/sessione", Quaderno "/quaderno".
- * Active detection: pathname "/" = Tavolo; startsWith "/sessione"; startsWith "/quaderno".
+ * Navigation: Tavolo "/tavolo", Sessione "/sessione", Quaderno "/quaderno".
+ * Active detection: startsWith each dest.path.
  *
  * Reads:
  *   - useLocation() for active tab
@@ -13,7 +13,7 @@
  *   - toggleTheme() / getCurrentTheme() from theme.ts
  */
 
-import { useState, type ReactNode } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useOnboardingRun } from "../pipeline/OnboardingRunContext";
@@ -46,11 +46,26 @@ function BookIcon() {
   );
 }
 
-// Sessione is entered only via the "Sediamoci" CTA on TavoloHome — not from nav.
-// "/" is the foyer (la Stanza); the working surface lives at /tavolo.
+// A pawn silhouette — sobrio, scacchistico, on-brand.
+// Same viewBox and stroke weight as BoardIcon / BookIcon.
+function SessioneIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {/* Head */}
+      <circle cx="9" cy="5" r="2.25"/>
+      {/* Neck + body */}
+      <path d="M6.5 14h5l-1-4.5C10.2 8.6 9.6 8 9 8s-1.2.6-1.5 1.5L6.5 14z"/>
+      {/* Base */}
+      <line x1="5" y1="14" x2="13" y2="14"/>
+    </svg>
+  );
+}
+
+// Order: Tavolo (enter), Sessione (play), Quaderno (review).
 const NAV: NavDest[] = [
-  { label: "Tavolo",   path: "/tavolo",    icon: <BoardIcon /> },
-  { label: "Quaderno", path: "/quaderno",  icon: <BookIcon /> },
+  { label: "Tavolo",   path: "/tavolo",   icon: <BoardIcon /> },
+  { label: "Sessione", path: "/sessione", icon: <SessioneIcon /> },
+  { label: "Quaderno", path: "/quaderno", icon: <BookIcon /> },
 ];
 
 function isActive(dest: NavDest, pathname: string): boolean {
@@ -147,6 +162,7 @@ function DesktopSidebar({
   onThemeToggle,
   onRefresh,
   onReanalyze,
+  reanalyzeConfirming,
   onNavigate,
 }: {
   pathname: string;
@@ -155,6 +171,7 @@ function DesktopSidebar({
   onThemeToggle: () => void;
   onRefresh: (() => void) | null;
   onReanalyze: (() => void) | null;
+  reanalyzeConfirming: boolean;
   onNavigate: (path: string) => void;
 }) {
   return (
@@ -268,18 +285,18 @@ function DesktopSidebar({
                   border: "none",
                   padding: 0,
                   cursor: "pointer",
-                  color: "var(--color-faint)",
+                  color: reanalyzeConfirming ? "var(--color-warn)" : "var(--color-faint)",
                   fontSize: "inherit",
                   fontFamily: "inherit",
                   textDecoration: "underline",
                   textDecorationColor: "color-mix(in srgb, var(--color-faint) 50%, transparent)",
                   textUnderlineOffset: "2px",
-                  transition: "color 140ms cubic-bezier(0.23,1,0.32,1)",
+                  transition: "color 200ms ease",
                 }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--color-muted)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--color-faint)"; }}
+                onMouseEnter={(e) => { if (!reanalyzeConfirming) (e.currentTarget as HTMLButtonElement).style.color = "var(--color-muted)"; }}
+                onMouseLeave={(e) => { if (!reanalyzeConfirming) (e.currentTarget as HTMLButtonElement).style.color = "var(--color-faint)"; }}
               >
-                Rianalizza da capo
+                {reanalyzeConfirming ? "Sicuro? Ricomincio da zero" : "Rianalizza da capo"}
               </button>
             )}
           </div>
@@ -488,10 +505,56 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const username = profile?.chess_com_username ?? null;
 
+  // Two-step confirm gate for "Rianalizza da capo" in the sidebar.
+  // Mirrors the same gate in TavoloHome — the sidebar must be equally safe.
+  const [reanalyzeConfirming, setReanalyzeConfirming] = useState(false);
+  const reanalyzeConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function handleReanalyzeConfirm() {
+    if (!reanalyzeConfirming) {
+      setReanalyzeConfirming(true);
+      reanalyzeConfirmTimerRef.current = setTimeout(() => {
+        setReanalyzeConfirming(false);
+        reanalyzeConfirmTimerRef.current = null;
+      }, 4000);
+    } else {
+      if (reanalyzeConfirmTimerRef.current !== null) {
+        clearTimeout(reanalyzeConfirmTimerRef.current);
+        reanalyzeConfirmTimerRef.current = null;
+      }
+      setReanalyzeConfirming(false);
+      tavoloActionsRef.current?.handleFullReanalyze();
+    }
+  }
+
   // Only show quiet action links when on the Tavolo and callbacks are registered.
   const isTavolo = pathname.startsWith("/tavolo");
-  const onRefresh = isTavolo ? (() => tavoloActionsRef.current?.handleRefresh()) : null;
-  const onReanalyze = isTavolo ? (() => tavoloActionsRef.current?.handleFullReanalyze()) : null;
+  const onRefresh = isTavolo ? (() => { tavoloActionsRef.current?.handleRefresh(); }) : null;
+  const onReanalyze = isTavolo ? handleReanalyzeConfirm : null;
+
+  // Leaving the Tavolo cancels a pending confirm: the "Sicuro?" gate must not
+  // survive navigation (else returning within 4s shows a primed button that
+  // executes on the first click).
+  useEffect(() => {
+    if (isTavolo) return;
+    if (reanalyzeConfirmTimerRef.current !== null) {
+      clearTimeout(reanalyzeConfirmTimerRef.current);
+      reanalyzeConfirmTimerRef.current = null;
+    }
+    setReanalyzeConfirming(false);
+  }, [isTavolo]);
+
+  // Unmount-only safety net: AppShell unmounts when navigating to a surface that
+  // does not wrap in it (e.g. the Stanza at "/"), and the [isTavolo] effect above
+  // early-returns while still on the Tavolo. Always clear the pending timer here
+  // so it never fires setState on a dead component.
+  useEffect(() => {
+    return () => {
+      if (reanalyzeConfirmTimerRef.current !== null) {
+        clearTimeout(reanalyzeConfirmTimerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <>
@@ -504,6 +567,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           onThemeToggle={handleThemeToggle}
           onRefresh={onRefresh}
           onReanalyze={onReanalyze}
+          reanalyzeConfirming={reanalyzeConfirming}
           onNavigate={handleNavigate}
         />
         {/* Content */}

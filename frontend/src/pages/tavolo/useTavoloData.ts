@@ -202,6 +202,11 @@ export interface TavoloData {
   // Incremental counter that forces data reload after background pipeline
   dataVersion: number;
 
+  // True while a dataVersion-triggered reload is in flight (the background just
+  // finished and we are re-downloading aggregates). Lets the Tavolo hold the
+  // "still looking" state instead of flashing "few games" during the reload gap.
+  reloading: boolean;
+
   // Actions
   markLetterSeen: () => void;
   runRefreshHandler: () => Promise<void>;
@@ -225,6 +230,9 @@ export function useTavoloData(): TavoloData {
   const [historySnapshots, setHistorySnapshots] = useState<HistorySnapshot[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Which dataVersion the currently-loaded data matches. When it lags behind
+  // dataVersion a reload is in flight (computed synchronously into `reloading`).
+  const [loadedVersion, setLoadedVersion] = useState(-1);
   const [refreshing, setRefreshing] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
 
@@ -262,7 +270,10 @@ export function useTavoloData(): TavoloData {
       } catch (e) {
         if (!cancelled) setError(String(e instanceof Error ? e.message : e));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setLoadedVersion(dataVersion);
+        }
       }
     })();
     return () => { cancelled = true; };
@@ -344,6 +355,10 @@ export function useTavoloData(): TavoloData {
     }
   }
 
+  // Synchronous: true on the very render where dataVersion bumped, until the
+  // reload settles loadedVersion back to it. No one-frame lag, so no flash.
+  const reloading = loadedVersion !== dataVersion;
+
   return {
     pmLite,
     aggregates,
@@ -369,6 +384,7 @@ export function useTavoloData(): TavoloData {
     letterSeenBefore,
     letterOpenedThisVisit,
     dataVersion,
+    reloading,
     markLetterSeen,
     runRefreshHandler,
     runFullReanalyzeHandler,
