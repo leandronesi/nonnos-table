@@ -181,8 +181,8 @@ function pickPunch(
 function buildSaluto(goal: Goal | null | undefined): string {
   if (!goal || goal.current_rating == null) {
     return pick(8, [
-      "Oooh, eccoti. Siediti, che si comincia.",
-      "Oooh, ci sei. Bene.",
+      "Eccoti. Siediti, che si comincia.",
+      "Ci sei. Bene.",
       "Eccoti qui. Pronto?",
     ]);
   }
@@ -191,15 +191,15 @@ function buildSaluto(goal: Goal | null | undefined): string {
 
   if (on_track) {
     return pick(8, [
-      `Oooh, eccoti. ${current_rating} oggi, ${target} nel mirino. Sei in linea.`,
-      `Oooh, ci sei. ${current_rating} adesso, ${target} l'obiettivo. Stai andando.`,
+      `Eccoti. ${current_rating} oggi, ${target} nel mirino. Sei in linea.`,
+      `Ci sei. ${current_rating} adesso, ${target} l'obiettivo. Stai andando.`,
       `Eccoti. ${current_rating} di rating, punta a ${target}. Sei in rotta.`,
     ]);
   }
 
   return pick(8, [
-    `Oooh, eccoti. ${current_rating} oggi, ${target} nel mirino. Siamo un po' indietro, ma si recupera.`,
-    `Oooh, ci sei. ${current_rating} adesso, ${target} l'obiettivo. C'e' del lavoro da fare, iniziamo.`,
+    `Eccoti. ${current_rating} oggi, ${target} nel mirino. Siamo un po' indietro, ma si recupera.`,
+    `Ci sei. ${current_rating} adesso, ${target} l'obiettivo. C'e' del lavoro da fare, iniziamo.`,
     `Eccoti. ${current_rating} di rating, ${target} nel mirino. Indietro, si'. Ma partita per partita si risale.`,
   ]);
 }

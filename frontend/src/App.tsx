@@ -133,8 +133,10 @@ export function App() {
           {/* La Stanza e' diventata la home: l'anteprima redirige */}
           <Route path="/stanza" element={<Navigate to="/" replace />} />
 
-          {/* Maia smoke test (dev, pubblica) — da rimuovere dopo la verifica */}
-          <Route path="/maia-test" element={<MaiaTest />} />
+          {/* Maia smoke test — dev only (hidden from production build) */}
+          {import.meta.env.DEV && (
+            <Route path="/maia-test" element={<MaiaTest />} />
+          )}
 
           {/* Anteprima dev scena onboarding — solo in sviluppo, nessun auth */}
           {import.meta.env.DEV && (

@@ -150,7 +150,7 @@ const RIPENSACI_PHRASES = [
 const RIPROVO_AFTER_SURE_PHRASES = [
   "Bravo, hai guardato. Adesso prova un'altra.",
   "Bene così. Ferma la mano, poi gioca.",
-  "Oooh, hai sentito. Riprova.",
+  "Bene, hai sentito. Riprova.",
 ];
 
 function pickRandom(arr: string[]): string {
@@ -576,6 +576,60 @@ export function PlayStep({
 
   const openPlayLine = coachSession?.open_play || sessionFallbackLine("open_play", maiaLevel ?? 1600);
 
+  // Engine not ready yet: show Nonno's message instead of an unresponsive board.
+  // Stockfish loads synchronously from a local file so this is usually very brief
+  // (< 1s). No fake progress bar — just honest state.
+  if (!sf.isReady) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-10 items-start">
+        <div className="flex flex-col items-center gap-2">
+          <BoardScene sceneKey={startFen}>
+            <div ref={fit.ref} style={{ width: "100%", maxWidth: fit.max }}>
+              <BoardView
+                fen={startFen}
+                orientation={myColor}
+                size={fit.size}
+                draggable={false}
+              />
+            </div>
+          </BoardScene>
+        </div>
+        <div className="space-y-4">
+          <div
+            style={{
+              padding: "0.875rem 1rem",
+              borderRadius: "8px",
+              border: "1px solid rgba(161,139,255,0.22)",
+              background: "rgba(161,139,255,0.05)",
+            }}
+          >
+            <span style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: "0.6rem",
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: "var(--color-brand-soft)",
+              fontWeight: 700,
+              display: "block",
+              marginBottom: "0.4rem",
+            }}>
+              Nonno
+            </span>
+            <p style={{
+              fontFamily: "var(--font-sans)",
+              fontSize: "0.875rem",
+              lineHeight: 1.55,
+              color: "var(--color-text-soft)",
+              margin: 0,
+            }}>
+              Un attimo, preparo l&apos;avversario.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-10 items-start">
       {/* BoardScene entrance: sceneKey = startFen (the game position).
@@ -953,7 +1007,7 @@ const PIECE_NAMES_IT: Record<string, string> = {
 };
 
 const SURE_PHRASES = [
-  (piece: string, sq: string) => `Oooh... sei sicuro? Il ${piece} in ${sq} resta non protetto. Lo prendo.`,
+  (piece: string, sq: string) => `Aspetta... sei sicuro? Il ${piece} in ${sq} resta non protetto. Lo prendo.`,
   (piece: string, sq: string) => `Aspetta. Conta i difensori del ${piece} in ${sq}. Io ho un attaccante in più.`,
   (piece: string, sq: string) => `Mh. Hai mosso, e il ${piece} in ${sq} è rimasto indifeso. Sei sicuro?`,
   (piece: string, sq: string) => `Hai fretta? Il ${piece} in ${sq} non ha difensori. Te lo prendo.`,

@@ -49,6 +49,9 @@ export function useStockfish(): StockfishApi {
   const evalQueueRef = useRef<Promise<unknown>>(Promise.resolve());
   // Ref live di isReady, per evitare closure stale dentro promise di lunga vita.
   const isReadyRef = useRef(false);
+  // Id del setInterval di ready(): va cancellato all'unmount, altrimenti se il
+  // worker viene terminato prima del "readyok" il poll gira all'infinito (leak).
+  const readyIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const currentEvalRef = useRef<EvalResult>({
     scoreCp: null,
     mate: null,
@@ -111,9 +114,11 @@ export function useStockfish(): StockfishApi {
       const check = setInterval(() => {
         if (isReadyRef.current) {
           clearInterval(check);
+          readyIntervalRef.current = null;
           resolve();
         }
       }, 50);
+      readyIntervalRef.current = check;
     });
     return readyPromiseRef.current;
   }, [initWorker]);
@@ -122,6 +127,12 @@ export function useStockfish(): StockfishApi {
   useEffect(() => {
     initWorker();
     return () => {
+      // Cancella il poll di ready() prima di terminare il worker: senza questo
+      // l'intervallo continuerebbe a girare a vuoto (isReadyRef non diventa mai true).
+      if (readyIntervalRef.current !== null) {
+        clearInterval(readyIntervalRef.current);
+        readyIntervalRef.current = null;
+      }
       try {
         workerRef.current?.postMessage("quit");
         workerRef.current?.terminate();

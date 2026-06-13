@@ -972,6 +972,12 @@ button:disabled, [aria-disabled="true"] {
   50%       { opacity: 0.25; }
 }
 
+/* Tavolo waiting-state: text that breathes very slowly while Nonno is still
+   looking at your games. Low-key, not attention-seeking. */
+.nonno-pulse {
+  animation: nt-pulse 5s ease-in-out infinite;
+}
+
 /* ============================================================================
  * Utility shadows + dividers
  * ========================================================================== */
@@ -6984,6 +6990,54 @@ button:disabled, [aria-disabled="true"] {
   outline-offset: 3px;
 }
 
+/* Board invite label — Nonno's whisper before the first touch.
+ *
+ * Anchored bottom-right, near where the board sits in the 3D space,
+ * but far from the dialogue (bottom-left) so the two voices don't collide.
+ * The label is inline text in the Nonno voice, not a tooltip or badge.
+ * It breathes in sync with the board: a very slow opacity pulse (4 s cycle,
+ * min 0.55 → max 0.85) so it reads as "alive" rather than "notification".
+ *
+ * Gravity rule: no shadow, no glow, no border — just warm text that sits
+ * on the same plane as the scene. text-shadow is structural (legibility on
+ * the dark canvas), not decorative.
+ *
+ * z-index 45: above the vignette (30) and the canvas (0), below the
+ * focus chip (55) and the dialogue (50) — it lives in the background chorus.
+ */
+.scena-board-invito {
+  position: fixed;
+  /* Sits in the right-center area — roughly where the board lives on screen */
+  right: clamp(1.2rem, 5vw, 3.2rem);
+  bottom: clamp(5rem, 20vh, 9rem);
+  z-index: 45;
+  font-family: var(--font-voice);
+  font-size: clamp(0.78rem, 1.6vw, 0.92rem);
+  font-weight: 400;
+  font-style: italic;
+  color: rgba(224, 216, 196, 0.78);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+  /* Hidden by default; enters with the dialogue */
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 800ms cubic-bezier(0.23, 1, 0.32, 1),
+              transform 800ms cubic-bezier(0.23, 1, 0.32, 1);
+  /* Caps line length: the invite reads in one breath */
+  max-width: min(22rem, 44vw);
+  text-align: right;
+}
+.scena-board-invito-in {
+  opacity: 1;
+  transform: translateY(0);
+  /* After arriving, breathe: very slow opacity oscillation (4 s) */
+  animation: board-invito-respiro 4000ms cubic-bezier(0.23, 1, 0.32, 1) 800ms infinite alternate;
+}
+@keyframes board-invito-respiro {
+  from { opacity: 0.55; }
+  to   { opacity: 0.85; }
+}
+
 /* Mobile: dialogue and chip share the bottom edge without colliding */
 @media (max-width: 640px) {
   .scena-dialogo {
@@ -7011,6 +7065,14 @@ button:disabled, [aria-disabled="true"] {
     top: 0.8rem;
     right: 1rem;
   }
+  /* On mobile the invite sits above the chip without colliding */
+  .scena-board-invito {
+    right: 1rem;
+    bottom: 4.5rem;
+    max-width: 52vw;
+    font-size: 0.72rem;
+    text-align: right;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -7025,5 +7087,16 @@ button:disabled, [aria-disabled="true"] {
   .scena-marchio {
     animation: none;
     opacity: 1;
+  }
+  /* Reduced motion: kill the breathing animation but keep the text visible.
+     The invite is information, not decoration — it stays. */
+  .scena-board-invito {
+    transition: none;
+    animation: none;
+  }
+  .scena-board-invito-in {
+    opacity: 0.72;
+    transform: none;
+    animation: none;
   }
 }

@@ -22,7 +22,7 @@
  *   - mono solo per numeri che Nonno cita nel discorso
  */
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { PRODUCT_NAME } from "../coaching";
 import type { Anchor, PositionExample } from "../pipeline/aggregate";
@@ -32,6 +32,7 @@ import { NonnoLetter } from "../components/NonnoLetter";
 import { MomentoDelGiorno } from "../components/MomentoDelGiorno";
 import type { AnchorTrail } from "../types";
 import { useTavoloData } from "./tavolo/useTavoloData";
+import { useOnboardingRun } from "../pipeline/OnboardingRunContext";
 
 // ── Reveal hook ───────────────────────────────────────────────────────────────
 
@@ -531,6 +532,10 @@ function VarcoQuaderno({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
+// Minimum number of analyzed games before the analytic blocks are shown.
+// Below this threshold Nonno explains honestly rather than leaving blank gaps.
+const MIN_GAMES_FOR_INSIGHTS = 25;
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function TavoloHome() {
@@ -559,9 +564,49 @@ export function TavoloHome() {
     letterSeenBefore,
     letterOpenedThisVisit,
     markLetterSeen,
+    reloading,
     runRefreshHandler: handleRefresh,
     runFullReanalyzeHandler: handleFullReanalyze,
   } = useTavoloData();
+
+  // Whether onboarding background analysis (games 11-100) is still running, plus
+  // its live progress (gamesDone/gamesTotal) so the Tavolo can show how many are left.
+  const { backgroundRunning, progress } = useOnboardingRun();
+
+  // Two-step confirm gate for "Rianalizza da capo" (irreversible, heavy operation).
+  // First click: confirming=true, button text changes to "Sicuro? Ricomincio da zero".
+  // Second click within 4s: executes. No click / 4s timeout: resets to idle.
+  const [reanalyzeConfirming, setReanalyzeConfirming] = useState(false);
+  const reanalyzeConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function handleReanalyzeClick() {
+    if (refreshing || reanalyzing) return;
+    if (!reanalyzeConfirming) {
+      setReanalyzeConfirming(true);
+      reanalyzeConfirmTimerRef.current = setTimeout(() => {
+        setReanalyzeConfirming(false);
+        reanalyzeConfirmTimerRef.current = null;
+      }, 4000);
+    } else {
+      // Confirmed: cancel the auto-reset timer and execute.
+      if (reanalyzeConfirmTimerRef.current !== null) {
+        clearTimeout(reanalyzeConfirmTimerRef.current);
+        reanalyzeConfirmTimerRef.current = null;
+      }
+      setReanalyzeConfirming(false);
+      void handleFullReanalyze();
+    }
+  }
+
+  // Cancel the pending confirm timer on unmount (route change) so it never
+  // fires setState on a dead component.
+  useEffect(() => {
+    return () => {
+      if (reanalyzeConfirmTimerRef.current !== null) {
+        clearTimeout(reanalyzeConfirmTimerRef.current);
+      }
+    };
+  }, []);
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
@@ -765,9 +810,140 @@ export function TavoloHome() {
         )}
       </div>
 
+      {/* ── SOGLIA PARTITE — gate a tre vie prima di tutti i blocchi analitici ──
+          Three cases, in order:
+          1. fewGames && backgroundRunning  → "sto ancora guardando" (Nonno warm, no button)
+          2. fewGames && !backgroundRunning → "poche partite vere" + "Aggiorna le partite"
+          3. !fewGames (or no aggregates)   → full analytic blocks below
+          The empty-state (!aggregates && !pmLite) is handled earlier and is unaffected. */}
+      {(() => {
+        const fewGames =
+          aggregates != null && aggregates.games_analyzed < MIN_GAMES_FOR_INSIGHTS;
+
+        // `reloading` keeps this branch alive during the ~300ms reload right
+        // after the background finishes, so a >=25 user never flashes the
+        // "few games" message before the full Tavolo arrives.
+        if (fewGames && (backgroundRunning || reloading)) {
+          // Case 1: first batch done, background still running — Nonno is still looking.
+          const seen = progress?.gamesDone ?? 0;
+          const total = progress?.gamesTotal ?? 0;
+          return (
+            <Reveal delay={120} className="mb-16">
+              {/* Optional: show the Obiettivo block if data is available — it is
+                  the user's own declared pact, not derived from deep analysis,
+                  so it is honest to display even with only 10 games. */}
+              {currentRating != null && targetRating > 0 && (
+                <div style={{ marginBottom: "2rem" }}>
+                  <GoalHero
+                    current={currentRating}
+                    start={startRating}
+                    target={targetRating}
+                    deadline={deadline}
+                    onTrack={onTrack}
+                    pointsNeeded={gp?.points_needed ?? Math.max(0, targetRating - currentRating)}
+                    rateNeeded={gp?.rate_needed_per_week ?? null}
+                    rateReal={gp?.rate_real_per_week ?? null}
+                    handicapLine={handicapLine}
+                  />
+                </div>
+              )}
+              <div
+                style={{
+                  fontFamily: "var(--font-voice)",
+                  fontSize: "1rem",
+                  color: "var(--color-text-soft)",
+                  lineHeight: 1.65,
+                  maxWidth: "38rem",
+                }}
+              >
+                <p
+                  className="nonno-pulse"
+                  style={{ marginBottom: 0 }}
+                >
+                  Ho cominciato dalle tue ultime dieci partite e sto andando
+                  indietro nel tempo, una alla volta. Dammi ancora un momento e
+                  poi ci sediamo davvero. Tu intanto guarda pure in giro.
+                </p>
+                {total > 0 && (
+                  <p
+                    style={{
+                      marginTop: "0.85rem",
+                      marginBottom: 0,
+                      fontSize: "0.85rem",
+                      color: "var(--color-muted)",
+                    }}
+                  >
+                    Ne ho guardate{" "}
+                    <span style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-soft)" }}>
+                      {seen}
+                    </span>{" "}
+                    su{" "}
+                    <span style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-soft)" }}>
+                      {total}
+                    </span>
+                    .
+                  </p>
+                )}
+              </div>
+            </Reveal>
+          );
+        }
+
+        if (fewGames) {
+          // Case 2: analysis finished but genuinely few games on Chess.com.
+          return (
+            <Reveal delay={120} className="mb-16">
+              <div
+                style={{
+                  fontFamily: "var(--font-voice)",
+                  fontSize: "1rem",
+                  color: "var(--color-text-soft)",
+                  lineHeight: 1.65,
+                  maxWidth: "38rem",
+                }}
+              >
+                <p style={{ marginBottom: "1rem" }}>
+                  Per ora ho potuto guardare{" "}
+                  <span style={{ fontFamily: "var(--font-mono)", color: "var(--color-text)" }}>
+                    {aggregates.games_analyzed}
+                  </span>{" "}
+                  {aggregates.games_analyzed === 1 ? "partita tua" : "partite tue"}.
+                  Da una venticinquina in su comincio a vedere i tuoi freni veri:
+                  giocane ancora qualcuna e torna, ti aspetto qui.
+                </p>
+                <button
+                  onClick={() => void handleRefresh()}
+                  disabled={refreshing || reanalyzing}
+                  style={{
+                    background: "none",
+                    border: "1px solid var(--color-line)",
+                    borderRadius: "8px",
+                    padding: "0.5rem 1rem",
+                    cursor: refreshing || reanalyzing ? "default" : "pointer",
+                    opacity: refreshing || reanalyzing ? 0.5 : 1,
+                    color: "var(--color-text-soft)",
+                    fontSize: "0.85rem",
+                    fontFamily: "var(--font-body)",
+                    transition: "border-color 140ms, color 140ms",
+                  }}
+                  onMouseEnter={(e) => { if (!refreshing && !reanalyzing) (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--color-line-strong)"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--color-line)"; }}
+                >
+                  {refreshing ? "Preparo..." : "Aggiorna le partite"}
+                </button>
+              </div>
+            </Reveal>
+          );
+        }
+
+        // Case 3: enough games analyzed — render full analytic blocks below.
+        return (
+        <>
+
       {/* ── 2. OBIETTIVO: il Patto scritto sulla parete ─────────────────────
-          settle-in at 650ms: after Nonno finishes speaking (~500ms). */}
-      {currentRating != null && (
+          settle-in at 650ms: after Nonno finishes speaking (~500ms).
+          targetRating guard: never render GoalHero with target=0 (no goal set). */}
+      {currentRating != null && targetRating > 0 && (
         <div
           className="settle-in mb-16"
           style={{ animationDelay: "650ms" }}
@@ -901,7 +1077,7 @@ export function TavoloHome() {
         </button>
         <span style={{ color: "var(--color-faint)", padding: "0 0.4rem", userSelect: "none" }}> · </span>
         <button
-          onClick={() => void handleFullReanalyze()}
+          onClick={handleReanalyzeClick}
           disabled={refreshing || reanalyzing}
           style={{
             background: "none",
@@ -909,17 +1085,22 @@ export function TavoloHome() {
             padding: 0,
             cursor: refreshing || reanalyzing ? "default" : "pointer",
             opacity: refreshing || reanalyzing ? 0.4 : 1,
-            color: "var(--color-faint)",
+            color: reanalyzeConfirming ? "var(--color-warn)" : "var(--color-faint)",
             fontSize: "inherit",
             fontFamily: "inherit",
             textDecoration: "underline",
             textDecorationColor: "color-mix(in srgb, var(--color-faint) 50%, transparent)",
             textUnderlineOffset: "2px",
+            transition: "color 200ms ease",
           }}
         >
-          {reanalyzing ? "Rianalizzando..." : "Rianalizza da capo"}
+          {reanalyzing ? "Rianalizzando..." : reanalyzeConfirming ? "Sicuro? Ricomincio da zero" : "Rianalizza da capo"}
         </button>
       </div>
+
+        </>
+        );
+      })()}
 
     </div>
   );

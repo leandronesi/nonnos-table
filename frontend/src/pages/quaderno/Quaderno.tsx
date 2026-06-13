@@ -1277,8 +1277,17 @@ function TabProfilo({
 
       {decisions == null && !hasSpeedData && !hasClockData && phases.length === 0 && (
         <Section delay={0}>
-          <div style={{ color: "var(--color-muted)", fontSize: "0.88rem", textAlign: "center", padding: "2rem 0" }}>
-            Ancora nessun dato di profilo. Completa l'analisi.
+          <div style={{ padding: "2rem 0", textAlign: "center" }}>
+            <p className="tt-nonno" style={{ marginBottom: "1rem" }}>
+              Il profilo si costruisce partita dopo partita. Quando avremo abbastanza materiale, ti mostro come giochi davvero: le decisioni, i tempi, dove ti perdi.
+            </p>
+            <Link
+              to="/tavolo"
+              className="tt-chip"
+              style={{ display: "inline-block", textDecoration: "none" }}
+            >
+              Vai al Tavolo
+            </Link>
           </div>
         </Section>
       )}
@@ -1727,13 +1736,27 @@ function TabCadute({
 function TabRepertorio({ aggregates }: { aggregates: Aggregates | null }) {
   const hasRepertoire = (aggregates?.repertoire?.length ?? 0) > 0;
 
-  const repertorioNonno = (() => {
-    if (!hasRepertoire) return "Il repertorio si costruisce con le partite analizzate. Ogni apertura giocata lascia una traccia.";
-    const total = aggregates!.repertoire!.length;
-    return `${total} aperture nel repertorio. Clicca su un'apertura per vedere dove si concentrano gli errori evitabili.`;
-  })();
-
   const cadute = aggregates?.cadute ?? aggregates?.examples ?? [];
+
+  if (!hasRepertoire) {
+    return (
+      <div style={{ padding: "2rem 0", textAlign: "center" }}>
+        <p className="tt-nonno" style={{ marginBottom: "1rem" }}>
+          Il repertorio cresce con le partite. Dopo qualche analisi ti mostro le aperture che giochi, dove perdi punti recuperabili e dove invece il problema non e' la teoria.
+        </p>
+        <Link
+          to="/tavolo"
+          className="tt-chip"
+          style={{ display: "inline-block", textDecoration: "none" }}
+        >
+          Vai al Tavolo
+        </Link>
+      </div>
+    );
+  }
+
+  const total = aggregates!.repertoire!.length;
+  const repertorioNonno = `${total} aperture nel repertorio. Clicca su un'apertura per vedere dove si concentrano gli errori evitabili.`;
 
   return (
     <div>

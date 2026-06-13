@@ -71,13 +71,13 @@ export function positionCoachLine(position: PositionRow, maiaLevel = 1600): stri
 
 export function sessionFallbackLine(key: string, maiaLevel = 1600): string {
   const lines: Record<string, string> = {
-    open_tavolo: "Oooh, eccolo. Oggi rivediamo i tuoi momenti chiave dalle ultime partite. Poi giochiamo contro un giocatore al tuo target. Sediamoci.",
-    open_warmup: "Oooh, eccolo. Allora oggi guardiamo il pezzo non difeso. Cinque posizioni, prima conti i difensori.",
+    open_tavolo: "Eccolo. Oggi rivediamo i tuoi momenti chiave dalle ultime partite. Poi giochiamo contro un giocatore al tuo target. Sediamoci.",
+    open_warmup: "Eccolo. Oggi guardiamo il pezzo non difeso. Cinque posizioni, prima conti i difensori.",
     between_warmup_bivio: "Bene. Adesso bivi veri, di tue partite. Pensa alla minaccia avversaria prima di scegliere.",
     open_bivio: "Ecco la posizione. Prima attaccanti, poi difensori. Poi muovi.",
     between_bivio_play: `Adesso la partita, contro ${maiaLabel(maiaLevel)}. Senza muovere di mano.`,
     open_play: `Contro ${maiaLabel(maiaLevel)} non serve fare il fenomeno. Difensori, scambi puliti, semplifica quando sei avanti.`,
-    recap_win: "Bravo. Oooh, hai chiuso pulito.",
+    recap_win: "Bravo. Hai chiuso senza lasciare niente.",
     recap_draw: "Mh. Hai tenuto il punto. La prossima cerchi lo scambio giusto.",
     recap_loss: "Oh. C'era un pezzo non difeso che è rimasto. Domani lo guardiamo.",
     close: "Riposati. Domani stesso tavolo: difensori, minacce, mossa.",

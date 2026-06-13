@@ -13,6 +13,7 @@
 import { Component, Suspense, lazy, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTavoloData } from "./tavolo/useTavoloData";
+import { useOnboardingRun } from "../pipeline/OnboardingRunContext";
 import { selectMomento } from "../components/MomentoDelGiorno";
 import { materialForGap } from "../pipeline/history";
 import { prefersReducedMotion } from "../lib/motion";
@@ -96,6 +97,11 @@ export function StanzaHome() {
     error,
   } = useTavoloData();
 
+  // While the onboarding background is still chewing through the rest of the
+  // games, Nonno says so in the room too (the foyer is the first screen after
+  // entry) — so the wait feels like him working, not the app hanging.
+  const { backgroundRunning } = useOnboardingRun();
+
   const reduced = prefersReducedMotion();
 
   // The dialogue arrives after the camera has sat down (~3s dolly + a breath).
@@ -111,6 +117,26 @@ export function StanzaHome() {
     const t = setTimeout(() => setSpoken(true), 3600);
     return () => clearTimeout(t);
   }, [loading, error, reduced]);
+
+  // Board affordance: breathing + invite label disappear after the first visit.
+  // localStorage key so returning visitors never see it again (gate-once).
+  const BOARD_VISITED_KEY = "nonno_board_visited_v1";
+  const [boardVisited, setBoardVisited] = useState(() => {
+    try {
+      return localStorage.getItem(BOARD_VISITED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  function markBoardVisited() {
+    if (boardVisited) return;
+    setBoardVisited(true);
+    try {
+      localStorage.setItem(BOARD_VISITED_KEY, "1");
+    } catch {
+      // storage not available — degrade gracefully
+    }
+  }
 
   // Gli sguardi: which object the camera leans over. StanzaHome owns it so
   // Escape and the DOM chip can drive it alongside the in-canvas clicks.
@@ -184,19 +210,27 @@ export function StanzaHome() {
           thorns={thorns}
           showLetter={showLetter}
           reducedMotion={reduced}
+          boardBreathing={!boardVisited}
           onBoardClick={
             momento
-              ? () =>
+              ? () => {
+                  markBoardVisited();
                   nav("/sessione", {
                     state: { focusKey: `${momento.fen_before}:${momento.ply}` },
-                  })
+                  });
+                }
               : undefined
           }
           onNotebookClick={() => nav("/quaderno")}
           onBoxClick={() => nav("/quaderno#cadute")}
           onLetterClick={() => nav("/tavolo")}
           focus={focus}
-          onFocusRequest={setFocus}
+          onFocusRequest={(f) => {
+            // First tap on the board also clears the affordance, even before
+            // the second tap that would actually navigate.
+            if (f === "scacchiera") markBoardVisited();
+            setFocus(f);
+          }}
         />
       </Suspense>
       </SceneBoundary>
@@ -234,14 +268,32 @@ export function StanzaHome() {
         </button>
       )}
 
+      {/* Board invite label — fades in with the dialogue, disappears on first touch.
+          Visible only before the first interaction (gate-once via localStorage).
+          On reducedMotion the animation is suppressed via CSS but the text stays:
+          it is information, not decoration. */}
+      {momento && (
+        <div
+          className={`scena-board-invito${spoken && !boardVisited ? " scena-board-invito-in" : ""}`}
+          aria-label="Invito a toccare la scacchiera"
+        >
+          Toccala: rivediamo la tua ultima partita
+        </div>
+      )}
+
       {/* The dialogue — arrives when the camera has sat down */}
       <div className={`scena-dialogo${spoken ? " scena-dialogo-in" : ""}`} aria-live="polite">
         {spoken && (
           <>
             <div className="scena-dialogo-eyebrow">Nonno</div>
-            <p className="scena-dialogo-battuta">Oooh. Eccoti.</p>
+            <p className="scena-dialogo-battuta">Bentornato.</p>
             {memoriaVisibile && (
               <p className="scena-dialogo-memoria">{memoriaVisibile}</p>
+            )}
+            {backgroundRunning && (
+              <p className="scena-dialogo-memoria">
+                Mi sto ancora guardando le tue partite. Tu intanto siediti.
+              </p>
             )}
             {/* The one loud action of the foyer: walk to the table */}
             <button

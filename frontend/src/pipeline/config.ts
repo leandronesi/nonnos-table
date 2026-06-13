@@ -10,8 +10,10 @@
  */
 export const FREE_GAME_CAP = 100;
 
-/** Prima fetta di analisi: le N partite più recenti → aggregate+coach parziale rapido. */
-export const FIRST_BATCH_SIZE = 20;
+/** Prima fetta di analisi: le N partite più recenti → aggregate+coach parziale rapido.
+ * Set to 10 (was 20) so the user enters the Tavolo after fewer games analyzed upfront;
+ * the remaining 90 continue in the background while they are already inside. */
+export const FIRST_BATCH_SIZE = 10;
 
 /** Quante posizioni-esempio (mosse peggiori) passiamo al coach LLM. */
 export const MAX_COACH_EXAMPLES = 8;

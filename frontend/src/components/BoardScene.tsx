@@ -28,6 +28,17 @@
 import { useEffect, useState } from "react";
 import { prefersReducedMotion } from "../lib/motion";
 
+// Session-scoped "already sat down" flag. The board rise is the ritual of
+// sitting at the table: it should play once when you arrive at a session, not
+// at every phase change. NonnoSession calls resetBoardSceneRitual() at the
+// start of each session; the first board to rise (or a morph arrival) spends
+// it, and every later board in that session is simply already up.
+// BoardScene is only used inside the session, so this module flag is safe.
+let ritualSpent = false;
+export function resetBoardSceneRitual() {
+  ritualSpent = false;
+}
+
 interface BoardSceneProps {
   /** Identity key: when this changes the entrance animation re-runs. */
   sceneKey: string;
@@ -45,24 +56,35 @@ interface BoardSceneProps {
 }
 
 export function BoardScene({ children, sceneKey, holdMs = 500, startRisen = false }: BoardSceneProps) {
-  // With reduced-motion (or morph arrival) start already risen so no transition fires.
-  const [risen, setRisen] = useState(() => prefersReducedMotion() || startRisen);
+  // Already up if: reduced motion, a morph arrival, or this session's one rise
+  // is already spent (a later phase). Otherwise this is the sit-down ritual.
+  const reduced = prefersReducedMotion();
+  const [risen, setRisen] = useState(() => reduced || startRisen || ritualSpent);
 
   useEffect(() => {
-    if (prefersReducedMotion() || startRisen) {
+    if (reduced || startRisen) {
+      // Morph arrival (or reduced motion) counts as the sit-down: spend it so
+      // the following phases in this session do not rise again.
+      setRisen(true);
+      ritualSpent = true;
+      return;
+    }
+    if (ritualSpent) {
+      // Already sat down earlier in this session: the board is simply there.
       setRisen(true);
       return;
     }
 
-    // Each new sceneKey triggers a fresh entrance.
+    // First board of the session: run the entrance once, then spend the ritual.
     setRisen(false);
 
     const t = setTimeout(() => {
       setRisen(true);
+      ritualSpent = true;
     }, holdMs);
 
     return () => clearTimeout(t);
-  }, [sceneKey, holdMs, startRisen]);
+  }, [sceneKey, holdMs, startRisen, reduced]);
 
   return (
     <div className="board-scene">
