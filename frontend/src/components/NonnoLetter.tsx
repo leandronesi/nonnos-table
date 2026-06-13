@@ -11,6 +11,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { prefersReducedMotion } from "../lib/motion";
+import { tr } from "../i18n/lang";
 
 interface NonnoLetterProps {
   /** Unique identity of this letter (generated_at or djb2 hash of voice). Used for localStorage. */
@@ -70,7 +71,7 @@ export function NonnoLetter({ identity: _identity, onOpen, children }: NonnoLett
           {/* Front face (visible when closed): eyebrow + serif greeting */}
           <div className="letter-flap-front">
             <span className="letter-flap-eyebrow">Nonno</span>
-            <span className="letter-flap-greeting">Per te.</span>
+            <span className="letter-flap-greeting">{tr("Per te.", "For you.")}</span>
           </div>
         </div>
 
@@ -78,7 +79,7 @@ export function NonnoLetter({ identity: _identity, onOpen, children }: NonnoLett
         {!open && (
           <button
             className="letter-open-btn"
-            aria-label="Apri la lettera del Nonno"
+            aria-label={tr("Apri la lettera del Nonno", "Open Nonno's letter")}
             onClick={handleOpen}
           />
         )}

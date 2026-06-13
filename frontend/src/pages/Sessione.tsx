@@ -17,6 +17,7 @@ import { NonnoSession } from "../session/NonnoSession";
 import type { Aggregates, PositionExample } from "../pipeline/aggregate";
 import { getCachedAggregates, setCachedAggregates } from "../pipeline/aggregatesCache";
 import { PRODUCT_NAME } from "../coaching";
+import { tr } from "../i18n/lang";
 
 function caduteOf(agg: Aggregates | null): PositionExample[] | null {
   if (!agg) return null;
@@ -37,7 +38,10 @@ export function Sessione() {
   // from the Tavolo board. Used to suppress the BoardScene rise (already arrived).
   // location.state is read once at mount — safe: if the user navigates internally
   // (phase restart, back) the state does not change and viaMorph stays false.
-  const locationState = location.state as { focusKey?: string; viaMorph?: boolean } | null;
+  const locationState = location.state as {
+    focusKey?: string;
+    viaMorph?: boolean;
+  } | null;
   const focusKey = locationState?.focusKey;
   const viaMorph = locationState?.viaMorph === true;
 
@@ -45,7 +49,9 @@ export function Sessione() {
   // tavolo-board View Transition morph finds its destination pair in the
   // very first frame. Cache miss (deep link, stale dataVersion) -> fetch.
   const cachedAtMount = user ? getCachedAggregates(user.id, dataVersion) : null;
-  const [cadute, setCadute] = useState<PositionExample[] | null>(caduteOf(cachedAtMount));
+  const [cadute, setCadute] = useState<PositionExample[] | null>(
+    caduteOf(cachedAtMount),
+  );
   const [loading, setLoading] = useState(cachedAtMount == null);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,13 +70,16 @@ export function Sessione() {
     let cancelled = false;
     (async () => {
       try {
-        const agg = await downloadJson<Aggregates>(quadernoPath(user.id, "aggregates.json"));
+        const agg = await downloadJson<Aggregates>(
+          quadernoPath(user.id, "aggregates.json"),
+        );
         if (cancelled) return;
 
         if (agg) setCachedAggregates(user.id, dataVersion, agg);
         setCadute(caduteOf(agg) ?? []);
       } catch (e) {
-        if (!cancelled) setError(String(e instanceof Error ? e.message : e));
+        if (!cancelled)
+          setError(String(e instanceof Error ? e.message : e));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -96,7 +105,7 @@ export function Sessione() {
             {PRODUCT_NAME}
           </div>
           <div className="text-sm mt-2 text-[color:var(--color-text-soft)]">
-            Preparo la sessione…
+            {tr("Preparo la sessione…", "Getting things ready.")}
           </div>
         </div>
       </div>
@@ -112,10 +121,12 @@ export function Sessione() {
         style={{ background: "var(--color-bg)" }}
       >
         <div className="surface surface-padded max-w-xl text-center">
-          <div className="label-eyebrow text-rose-300 mb-2">Errore</div>
+          <div className="label-eyebrow text-rose-300 mb-2">
+            {tr("Errore", "Error")}
+          </div>
           <p className="text-[color:var(--color-text-soft)]">{error}</p>
           <Link to="/tavolo" className="btn btn-ghost mt-4 inline-block">
-            Torna al Tavolo
+            {tr("Torna al Tavolo", "Back to the Table")}
           </Link>
         </div>
       </div>

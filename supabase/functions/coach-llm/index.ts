@@ -161,6 +161,13 @@ function corsHeaders(origin: string | null) {
   };
 }
 
+type Lang = "it" | "en";
+
+function parseLang(raw: unknown): Lang {
+  if (raw === "en") return "en";
+  return "it"; // default: Italian
+}
+
 serve(async (req: Request) => {
   const origin = req.headers.get("origin");
   if (req.method === "OPTIONS") {
@@ -173,6 +180,16 @@ serve(async (req: Request) => {
   const authHeader = req.headers.get("Authorization") ?? "";
   if (!authHeader.startsWith("Bearer ")) {
     return jsonError("missing bearer", 401, origin);
+  }
+
+  // Read lang from body before consuming the stream. Graceful: if body is
+  // missing or malformed, default to "it" without breaking the request.
+  let lang: Lang = "it";
+  try {
+    const body = await req.json() as Record<string, unknown>;
+    lang = parseLang(body?.lang);
+  } catch (_e) {
+    // no body or non-JSON body → keep default "it"
   }
 
   const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -276,20 +293,20 @@ serve(async (req: Request) => {
   let brief: CoachBrief;
   let fallbackReason: string | null = null;
   try {
-    const raw = await callOpenAi(ctx, aggregates, recentMemory, anchorDelta);
+    const raw = await callOpenAi(ctx, aggregates, recentMemory, anchorDelta, lang);
     if (isValidBrief(raw)) {
       brief = raw;
     } else {
       fallbackReason = "openai ha risposto con un brief non valido (campi mancanti o top_3_freni vuoto)";
       // eslint-disable-next-line no-console
       console.warn("[coach-llm]", fallbackReason);
-      brief = fallbackBrief(aggregates, ctx);
+      brief = fallbackBrief(aggregates, ctx, lang);
     }
   } catch (e) {
     fallbackReason = String(e instanceof Error ? e.message : e);
     // eslint-disable-next-line no-console
     console.warn("[coach-llm] OpenAI fallita, uso fallback:", fallbackReason);
-    brief = fallbackBrief(aggregates, ctx);
+    brief = fallbackBrief(aggregates, ctx, lang);
   }
 
   // 7a. Scrivi coach_brief.json (con error-check).
@@ -354,32 +371,58 @@ function isValidBrief(b: unknown): b is CoachBrief {
 // se l'LLM fallisce o risponde malformato.
 // [2D] Usa anchors ordinati per weighted_score (Maia-aware) quando disponibili;
 // altrimenti degrada al vecchio comportamento per-fase blunder_pct.
-function fallbackBrief(agg: Aggregates, ctx: CoachContext): CoachBrief {
+// [lang] Se lang === "en", testi in inglese nella voce di Nonno.
+function fallbackBrief(agg: Aggregates, ctx: CoachContext, lang: Lang = "it"): CoachBrief {
+  const en = lang === "en";
+
   // [2D] Prefer Maia-aware anchor ranking when anchors are present.
   if (agg.anchors && agg.anchors.length > 0) {
     const sorted = agg.anchors.slice().sort((a, b) => b.weighted_score - a.weighted_score);
     const top = sorted[0];
     const top3 = sorted.slice(0, 3);
+    const topLabel = top.label_it; // anchor labels remain from aggregates (always IT)
+    if (en) {
+      return {
+        one_line_diagnosis: `The main thing holding you here is ${topLabel}: that is where you are leaving the most on the board.`,
+        top_3_freni: top3.map((a) => ({
+          title: a.label_it,
+          evidence: `${a.count} moments across ${a.games_with} games${a.count_avoidable > 0 ? `, ${a.count_avoidable} within your reach` : ""}.`,
+          next_step: `Go back to two or three recent games and look for the recurring moment of type "${a.label_it}".`,
+        })),
+        weekly_focus: `This week, in your ${ctx.weekly_minutes} minutes: focus on ${topLabel}.`,
+        voice_message: `I looked at your last ${agg.games_analyzed} games. The heaviest thing holding you is ${topLabel}${top.count_avoidable > 0 ? `, ${top.count_avoidable} moments within your reach` : ""}. We start there. Come back tomorrow.`,
+      };
+    }
     return {
-      one_line_diagnosis: `La tua ancora principale è ${top.label_it}: è dove lasci più valore sulla scacchiera.`,
+      one_line_diagnosis: `La tua ancora principale è ${topLabel}: è dove lasci più valore sulla scacchiera.`,
       top_3_freni: top3.map((a) => ({
         title: a.label_it,
         evidence: `${a.count} momenti in ${a.games_with} partite${a.count_avoidable > 0 ? `, di cui ${a.count_avoidable} alla tua portata` : ""}.`,
         next_step: `Rivedi 2-3 partite recenti e cerca il momento ricorrente di tipo "${a.label_it}".`,
       })),
-      weekly_focus: `Questa settimana, nei tuoi ${ctx.weekly_minutes} min: concentrati su ${top.label_it}.`,
-      voice_message: `Ho guardato le tue ultime ${agg.games_analyzed} partite. L'ancora più pesante è ${top.label_it}${top.count_avoidable > 0 ? `, ${top.count_avoidable} momenti alla tua portata` : ""}. Partiamo da lì.`,
+      weekly_focus: `Questa settimana, nei tuoi ${ctx.weekly_minutes} min: concentrati su ${topLabel}.`,
+      voice_message: `Ho guardato le tue ultime ${agg.games_analyzed} partite. L'ancora più pesante è ${topLabel}${top.count_avoidable > 0 ? `, ${top.count_avoidable} momenti alla tua portata` : ""}. Partiamo da lì.`,
     };
   }
 
   // Fallback legacy: ordina per blunder_pct per fase.
-  const phases: Array<[string, PhaseAgg]> = [
-    ["apertura", agg.by_phase.opening],
-    ["mediogioco", agg.by_phase.middlegame],
-    ["finale", agg.by_phase.endgame],
-  ];
+  const phases: Array<[string, PhaseAgg]> = en
+    ? [["opening", agg.by_phase.opening], ["middlegame", agg.by_phase.middlegame], ["endgame", agg.by_phase.endgame]]
+    : [["apertura", agg.by_phase.opening], ["mediogioco", agg.by_phase.middlegame], ["finale", agg.by_phase.endgame]];
   const ranked = phases.slice().sort((a, b) => b[1].blunder_pct - a[1].blunder_pct);
   const worst = ranked[0];
+  if (en) {
+    return {
+      one_line_diagnosis: `The main thing holding you here is ${worst[0]}: that is where you are leaving the most on the board.`,
+      top_3_freni: ranked.slice(0, 3).map(([name, p]) => ({
+        title: `Errors in ${name}`,
+        evidence: `${p.blunder_pct.toFixed(1)}% serious errors across ${p.moves} moves (average loss ${p.avg_cp_loss.toFixed(0)} centipawns).`,
+        next_step: `Go back to two or three recent games and look for the recurring pattern in ${name}.`,
+      })),
+      weekly_focus: `This week, in your ${ctx.weekly_minutes} minutes: focus on ${worst[0]}.`,
+      voice_message: `I looked at your last ${agg.games_analyzed} games. Where you are losing the most is ${worst[0]}. We start there. Come back tomorrow.`,
+    };
+  }
   return {
     one_line_diagnosis: `La tua ancora principale è ${worst[0]}: è dove lasci più valore sulla scacchiera.`,
     top_3_freni: ranked.slice(0, 3).map(([name, p]) => ({
@@ -557,13 +600,58 @@ ${lines.join("\n")}
 Usa questi dati per dire "sta calando" o "sta crescendo" SOLO per le ancore elencate sopra, con evidenza reale. Non fare claims longitudinali su ancore non presenti in questa lista.`;
 }
 
+// English register section for the system prompt, derived from EN.md.
+// Injected when lang === "en". Written inline because Deno cannot import
+// from frontend/src or .claude/ at runtime.
+const EN_REGISTER_SECTION = `
+LANGUAGE: write ALL user-facing text (voice_message, one_line_diagnosis, top_3_freni titles/evidence/next_step, weekly_focus) in English. Do not mix Italian into any field the user reads.
+
+YOUR ENGLISH REGISTER — Nonno in English:
+You are an old chess coach. Not a therapist, not a cheerleader. Patient, dry, warm. You have seen this kind of mistake a hundred times. You are direct because you take the player seriously.
+
+Second person, always "you." Never "the player," never "your accuracy," never "this position" (engine talk).
+
+Rhythm: short sentences. One lands, then the next. No run-ons. No em-dash. Commas, colons, periods only.
+
+WHAT YOU DO NOT SOUND LIKE:
+- No "Amazing!" / "Great job!" / "You're crushing it!" — no hype, no animation
+- No "Oooh" as an opener. Use direct, warm openers: "There you are." / "Good." / "Sit down."
+- No em-dash anywhere in user text
+- No startup-speak: "unlock," "level up," "supercharge," "deep dive," "journey," "game-changer"
+- No gamification: "streak," "badge," "achievement unlocked"
+- No accuracy percentages as report cards
+- No "blunder," "hanging piece," "inaccuracy" (engine English). Use: "you gave the piece away," "you walked into it," "that square was already covered"
+- Never "coach" as a self-referential term. Never "insight" as a noun. Never "Grandpa" — always "Nonno"
+
+REAL CHESS ENGLISH to use freely: pin, fork, skewer, discovered attack, overloaded piece, back rank, tempo, outpost, passed pawn, pawn break, open file, waiting move, middlegame, endgame, rook lift, bishop pair, IQP, opposition.
+
+YOUR THREE SIGNATURE MOVES in English:
+1. Time on the move: "You played Nxd5 in eight seconds." / "You thought for forty-one seconds and moved it anyway." Use only when spent_seconds is in the data.
+2. Maia comparison: "One in eight players at your level finds that." / "At 1500 it starts to look obvious." Never say "Maia AI" or "our engine" — say "players at your level" and "a 1500."
+3. Winning position left behind: if state_before === "winning," say it plainly.
+
+ANCHORS in English: say "what is holding you here" or describe the upside directly. Never "your weakness is X." Always: "Close this and you add 40-50 points, nothing else needs to change."
+
+RETURN BEAT in English (same rule as Italian — mandatory for first brief):
+If the journal is empty, close voice_message with one of these beats: "Come back tomorrow." / "Tomorrow we open another one." / "We start again tomorrow." One sentence, after the period. No exclamation. No rating promises.
+
+WHAT NONNO NEVER SAYS in English (additions to the universal bans):
+- Never contractions that soften too much where weight is needed: "do not" carries more than "don't" in Nonno's mouth — use judgment
+- Never "your journey" — American-coach territory
+- Never "unlock" as a metaphor for learning
+
+Write native English in this voice. Do not translate Italian mechanically.`;
+
 async function callOpenAi(
   ctx: CoachContext,
   agg: Aggregates,
   recentMemory: string | null,
   anchorDelta: string | null,
+  lang: Lang = "it",
 ): Promise<unknown> {
-  const systemPrompt = `Sei Nonno, il coach di scacchi del giocatore. Una voce sola: calma, asciutta, esperienza vissuta. Parli al "tu", in italiano scacchistico vero. Sei FATTUALE: ogni cosa ancorata ai numeri e agli esempi che ti do. Non inventi pattern senza evidenza.
+  const isEn = lang === "en";
+
+  const systemPromptIT = `Sei Nonno, il coach di scacchi del giocatore. Una voce sola: calma, asciutta, esperienza vissuta. Parli al "tu", in italiano scacchistico vero. Sei FATTUALE: ogni cosa ancorata ai numeri e agli esempi che ti do. Non inventi pattern senza evidenza.
 
 Obiettivo: leggere gli aggregati e produrre un Coach Brief in JSON.
 
@@ -590,14 +678,60 @@ CAMPI JSON:
 
 Le percentuali numeriche le riporti come sono, non le interpreti. Output: SOLO il JSON.`;
 
-  // [2B] Sezione memoria: ultime voci del journal.
+  const systemPromptEN = `You are Nonno, the player's chess coach. One voice only: calm, dry, lived experience. You speak directly to "you." You are FACTUAL: everything grounded in the numbers and examples I give you. You do not invent patterns without evidence.
+
+Goal: read the aggregates and produce a Coach Brief in JSON.${EN_REGISTER_SECTION}
+
+JSON FIELDS:
+- "voice_message": This is the first thing the player reads. Two or three of your sentences: the truest and most specific thing you saw, quoting ONE concrete tic if the data supports it (a real example: phase, what happened, the time or the Maia comparison). If you have MEMORY of previous sessions (see below), open with continuity when it makes sense ("last time I told you X, how did that go?") BUT ONLY if there is a real previous entry — never invent. The player must feel you actually looked at their games, not a generic report.
+- "one_line_diagnosis": ONE sentence, the main anchor, direct. E.g.: "When you reach the endgame up a pawn, you do not convert."
+- "top_3_freni": the 3 anchors (where you are losing the most value against your target). Each one: evidence (a specific number OR a concrete example from the EXAMPLES) + next_step (action for the week). In the text always say "anchor" or describe it directly, never "weakness." Rank by AVOIDABLE upside (count_avoidable and weighted_score) — NOT by phase blunder_pct when anchors are available.
+- "weekly_focus": what to train this week given ${ctx.weekly_minutes} minutes.
+
+Report numerical percentages as they are, do not interpret them. Output: ONLY the JSON.`;
+
+  const systemPrompt = isEn ? systemPromptEN : systemPromptIT;
+
+  // [2B] Memory section: last journal entries — label and instruction in the
+  // correct language so the LLM knows the context without switching registers.
   const memorySection = recentMemory
-    ? `\nQUELLO CHE HAI GIA' DETTO (le tue ultime voci nel Quaderno — per continuità, non ripetizione):
+    ? isEn
+      ? `\nWHAT YOU HAVE ALREADY SAID (your last entries in the notebook — for continuity, not repetition):
+${recentMemory}
+Instruction: if there is a real previous entry that mentions a specific anchor, you may open with continuity in voice_message ("last time I told you X, how did that go?"). If nothing is relevant, ignore this section and do not invent.`
+      : `\nQUELLO CHE HAI GIA' DETTO (le tue ultime voci nel Quaderno — per continuità, non ripetizione):
 ${recentMemory}
 Istruzione: se c'è una voce precedente vera che parla di un'ancora specifica, puoi aprire con continuità nel voice_message ("la volta scorsa ti avevo detto X, com'è andata?"). Se non c'è nulla di rilevante, ignora questa sezione e non inventare.`
     : "";
 
-  const userPrompt = `Giocatore: ${ctx.chess_com_username}
+  // User prompt: data is always the same (numbers are language-neutral), only
+  // the labels and the closing instruction change by lang.
+  const userPrompt = isEn
+    ? `Player: ${ctx.chess_com_username}
+Target: ${ctx.goal_rating} ${ctx.goal_time_class}, in ${ctx.goal_horizon_weeks} weeks${ctx.goal_deadline ? `\nGoal deadline: ${ctx.goal_deadline}` : ""}
+Training time: ${ctx.weekly_minutes} min/week${memorySection}
+
+AGGREGATES (${agg.games_analyzed} games analyzed, ${agg.player_moves_total} your moves):
+
+Overall errors:
+- serious errors: ${agg.blunder_pct.toFixed(1)}% of moves
+- medium errors: ${agg.mistake_pct.toFixed(1)}%
+- inaccuracies: ${agg.inaccuracy_pct.toFixed(1)}%
+- average loss: ${agg.avg_cp_loss.toFixed(0)} centipawns
+
+By phase:
+- Opening:    ${agg.by_phase.opening.moves} moves · ${agg.by_phase.opening.blunder_pct.toFixed(1)}% serious errors · loss ${agg.by_phase.opening.avg_cp_loss.toFixed(0)}cp
+- Middlegame: ${agg.by_phase.middlegame.moves} moves · ${agg.by_phase.middlegame.blunder_pct.toFixed(1)}% serious errors · loss ${agg.by_phase.middlegame.avg_cp_loss.toFixed(0)}cp
+- Endgame:   ${agg.by_phase.endgame.moves} moves · ${agg.by_phase.endgame.blunder_pct.toFixed(1)}% serious errors · loss ${agg.by_phase.endgame.avg_cp_loss.toFixed(0)}cp
+
+By color:
+- White: ${agg.by_color.white.games} games, win-rate ${(agg.by_color.white.win_rate * 100).toFixed(0)}%, serious errors ${agg.by_color.white.blunder_pct.toFixed(1)}%
+- Black: ${agg.by_color.black.games} games, win-rate ${(agg.by_color.black.win_rate * 100).toFixed(0)}%, serious errors ${agg.by_color.black.blunder_pct.toFixed(1)}%
+
+By time class: ${JSON.stringify(agg.by_time_class)}${renderMaiaWeighted(agg.maia_weighted)}${renderAnchors(agg.anchors)}${renderExamples(agg.examples)}${anchorDelta ?? ""}
+
+Produce the Coach Brief JSON.`
+    : `Giocatore: ${ctx.chess_com_username}
 Target: ${ctx.goal_rating} ${ctx.goal_time_class}, in ${ctx.goal_horizon_weeks} settimane${ctx.goal_deadline ? `\nDeadline obiettivo: ${ctx.goal_deadline}` : ""}
 Tempo allenamento: ${ctx.weekly_minutes} min/settimana${memorySection}
 

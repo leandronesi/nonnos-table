@@ -25,6 +25,7 @@ import { setCachedAggregates } from "../../pipeline/aggregatesCache";
 import type { TimeClass } from "../../auth/db.types";
 import type { HistorySnapshot, HistoryFile, AnchorTrail, GoalProgress, Goal } from "../../types";
 import { readEntries } from "../../session/journal";
+import { tr } from "../../i18n/lang";
 
 // ── djb2 hash — same as TavoloHome ───────────────────────────────────────────
 
@@ -112,9 +113,15 @@ function buildHandicapLine(snapshots: HistorySnapshot[]): string | null {
   if (currentStep >= initialStep) return null;
 
   if (currentMaterial != null) {
-    return `Quando ci siamo seduti la prima volta ti avrei dato ${initialMaterial.label} di vantaggio. Oggi ti darei ${currentMaterial.label}.`;
+    return tr(
+      `Quando ci siamo seduti la prima volta ti avrei dato ${initialMaterial.label} di vantaggio. Oggi ti darei ${currentMaterial.label}.`,
+      `The first time we sat down I would have given you ${initialMaterial.label}. Today I would give you ${currentMaterial.label}.`,
+    );
   }
-  return `Quando ci siamo seduti la prima volta ti avrei dato ${initialMaterial.label} di vantaggio. Oggi giochiamo quasi alla pari.`;
+  return tr(
+    `Quando ci siamo seduti la prima volta ti avrei dato ${initialMaterial.label} di vantaggio. Oggi giochiamo quasi alla pari.`,
+    `The first time we sat down I would have given you ${initialMaterial.label}. Today we play almost even.`,
+  );
 }
 
 // ── Memoria visibile ──────────────────────────────────────────────────────────
@@ -129,13 +136,13 @@ function buildMemoria(): string | null {
   const today = new Date();
   const todayUtcMid = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
   const parts = ref.date.split("-").map((n) => parseInt(n, 10));
-  let whenClause = "L'altra volta";
+  let whenClause = tr("L'altra volta", "Last time");
   if (parts.length === 3 && parts.every((n) => !Number.isNaN(n))) {
     const refUtcMid = Date.UTC(parts[0], parts[1] - 1, parts[2]);
     const days = Math.round((todayUtcMid - refUtcMid) / 86400000);
-    if (days === 1) whenClause = "Ieri";
-    else if (days >= 2 && days <= 6) whenClause = `${days} giorni fa`;
-    else if (days > 6) whenClause = "L'ultima volta";
+    if (days === 1) whenClause = tr("Ieri", "Yesterday");
+    else if (days >= 2 && days <= 6) whenClause = tr(`${days} giorni fa`, `${days} days ago`);
+    else if (days > 6) whenClause = tr("L'ultima volta", "Last time");
   }
 
   if (lastSession != null) {
@@ -143,11 +150,20 @@ function buildMemoria(): string | null {
       ? lastSession.meta.dominant_motif
       : null;
     if (motif) {
-      return `${whenClause} abbiamo lavorato su "${motif}". Riprendiamo da li'.`;
+      return tr(
+        `${whenClause} abbiamo lavorato su "${motif}". Riprendiamo da li'.`,
+        `${whenClause} we worked on "${motif}". Let's pick it up from there.`,
+      );
     }
-    return `${whenClause} ci siamo seduti insieme. Riprendiamo da li'.`;
+    return tr(
+      `${whenClause} ci siamo seduti insieme. Riprendiamo da li'.`,
+      `${whenClause} we sat down together. Let's pick it up from there.`,
+    );
   }
-  return `${whenClause} sei passato dal Tavolo. Bene, riprendiamo.`;
+  return tr(
+    `${whenClause} sei passato dal Tavolo. Bene, riprendiamo.`,
+    `${whenClause} you stopped by. Good. Let's get started.`,
+  );
 }
 
 // ── Public interface ──────────────────────────────────────────────────────────

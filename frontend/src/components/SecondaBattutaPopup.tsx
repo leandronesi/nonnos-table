@@ -12,14 +12,19 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { useOnboardingRun } from "../pipeline/OnboardingRunContext";
 import { downloadJson, quadernoPath } from "../auth/storage";
+import { tr } from "../i18n/lang";
 
 interface CoachBrief {
   voice_message?: string;
   one_line_diagnosis?: string;
 }
 
-const FALLBACK_TEXT =
-  "Ho guardato anche il resto. C'e' un'altra cosa che voglio dirti, quando sei pronto a sederti.";
+function getFallbackText(): string {
+  return tr(
+    "Ho guardato anche il resto. C'e' un'altra cosa che voglio dirti, quando sei pronto a sederti.",
+    "I looked at the rest. There is something else I want to tell you, when you are ready to sit down.",
+  );
+}
 
 export function SecondaBattutaPopup() {
   const { user } = useAuth();
@@ -27,7 +32,7 @@ export function SecondaBattutaPopup() {
 
   const [dismissed, setDismissed] = useState(false);
   const [visible, setVisible] = useState(false);
-  const [text, setText] = useState<string>(FALLBACK_TEXT);
+  const [text, setText] = useState<string>(() => getFallbackText());
   const ctaRef = useRef<HTMLButtonElement>(null);
 
   // Carica il coach_brief aggiornato (100 partite) per il voice_message.
@@ -69,7 +74,7 @@ export function SecondaBattutaPopup() {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Nonno ha qualcosa da dirti"
+      aria-label={tr("Nonno ha qualcosa da dirti", "Nonno has something to tell you")}
       style={{
         position: "fixed",
         inset: 0,
@@ -108,7 +113,7 @@ export function SecondaBattutaPopup() {
             letterSpacing: "0.08em",
           }}
         >
-          Nonno ha finito di guardare
+          {tr("Nonno ha finito di guardare", "Nonno is done.")}
         </div>
 
         {/* Testo voce di Nonno */}
@@ -151,7 +156,7 @@ export function SecondaBattutaPopup() {
               "color-mix(in srgb, var(--color-brand-soft) 14%, transparent)";
           }}
         >
-          Va bene, fammi vedere
+          {tr("Va bene, fammi vedere", "Good. Show me.")}
         </button>
       </div>
     </div>

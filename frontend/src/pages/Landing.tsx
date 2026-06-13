@@ -4,6 +4,7 @@ import { ArrowRight, LogIn } from "lucide-react";
 import { Chess } from "chess.js";
 import { BoardView } from "../components/BoardView";
 import { prefersReducedMotion, useInkDraw } from "../lib/motion";
+import { LangToggle } from "../i18n/LangToggle";
 
 // ── Demo board: the moment the payoff describes ───────────────────────────────
 //
@@ -70,10 +71,13 @@ export function Landing() {
           </span>
         </Link>
 
-        <Link to="/login" className="public-login">
-          <LogIn size={16} strokeWidth={2.2} aria-hidden />
-          Accedi
-        </Link>
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+          <LangToggle />
+          <Link to="/login" className="public-login">
+            <LogIn size={16} strokeWidth={2.2} aria-hidden />
+            Accedi
+          </Link>
+        </div>
       </header>
 
       <main className="public-main">

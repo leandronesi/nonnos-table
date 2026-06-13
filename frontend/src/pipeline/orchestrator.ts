@@ -28,6 +28,7 @@ import { buildPlayerModelLite } from "./playerModelLite";
 import { appendSnapshot, buildSnapshot, readHistory } from "./history";
 import type { Goal } from "../types";
 import type { HistorySnapshot } from "../types";
+import { getLang } from "../i18n/lang";
 import { FREE_GAME_CAP, FIRST_BATCH_SIZE } from "./config";
 
 export interface OrchestratorProgress {
@@ -835,6 +836,7 @@ async function invokeCoachLlm(
       goal_horizon_weeks: profile.goal_horizon_weeks,
       weekly_minutes: profile.weekly_minutes,
       chess_com_username: profile.chess_com_username,
+      lang: getLang(),
     },
   });
   if (error) throw new Error(`coach-llm: ${error.message}`);

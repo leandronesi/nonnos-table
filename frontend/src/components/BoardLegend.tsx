@@ -5,6 +5,8 @@
  * principiante senza ridondanza testuale altrove.
  */
 
+import { tr } from "../i18n/lang";
+
 interface LegendItem {
   color: string;
   label: string;
@@ -17,36 +19,80 @@ interface Props {
   className?: string;
 }
 
-const PRESETS: Record<NonNullable<Props["preset"]>, LegendItem[]> = {
-  tema: [
-    { color: "#fde047", label: "ultima mossa dell'avversario" },
-  ],
-  warmup: [
-    { color: "#fde047", label: "ultima mossa avversario" },
-    { color: "#f6c64a", label: "casa di partenza della mossa giusta (aiuto)" },
-  ],
-  drill: [
-    { color: "#fde047", label: "ultima mossa avversario" },
-  ],
-  play: [
-    { color: "#fde047", label: "mossa avversario" },
-    { color: "#a18bff", label: "tua mossa" },
-  ],
-  review: [
-    { color: "#fde047", label: "ultima mossa avversario" },
-    { color: "#f43f5e", label: "tua mossa (sbagliata)" },
-    { color: "#34d399", label: "mossa giusta" },
-  ],
-};
+// PRESETS is a getter function, not a module-level const, to avoid freezing
+// translated strings at module load time. Called at render time so getLang()
+// reads the live language value.
+function getPresets(): Record<NonNullable<Props["preset"]>, LegendItem[]> {
+  return {
+    tema: [
+      {
+        color: "#fde047",
+        label: tr("ultima mossa dell'avversario", "opponent's last move"),
+      },
+    ],
+    warmup: [
+      {
+        color: "#fde047",
+        label: tr("ultima mossa avversario", "opponent's last move"),
+      },
+      {
+        color: "#f6c64a",
+        label: tr(
+          "casa di partenza della mossa giusta (aiuto)",
+          "starting square of the right move (hint)",
+        ),
+      },
+    ],
+    drill: [
+      {
+        color: "#fde047",
+        label: tr("ultima mossa avversario", "opponent's last move"),
+      },
+    ],
+    play: [
+      {
+        color: "#fde047",
+        label: tr("mossa avversario", "opponent's move"),
+      },
+      {
+        color: "#a18bff",
+        label: tr("tua mossa", "your move"),
+      },
+    ],
+    review: [
+      {
+        color: "#fde047",
+        label: tr("ultima mossa avversario", "opponent's last move"),
+      },
+      {
+        color: "#f43f5e",
+        label: tr("tua mossa (sbagliata)", "your move (wrong)"),
+      },
+      {
+        color: "#34d399",
+        label: tr("mossa giusta", "right move"),
+      },
+    ],
+  };
+}
 
 export function BoardLegend({ items, preset, className = "" }: Props) {
-  const data = items ?? (preset ? PRESETS[preset] : []);
+  const presets = getPresets();
+  const data = items ?? (preset ? presets[preset] : []);
   if (data.length === 0) return null;
   return (
-    <div className={`board-legend ${className}`} role="note" aria-label="Legenda colori della scacchiera">
+    <div
+      className={`board-legend ${className}`}
+      role="note"
+      aria-label={tr("Legenda colori della scacchiera", "Board color legend")}
+    >
       {data.map((it, i) => (
         <span key={i} className="board-legend-item">
-          <span className="board-legend-swatch" style={{ background: it.color }} aria-hidden="true" />
+          <span
+            className="board-legend-swatch"
+            style={{ background: it.color }}
+            aria-hidden="true"
+          />
           <span className="board-legend-text">{it.label}</span>
         </span>
       ))}

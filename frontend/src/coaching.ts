@@ -1,4 +1,5 @@
 import type { PlayerModel, PositionRow } from "./types";
+import { tr, getLang } from "./i18n/lang";
 
 export const PRODUCT_NAME = "Il Tavolo del Nonno";
 export const COACH_NAME = "Nonno";
@@ -30,12 +31,16 @@ export function stockfishSkillForMaiaLevel(level: number): number {
  * o Stockfish con skill capato, ma all'utente parliamo del SUO target.
  */
 export function maiaLabel(level: number): string {
-  return `avversario ${level}`;
+  return getLang() === "en"
+    ? `opponent ${level}`
+    : `avversario ${level}`;
 }
 
 /** Variante lunga per copy di benvenuto / contesto sessione. */
 export function targetOpponentLabel(level: number, timeClass: string = "rapid"): string {
-  return `avversario calibrato sul tuo obiettivo: ${level} ${timeClass}`;
+  return getLang() === "en"
+    ? `opponent calibrated to your goal: ${level} ${timeClass}`
+    : `avversario calibrato sul tuo obiettivo: ${level} ${timeClass}`;
 }
 
 /** Time class label umanizzato (dal goal). */
@@ -51,10 +56,19 @@ export function timeClassLabel(tc: string | undefined | null): string {
 }
 
 export function colorLabel(color?: "white" | "black" | null): string {
+  if (getLang() === "en") {
+    return color === "black" ? "Black" : "White";
+  }
   return color === "black" ? "Nero" : "Bianco";
 }
 
 export function phaseLabel(phase?: PositionRow["phase"] | null): string {
+  if (getLang() === "en") {
+    if (phase === "opening") return "opening";
+    if (phase === "middlegame") return "middlegame";
+    if (phase === "endgame") return "endgame";
+    return "position";
+  }
   if (phase === "opening") return "apertura";
   if (phase === "middlegame") return "mediogioco";
   if (phase === "endgame") return "finale";
@@ -66,10 +80,63 @@ export function positionCoachLine(position: PositionRow, maiaLevel = 1600): stri
   const phase = phaseLabel(position.phase);
   const lastMove = position.last_opp_san ? ` dopo ${position.last_opp_san}` : "";
 
+  if (getLang() === "en") {
+    const lastMoveEn = position.last_opp_san ? ` after ${position.last_opp_san}` : "";
+    return `${side} to move${lastMoveEn} against ${maiaLabel(maiaLevel)}. In ${phase}, no theme given: first check opponent threats, then undefended pieces, then forcing candidates.`;
+  }
+
   return `${side} muove${lastMove} contro ${maiaLabel(maiaLevel)}. In ${phase} niente tema regalato: prima minacce avversarie, poi pezzi non difesi, poi candidate forzanti.`;
 }
 
+// sessionFallbackLine is called at render time (from PlayStep, Sessione, etc.)
+// so tr() reads the live language — no freeze risk.
 export function sessionFallbackLine(key: string, maiaLevel = 1600): string {
+  if (getLang() === "en") {
+    const linesEn: Record<string, string> = {
+      open_tavolo: tr(
+        "Eccolo. Oggi rivediamo i tuoi momenti chiave dalle ultime partite. Poi giochiamo contro un giocatore al tuo target. Sediamoci.",
+        "There you are. Today we go through your key moments from the last games. Then we play against someone at your level. Sit down.",
+      ),
+      open_warmup: tr(
+        "Eccolo. Oggi guardiamo il pezzo non difeso. Cinque posizioni, prima conti i difensori.",
+        "There you are. Today we look at the undefended piece. Five positions. Count the defenders first.",
+      ),
+      between_warmup_bivio: tr(
+        "Bene. Adesso bivi veri, di tue partite. Pensa alla minaccia avversaria prima di scegliere.",
+        "Good. Now real forks, from your games. Think about the opponent's threat before you choose.",
+      ),
+      open_bivio: tr(
+        "Ecco la posizione. Prima attaccanti, poi difensori. Poi muovi.",
+        "Here is the position. Attackers first, then defenders. Then move.",
+      ),
+      between_bivio_play: tr(
+        `Adesso la partita, contro ${maiaLabel(maiaLevel)}. Senza muovere di mano.`,
+        `Now the game, against ${maiaLabel(maiaLevel)}. No moving without thinking.`,
+      ),
+      open_play: tr(
+        `Contro ${maiaLabel(maiaLevel)} non serve fare il fenomeno. Difensori, scambi puliti, semplifica quando sei avanti.`,
+        `Against ${maiaLabel(maiaLevel)} you do not need to be brilliant. Defenders, clean trades, simplify when ahead.`,
+      ),
+      recap_win: tr(
+        "Bravo. Hai chiuso senza lasciare niente.",
+        "Good. You closed it without leaving anything behind.",
+      ),
+      recap_draw: tr(
+        "Mh. Hai tenuto il punto. La prossima cerchi lo scambio giusto.",
+        "Right. You held. Next time find the clean trade.",
+      ),
+      recap_loss: tr(
+        "Oh. C'era un pezzo non difeso che è rimasto. Domani lo guardiamo.",
+        "Hmm. There was an undefended piece left behind. Tomorrow we look at it.",
+      ),
+      close: tr(
+        "Riposati. Domani stesso tavolo: difensori, minacce, mossa.",
+        "Rest now. Tomorrow same table: defenders, threats, move.",
+      ),
+    };
+    return linesEn[key] || "";
+  }
+
   const lines: Record<string, string> = {
     open_tavolo: "Eccolo. Oggi rivediamo i tuoi momenti chiave dalle ultime partite. Poi giochiamo contro un giocatore al tuo target. Sediamoci.",
     open_warmup: "Eccolo. Oggi guardiamo il pezzo non difeso. Cinque posizioni, prima conti i difensori.",

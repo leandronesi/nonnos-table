@@ -33,6 +33,8 @@ import { MomentoDelGiorno } from "../components/MomentoDelGiorno";
 import type { AnchorTrail } from "../types";
 import { useTavoloData } from "./tavolo/useTavoloData";
 import { useOnboardingRun } from "../pipeline/OnboardingRunContext";
+import { tr, getLang } from "../i18n/lang";
+import { getAnchorLabel } from "../i18n/anchors";
 
 // ── Reveal hook ───────────────────────────────────────────────────────────────
 
@@ -80,14 +82,19 @@ function Reveal({
 
 // ── MONTHS helper ─────────────────────────────────────────────────────────────
 
-const MONTHS_IT = [
-  "gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic",
-];
+// Not a module-level constant: called at render-time so tr() reads the live lang.
+function getMonths(): string[] {
+  return [
+    tr("gen", "Jan"), tr("feb", "Feb"), tr("mar", "Mar"), tr("apr", "Apr"),
+    tr("mag", "May"), tr("giu", "Jun"), tr("lug", "Jul"), tr("ago", "Aug"),
+    tr("set", "Sep"), tr("ott", "Oct"), tr("nov", "Nov"), tr("dic", "Dec"),
+  ];
+}
 function deadlineIt(deadline: string): string {
   const parts = deadline.slice(0, 7).split("-");
   if (parts.length < 2) return "";
   const m = parseInt(parts[1], 10) - 1;
-  return `${MONTHS_IT[m] ?? ""} ${parts[0]}`;
+  return `${getMonths()[m] ?? ""} ${parts[0]}`;
 }
 
 // ── GoalHero ─────────────────────────────────────────────────────────────────
@@ -130,16 +137,16 @@ function GoalHero({
   const { ref: inkRef, drawn } = useInkDraw();
 
   const progressLine = (() => {
-    if (pointsNeeded <= 0) return "Ci sei. Sediamoci a guardare cosa hai costruito.";
+    if (pointsNeeded <= 0) return tr("Ci sei. Sediamoci a guardare cosa hai costruito.", "You're there. Let's sit down and look at what you've built.");
     const need = rateNeeded != null ? rateNeeded.toFixed(1) : null;
     const real = rateReal != null ? rateReal.toFixed(1) : null;
     if (need && real) {
-      if (onTrack) return `Stai salendo di ${real} punti a settimana. Sei sulla strada.`;
-      if (rateReal != null && rateReal <= 0) return `In queste settimane sei sceso un po'. Capita. Ne servono ${need} a settimana: si riparte da qui.`;
-      return `Stai salendo di ${real} a settimana. Ne servono ${need}. Qualcosa da aggiustare.`;
+      if (onTrack) return tr(`Stai salendo di ${real} punti a settimana. Sei sulla strada.`, `You're gaining ${real} points a week. You're on track.`);
+      if (rateReal != null && rateReal <= 0) return tr(`In queste settimane sei sceso un po'. Capita. Ne servono ${need} a settimana: si riparte da qui.`, `You've dropped a little these weeks. It happens. You need ${need} a week: we start again from here.`);
+      return tr(`Stai salendo di ${real} a settimana. Ne servono ${need}. Qualcosa da aggiustare.`, `You're gaining ${real} a week. You need ${need}. Something to fix.`);
     }
-    if (need) return `Per arrivare in tempo ne servono ${need} a settimana.`;
-    return `Mancano ${pointsNeeded} punti.`;
+    if (need) return tr(`Per arrivare in tempo ne servono ${need} a settimana.`, `To get there in time you need ${need} a week.`);
+    return tr(`Mancano ${pointsNeeded} punti.`, `${pointsNeeded} points to go.`);
   })();
 
   // Il Patto — ink on the wall. No box, no chrome. Gold lives only in the numbers and the dot.
@@ -147,7 +154,7 @@ function GoalHero({
     <div>
       {/* Eyebrow gold — La Regola del Miele */}
       <div className="tt-eyebrow tt-honey" style={{ marginBottom: "1.25rem" }}>
-        Il tuo obiettivo
+        {tr("Il tuo obiettivo", "Your goal")}
       </div>
 
       {/* Main row: current (counted) <- track -> target (gold) */}
@@ -173,7 +180,7 @@ function GoalHero({
           >
             {countedCurrent}
           </div>
-          <div className="tt-eyebrow tt-muted" style={{ marginTop: "0.25rem" }}>oggi</div>
+          <div className="tt-eyebrow tt-muted" style={{ marginTop: "0.25rem" }}>{tr("oggi", "today")}</div>
         </div>
 
         {/* Target in gold — La Regola del Miele. Static, not animated. */}
@@ -190,7 +197,7 @@ function GoalHero({
             {target}
           </div>
           <div className="tt-eyebrow tt-muted" style={{ marginTop: "0.25rem" }}>
-            obiettivo{dl ? ` · ${dl}` : ""}
+            {tr("obiettivo", "goal")}{dl ? ` · ${dl}` : ""}
           </div>
         </div>
       </div>
@@ -281,7 +288,7 @@ function GoalHero({
               : { color: "var(--color-warn)", background: "color-mix(in srgb, var(--color-warn) 10%, transparent)" }
           }
         >
-          {onTrack ? "In carreggiata" : "Fuori rotta"}
+          {onTrack ? tr("In carreggiata", "On track") : tr("Fuori rotta", "Off track")}
         </span>
       </div>
 
@@ -374,6 +381,7 @@ function AnchorMicroTrail({ trail }: { trail: AnchorTrail }) {
 // ── AnchorRow ─────────────────────────────────────────────────────────────────
 
 function AnchorRow({ anchor, rank, trail }: { anchor: Anchor; rank: number; trail: AnchorTrail | null }) {
+  const lang = getLang();
   const improving =
     anchor.trend_now != null &&
     anchor.trend_now.direction === "improving" &&
@@ -425,14 +433,14 @@ function AnchorRow({ anchor, rank, trail }: { anchor: Anchor; rank: number; trai
               marginBottom: "0.375rem",
             }}
           >
-            {anchor.label_it}
+            {getAnchorLabel(anchor.type, lang, anchor.label_it)}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
             {/* 3D: mostra count_avoidable (Maia-filtrato) se > 0, altrimenti count grezzo */}
             {(() => {
               const avoidable = (anchor.count_avoidable ?? 0);
               const displayCount = avoidable > 0 ? avoidable : anchor.count;
-              const label = avoidable > 0 ? "alla tua portata" : "errori";
+              const label = avoidable > 0 ? tr("alla tua portata", "within your reach") : tr("errori", "errors");
               if (displayCount > 0) {
                 return (
                   <span className="tt-chip" style={{ color: "var(--color-muted)", background: "rgba(255,255,255,0.05)", fontVariantNumeric: "tabular-nums" }}>
@@ -453,11 +461,11 @@ function AnchorRow({ anchor, rank, trail }: { anchor: Anchor; rank: number; trai
                   background: "color-mix(in srgb, var(--color-gold) 14%, transparent)",
                 }}
               >
-                +{anchor.rating_upside} punti
+                +{anchor.rating_upside} {tr("punti", "points")}
               </span>
             )}
             {improving && (
-              <span className="tt-chip good">stai migliorando</span>
+              <span className="tt-chip good">{tr("stai migliorando", "improving")}</span>
             )}
           </div>
           {/* Spread across games — contextualizes the count */}
@@ -468,7 +476,7 @@ function AnchorRow({ anchor, rank, trail }: { anchor: Anchor; rank: number; trai
               color: "var(--color-muted)",
               lineHeight: 1.3,
             }}>
-              In {anchor.games_with} partite diverse
+              {tr(`In ${anchor.games_with} partite diverse`, `Across ${anchor.games_with} games`)}
             </div>
           )}
         </div>
@@ -514,7 +522,7 @@ function VarcoQuaderno({ onNavigate }: { onNavigate: () => void }) {
           lineHeight: 1.5,
         }}
       >
-        La sala dove guardiamo tutto con calma: la curva, dove perdi tempo, le aperture.
+        {tr("La sala dove guardiamo tutto con calma: la curva, dove perdi tempo, le aperture.", "The room where we look at everything carefully: the curve, where you lose time, the openings.")}
       </span>
       <span
         aria-hidden="true"
@@ -619,7 +627,7 @@ export function TavoloHome() {
           <div className="tt-eyebrow" style={{ marginBottom: "0.5rem" }}>
             {PRODUCT_NAME}
           </div>
-          <div style={{ fontSize: "0.9rem", color: "var(--color-muted)" }}>Apparecchio...</div>
+          <div style={{ fontSize: "0.9rem", color: "var(--color-muted)" }}>{tr("Apparecchio...", "Setting the table...")}</div>
         </div>
       </div>
     );
@@ -641,7 +649,7 @@ export function TavoloHome() {
           }}
         >
           <div className="tt-eyebrow" style={{ color: "var(--color-danger)", marginBottom: "0.5rem" }}>
-            Errore
+            {tr("Errore", "Error")}
           </div>
           <p style={{ color: "var(--color-text-soft)", fontSize: "0.9rem" }}>{error}</p>
         </div>
@@ -675,13 +683,13 @@ export function TavoloHome() {
               marginBottom: "0.75rem",
             }}
           >
-            Il Tavolo non e' ancora apparecchiato
+            {tr("Il Tavolo non e' ancora apparecchiato", "The Table is not ready yet")}
           </h1>
           <p style={{ color: "var(--color-text-soft)", fontSize: "0.9rem", marginBottom: "1.5rem" }}>
-            Non ho ancora finito di guardare le tue partite. Torniamo da dove ci eravamo fermati.
+            {tr("Non ho ancora finito di guardare le tue partite. Torniamo da dove ci eravamo fermati.", "I have not finished looking at your games yet. Let's go back to where we left off.")}
           </p>
           <Link to="/onboarding/waiting" className="btn btn-primary">
-            Riprendiamo
+            {tr("Riprendiamo", "Let's continue")}
           </Link>
         </div>
       </div>
@@ -729,7 +737,7 @@ export function TavoloHome() {
               className="tt-eyebrow"
               style={{ color: "var(--color-brand-soft)", marginBottom: "1rem" }}
             >
-              E' arrivata una lettera
+              {tr("E' arrivata una lettera", "A letter arrived")}
             </div>
 
             <NonnoLetter
@@ -777,7 +785,7 @@ export function TavoloHome() {
                   lineHeight: 1.4,
                 }}
               >
-                Toccala per aprirla.
+                {tr("Toccala per aprirla.", "Tap to open it.")}
               </p>
             )}
           </div>
@@ -860,9 +868,10 @@ export function TavoloHome() {
                   className="nonno-pulse"
                   style={{ marginBottom: 0 }}
                 >
-                  Ho cominciato dalle tue ultime dieci partite e sto andando
-                  indietro nel tempo, una alla volta. Dammi ancora un momento e
-                  poi ci sediamo davvero. Tu intanto guarda pure in giro.
+                  {tr(
+                    "Ho cominciato dalle tue ultime dieci partite e sto andando indietro nel tempo, una alla volta. Dammi ancora un momento e poi ci sediamo davvero. Tu intanto guarda pure in giro.",
+                    "I started from your last ten games and I am working back through them one by one. Give me a moment more and then we sit down for real. Feel free to look around.",
+                  )}
                 </p>
                 {total > 0 && (
                   <p
@@ -873,11 +882,11 @@ export function TavoloHome() {
                       color: "var(--color-muted)",
                     }}
                   >
-                    Ne ho guardate{" "}
+                    {tr("Ne ho guardate", "I have looked at")}{" "}
                     <span style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-soft)" }}>
                       {seen}
                     </span>{" "}
-                    su{" "}
+                    {tr("su", "of")}{" "}
                     <span style={{ fontFamily: "var(--font-mono)", color: "var(--color-text-soft)" }}>
                       {total}
                     </span>
@@ -903,13 +912,17 @@ export function TavoloHome() {
                 }}
               >
                 <p style={{ marginBottom: "1rem" }}>
-                  Per ora ho potuto guardare{" "}
+                  {tr("Per ora ho potuto guardare", "So far I have been able to look at")}{" "}
                   <span style={{ fontFamily: "var(--font-mono)", color: "var(--color-text)" }}>
                     {aggregates.games_analyzed}
                   </span>{" "}
-                  {aggregates.games_analyzed === 1 ? "partita tua" : "partite tue"}.
-                  Da una venticinquina in su comincio a vedere i tuoi freni veri:
-                  giocane ancora qualcuna e torna, ti aspetto qui.
+                  {aggregates.games_analyzed === 1
+                    ? tr("partita tua", "of your games")
+                    : tr("partite tue", "of your games")}.
+                  {" "}{tr(
+                    "Da una venticinquina in su comincio a vedere i tuoi freni veri: giocane ancora qualcuna e torna, ti aspetto qui.",
+                    "Around twenty-five games I start to see what is really holding you back. Play a few more and come back. I will be here.",
+                  )}
                 </p>
                 <button
                   onClick={() => void handleRefresh()}
@@ -929,7 +942,7 @@ export function TavoloHome() {
                   onMouseEnter={(e) => { if (!refreshing && !reanalyzing) (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--color-line-strong)"; }}
                   onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--color-line)"; }}
                 >
-                  {refreshing ? "Preparo..." : "Aggiorna le partite"}
+                  {refreshing ? tr("Preparo...", "One moment...") : tr("Aggiorna le partite", "Sync your games")}
                 </button>
               </div>
             </Reveal>
@@ -993,7 +1006,7 @@ export function TavoloHome() {
                 gap: "0.75rem",
               }}
             >
-              <div className="tt-eyebrow">Le tue 3 ancore</div>
+              <div className="tt-eyebrow">{tr("Le tue 3 ancore", "Your 3 anchors")}</div>
               <Link
                 to="/quaderno#percorso"
                 style={{
@@ -1003,7 +1016,7 @@ export function TavoloHome() {
                   fontWeight: 600,
                 }}
               >
-                vedi tutte
+                {tr("vedi tutte", "see all")}
               </Link>
             </div>
             <div
@@ -1014,7 +1027,7 @@ export function TavoloHome() {
                 lineHeight: 1.4,
               }}
             >
-              Quello che ti tiene ancorato giu'. In cima, l'ancora che ti vale piu' punti se la sciogli.
+              {tr("Quello che ti tiene ancorato giu'. In cima, l'ancora che ti vale piu' punti se la sciogli.", "What is holding you here. At the top, the one that is worth the most points if you close it.")}
             </div>
 
             {/* List — rows divided by border-bottom. Last row no border (handled in AnchorRow). */}
@@ -1073,7 +1086,7 @@ export function TavoloHome() {
             textUnderlineOffset: "2px",
           }}
         >
-          {refreshing ? "Preparo..." : "Aggiorna le partite"}
+          {refreshing ? tr("Preparo...", "One moment...") : tr("Aggiorna le partite", "Sync your games")}
         </button>
         <span style={{ color: "var(--color-faint)", padding: "0 0.4rem", userSelect: "none" }}> · </span>
         <button
@@ -1094,7 +1107,11 @@ export function TavoloHome() {
             transition: "color 200ms ease",
           }}
         >
-          {reanalyzing ? "Rianalizzando..." : reanalyzeConfirming ? "Sicuro? Ricomincio da zero" : "Rianalizza da capo"}
+          {reanalyzing
+            ? tr("Rianalizzando...", "Reanalyzing...")
+            : reanalyzeConfirming
+              ? tr("Sicuro? Ricomincio da zero", "Are you sure? This resets everything.")
+              : tr("Rianalizza da capo", "Reanalyze from scratch.")}
         </button>
       </div>
 

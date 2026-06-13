@@ -17,6 +17,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Chess } from "chess.js";
 import type { PositionExample } from "../pipeline/aggregate";
+import { tr, getLang } from "../i18n/lang";
 import { BoardView } from "../components/BoardView";
 import { BoardLegend } from "../components/BoardLegend";
 import { useBoardFit } from "../components/useBoardFit";
@@ -35,22 +36,16 @@ interface PhaseResult {
   playedSan: string | null;
 }
 
-type MoveResult = "perfect" | "good" | "wrong";
-
 // Soglie cp_loss per la valutazione (spec §6.6)
 const CP_PERFECT_THRESHOLD = 30;   // praticamente la mossa migliore
 const CP_GOOD_THRESHOLD    = 50;   // abbastanza buona
 
-// Frasi Nonno per la valutazione
-const VERDICT_LINES: Record<MoveResult, string[]> = {
-  perfect: [
-    "Si'. Vista.",
-    "Bravo. Hai trovato.",
-    "Esatta. Bene cosi'.",
-  ],
-  good: [],   // generato dinamicamente con la mossa migliore
-  wrong: [],  // generato dinamicamente
-};
+/** Returns Nonno's perfect-verdict lines in the current language. Called at runtime. */
+function getPerfectLines(): string[] {
+  return getLang() === "en"
+    ? ["There you are.", "Good. You found it.", "Exactly. Good."]
+    : ["Si'. Vista.", "Bravo. Hai trovato.", "Esatta. Bene cosi'."];
+}
 
 function pickVerdict(arr: string[]): string {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -96,9 +91,9 @@ function buildGuardaLine(pos: PositionExample): string {
 
 function PhaseIndicator({ phase, totalPositions }: { phase: TrainerPhase; totalPositions: number }) {
   const phases: { key: TrainerPhase; label: string }[] = [
-    { key: "guarda",          label: "Guarda"         },
-    { key: "con_avversario",  label: "Con avversario" },
-    { key: "da_solo",         label: "Da solo"        },
+    { key: "guarda",          label: tr("Guarda",          "Watch")           },
+    { key: "con_avversario",  label: tr("Con avversario",  "With opponent")   },
+    { key: "da_solo",         label: tr("Da solo",         "On your own")     },
   ];
   if (totalPositions < 2) {
     return null;
@@ -175,11 +170,10 @@ function PhaseGuarda({
   return (
     <div>
       <div className="tt-eyebrow" style={{ marginBottom: "0.5rem", color: "var(--color-muted)" }}>
-        Fase 1 · Guarda — {groupLabel}
+        {tr("Fase 1", "Phase 1")} · {tr("Guarda", "Watch")} — {groupLabel}
       </div>
       <p className="tt-nonno" style={{ marginBottom: "1.5rem" }}>
-        Guarda le frecce. La verde e' la mossa giusta, la gialla e' la mossa dell'avversario.
-        Costruisci il riconoscimento.
+        {tr("Guarda le frecce. La verde e' la mossa giusta, la gialla e' la mossa dell'avversario. Costruisci il riconoscimento.", "Watch the arrows. Green is the right move, yellow is the opponent's move. Build the pattern.")}
       </p>
 
       {/* key={idx} re-mounts → phase-enter animation fires on each carousel step */}
@@ -197,8 +191,8 @@ function PhaseGuarda({
             />
           </div>
           <BoardLegend items={[
-            ...(oppArrow ? [{ color: "#fde047", label: "mossa avversario" }] : []),
-            { color: "#34d399", label: "mossa giusta" },
+            ...(oppArrow ? [{ color: "#fde047", label: tr("mossa avversario", "opponent's move") }] : []),
+            { color: "#34d399", label: tr("mossa giusta", "right move") },
           ]} />
         </div>
 
@@ -216,7 +210,7 @@ function PhaseGuarda({
               background: "rgba(253,224,71,0.06)", border: "1px solid rgba(253,224,71,0.22)",
               display: "flex", alignItems: "baseline", gap: "0.5rem", fontSize: "0.875rem",
             }}>
-              <span style={{ color: "var(--color-text-soft)" }}>L'avversario ha giocato</span>
+              <span style={{ color: "var(--color-text-soft)" }}>{tr("L'avversario ha giocato", "The opponent played")}</span>
               <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "#fde047" }}>
                 {pos.last_opp_san}
               </span>
@@ -229,7 +223,7 @@ function PhaseGuarda({
             background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.22)",
             display: "flex", alignItems: "baseline", gap: "0.5rem", fontSize: "0.875rem",
           }}>
-            <span style={{ color: "var(--color-text-soft)" }}>Mossa giusta</span>
+            <span style={{ color: "var(--color-text-soft)" }}>{tr("Mossa giusta", "Right move")}</span>
             <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "#34d399" }}>
               {bestSan}
             </span>
@@ -255,7 +249,7 @@ function PhaseGuarda({
                 className="btn btn-ghost btn-sm"
                 style={{ flex: "0 0 auto" }}
               >
-                Indietro
+                {tr("Indietro", "Back")}
               </button>
             )}
             {idx < positions.length - 1 ? (
@@ -264,7 +258,7 @@ function PhaseGuarda({
                 className="btn btn-primary btn-sm"
                 style={{ flex: 1 }}
               >
-                Prossima posizione
+                {tr("Prossima posizione", "Next position")}
               </button>
             ) : (
               <button
@@ -272,7 +266,7 @@ function PhaseGuarda({
                 className="btn btn-primary"
                 style={{ flex: 1 }}
               >
-                Allena con l'avversario
+                {tr("Allena con l'avversario", "Train with the opponent")}
               </button>
             )}
           </div>
@@ -375,16 +369,16 @@ function InteractivePuzzle({
 
       if (playedMatchesBest || loss < CP_PERFECT_THRESHOLD) {
         setVerdict("perfect");
-        setVerdictMsg(pickVerdict(VERDICT_LINES.perfect));
+        setVerdictMsg(pickVerdict(getPerfectLines()));
       } else if (loss < CP_GOOD_THRESHOLD) {
         setVerdict("good");
-        setVerdictMsg(`Buona, ma c'era di meglio: ${bestSan}.`);
+        setVerdictMsg(tr(`Buona, ma c'era di meglio: ${bestSan}.`, `Good, but there was better: ${bestSan}.`));
       } else {
         if (newAttempts >= 2) {
           setVerdict("wrong");
-          setVerdictMsg(`No: era ${bestSan}. Andiamo avanti.`);
+          setVerdictMsg(tr(`No: era ${bestSan}. Andiamo avanti.`, `No: it was ${bestSan}. Let's move on.`));
         } else {
-          setVerdictMsg("Non era quella. Riprova.");
+          setVerdictMsg(tr("Non era quella. Riprova.", "Not that one. Try again."));
           setVerdict(null);
           setDisplayFen(null);
           setPlayedSan(null);
@@ -393,7 +387,7 @@ function InteractivePuzzle({
     } catch {
       // Stockfish timeout or error — skip gracefully
       setVerdict("wrong");
-      setVerdictMsg(`Il motore non ha risposto. La mossa giusta era ${bestSan}.`);
+      setVerdictMsg(tr(`Il motore non ha risposto. La mossa giusta era ${bestSan}.`, `The engine did not respond. The right move was ${bestSan}.`));
       setCpLoss(null);
     } finally {
       evaluatingRef.current = false;
@@ -488,12 +482,12 @@ function InteractivePuzzle({
           </div>
           <BoardLegend items={(() => {
             if (verdict !== null) return [
-              ...(oppArrow ? [{ color: "#fde047", label: "mossa avversario" }] : []),
-              { color: verdictColor, label: "tua mossa" },
-              ...(verdict !== "perfect" ? [{ color: "#34d399", label: "mossa giusta" }] : []),
+              ...(oppArrow ? [{ color: "#fde047", label: tr("mossa avversario", "opponent's move") }] : []),
+              { color: verdictColor, label: tr("tua mossa", "your move") },
+              ...(verdict !== "perfect" ? [{ color: "#34d399", label: tr("mossa giusta", "right move") }] : []),
             ];
             return [
-              ...(oppArrow ? [{ color: "#fde047", label: "mossa avversario" }] : []),
+              ...(oppArrow ? [{ color: "#fde047", label: tr("mossa avversario", "opponent's move") }] : []),
             ];
           })()} />
         </div>
@@ -508,7 +502,7 @@ function InteractivePuzzle({
               background: "rgba(253,224,71,0.06)", border: "1px solid rgba(253,224,71,0.22)",
               display: "flex", alignItems: "baseline", gap: "0.5rem", fontSize: "0.875rem",
             }}>
-              <span style={{ color: "var(--color-text-soft)" }}>L'avversario ha appena giocato</span>
+              <span style={{ color: "var(--color-text-soft)" }}>{tr("L'avversario ha appena giocato", "The opponent just played")}</span>
               <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "#fde047" }}>
                 {pos.last_opp_san}
               </span>
@@ -529,8 +523,8 @@ function InteractivePuzzle({
                 {verdictMsg !== "" ? (
                   <span style={{ color: "var(--color-gold-soft)" }}>{verdictMsg}</span>
                 ) : showOpponent
-                  ? "L'avversario si e' mosso. Rispondi tu."
-                  : "Nessun contesto. Trova tu la mossa migliore."
+                  ? tr("L'avversario si e' mosso. Rispondi tu.", "The opponent has moved. Your turn.")
+                  : tr("Nessun contesto. Trova tu la mossa migliore.", "No context. Find the best move.")
                 }
               </span>
             </div>
@@ -548,7 +542,7 @@ function InteractivePuzzle({
                 background: "var(--color-brand-soft)", flexShrink: 0,
                 animation: "pulseGlow 1.4s ease-in-out infinite",
               }} />
-              Stockfish valuta...
+              {tr("Stockfish valuta...", "Stockfish is evaluating...")}
             </div>
           )}
 
@@ -570,19 +564,19 @@ function InteractivePuzzle({
               <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", paddingBottom: "0.875rem", borderBottom: "1px solid var(--color-line)" }}>
                 {playedSan && (
                   <div style={{ display: "flex", gap: "0.5rem", fontSize: "0.82rem" }}>
-                    <span style={{ color: "var(--color-muted)", width: "7rem" }}>Hai giocato</span>
+                    <span style={{ color: "var(--color-muted)", width: "7rem" }}>{tr("Hai giocato", "You played")}</span>
                     <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: verdictColor }}>{playedSan}</span>
                   </div>
                 )}
                 {verdict !== "perfect" && (
                   <div style={{ display: "flex", gap: "0.5rem", fontSize: "0.82rem" }}>
-                    <span style={{ color: "var(--color-muted)", width: "7rem" }}>Mossa giusta</span>
+                    <span style={{ color: "var(--color-muted)", width: "7rem" }}>{tr("Mossa giusta", "Right move")}</span>
                     <span style={{ fontFamily: "var(--font-mono)", fontWeight: 700, color: "#34d399" }}>{bestSan}</span>
                   </div>
                 )}
               </div>
               <button onClick={() => onNext(phaseResult)} className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }}>
-                Avanti
+                {tr("Avanti", "Next")}
               </button>
             </div>
           )}
@@ -590,14 +584,14 @@ function InteractivePuzzle({
           {/* Engine not ready notice */}
           {!sf.isReady && verdict === null && (
             <div className="tt-chip" style={{ display: "inline-flex", alignSelf: "flex-start", color: "var(--color-muted)" }}>
-              Carico motore...
+              {tr("Carico motore...", "Loading engine...")}
             </div>
           )}
 
           {/* Tentativo counter */}
           {attempts > 0 && verdict === null && (
             <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.625rem", letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-faint)" }}>
-              Tentativo {attempts} / 2
+              {tr("Tentativo", "Attempt")} {attempts} / 2
             </div>
           )}
         </div>
@@ -631,20 +625,25 @@ function TrainerDone({
 
   let nonnoLine = "";
   const score3 = perfect3 + good3;
+  const lang = getLang();
   if (score3 >= total) {
-    nonnoLine = "Tutte trovate. Hai riconosciuto il pattern. Continua cosi'.";
+    nonnoLine = tr("Tutte trovate. Hai riconosciuto il pattern. Continua cosi'.", "All found. You have the pattern. Keep going.");
   } else if (score3 >= Math.ceil(total / 2)) {
-    nonnoLine = `${score3} su ${total} abbastanza buone. Il pattern sta entrando.`;
+    nonnoLine = lang === "en"
+      ? `${score3} of ${total} good enough. The pattern is coming in.`
+      : `${score3} su ${total} abbastanza buone. Il pattern sta entrando.`;
   } else if (perfect3 > 0 || good3 > 0) {
-    nonnoLine = `${score3 || 0} su ${total} trovate. Torna su questo gruppo. Il riconoscimento si allena.`;
+    nonnoLine = lang === "en"
+      ? `${score3 || 0} of ${total} found. Come back to this group. Recognition is something you train.`
+      : `${score3 || 0} su ${total} trovate. Torna su questo gruppo. Il riconoscimento si allena.`;
   } else {
-    nonnoLine = "Difficile questa volta. Ripartici sopra: la fase 'Guarda' aiuta.";
+    nonnoLine = tr("Difficile questa volta. Ripartici sopra: la fase 'Guarda' aiuta.", "Hard this time. Start over from the Watch phase.");
   }
 
   return (
     <div>
       <div className="tt-eyebrow" style={{ marginBottom: "0.5rem", color: "var(--color-muted)" }}>
-        {groupLabel} · completato
+        {groupLabel} · {tr("completato", "done")}
       </div>
       <div className="tt-nonno" style={{ marginBottom: "1.5rem" }}>
         {nonnoLine}
@@ -656,8 +655,8 @@ function TrainerDone({
         borderRadius: "10px", overflow: "hidden", marginBottom: "1.5rem",
       }}>
         {[
-          { label: "Con avversario", perfect: perfect2, good: good2, total },
-          { label: "Da solo",        perfect: perfect3, good: good3, total },
+          { label: tr("Con avversario", "With opponent"), perfect: perfect2, good: good2, total },
+          { label: tr("Da solo",        "On your own"),   perfect: perfect3, good: good3, total },
         ].map((row) => (
           <div key={row.label} style={{
             display: "flex", alignItems: "center", gap: "1rem",
@@ -667,12 +666,12 @@ function TrainerDone({
             <div style={{ flex: 1, fontSize: "0.88rem", color: "var(--color-text-soft)" }}>{row.label}</div>
             <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem", fontVariantNumeric: "tabular-nums" }}>
               <span style={{ color: "#34d399", fontWeight: 700 }}>{row.perfect}</span>
-              <span style={{ color: "var(--color-faint)" }}> perfette</span>
+              <span style={{ color: "var(--color-faint)" }}> {tr("perfette", "perfect")}</span>
               {row.good > 0 && (
                 <>
                   <span style={{ color: "var(--color-faint)" }}> · </span>
                   <span style={{ color: "#facc15", fontWeight: 700 }}>{row.good}</span>
-                  <span style={{ color: "var(--color-faint)" }}> buone</span>
+                  <span style={{ color: "var(--color-faint)" }}> {tr("buone", "good")}</span>
                 </>
               )}
               <span style={{ color: "var(--color-faint)" }}> / {row.total}</span>
@@ -682,7 +681,7 @@ function TrainerDone({
       </div>
 
       <button onClick={onClose} className="btn btn-ghost">
-        Torna alle cadute
+        {tr("Torna alle cadute", "Go to Stumbles")}
       </button>
     </div>
   );
@@ -713,9 +712,9 @@ export function CaduteTrainer({ positions, groupLabel, onClose }: CaduteTrainerP
     return (
       <div style={{ padding: "2rem 0", textAlign: "center" }}>
         <div className="tt-nonno" style={{ marginBottom: "1rem" }}>
-          Nessuna posizione disponibile per questo gruppo. Torneranno con la prossima analisi.
+          {tr("Nessuna posizione disponibile per questo gruppo. Torneranno con la prossima analisi.", "Nothing here yet. Come back after the next analysis.")}
         </div>
-        <button onClick={onClose} className="btn btn-ghost btn-sm">Indietro</button>
+        <button onClick={onClose} className="btn btn-ghost btn-sm">{tr("Indietro", "Back")}</button>
       </div>
     );
   }
@@ -779,7 +778,7 @@ export function CaduteTrainer({ positions, groupLabel, onClose }: CaduteTrainerP
           showOpponent={true}
           posIndex={posIndex}
           posTotal={validPositions.length}
-          phaseLabel={`Fase 2 · Con avversario — ${groupLabel}`}
+          phaseLabel={`${tr("Fase 2", "Phase 2")} · ${tr("Con avversario", "With opponent")} — ${groupLabel}`}
           onNext={handlePhase2Next}
         />
       )}
@@ -790,7 +789,7 @@ export function CaduteTrainer({ positions, groupLabel, onClose }: CaduteTrainerP
           showOpponent={false}
           posIndex={posIndex}
           posTotal={validPositions.length}
-          phaseLabel={`Fase 3 · Da solo — ${groupLabel}`}
+          phaseLabel={`${tr("Fase 3", "Phase 3")} · ${tr("Da solo", "On your own")} — ${groupLabel}`}
           onNext={handlePhase3Next}
         />
       )}
@@ -817,7 +816,7 @@ export function CaduteTrainer({ positions, groupLabel, onClose }: CaduteTrainerP
               fontFamily: "var(--font-sans)", padding: 0,
             }}
           >
-            Esci dall'allenamento
+            {tr("Esci dall'allenamento", "Exit training")}
           </button>
           {phase !== "guarda" && (
             <button
@@ -829,7 +828,7 @@ export function CaduteTrainer({ positions, groupLabel, onClose }: CaduteTrainerP
                 fontFamily: "var(--font-sans)", padding: 0,
               }}
             >
-              Ricomincia da capo
+              {tr("Ricomincia da capo", "Start over")}
             </button>
           )}
         </div>

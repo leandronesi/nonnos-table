@@ -24,6 +24,7 @@ import { PositionPuzzle } from "./WarmupGuidato";
 import { PlayStep } from "./PlayStep";
 import { navigateWithTransition, prefersReducedMotion } from "../lib/motion";
 import { resetBoardSceneRitual } from "../components/BoardScene";
+import { tr, getLang } from "../i18n/lang";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,16 +49,28 @@ interface Props {
 
 // ---------------------------------------------------------------------------
 // Phrase banks — voce Nonno, brevi, 2 varianti
+// SALUTO_PHRASES is a function to avoid module-level string freeze.
+// Strings are evaluated at call time so getLang() returns the current language.
 // ---------------------------------------------------------------------------
 
-
-const SALUTO_PHRASES = [
-  "Hai visto la posizione, ci hai giocato. Domani riprendiamo da dove hai lasciato.",
-  "Bene. Oggi hai guardato dove eri. Domani vediamo se ci torna quella stessa struttura.",
-  "Hai rivisto, hai giocato. Ci siamo. Domani un'altra.",
-  "Bene cosi. Quella posizione adesso la riconosci. Torna domani.",
-  "Hai fermato la mano una volta. Ricordatelo domani quando ci ritrovi quella struttura.",
-];
+function getSalutoPhrases(): string[] {
+  if (getLang() === "en") {
+    return [
+      "You saw the position, you played it. Tomorrow we pick it up from there.",
+      "Good. Today you looked at where you were. Tomorrow we see if that structure comes back.",
+      "You reviewed, you played. We are here. Tomorrow another one.",
+      "Good. You know that position now. Come back tomorrow.",
+      "You stopped your hand once. Remember that tomorrow when you see that structure again.",
+    ];
+  }
+  return [
+    "Hai visto la posizione, ci hai giocato. Domani riprendiamo da dove hai lasciato.",
+    "Bene. Oggi hai guardato dove eri. Domani vediamo se ci torna quella stessa struttura.",
+    "Hai rivisto, hai giocato. Ci siamo. Domani un'altra.",
+    "Bene cosi. Quella posizione adesso la riconosci. Torna domani.",
+    "Hai fermato la mano una volta. Ricordatelo domani quando ci ritrovi quella struttura.",
+  ];
+}
 
 function pickIdx<T>(arr: T[], n: number): T {
   return arr[n % arr.length];
@@ -71,17 +84,37 @@ function buildAiutoIntroLines(pos: PositionRow): string[] {
   const p = pos.p_maia_mine_top;
   if (p != null && p > 0 && p <= 0.34) {
     const n = Math.max(3, Math.round(1 / p));
-    return [`La trova solo 1 su ${n} al tuo livello. La casa di partenza e' evidenziata. Muovi da li'.`];
+    return [
+      tr(
+        `La trova solo 1 su ${n} al tuo livello. La casa di partenza e' evidenziata. Muovi da li'.`,
+        `One in ${n} players at your level finds that. The starting square is highlighted. Move from there.`,
+      ),
+    ];
   }
-  return ["Hai visto. Adesso proviamo insieme. La casa di partenza e' evidenziata in oro. Muovi da li'."];
+  return [
+    tr(
+      "Hai visto. Adesso proviamo insieme. La casa di partenza e' evidenziata in oro. Muovi da li'.",
+      "Good. Now we try together. The starting square is highlighted in gold. Move from there.",
+    ),
+  ];
 }
 
 function buildDaSoloIntroLines(pos: PositionRow): string[] {
   const s = pos.spent_seconds;
   if (s != null && s > 0) {
-    return [`Stavolta niente evidenziazione. In partita hai scelto in ${Math.max(1, Math.round(s))} secondi. Prenditi il tempo.`];
+    return [
+      tr(
+        `Stavolta niente evidenziazione. In partita hai scelto in ${Math.max(1, Math.round(s))} secondi. Prenditi il tempo.`,
+        `No highlight this time. In the game you moved in ${Math.max(1, Math.round(s))} seconds. Take your time.`,
+      ),
+    ];
   }
-  return ["Stavolta da solo, niente casa evidenziata. Calma: guarda prima, poi muovi."];
+  return [
+    tr(
+      "Stavolta da solo, niente casa evidenziata. Calma: guarda prima, poi muovi.",
+      "On your own now, no highlight. Look first, then move.",
+    ),
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -95,33 +128,49 @@ function EmptyState({ onClose }: { onClose: () => void }) {
       style={{ background: "var(--color-bg)" }}
       role="dialog"
       aria-modal="true"
-      aria-label="Sessione"
+      aria-label={tr("Sessione", "Session")}
     >
-      <div style={{
-        background: "var(--color-surface)",
-        border: "1px solid var(--color-line)",
-        borderRadius: "14px",
-        padding: "2.5rem 2rem",
-        maxWidth: "32rem",
-        textAlign: "center",
-      }}>
-        <div className="tt-eyebrow tt-muted" style={{ marginBottom: "0.75rem" }}>
-          Sessione
+      <div
+        style={{
+          background: "var(--color-surface)",
+          border: "1px solid var(--color-line)",
+          borderRadius: "14px",
+          padding: "2.5rem 2rem",
+          maxWidth: "32rem",
+          textAlign: "center",
+        }}
+      >
+        <div
+          className="tt-eyebrow tt-muted"
+          style={{ marginBottom: "0.75rem" }}
+        >
+          {tr("Sessione", "Session")}
         </div>
-        <h2 style={{
-          fontFamily: "var(--font-display)",
-          fontWeight: 700,
-          fontSize: "1.5rem",
-          color: "var(--color-text)",
-          margin: "0 0 0.75rem",
-        }}>
-          Ancora niente da rivedere
+        <h2
+          style={{
+            fontFamily: "var(--font-display)",
+            fontWeight: 700,
+            fontSize: "1.5rem",
+            color: "var(--color-text)",
+            margin: "0 0 0.75rem",
+          }}
+        >
+          {tr("Ancora niente da rivedere", "Nothing to review yet")}
         </h2>
-        <p style={{ color: "var(--color-text-soft)", lineHeight: 1.6, marginBottom: "1.5rem" }}>
-          Torna dopo l&apos;analisi per avere momenti da rivedere insieme.
+        <p
+          style={{
+            color: "var(--color-text-soft)",
+            lineHeight: 1.6,
+            marginBottom: "1.5rem",
+          }}
+        >
+          {tr(
+            "Torna dopo l'analisi per avere momenti da rivedere insieme.",
+            "The picture builds with each game. Come back after your next one.",
+          )}
         </p>
         <button onClick={onClose} className="btn btn-primary">
-          Torna al Tavolo
+          {tr("Torna al Tavolo", "Back to the Table")}
         </button>
       </div>
     </div>
@@ -140,13 +189,25 @@ function EmptyState({ onClose }: { onClose: () => void }) {
 
 const PHASE_ORDER: Phase[] = ["guardo", "aiuto", "da-solo", "partita", "saluto"];
 
-const PHASE_LABELS: Record<Phase, string> = {
-  "guardo":  "Guardo",
-  "aiuto":   "Aiuto",
-  "da-solo": "Da solo",
-  "partita": "Partita",
-  "saluto":  "Fine",
-};
+// PHASE_LABELS is a function to avoid module-level string freeze.
+function getPhaseLabels(): Record<Phase, string> {
+  if (getLang() === "en") {
+    return {
+      guardo: "I look",
+      aiuto: "With help",
+      "da-solo": "On my own",
+      partita: "Game",
+      saluto: "Done",
+    };
+  }
+  return {
+    guardo: "Guardo",
+    aiuto: "Aiuto",
+    "da-solo": "Da solo",
+    partita: "Partita",
+    saluto: "Fine",
+  };
+}
 
 // ---------------------------------------------------------------------------
 // PhaseThread — ink-line with 4 stations.
@@ -160,23 +221,30 @@ const THREAD_PHASES: Phase[] = ["guardo", "aiuto", "da-solo", "partita"];
 
 // Station positions as % along the track (0=left, 100=right).
 const STATION_PCT: Record<Phase, number> = {
-  "guardo":   0,
-  "aiuto":    33,
-  "da-solo":  66,
-  "partita":  100,
-  "saluto":   100,
+  guardo: 0,
+  aiuto: 33,
+  "da-solo": 66,
+  partita: 100,
+  saluto: 100,
 };
 
 function PhaseThread({ current }: { current: Phase }) {
   const fillPct = STATION_PCT[current];
+  const phaseLabels = getPhaseLabels();
   // "saluto" is past the last station: indexOf is -1, treat as beyond the end
   // so every station reads as done and the SR label says the ritual is over.
   const rawIdx = THREAD_PHASES.indexOf(current);
   const currentIdx = rawIdx === -1 ? THREAD_PHASES.length : rawIdx;
   const srLabel =
     rawIdx === -1
-      ? `Sessione completata: ${PHASE_LABELS[current]}`
-      : `Fase ${rawIdx + 1} di 4: ${PHASE_LABELS[current]}`;
+      ? tr(
+          `Sessione completata: ${phaseLabels[current]}`,
+          `Session done: ${phaseLabels[current]}`,
+        )
+      : tr(
+          `Fase ${rawIdx + 1} di 4: ${phaseLabels[current]}`,
+          `Step ${rawIdx + 1} of 4: ${phaseLabels[current]}`,
+        );
 
   return (
     <div
@@ -213,7 +281,8 @@ function PhaseThread({ current }: { current: Phase }) {
             left: 0,
             right: 0,
             height: "2px",
-            backgroundImage: "repeating-linear-gradient(90deg, var(--color-line-strong) 0 4px, transparent 4px 10px)",
+            backgroundImage:
+              "repeating-linear-gradient(90deg, var(--color-line-strong) 0 4px, transparent 4px 10px)",
             opacity: 0.7,
           }}
         />
@@ -240,7 +309,7 @@ function PhaseThread({ current }: { current: Phase }) {
           return (
             <div
               key={ph}
-              title={PHASE_LABELS[ph]}
+              title={phaseLabels[ph]}
               style={{
                 position: "absolute",
                 left: `${pctPos}%`,
@@ -248,12 +317,14 @@ function PhaseThread({ current }: { current: Phase }) {
                 width: isCurrent ? "8px" : "6px",
                 height: isCurrent ? "8px" : "6px",
                 borderRadius: "999px",
-                background: isPast || isCurrent
-                  ? "var(--color-brand-soft)"
-                  : "transparent",
-                border: isPast || isCurrent
-                  ? "none"
-                  : `1px solid var(--color-line-strong)`,
+                background:
+                  isPast || isCurrent
+                    ? "var(--color-brand-soft)"
+                    : "transparent",
+                border:
+                  isPast || isCurrent
+                    ? "none"
+                    : `1px solid var(--color-line-strong)`,
                 transition: prefersReducedMotion()
                   ? "none"
                   : "width 300ms var(--ease-out), height 300ms var(--ease-out), background 300ms var(--ease-out)",
@@ -275,7 +346,7 @@ function PhaseThread({ current }: { current: Phase }) {
           letterSpacing: "0.1em",
         }}
       >
-        {PHASE_LABELS[current]}
+        {phaseLabels[current]}
       </span>
     </div>
   );
@@ -285,23 +356,29 @@ function PhaseThread({ current }: { current: Phase }) {
 // Header sticky
 // ---------------------------------------------------------------------------
 
-function SessionHeader({ phase, onExit }: { phase: Phase; onExit: () => void }) {
+function SessionHeader({
+  phase,
+  onExit,
+}: {
+  phase: Phase;
+  onExit: () => void;
+}) {
   return (
     <div
       className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b border-[color:var(--color-line)]"
       style={{ background: "var(--header-bg)", backdropFilter: "blur(14px)" }}
     >
       <div className="tt-eyebrow" style={{ minWidth: "4rem" }}>
-        Sessione
+        {tr("Sessione", "Session")}
       </div>
       <PhaseThread current={phase} />
       <button
         onClick={onExit}
         className="btn btn-ghost btn-sm"
-        aria-label="Esci dalla sessione"
+        aria-label={tr("Esci dalla sessione", "Exit session")}
         style={{ minWidth: "4rem", justifyContent: "flex-end" }}
       >
-        Esci
+        {tr("Esci", "Exit")}
       </button>
     </div>
   );
@@ -336,7 +413,11 @@ function Saluto({
     const t1 = setTimeout(() => setPhraseIn(true), 400);
     // CTA settles at 1000ms
     const t2 = setTimeout(() => setCtaIn(true), 1000);
-    return () => { clearTimeout(t0); clearTimeout(t1); clearTimeout(t2); };
+    return () => {
+      clearTimeout(t0);
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, []);
 
   function handleReveal() {
@@ -347,8 +428,11 @@ function Saluto({
   }
 
   const phrase = dominantMotif
-    ? `Oggi abbiamo guardato ${dominantMotif}. Domani riprendiamo da li'.`
-    : pickIdx(SALUTO_PHRASES, totalPositions);
+    ? tr(
+        `Oggi abbiamo guardato ${dominantMotif}. Domani riprendiamo da li'.`,
+        `Today we looked at ${dominantMotif}. Tomorrow we pick it up from there.`,
+      )
+    : pickIdx(getSalutoPhrases(), totalPositions);
 
   // When revealed, all delays are bypassed (transition still runs but from
   // already-set state so it's instant in practice).
@@ -367,9 +451,7 @@ function Saluto({
           background: "rgba(0,0,0,0.35)",
           zIndex: 0,
           opacity: overlayIn || revealed ? 1 : 0,
-          transition: prefersReducedMotion()
-            ? "none"
-            : "opacity 600ms ease-out",
+          transition: prefersReducedMotion() ? "none" : "opacity 600ms ease-out",
           pointerEvents: "auto",
         }}
       />
@@ -419,7 +501,7 @@ function Saluto({
           }}
         >
           <button onClick={onClose} className="btn btn-primary btn-lg">
-            Vai e respira
+            {tr("Vai e respira", "Go. Rest.")}
           </button>
         </div>
       </div>
@@ -448,7 +530,13 @@ function PhaseIntro({ text }: { text: string }) {
 // NonnoSession — orchestratore principale
 // ---------------------------------------------------------------------------
 
-export function NonnoSession({ cadute, targetRating, currentRating, onClose, viaMorph = false }: Props) {
+export function NonnoSession({
+  cadute,
+  targetRating,
+  currentRating,
+  onClose,
+  viaMorph = false,
+}: Props) {
   // Reset the once-per-session board rise so the sit-down ritual plays once on
   // entry, then never again until the next session. Done during render (before
   // any child BoardScene mounts, so the first board reads a fresh flag) and
@@ -479,17 +567,15 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose, via
 
   const positions = cadute.map((pe, i) => toPositionRow(pe, i));
 
-  const review  = positions[0];
-  const guided  = positions[1] ?? positions[0];
-  const drill   = positions[2] ?? positions[1] ?? positions[0];
+  const review = positions[0];
+  const guided = positions[1] ?? positions[0];
+  const drill = positions[2] ?? positions[1] ?? positions[0];
   const playFen = positions[0].fen_before;
   const playColor: "white" | "black" = positions[0].my_color;
 
-  const patternLabel =
-    guided.motif_label_it ?? guided.motif ?? "Posizione";
+  const patternLabel = guided.motif_label_it ?? guided.motif ?? "Posizione";
 
-  const drillPatternLabel =
-    drill.motif_label_it ?? drill.motif ?? "Posizione";
+  const drillPatternLabel = drill.motif_label_it ?? drill.motif ?? "Posizione";
 
   function advance() {
     navigateWithTransition(() => {
@@ -514,7 +600,10 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose, via
     let motif: string | null = null;
     let maxCount = 0;
     for (const [label, cnt] of motifCounts.entries()) {
-      if (cnt > maxCount) { maxCount = cnt; motif = label; }
+      if (cnt > maxCount) {
+        maxCount = cnt;
+        motif = label;
+      }
     }
     setDominantMotif(motif);
 
@@ -542,12 +631,11 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose, via
       style={{ background: "var(--color-bg)" }}
       role="dialog"
       aria-modal="true"
-      aria-label="Sessione di revisione"
+      aria-label={tr("Sessione di revisione", "Review session")}
     >
       <SessionHeader phase={phase} onExit={onClose} />
 
       <div className="max-w-[1100px] mx-auto px-5 lg:px-10 py-8">
-
         {/* Fase 1 — GUARDO */}
         {phase === "guardo" && (
           <div key="phase-guardo" className="settle-in">
@@ -567,10 +655,17 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose, via
           <div key="phase-aiuto" className="settle-in">
             <div className="sess-phase-header">
               <div className="sess-phase-dot">2</div>
-              <span className="sess-phase-title">Nonno mi aiuta</span>
+              <span className="sess-phase-title">
+                {tr("Nonno mi aiuta", "Nonno helps me")}
+              </span>
             </div>
             {/* Short bridge only: the data-rich line lives inside the puzzle voice */}
-            <PhaseIntro text="Visto? Adesso proviamo insieme." />
+            <PhaseIntro
+              text={tr(
+                "Visto? Adesso proviamo insieme.",
+                "Good. Now let's try together.",
+              )}
+            />
             <PositionPuzzle
               key={`aiuto-${guided.game_id}-${guided.ply}`}
               position={guided}
@@ -587,9 +682,13 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose, via
           <div key="phase-da-solo" className="settle-in">
             <div className="sess-phase-header">
               <div className="sess-phase-dot">3</div>
-              <span className="sess-phase-title">Gioco da solo</span>
+              <span className="sess-phase-title">
+                {tr("Gioco da solo", "On my own")}
+              </span>
             </div>
-            <PhaseIntro text="Bene. Adesso da solo." />
+            <PhaseIntro
+              text={tr("Bene. Adesso da solo.", "Good. On your own now.")}
+            />
             <PositionPuzzle
               key={`da-solo-${drill.game_id}-${drill.ply}`}
               position={drill}
@@ -606,8 +705,14 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose, via
           <div key="phase-partita" className="settle-in">
             <div className="sess-phase-header">
               <div className="sess-phase-dot honey">4</div>
-              <span className="sess-phase-title" style={{ color: "var(--color-gold-soft)" }}>
-                Hai visto la posizione due volte. Ora giocala.
+              <span
+                className="sess-phase-title"
+                style={{ color: "var(--color-gold-soft)" }}
+              >
+                {tr(
+                  "Hai visto la posizione due volte. Ora giocala.",
+                  "You saw that position twice. Now play it.",
+                )}
               </span>
             </div>
             <PlayStep
@@ -623,7 +728,11 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose, via
 
         {/* SALUTO */}
         {phase === "saluto" && (
-          <div key="phase-saluto" className="settle-in" style={{ position: "relative" }}>
+          <div
+            key="phase-saluto"
+            className="settle-in"
+            style={{ position: "relative" }}
+          >
             <Saluto
               totalPositions={positions.length}
               dominantMotif={dominantMotif}
@@ -631,7 +740,6 @@ export function NonnoSession({ cadute, targetRating, currentRating, onClose, via
             />
           </div>
         )}
-
       </div>
     </div>
   );
