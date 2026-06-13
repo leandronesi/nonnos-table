@@ -7,6 +7,7 @@
  */
 
 import * as THREE from "three";
+import { tr } from "../../i18n/lang";
 
 function makeCanvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const c = document.createElement("canvas");
@@ -219,7 +220,7 @@ export function cardTexture(label: string): THREE.CanvasTexture {
   // The invitation
   ctx.fillStyle = "#7a6336";
   ctx.font = "italic 500 30px Fraunces, Georgia, serif";
-  ctx.fillText("esercitiamoci.", 128, 282);
+  ctx.fillText(tr("esercitiamoci.", "let's practice."), 128, 282);
 
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -242,7 +243,7 @@ export function plaqueTexture(): THREE.CanvasTexture {
   ctx.fillStyle = "#4a3a1e";
   ctx.font = "italic 600 50px Fraunces, Georgia, serif";
   ctx.textAlign = "center";
-  ctx.fillText("Le tue ancore", 256, 90);
+  ctx.fillText(tr("Le tue ancore", "Your anchors"), 256, 90);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -278,7 +279,7 @@ export function letterTexture(): THREE.CanvasTexture {
   ctx.fillStyle = "#6b5638";
   ctx.font = "italic 600 44px Fraunces, Georgia, serif";
   ctx.textAlign = "center";
-  ctx.fillText("Per te.", 256, 250);
+  ctx.fillText(tr("Per te.", "For you."), 256, 250);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;

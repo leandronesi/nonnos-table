@@ -1,4 +1,5 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, Fragment } from "react";
+import { tr, LangProvider, useLang } from "./i18n/lang";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { OnboardingRunProvider } from "./pipeline/OnboardingRunContext";
@@ -58,14 +59,14 @@ function FullScreenLoader({ label }: { label: string }) {
  *  Home = LA STANZA (il foyer): arrivi nella stanza, e da li' vai al Tavolo. */
 function HomeGate() {
   const { loading, user, profile } = useAuth();
-  if (loading) return <FullScreenLoader label="Carico la sessione…" />;
+  if (loading) return <FullScreenLoader label={tr("Carico la sessione…", "One moment.")} />;
   if (!user) return <Landing />;
   if (!profile) return <Navigate to="/onboarding" replace />;
   if (profile.onboarding_state !== "ready") {
     return <Navigate to="/onboarding/waiting" replace />;
   }
   return (
-    <Suspense fallback={<div className="stanza-shell"><div className="stanza-attesa">La Stanza</div></div>}>
+    <Suspense fallback={<div className="stanza-shell"><div className="stanza-attesa">{tr("La Stanza", "The Room")}</div></div>}>
       <StanzaHome />
     </Suspense>
   );
@@ -74,14 +75,23 @@ function HomeGate() {
 /** Wrapper per route che richiedono utente loggato (qualsiasi stato profile). */
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { loading, user } = useAuth();
-  if (loading) return <FullScreenLoader label="Carico la sessione…" />;
+  if (loading) return <FullScreenLoader label={tr("Carico la sessione…", "One moment.")} />;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
+}
+
+/** Remounts the visual tree on language change so every tr() re-evaluates.
+ *  Sits BELOW the stateful providers, so a language switch does NOT remount
+ *  AuthProvider / OnboardingRunProvider (the session and orchestrator run survive). */
+function VisualRemountBoundary({ children }: { children: React.ReactNode }) {
+  const { lang } = useLang();
+  return <Fragment key={lang}>{children}</Fragment>;
 }
 
 export function App() {
   const basename = (import.meta.env.BASE_URL || "/").replace(/\/$/, "") || undefined;
   return (
+    <LangProvider>
     <AuthProvider>
       {/* OnboardingRunProvider vede useAuth e sopravvive alle route changes */}
       <OnboardingRunProvider>
@@ -89,6 +99,8 @@ export function App() {
       <BrowserRouter basename={basename}>
         {/* Room grain — static SVG noise layer, covers every page, pointer-events none */}
         <div className="room-grain" aria-hidden="true" />
+        {/* Remount the visual tree on language change (providers above stay mounted) */}
+        <VisualRemountBoundary>
         {/* Popup globale: seconda battuta di Nonno al completamento del background */}
         <SecondaBattutaPopup />
         <Routes>
@@ -146,9 +158,11 @@ export function App() {
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </VisualRemountBoundary>
       </BrowserRouter>
       </TavoloActionsProvider>
       </OnboardingRunProvider>
     </AuthProvider>
+    </LangProvider>
   );
 }

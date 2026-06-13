@@ -33,6 +33,7 @@ import type { PositionExample } from "../pipeline/aggregate";
 import { BoardView } from "./BoardView";
 import { uciToArrow, uciToSan } from "../pages/quaderno/boardArrows";
 import { prefersReducedMotion, navigateWithTransition } from "../lib/motion";
+import { tr } from "../i18n/lang";
 
 // ── Selection ─────────────────────────────────────────────────────────────────
 
@@ -81,7 +82,7 @@ function fenAfterUci(fenBefore: string, uci: string): string | null {
 
 function buildTempoLine(spent_seconds: number | null | undefined): string | null {
   if (spent_seconds == null) return null;
-  return `In ${spent_seconds} secondi.`;
+  return tr(`In ${spent_seconds} secondi.`, `In ${spent_seconds} seconds.`);
 }
 
 function buildAvversarioLine(
@@ -94,14 +95,14 @@ function buildAvversarioLine(
   const mineN = Math.round(p_mine * 10);
   const opener =
     targetRating != null && targetRating > 0
-      ? `Uno al tuo ${targetRating} la trova ${targetN} volte su 10.`
-      : `Il giocatore che vuoi diventare la trova ${targetN} volte su 10.`;
+      ? tr(`Uno al tuo ${targetRating} la trova ${targetN} volte su 10.`, `A ${targetRating} player finds it ${targetN} times out of 10.`)
+      : tr(`Il giocatore che vuoi diventare la trova ${targetN} volte su 10.`, `The player you want to become finds it ${targetN} times out of 10.`);
   const mineClause =
     mineN === 0
-      ? "Tu, oggi, nemmeno una."
+      ? tr("Tu, oggi, nemmeno una.", "You, today, not once.")
       : mineN === 1
-        ? "Tu, oggi, una."
-        : `Tu, oggi, ${mineN}.`;
+        ? tr("Tu, oggi, una.", "You, today, once.")
+        : tr(`Tu, oggi, ${mineN}.`, `You, today, ${mineN}.`);
   return `${opener} ${mineClause}`;
 }
 
@@ -111,7 +112,7 @@ function buildBestMoveLine(
 ): string | null {
   if (!best_uci) return null;
   const san = uciToSan(fenBefore, best_uci);
-  return `La mossa era ${san}.`;
+  return tr(`La mossa era ${san}.`, `The right move was ${san}.`);
 }
 
 // ── Board scene state machine types ──────────────────────────────────────────
@@ -357,7 +358,7 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
     >
       {/* Eyebrow */}
       <div className="tt-eyebrow" style={{ marginBottom: "1rem" }}>
-        Il momento di oggi
+        {tr("Il momento di oggi", "Today's moment")}
       </div>
 
       {/* Board + voice side by side on wider screens */}
@@ -467,7 +468,7 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
               fontWeight: 700,
             }}
           >
-            Sediamoci su questa
+            {tr("Sediamoci su questa", "Let's sit down on this")}
           </div>
         </div>
       </div>

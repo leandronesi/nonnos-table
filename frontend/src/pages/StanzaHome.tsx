@@ -18,6 +18,9 @@ import { selectMomento } from "../components/MomentoDelGiorno";
 import { materialForGap } from "../pipeline/history";
 import { prefersReducedMotion } from "../lib/motion";
 import type { HistorySnapshot } from "../types";
+import { getLang, tr } from "../i18n/lang";
+import { getAnchorLabel } from "../i18n/anchors";
+import { LangToggle } from "../i18n/LangToggle";
 // Type-only import: erased at build time, three.js stays in the lazy chunk.
 import type { Focus } from "./stanza/StanzaScene";
 
@@ -164,13 +167,23 @@ export function StanzaHome() {
   const handicap = historySnapshots ? buildHandicapDisplay(historySnapshots) : null;
 
   const improving = anchorTrails.filter((t) => t.direction === "improving").slice(0, 3);
-  const notebookLines = improving.map((t) => `${t.label_it}: ci cadi meno spesso.`);
+  const lang = getLang();
+  const notebookLines = improving.map((t) => {
+    const label = getAnchorLabel(t.key, lang, t.label_it);
+    return lang === "en"
+      ? `${label}: you fall into this less often.`
+      : `${label}: ci cadi meno spesso.`;
+  });
   const notebookGold =
-    targetRating > 0 ? `${targetRating}. Il posto che stai raggiungendo.` : null;
+    targetRating > 0
+      ? tr(`${targetRating}. Il posto che stai raggiungendo.`, `${targetRating}. Where you are headed.`)
+      : null;
 
   // The box holds the canonical top-3 anchors (by weighted score, same as the
   // Tavolo section) — not the alphabetical trails.
-  const thorns = (aggregates?.anchors ?? []).slice(0, 3).map((a) => a.label_it);
+  const thorns = (aggregates?.anchors ?? []).slice(0, 3).map((a) =>
+    getAnchorLabel(a.type, lang, a.label_it)
+  );
   const showLetter = !!(letterIdentity && !letterSeenBefore);
 
   // ── Loading / error ──────────────────────────────────────────────────────────
@@ -244,9 +257,20 @@ export function StanzaHome() {
       </div>
 
       {/* The door to the working surface */}
-      <Link to="/tavolo" className="scena-uscita" aria-label="Vai al Tavolo">
-        Il Tavolo
+      <Link to="/tavolo" className="scena-uscita" aria-label={tr("Vai al Tavolo", "Go to the Table")}>
+        {tr("Il Tavolo", "The Table")}
       </Link>
+
+      {/* Language switch — top-left, mirrors the exit link on the right. The
+          Stanza has no AppShell, so without this the foyer has no toggle. */}
+      <LangToggle
+        style={{
+          position: "fixed",
+          top: "clamp(1rem, 3vh, 1.8rem)",
+          left: "clamp(1.2rem, 3vw, 2.4rem)",
+          zIndex: 60,
+        }}
+      />
 
       {/* The focus chip: leaning over an object, one more tap enters it */}
       {focus !== "tavolo" && (

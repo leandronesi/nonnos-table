@@ -51,17 +51,24 @@ import { BoardView } from "../../components/BoardView";
 import { RepertorioPanel } from "../../components/RepertorioPanel";
 import { CaduteTrainer } from "../../session/CaduteTrainer";
 import { uciToArrow, uciToSan } from "./boardArrows";
+import { tr, getLang } from "../../i18n/lang";
+import { getAnchorLabel, getAnchorMeta } from "../../i18n/anchors";
 
 // ── Tab definition ─────────────────────────────────────────────────────────────
 
 type TabKey = "evoluzione" | "cadute" | "profilo" | "repertorio";
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: "evoluzione",  label: "Evoluzione"  },
-  { key: "cadute",      label: "Cadute"      },
-  { key: "profilo",     label: "Profilo"     },
-  { key: "repertorio",  label: "Repertorio"  },
-];
+const TAB_KEYS: TabKey[] = ["evoluzione", "cadute", "profilo", "repertorio"];
+
+// Labels resolved at render time so language switches propagate.
+function getTabs(): { key: TabKey; label: string }[] {
+  return [
+    { key: "evoluzione",  label: tr("Evoluzione",  "Evolution")  },
+    { key: "cadute",      label: tr("Cadute",      "Falls")      },
+    { key: "profilo",     label: tr("Profilo",     "Profile")    },
+    { key: "repertorio",  label: tr("Repertorio",  "Repertoire") },
+  ];
+}
 
 function tabFromHash(): TabKey {
   const h = typeof window !== "undefined" ? window.location.hash.replace("#", "") : "";
@@ -69,7 +76,7 @@ function tabFromHash(): TabKey {
   // and Diario was merged into Cadute. Keep old deep-links alive.
   if (h === "percorso" || h === "storia" || h === "traguardi") return "evoluzione";
   if (h === "diario") return "cadute";
-  return TABS.some((t) => t.key === h) ? (h as TabKey) : "evoluzione";
+  return TAB_KEYS.includes(h as TabKey) ? (h as TabKey) : "evoluzione";
 }
 
 // ── Italian date helpers ───────────────────────────────────────────────────────
@@ -266,10 +273,10 @@ function AnchorTrailsSection({
   const trails = anchorTrendsFromHistory(history);
 
   return (
-    <Section eyebrow="Le tue ancore nel tempo" delay={80}>
+    <Section eyebrow={tr("Le tue ancore nel tempo", "Your anchors over time")} delay={80}>
       {trails.length === 0 ? (
         <div style={{ color: "var(--color-muted)", fontSize: "0.88rem", lineHeight: 1.6 }}>
-          Il percorso si disegna con le analisi: torna dopo la prossima.
+          {tr("Il percorso si disegna con le analisi: torna dopo la prossima.", "The picture builds with each game. Come back after your next one.")}
         </div>
       ) : (
         <div>
@@ -308,25 +315,30 @@ function AnchorTrailsSection({
                         }}
                         onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.textDecorationColor = "currentColor"; }}
                         onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.textDecorationColor = "transparent"; }}
-                        title="Vai alle cadute per questa ancora"
+                        title={tr("Vai alle cadute per questa ancora", "Go to stumbles for this anchor")}
                       >
-                        {trail.label_it}
+                        {getAnchorLabel(trail.key, getLang(), trail.label_it)}
                       </button>
                       {improving && (
-                        <span className="tt-chip good" style={{ fontSize: "0.65rem" }}>in calo</span>
+                        <span className="tt-chip good" style={{ fontSize: "0.65rem" }}>{tr("in calo", "declining")}</span>
                       )}
                       {worsening && (
-                        <span className="tt-chip warn" style={{ fontSize: "0.65rem" }}>in salita</span>
+                        <span className="tt-chip warn" style={{ fontSize: "0.65rem" }}>{tr("in salita", "rising")}</span>
                       )}
                       {trail.confidence === "low" && (
-                        <span className="tt-chip" style={{ fontSize: "0.6rem", color: "var(--color-faint)", background: "rgba(255,255,255,0.03)" }}>dati parziali</span>
+                        <span className="tt-chip" style={{ fontSize: "0.6rem", color: "var(--color-faint)", background: "rgba(255,255,255,0.03)" }}>{tr("dati parziali", "partial data")}</span>
                       )}
                     </div>
-                    {WEAKNESS_META[trail.key]?.meaning_it && (
-                      <div style={{ marginBottom: "0.375rem", fontSize: "0.78rem", color: "var(--color-faint)", lineHeight: 1.45 }}>
-                        {WEAKNESS_META[trail.key]?.meaning_it}
-                      </div>
-                    )}
+                    {(() => {
+                      const meaning = getAnchorMeta(trail.key, getLang(), {
+                        label_it: trail.label_it,
+                      }).meaning;
+                      return meaning ? (
+                        <div style={{ marginBottom: "0.375rem", fontSize: "0.78rem", color: "var(--color-faint)", lineHeight: 1.45 }}>
+                          {meaning}
+                        </div>
+                      ) : null;
+                    })()}
                     <div style={{ fontSize: "0.82rem", color: "var(--color-text-soft)", lineHeight: 1.55 }}>
                       {verdict}
                     </div>
@@ -337,7 +349,7 @@ function AnchorTrailsSection({
                       </div>
                     )}
                     <div style={{ marginTop: "0.25rem", fontSize: "0.72rem", color: "var(--color-faint)", fontVariantNumeric: "tabular-nums" }}>
-                      {trail.points.length} analisi
+                      {trail.points.length} {tr("analisi", "analyses")}
                     </div>
                   </div>
 
@@ -380,7 +392,7 @@ function DiagnosiCollapsible({ entry }: { entry: JournalEntry }) {
           }}
         >
           <span style={{ fontSize: "0.78rem", color: "var(--color-faint)", fontFamily: "var(--font-mono)" }}>
-            Diagnosi attuale di Nonno · {dateIt(entry.date)}
+            {tr("Diagnosi attuale di Nonno", "Nonno's current read")} · {dateIt(entry.date)}
           </span>
           <span style={{ color: "var(--color-muted)", fontSize: "0.72rem", flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform 200ms" }}>
             ▾
@@ -509,10 +521,11 @@ function buildDayReviews(
     }
   }
 
-  // Build anchor label map
+  // Build anchor label map (language-aware)
   const anchorLabelMap = new Map<string, string>();
+  const _lang = getLang();
   for (const a of anchors ?? []) {
-    anchorLabelMap.set(a.type, a.label_it);
+    anchorLabelMap.set(a.type, getAnchorLabel(a.type, _lang, a.label_it));
   }
 
   // ── Step 3: build DayReview per date ─────────────────────────────────────
@@ -629,18 +642,18 @@ function TraguardiStrip({
   // Nothing to show yet.
   if (historyLength < 2 || (achievedChips.length === 0 && next == null)) {
     return (
-      <Section eyebrow="Traguardi" delay={300}>
+      <Section eyebrow={tr("Traguardi", "Milestones")} delay={300}>
         <div style={{ color: "var(--color-muted)", fontSize: "0.84rem", lineHeight: 1.6 }}>
           {historyLength < 2
-            ? "I traguardi si calcolano dopo la seconda analisi. Sono misure reali, arrivano con la continuita'."
-            : "Nessun traguardo ancora. Continua a giocare."}
+            ? tr("I traguardi si calcolano dopo la seconda analisi. Sono misure reali, arrivano con la continuita'.", "Milestones are calculated after the second analysis. They are real measures, they come with continuity.")
+            : tr("Nessun traguardo ancora. Continua a giocare.", "Nothing here yet. We'll fill this in together.")}
         </div>
       </Section>
     );
   }
 
   return (
-    <Section eyebrow="Traguardi" delay={300}>
+    <Section eyebrow={tr("Traguardi", "Milestones")} delay={300}>
       {/* Achieved, as muted chips */}
       {achievedChips.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: next != null ? "1rem" : 0 }}>
@@ -660,7 +673,7 @@ function TraguardiStrip({
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.5rem", gap: "0.5rem" }}>
             <div style={{ fontSize: "0.82rem", color: "var(--color-text-soft)", lineHeight: 1.3 }}>
-              Prossimo: {next.label_it.replace(/^"|"$/g, "")}
+              {tr("Prossimo:", "Next:")} {next.label_it.replace(/^"|"$/g, "")}
             </div>
             <span className="font-mono font-bold" style={{
               flexShrink: 0, fontSize: "0.82rem",
@@ -749,10 +762,11 @@ function TabEvoluzione({
   const hasRatingCurve = pmLite?.rating_curve != null &&
     Object.values(pmLite.rating_curve).some((pts) => pts.length > 0);
 
+  const _snapLang = getLang();
   const day1Profile = firstSnap != null && lastSnap != null && firstSnap.week_iso !== lastSnap.week_iso
     ? {
         rating: firstSnap.goal.current,
-        topAnchors: firstSnap.anchors.slice(0, 3).map((a) => a.label_it),
+        topAnchors: firstSnap.anchors.slice(0, 3).map((a) => getAnchorLabel(a.key, _snapLang, a.label_it)),
         gamesAnalyzed: firstSnap.games_analyzed,
         capturedAt: firstSnap.captured_at,
       }
@@ -761,7 +775,7 @@ function TabEvoluzione({
   const nowProfile = lastSnap != null
     ? {
         rating: lastSnap.goal.current,
-        topAnchors: lastSnap.anchors.slice(0, 3).map((a) => a.label_it),
+        topAnchors: lastSnap.anchors.slice(0, 3).map((a) => getAnchorLabel(a.key, _snapLang, a.label_it)),
         gamesAnalyzed: lastSnap.games_analyzed,
       }
     : null;
@@ -802,7 +816,7 @@ function TabEvoluzione({
       <AnchorTrailsSection history={history} transfer={transfer} onSelectAnchor={onSelectAnchor} />
 
       {/* ── Dal primo giorno ───────────────────────────────────────────────── */}
-      <Section eyebrow="Dal primo giorno" delay={240}>
+      <Section eyebrow={tr("Dal primo giorno", "From day one")} delay={240}>
         {/* Rating curve */}
         {hasRatingCurve && pmLite != null && goal != null ? (
           <Reveal delay={0} className="mb-6">
@@ -810,7 +824,7 @@ function TabEvoluzione({
           </Reveal>
         ) : (
           <div style={{ color: "var(--color-muted)", fontSize: "0.88rem", marginBottom: "1.5rem" }}>
-            Curva di rating non disponibile ancora.
+            {tr("Curva di rating non disponibile ancora.", "Rating curve not available yet.")}
           </div>
         )}
 
@@ -825,7 +839,7 @@ function TabEvoluzione({
               padding: "1rem",
             }}>
               <div className="tt-eyebrow" style={{ marginBottom: "0.5rem", color: "var(--color-faint)" }}>
-                Giorno 1 · {dateIt(day1Profile.capturedAt.slice(0, 10))}
+                {tr("Giorno 1", "Day 1")} · {dateIt(day1Profile.capturedAt.slice(0, 10))}
               </div>
               {day1Profile.rating != null && (
                 <div className="font-mono font-bold" style={{ fontSize: "1.35rem", color: "var(--color-text)", fontVariantNumeric: "tabular-nums", marginBottom: "0.5rem" }}>
@@ -834,8 +848,8 @@ function TabEvoluzione({
               )}
               <div style={{ fontSize: "0.78rem", color: "var(--color-text-soft)", lineHeight: 1.45 }}>
                 {day1Profile.topAnchors.length > 0
-                  ? "Ancore: " + day1Profile.topAnchors.join(", ")
-                  : "Profilo ancora da costruire"}
+                  ? tr("Ancore:", "Anchors:") + " " + day1Profile.topAnchors.join(", ")
+                  : tr("Profilo ancora da costruire", "Profile not built yet")}
               </div>
             </div>
 
@@ -847,7 +861,7 @@ function TabEvoluzione({
               padding: "1rem",
             }}>
               <div className="tt-eyebrow" style={{ marginBottom: "0.5rem", color: "var(--color-brand-soft)" }}>
-                Oggi
+                {tr("Oggi", "Today")}
               </div>
               {nowProfile.rating != null && (
                 <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem", marginBottom: "0.5rem" }}>
@@ -871,14 +885,14 @@ function TabEvoluzione({
               )}
               <div style={{ fontSize: "0.78rem", color: "var(--color-text-soft)", lineHeight: 1.45 }}>
                 {nowProfile.topAnchors.length > 0
-                  ? "Ancore: " + nowProfile.topAnchors.join(", ")
-                  : "Nessuna ancora rilevata"}
+                  ? tr("Ancore:", "Anchors:") + " " + nowProfile.topAnchors.join(", ")
+                  : tr("Nessuna ancora rilevata", "No anchors found yet")}
               </div>
             </div>
           </div>
         ) : (
           <div style={{ color: "var(--color-muted)", fontSize: "0.88rem", marginTop: "1rem" }}>
-            Il confronto giorno 1 vs oggi appare dopo la seconda analisi.
+            {tr("Il confronto giorno 1 vs oggi appare dopo la seconda analisi.", "The day 1 vs today comparison appears after the second analysis.")}
           </div>
         )}
       </Section>
@@ -895,19 +909,19 @@ function TabEvoluzione({
       {(aggregates?.anchors?.length ?? 0) > 0 && (
         <Reveal delay={280} className="mb-6">
           <p style={{ fontSize: "0.82rem", color: "var(--color-muted)", lineHeight: 1.5 }}>
-            Le ancore nel dettaglio:{" "}
+            {tr("Le ancore nel dettaglio:", "Anchors in detail:")}{" "}
             {(aggregates?.anchors ?? []).slice(0, 3).map((a, i, arr) => (
               <span key={a.type}>
                 <button
                   onClick={() => onSelectAnchor(a.type)}
                   style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-brand-soft)", fontSize: "0.82rem", padding: "0 0.15rem", textDecoration: "underline", textUnderlineOffset: "2px" }}
                 >
-                  {a.label_it}
+                  {getAnchorLabel(a.type, getLang(), a.label_it)}
                 </button>
                 {i < arr.length - 1 ? ", " : ""}
               </span>
             ))}
-            {" "}(vai alle Cadute per allenarle).
+            {" "}{tr("(vai alle Cadute per allenarle).", "(go to Stumbles to train them).")}
           </p>
         </Reveal>
       )}
@@ -1097,7 +1111,9 @@ function TabProfilo({
   const profiloNonno = (() => {
     if (showTilt && tilt) {
       const factor = tilt.tilt_factor.toFixed(1);
-      return `Dopo un errore, nelle mosse che seguono sbagli quasi ${factor} volte piu' del solito. Conosci gia' il punto piu' delicato: e' li' che puoi guadagnare di piu'.`;
+      return getLang() === "en"
+        ? `After a mistake, in the moves that follow you err almost ${factor} times more than usual. You already know the most delicate moment: that is where you can gain the most.`
+        : `Dopo un errore, nelle mosse che seguono sbagli quasi ${factor} volte piu' del solito. Conosci gia' il punto piu' delicato: e' li' che puoi guadagnare di piu'.`;
     }
     if (decisions != null && decisions.blow_rate != null && decisions.blow_rate > 0.35) {
       return `Trasformi meno del 65% delle posizioni vinte. La tua fase critica e' la conversione: guarda le Decisioni.`;
@@ -1107,9 +1123,9 @@ function TabProfilo({
 
   const phases = aggregates?.by_phase != null
     ? [
-        { key: "opening"    as const, label: "Apertura",   pct: aggregates.by_phase.opening.blunder_pct,    moves: aggregates.by_phase.opening.moves    },
-        { key: "middlegame" as const, label: "Mediogioco", pct: aggregates.by_phase.middlegame.blunder_pct,  moves: aggregates.by_phase.middlegame.moves  },
-        { key: "endgame"    as const, label: "Finale",     pct: aggregates.by_phase.endgame.blunder_pct,     moves: aggregates.by_phase.endgame.moves     },
+        { key: "opening"    as const, label: tr("Apertura", "Opening"),     pct: aggregates.by_phase.opening.blunder_pct,    moves: aggregates.by_phase.opening.moves    },
+        { key: "middlegame" as const, label: tr("Mediogioco", "Middlegame"), pct: aggregates.by_phase.middlegame.blunder_pct,  moves: aggregates.by_phase.middlegame.moves  },
+        { key: "endgame"    as const, label: tr("Finale", "Endgame"),        pct: aggregates.by_phase.endgame.blunder_pct,     moves: aggregates.by_phase.endgame.moves     },
       ]
     : [];
   const maxPhasePct = phases.length > 0 ? Math.max(...phases.map((p) => p.pct)) : 0;
@@ -1117,8 +1133,8 @@ function TabProfilo({
 
   const colors = aggregates?.by_color
     ? [
-        { label: "Bianco", pct: aggregates.by_color.white.blunder_pct, games: aggregates.by_color.white.games, danger: aggregates.by_color.white.blunder_pct > aggregates.by_color.black.blunder_pct },
-        { label: "Nero",   pct: aggregates.by_color.black.blunder_pct, games: aggregates.by_color.black.games, danger: aggregates.by_color.black.blunder_pct > aggregates.by_color.white.blunder_pct },
+        { label: tr("Bianco", "White"), pct: aggregates.by_color.white.blunder_pct, games: aggregates.by_color.white.games, danger: aggregates.by_color.white.blunder_pct > aggregates.by_color.black.blunder_pct },
+        { label: tr("Nero", "Black"),   pct: aggregates.by_color.black.blunder_pct, games: aggregates.by_color.black.games, danger: aggregates.by_color.black.blunder_pct > aggregates.by_color.white.blunder_pct },
       ]
     : [];
   const colorDelta = colors.length === 2 ? Math.abs(colors[0].pct - colors[1].pct) : 0;
@@ -1181,7 +1197,7 @@ function TabProfilo({
 
       {/* Decisioni */}
       {decisions != null && (
-        <Section eyebrow="Decisioni" delay={60}>
+        <Section eyebrow={tr("Decisioni", "Decisions")} delay={60}>
           <DecisionsCard decisions={decisions} />
         </Section>
       )}
@@ -1229,41 +1245,53 @@ function TabProfilo({
 
       {/* Tilt */}
       {showTilt && tilt != null && (
-        <Section eyebrow="Tilt" delay={140}>
+        <Section eyebrow={tr("Tilt", "Tilt")} delay={140}>
           <p style={{ fontSize: "0.88rem", color: "var(--color-text-soft)", lineHeight: 1.65, margin: 0 }}>
-            Dopo un errore, nelle mosse che seguono sbagli quasi{" "}
-            <span className="font-mono font-bold" style={{ color: "var(--color-warn)", fontVariantNumeric: "tabular-nums" }}>
-              {tilt.tilt_factor.toFixed(1)}
-            </span>
-            {" "}volte piu' del solito. Te lo porti dietro per qualche mossa, poi passa. Quando senti che hai sbagliato, e' il momento di rallentare, non di recuperare.
+            {getLang() === "en" ? (
+              <>
+                After a mistake, in the moves that follow you err almost{" "}
+                <span className="font-mono font-bold" style={{ color: "var(--color-warn)", fontVariantNumeric: "tabular-nums" }}>
+                  {tilt.tilt_factor.toFixed(1)}
+                </span>
+                {" "}times more than usual. You carry it for a few moves, then it passes. When you feel you have erred, that is the moment to slow down, not to recover.
+              </>
+            ) : (
+              <>
+                Dopo un errore, nelle mosse che seguono sbagli quasi{" "}
+                <span className="font-mono font-bold" style={{ color: "var(--color-warn)", fontVariantNumeric: "tabular-nums" }}>
+                  {tilt.tilt_factor.toFixed(1)}
+                </span>
+                {" "}volte piu' del solito. Te lo porti dietro per qualche mossa, poi passa. Quando senti che hai sbagliato, e' il momento di rallentare, non di recuperare.
+              </>
+            )}
           </p>
         </Section>
       )}
 
       {/* Errori per fase — con verdetto Nonno sopra (3B) */}
       {phases.length > 0 && (
-        <Section eyebrow="Errori gravi per fase" delay={180}>
+        <Section eyebrow={tr("Errori gravi per fase", "Serious errors by phase")} delay={180}>
           {phaseVerdictLine && (
             <p style={{ fontSize: "0.88rem", color: "var(--color-text-soft)", lineHeight: 1.55, marginBottom: "0.875rem", marginTop: 0 }}>
               {phaseVerdictLine}
             </p>
           )}
           {phases.map((p) => (
-            <HBar key={p.key} label={p.label} pct={p.pct} sub={`${p.moves} mosse`} danger={p.pct === maxPhasePct && p.pct > 0} />
+            <HBar key={p.key} label={p.label} pct={p.pct} sub={`${p.moves} ${tr("mosse", "moves")}`} danger={p.pct === maxPhasePct && p.pct > 0} />
           ))}
         </Section>
       )}
 
       {/* Bianco vs Nero — con verdetto Nonno sopra (3B) */}
       {colors.length > 0 && (
-        <Section eyebrow="Bianco vs Nero" delay={220}>
+        <Section eyebrow={tr("Bianco vs Nero", "White vs Black")} delay={220}>
           {colorVerdictLine && (
             <p style={{ fontSize: "0.88rem", color: "var(--color-text-soft)", lineHeight: 1.55, marginBottom: "0.875rem", marginTop: 0 }}>
               {colorVerdictLine}
             </p>
           )}
           {colors.map((c) => (
-            <HBar key={c.label} label={c.label} pct={c.pct} sub={`${c.games} partite`} danger={c.danger} />
+            <HBar key={c.label} label={c.label} pct={c.pct} sub={`${c.games} ${tr("partite", "games")}`} danger={c.danger} />
           ))}
         </Section>
       )}
@@ -1271,7 +1299,7 @@ function TabProfilo({
       {/* Trend settimanale */}
       {showWeekly && weeklyTrend != null && (
         <Reveal delay={260} className="mb-8">
-          <WeeklyTrendCard trend={weeklyTrend} title="Settimana vs precedente" />
+          <WeeklyTrendCard trend={weeklyTrend} title={tr("Settimana vs precedente", "This week vs last")} />
         </Reveal>
       )}
 
@@ -1279,14 +1307,17 @@ function TabProfilo({
         <Section delay={0}>
           <div style={{ padding: "2rem 0", textAlign: "center" }}>
             <p className="tt-nonno" style={{ marginBottom: "1rem" }}>
-              Il profilo si costruisce partita dopo partita. Quando avremo abbastanza materiale, ti mostro come giochi davvero: le decisioni, i tempi, dove ti perdi.
+              {tr(
+                "Il profilo si costruisce partita dopo partita. Quando avremo abbastanza materiale, ti mostro come giochi davvero: le decisioni, i tempi, dove ti perdi.",
+                "The profile builds game by game. When we have enough material, I will show you how you really play: the decisions, the timing, where you get lost.",
+              )}
             </p>
             <Link
-              to="/tavolo"
+              to="/"
               className="tt-chip"
               style={{ display: "inline-block", textDecoration: "none" }}
             >
-              Vai al Tavolo
+              {tr("Vai al Tavolo", "Go to the Table")}
             </Link>
           </div>
         </Section>
@@ -1310,16 +1341,18 @@ interface CaduteGroup {
 
 function buildCaduteGroups(raw: PositionExample[]): CaduteGroup[] {
   const map = new Map<string, CaduteGroup>();
+  const lang = getLang();
 
   for (const pos of raw) {
     const et = pos.error_type ?? null;
     const meta = et ? WEAKNESS_META[et] : undefined;
     const key = et ?? "varie";
-    const label = meta?.label_it ?? "Varie";
+    const anchorMeta = et ? getAnchorMeta(et, lang, meta) : null;
+    const label = anchorMeta?.label ?? meta?.label_it ?? tr("Varie", "Various");
 
     let grp = map.get(key);
     if (!grp) {
-      grp = { key, label, meaning: meta?.meaning_it, positions: [] };
+      grp = { key, label, meaning: anchorMeta?.meaning ?? meta?.meaning_it, positions: [] };
       map.set(key, grp);
     }
     grp.positions.push(pos);
@@ -1358,11 +1391,11 @@ function GroupGallery({ positions, onOpeningLink }: { positions: PositionExample
                 {c.phase.charAt(0).toUpperCase() + c.phase.slice(1)}
               </span>
               {c.category === "blunder" ? (
-                <span className="tt-chip bad" style={{ fontSize: "0.65rem" }}>Errore grave</span>
+                <span className="tt-chip bad" style={{ fontSize: "0.65rem" }}>{tr("Errore grave", "Serious error")}</span>
               ) : (
-                <span className="tt-chip warn" style={{ fontSize: "0.65rem" }}>Errore</span>
+                <span className="tt-chip warn" style={{ fontSize: "0.65rem" }}>{tr("Errore", "Error")}</span>
               )}
-              {avoid === "evitabile" && <span className="tt-chip warn" style={{ fontSize: "0.65rem" }}>Evitabile</span>}
+              {avoid === "evitabile" && <span className="tt-chip warn" style={{ fontSize: "0.65rem" }}>{tr("Evitabile", "Avoidable")}</span>}
             </div>
             <div className="font-mono" style={{ fontSize: "0.65rem", color: "var(--color-muted)", marginTop: "0.25rem", fontVariantNumeric: "tabular-nums" }}>
               <span style={{ color: "var(--color-danger)", fontWeight: 600 }}>{c.san}</span>
@@ -1384,7 +1417,7 @@ function GroupGallery({ positions, onOpeningLink }: { positions: PositionExample
                 rel="noopener noreferrer"
                 style={{ display: "block", marginTop: "0.25rem", fontSize: "0.60rem", color: "var(--color-faint)", fontFamily: "var(--font-mono)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
               >
-                Vedi partita
+                {tr("Vedi partita", "View game")}
               </a>
             )}
           </div>
@@ -1392,7 +1425,7 @@ function GroupGallery({ positions, onOpeningLink }: { positions: PositionExample
       })}
       {positions.length > 6 && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "var(--color-surface-2)", border: "1px solid var(--color-line)", borderRadius: "8px", minHeight: "120px" }}>
-          <span style={{ fontSize: "0.82rem", color: "var(--color-muted)" }}>+{positions.length - 6} altre</span>
+          <span style={{ fontSize: "0.82rem", color: "var(--color-muted)" }}>+{positions.length - 6} {tr("altre", "more")}</span>
         </div>
       )}
     </div>
@@ -1494,7 +1527,7 @@ function TabCadute({
         <div>
           <CaduteTrainer
             positions={dg.positions}
-            groupLabel={dg.isLatest ? "Ieri" : dateIt(dg.date)}
+            groupLabel={dg.isLatest ? tr("Ieri", "Yesterday") : dateIt(dg.date)}
             onClose={() => setTrainingGroup(null)}
           />
         </div>
@@ -1543,18 +1576,18 @@ function TabCadute({
               onClick={() => { setGrouping("ancora"); setExpandedGroup(null); }}
               className={`segment-item${grouping === "ancora" ? " active" : ""}`}
             >
-              Per ancora
+              {tr("Per ancora", "By anchor")}
             </button>
             <button
               onClick={() => { setGrouping("giorno"); setExpandedGroup(null); }}
               className={`segment-item${grouping === "giorno" ? " active" : ""}`}
             >
-              Per giorno
+              {tr("Per giorno", "By day")}
             </button>
           </div>
           {grouping === "giorno" && datedCount < basePositions.length && (
             <span style={{ fontSize: "0.72rem", color: "var(--color-faint)", fontVariantNumeric: "tabular-nums" }}>
-              {datedCount} su {basePositions.length} con data
+              {datedCount} {tr("su", "of")} {basePositions.length} {tr("con data", "with date")}
             </span>
           )}
         </div>
@@ -1565,10 +1598,10 @@ function TabCadute({
         <Reveal delay={0} className="mb-4">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", padding: "0.5rem 0.875rem", background: "color-mix(in srgb, var(--color-brand) 8%, transparent)", borderRadius: "8px", border: "1px solid color-mix(in srgb, var(--color-brand) 20%, transparent)" }}>
             <span style={{ fontSize: "0.82rem", color: "var(--color-brand-soft)" }}>
-              Stai guardando solo: <strong>{WEAKNESS_META[anchorFilter]?.label_it ?? "questa ancora"}</strong>
+              {tr("Stai guardando solo:", "Showing only:")} <strong>{WEAKNESS_META[anchorFilter]?.label_it ?? tr("questa ancora", "this anchor")}</strong>
             </span>
             <button onClick={onClearAnchorFilter} className="btn btn-ghost btn-sm" style={{ fontSize: "0.72rem", flexShrink: 0 }}>
-              vedi tutte
+              {tr("vedi tutte", "see all")}
             </button>
           </div>
         </Reveal>
@@ -1607,14 +1640,14 @@ function TabCadute({
                             <span className="font-mono" style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--color-warn)", fontVariantNumeric: "tabular-nums" }}>
                               {avoidable}
                             </span>
-                            <span style={{ fontSize: "0.75rem", color: "var(--color-muted)" }}>alla tua portata</span>
+                            <span style={{ fontSize: "0.75rem", color: "var(--color-muted)" }}>{tr("alla tua portata", "within reach")}</span>
                             <span className="font-mono" style={{ fontSize: "0.72rem", color: "var(--color-faint)", fontVariantNumeric: "tabular-nums" }}>
-                              su {grp.positions.length}
+                              {tr("su", "of")} {grp.positions.length}
                             </span>
                           </>
                         ) : (
                           <span className="font-mono" style={{ fontSize: "0.75rem", color: "var(--color-muted)", fontVariantNumeric: "tabular-nums" }}>
-                            {grp.positions.length} {grp.positions.length === 1 ? "posizione" : "posizioni"}
+                            {grp.positions.length} {tr(grp.positions.length === 1 ? "posizione" : "posizioni", grp.positions.length === 1 ? "position" : "positions")}
                           </span>
                         )}
                       </div>
@@ -1627,14 +1660,14 @@ function TabCadute({
                         className="btn btn-ghost btn-sm"
                         style={{ fontSize: "0.75rem" }}
                       >
-                        {isExpanded ? "Nascondi" : "Sfoglia"}
+                        {isExpanded ? tr("Nascondi", "Hide") : tr("Sfoglia", "Browse")}
                       </button>
                       <button
                         onClick={() => setTrainingGroup(grp.key)}
                         className="btn btn-primary btn-sm"
                         style={{ fontSize: "0.82rem", fontWeight: 700 }}
                       >
-                        Allena
+                        {tr("Allena", "Train")}
                       </button>
                     </div>
                   </div>
@@ -1657,7 +1690,7 @@ function TabCadute({
         dayGroups.length === 0 ? (
           <Section delay={0}>
             <div style={{ textAlign: "center", padding: "2rem 0", color: "var(--color-muted)", fontSize: "0.88rem" }}>
-              Nessuna caduta con la data della partita. Passa alla vista per ancora.
+              {tr("Nessuna caduta con la data della partita. Passa alla vista per ancora.", "No stumbles with a game date. Switch to the by-anchor view.")}
             </div>
           </Section>
         ) : (
@@ -1665,7 +1698,7 @@ function TabCadute({
             {dayGroups.map((dg, idx) => {
               const groupKey = `day:${dg.date}`;
               const isExpanded = expandedGroup === groupKey;
-              const dateLabel = dg.isLatest ? "Ieri" : dateIt(dg.date);
+              const dateLabel = dg.isLatest ? tr("Ieri", "Yesterday") : dateIt(dg.date);
               const nonnoDay = dg.review ? nonnoLineDayTemplate(dg.review, dg.isLatest) : null;
               return (
                 <Reveal key={dg.date} delay={Math.min(idx * 40, 240)}>
@@ -1691,7 +1724,7 @@ function TabCadute({
                           </div>
                         )}
                         <div className="font-mono" style={{ marginTop: "0.35rem", fontSize: "0.72rem", color: "var(--color-faint)", fontVariantNumeric: "tabular-nums" }}>
-                          {dg.positions.length} {dg.positions.length === 1 ? "posizione" : "posizioni"} da rivedere
+                          {dg.positions.length} {tr(dg.positions.length === 1 ? "posizione" : "posizioni", dg.positions.length === 1 ? "position" : "positions")} {tr("da rivedere", "to review")}
                         </div>
                       </div>
                       <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
@@ -1700,14 +1733,14 @@ function TabCadute({
                           className="btn btn-ghost btn-sm"
                           style={{ fontSize: "0.75rem" }}
                         >
-                          {isExpanded ? "Nascondi" : "Sfoglia"}
+                          {isExpanded ? tr("Nascondi", "Hide") : tr("Sfoglia", "Browse")}
                         </button>
                         <button
                           onClick={() => setTrainingGroup(groupKey)}
                           className="btn btn-primary btn-sm"
                           style={{ fontSize: "0.82rem", fontWeight: 700 }}
                         >
-                          Allena
+                          {tr("Allena", "Train")}
                         </button>
                       </div>
                     </div>
@@ -1742,21 +1775,24 @@ function TabRepertorio({ aggregates }: { aggregates: Aggregates | null }) {
     return (
       <div style={{ padding: "2rem 0", textAlign: "center" }}>
         <p className="tt-nonno" style={{ marginBottom: "1rem" }}>
-          Il repertorio cresce con le partite. Dopo qualche analisi ti mostro le aperture che giochi, dove perdi punti recuperabili e dove invece il problema non e' la teoria.
+          {tr("Il repertorio cresce con le partite. Dopo qualche analisi ti mostro le aperture che giochi, dove perdi punti recuperabili e dove invece il problema non e' la teoria.", "The repertoire grows with your games. After a few analyses I will show you the openings you play, where you lose recoverable points, and where the problem is not the theory.")}
         </p>
         <Link
-          to="/tavolo"
+          to="/"
           className="tt-chip"
           style={{ display: "inline-block", textDecoration: "none" }}
         >
-          Vai al Tavolo
+          {tr("Vai al Tavolo", "Go to the Table")}
         </Link>
       </div>
     );
   }
 
   const total = aggregates!.repertoire!.length;
-  const repertorioNonno = `${total} aperture nel repertorio. Clicca su un'apertura per vedere dove si concentrano gli errori evitabili.`;
+  const lang = getLang();
+  const repertorioNonno = lang === "en"
+    ? `${total} ${total === 1 ? "opening" : "openings"} in the repertoire. Click an opening to see where the avoidable errors are.`
+    : `${total} aperture nel repertorio. Clicca su un'apertura per vedere dove si concentrano gli errori evitabili.`;
 
   return (
     <div>
@@ -1850,6 +1886,9 @@ export function Quaderno() {
     goTab("repertorio");
   }
 
+  // Tab labels resolved at render time (language-aware).
+  const tabs = getTabs();
+
   // ── Loading ──────────────────────────────────────────────────────────────
 
   if (loading) {
@@ -1857,7 +1896,7 @@ export function Quaderno() {
       <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--color-bg)" }}>
         <div className="text-center">
           <div className="tt-eyebrow" style={{ marginBottom: "0.5rem" }}>{PRODUCT_NAME}</div>
-          <div style={{ fontSize: "0.9rem", color: "var(--color-muted)" }}>Apro il Quaderno…</div>
+          <div style={{ fontSize: "0.9rem", color: "var(--color-muted)" }}>{tr("Apro il Quaderno…", "Opening the Notebook…")}</div>
         </div>
       </div>
     );
@@ -1867,9 +1906,9 @@ export function Quaderno() {
     return (
       <div className="min-h-screen flex items-center justify-center p-6" style={{ background: "var(--color-bg)" }}>
         <div style={{ background: "var(--color-surface)", border: "1px solid var(--color-line)", borderRadius: "14px", padding: "2rem", maxWidth: "36rem" }}>
-          <div className="tt-eyebrow" style={{ color: "var(--color-danger)", marginBottom: "0.5rem" }}>Errore</div>
+          <div className="tt-eyebrow" style={{ color: "var(--color-danger)", marginBottom: "0.5rem" }}>{tr("Errore", "Error")}</div>
           <p style={{ color: "var(--color-text-soft)", fontSize: "0.9rem", marginBottom: "1.5rem" }}>{error}</p>
-          <Link to="/" className="btn btn-ghost btn-sm">Torna al Tavolo</Link>
+          <Link to="/" className="btn btn-ghost btn-sm">{tr("Torna al Tavolo", "Back to the Table")}</Link>
         </div>
       </div>
     );
@@ -1881,12 +1920,12 @@ export function Quaderno() {
         <div style={{ background: "var(--color-surface)", border: "1px solid var(--color-line)", borderRadius: "14px", padding: "2.5rem", maxWidth: "36rem", textAlign: "center" }}>
           <div className="tt-eyebrow" style={{ marginBottom: "0.75rem" }}>{PRODUCT_NAME}</div>
           <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "1.4rem", color: "var(--color-text)", marginBottom: "0.75rem" }}>
-            Il Quaderno e' ancora vuoto
+            {tr("Il Quaderno e' ancora vuoto", "The Notebook is still empty")}
           </h1>
           <p style={{ color: "var(--color-text-soft)", fontSize: "0.88rem", marginBottom: "1.5rem", lineHeight: 1.6 }}>
-            Dopo la prima analisi troverai la tua evoluzione, le cadute da allenare e il tuo profilo.
+            {tr("Dopo la prima analisi troverai la tua evoluzione, le cadute da allenare e il tuo profilo.", "Nothing here yet. We'll fill this in together.")}
           </p>
-          <Link to="/" className="btn btn-primary">Torna al Tavolo</Link>
+          <Link to="/" className="btn btn-primary">{tr("Torna al Tavolo", "Go to the Table")}</Link>
         </div>
       </div>
     );
@@ -1900,10 +1939,10 @@ export function Quaderno() {
       {/* Page title — written on the room, above the physical notebook */}
       <div style={{ marginBottom: "1.5rem" }}>
         <h1 style={{ fontFamily: "var(--font-voice)", fontWeight: 600, fontSize: "clamp(1.6rem,4vw,2.4rem)", lineHeight: 1.15, color: "var(--color-text)", marginBottom: "0.4rem" }}>
-          Il tuo Quaderno
+          {tr("Il tuo Quaderno", "Your Notebook")}
         </h1>
         <p style={{ fontSize: "0.88rem", color: "var(--color-muted)", lineHeight: 1.5, maxWidth: "52ch" }}>
-          La casa continua della tua storia a scacchi. Tutto quello che costruisci nel tempo.
+          {tr("La casa continua della tua storia a scacchi. Tutto quello che costruisci nel tempo.", "The running record of your chess. Everything you build over time.")}
         </p>
       </div>
 
@@ -1913,24 +1952,24 @@ export function Quaderno() {
         {/* Tab row — linguette attaccate al bordo superiore del foglio */}
         <div
           role="tablist"
-          aria-label="Sezioni del Quaderno"
+          aria-label={tr("Sezioni del Quaderno", "Notebook sections")}
           className="quaderno-tab-list"
           onKeyDown={(e) => {
             // WAI-ARIA tablist: arrows move between tabs, Home/End jump.
-            const idx = TABS.findIndex((t) => t.key === activeTab);
+            const idx = tabs.findIndex((t) => t.key === activeTab);
             let next: number | null = null;
-            if (e.key === "ArrowRight") next = (idx + 1) % TABS.length;
-            else if (e.key === "ArrowLeft") next = (idx - 1 + TABS.length) % TABS.length;
+            if (e.key === "ArrowRight") next = (idx + 1) % tabs.length;
+            else if (e.key === "ArrowLeft") next = (idx - 1 + tabs.length) % tabs.length;
             else if (e.key === "Home") next = 0;
-            else if (e.key === "End") next = TABS.length - 1;
+            else if (e.key === "End") next = tabs.length - 1;
             if (next == null) return;
             e.preventDefault();
-            const t = TABS[next];
+            const t = tabs[next];
             goTab(t.key);
             document.getElementById(`quaderno-tab-${t.key}`)?.focus();
           }}
         >
-          {TABS.map((tab) => (
+          {tabs.map((tab) => (
             <button
               key={tab.key}
               role="tab"

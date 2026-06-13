@@ -20,6 +20,8 @@ import { useOnboardingRun } from "../pipeline/OnboardingRunContext";
 import { useTavoloActionsRef } from "../context/TavoloActionsContext";
 import { toggleTheme, getCurrentTheme } from "../theme";
 import { navigateWithTransition } from "../lib/motion";
+import { tr } from "../i18n/lang";
+import { LangToggle } from "../i18n/LangToggle";
 
 // ── Nav definition ─────────────────────────────────────────────────────────────
 
@@ -62,11 +64,14 @@ function SessioneIcon() {
 }
 
 // Order: Tavolo (enter), Sessione (play), Quaderno (review).
-const NAV: NavDest[] = [
-  { label: "Tavolo",   path: "/tavolo",   icon: <BoardIcon /> },
-  { label: "Sessione", path: "/sessione", icon: <SessioneIcon /> },
-  { label: "Quaderno", path: "/quaderno", icon: <BookIcon /> },
-];
+// Labels are resolved at render time via tr() so language switches propagate.
+function buildNav(): NavDest[] {
+  return [
+    { label: tr("Tavolo",   "Table"),    path: "/tavolo",   icon: <BoardIcon /> },
+    { label: tr("Sessione", "Session"),  path: "/sessione", icon: <SessioneIcon /> },
+    { label: tr("Quaderno", "Notebook"), path: "/quaderno", icon: <BookIcon /> },
+  ];
+}
 
 function isActive(dest: NavDest, pathname: string): boolean {
   return pathname.startsWith(dest.path);
@@ -105,7 +110,7 @@ function ThemeToggleButton({ onToggle }: { onToggle: () => void }) {
   return (
     <button
       onClick={onToggle}
-      aria-label={isDark ? "Passa a tema chiaro" : "Passa a tema scuro"}
+      aria-label={isDark ? tr("Passa a tema chiaro", "Switch to light theme") : tr("Passa a tema scuro", "Switch to dark theme")}
       style={{
         display: "flex",
         alignItems: "center",
@@ -178,7 +183,7 @@ function DesktopSidebar({
     // Wall nav: transparent column, no border-right, no background box.
     // The nav items are pure eyebrow text with an ink underline on hover/active.
     <nav
-      aria-label="Navigazione principale"
+      aria-label={tr("Navigazione principale", "Main navigation")}
       className="sidebar-wall-nav"
     >
       {/* Brand */}
@@ -201,7 +206,7 @@ function DesktopSidebar({
 
       {/* Nav items — eyebrow text, ink underline */}
       <div style={{ padding: "0 0.25rem", display: "flex", flexDirection: "column", gap: "2px" }}>
-        {NAV.map((dest) => {
+        {buildNav().map((dest) => {
           const active = isActive(dest, pathname);
           return (
             <Link
@@ -271,7 +276,7 @@ function DesktopSidebar({
                 onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--color-muted)"; }}
                 onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--color-faint)"; }}
               >
-                Aggiorna le partite
+                {tr("Aggiorna le partite", "Sync your games")}
               </button>
             )}
             {onRefresh && onReanalyze && (
@@ -296,20 +301,23 @@ function DesktopSidebar({
                 onMouseEnter={(e) => { if (!reanalyzeConfirming) (e.currentTarget as HTMLButtonElement).style.color = "var(--color-muted)"; }}
                 onMouseLeave={(e) => { if (!reanalyzeConfirming) (e.currentTarget as HTMLButtonElement).style.color = "var(--color-faint)"; }}
               >
-                {reanalyzeConfirming ? "Sicuro? Ricomincio da zero" : "Rianalizza da capo"}
+                {reanalyzeConfirming
+                  ? tr("Sicuro? Ricomincio da zero", "Are you sure? This resets everything.")
+                  : tr("Rianalizza da capo", "Reanalyze from scratch.")}
               </button>
             )}
           </div>
         )}
         {/* Row: theme toggle + sign out */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <LangToggle />
           <ThemeToggleButton onToggle={onThemeToggle} />
           <button
             onClick={onSignOut}
             className="btn btn-ghost btn-sm"
             style={{ flex: 1, fontSize: "0.72rem" }}
           >
-            Esci
+            {tr("Esci", "Sign out")}
           </button>
         </div>
       </div>
@@ -363,6 +371,7 @@ function MobileTopBar({
       </div>
       {/* Actions right */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
+        <LangToggle />
         <ThemeToggleButton onToggle={onThemeToggle} />
         <button
           onClick={onSignOut}
@@ -381,7 +390,7 @@ function MobileTopBar({
 function MobileTabBar({ pathname, onNavigate }: { pathname: string; onNavigate: (path: string) => void }) {
   return (
     <nav
-      aria-label="Navigazione principale"
+      aria-label={tr("Navigazione principale", "Main navigation")}
       style={{
         position: "fixed",
         bottom: 0,
@@ -398,7 +407,7 @@ function MobileTabBar({ pathname, onNavigate }: { pathname: string; onNavigate: 
         alignItems: "stretch",
       }}
     >
-      {NAV.map((dest) => {
+      {buildNav().map((dest) => {
         const active = isActive(dest, pathname);
         return (
           <Link
@@ -458,7 +467,7 @@ function SilentRefreshPill() {
         flexShrink: 0,
       }}
       aria-live="polite"
-      aria-label="Elaborazione partite in corso"
+      aria-label={tr("Elaborazione partite in corso", "Processing your games")}
     >
       {/* Pulsing dot */}
       <span
@@ -473,7 +482,7 @@ function SilentRefreshPill() {
         }}
         aria-hidden="true"
       />
-      Guardo le ultime partite...
+      {tr("Guardo le ultime partite...", "Still looking at your games.")}
     </div>
   );
 }

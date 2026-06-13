@@ -11,24 +11,20 @@
 
 import { useState, useRef, useEffect } from "react";
 import type { PositionExample, RepertoireRow } from "../pipeline/aggregate";
+import { tr } from "../i18n/lang";
 import { ecoName } from "../eco";
 import { BoardView } from "./BoardView";
 import { uciToArrow, uciToSan } from "../pages/quaderno/boardArrows";
 
 // ── Phase label helpers ────────────────────────────────────────────────────────
 
-const PHASE_LABEL: Record<string, string> = {
-  apertura: "Apertura",
-  mediogioco: "Mediogioco",
-  finale: "Finale",
-  // English keys as fallback (in case some cadute still have them)
-  opening: "Apertura",
-  middlegame: "Mediogioco",
-  endgame: "Finale",
-};
-
+/** Called at render time — never freeze tr() at module load. */
 function phaseLabel(phase: string): string {
-  return PHASE_LABEL[phase] ?? phase;
+  const key = phase.toLowerCase();
+  if (key === "apertura" || key === "opening")   return tr("Apertura",   "Opening");
+  if (key === "mediogioco" || key === "middlegame") return tr("Mediogioco", "Middlegame");
+  if (key === "finale" || key === "endgame")     return tr("Finale",     "Endgame");
+  return phase;
 }
 
 const PHASE_CHIP_STYLE: Record<string, { bg: string; color: string }> = {
@@ -186,7 +182,7 @@ function MiniPositionCard({ pos }: { pos: PositionExample }) {
             className="tt-chip warn"
             style={{ fontSize: "0.63rem", padding: "0.15rem 0.45rem" }}
           >
-            Evitabile
+            {tr("Evitabile", "Avoidable")}
           </span>
         )}
       </div>
@@ -215,7 +211,7 @@ function MiniPositionCard({ pos }: { pos: PositionExample }) {
         <div
           style={{ fontSize: "0.62rem", color: "var(--color-faint)", fontFamily: "var(--font-mono)" }}
         >
-          dopo {pos.last_opp_san}
+          {tr("dopo", "after")} {pos.last_opp_san}
         </div>
       )}
 
@@ -237,7 +233,7 @@ function MiniPositionCard({ pos }: { pos: PositionExample }) {
           onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
           onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.8")}
         >
-          apri la partita
+          {tr("apri la partita", "open the game")}
         </a>
       )}
     </div>
@@ -284,14 +280,14 @@ function DrillDetail({
             className="tt-eyebrow"
             style={{ marginBottom: "0.625rem", color: "var(--color-faint)" }}
           >
-            Distribuzione errori per fase
+            {tr("Distribuzione errori per fase", "Error distribution by phase")}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
             {(
               [
-                { key: "apertura",   label: "Apertura",   count: bd.apertura },
-                { key: "mediogioco", label: "Mediogioco", count: bd.mediogioco },
-                { key: "finale",     label: "Finale",     count: bd.finale },
+                { key: "apertura",   label: tr("Apertura",   "Opening"),    count: bd.apertura },
+                { key: "mediogioco", label: tr("Mediogioco", "Middlegame"), count: bd.mediogioco },
+                { key: "finale",     label: tr("Finale",     "Endgame"),    count: bd.finale },
               ] as { key: string; label: string; count: number }[]
             ).map(({ key, label, count }) => {
               const isDominant = key === bd.dominantPhase && count > 0;
@@ -369,7 +365,7 @@ function DrillDetail({
 
       {/* ── Critical positions ──────────────────────────────────────────── */}
       <div className="tt-eyebrow" style={{ marginBottom: "0.625rem", color: "var(--color-faint)" }}>
-        Posizioni critiche
+        {tr("Posizioni critiche", "Critical positions")}
       </div>
 
       {ecoPositions.length === 0 ? (
@@ -381,7 +377,7 @@ function DrillDetail({
             lineHeight: 1.5,
           }}
         >
-          Niente posizioni critiche qui, per ora.
+          {tr("Niente posizioni critiche qui, per ora.", "No critical positions here yet.")}
         </p>
       ) : (
         <div
@@ -407,7 +403,7 @@ function DrillDetail({
               }}
             >
               <span style={{ fontSize: "0.82rem", color: "var(--color-muted)" }}>
-                +{ecoPositions.length - 6} altre
+                +{ecoPositions.length - 6} {tr("altre", "more")}
               </span>
             </div>
           )}
@@ -438,7 +434,7 @@ function AperturaRow({
     row.opening === "Apertura non riconosciuta";
 
   const displayName: string = isUnknown
-    ? "Apertura non riconosciuta"
+    ? tr("Apertura non riconosciuta", "Unrecognised opening")
     : !isBlankOpening
     ? row.opening
     : (ecoName(row.eco) ?? `Apertura ECO ${row.eco}`);
@@ -521,7 +517,7 @@ function AperturaRow({
               marginTop: "0.2rem",
             }}
           >
-            evitabili
+            {tr("evitabili", "avoidable")}
           </div>
         </div>
 
@@ -531,14 +527,14 @@ function AperturaRow({
           style={{ minWidth: "5rem", color: "var(--color-muted)" }}
         >
           <div className="font-mono tabular-nums" style={{ fontSize: "0.75rem" }}>
-            {row.games} {row.games === 1 ? "partita" : "partite"}
+            {row.games} {tr(row.games === 1 ? "partita" : "partite", row.games === 1 ? "game" : "games")}
           </div>
           {row.win_rate != null && (
             <div
               className="font-mono tabular-nums"
               style={{ fontSize: "0.72rem", color: "var(--color-text-soft)" }}
             >
-              {Math.round(row.win_rate * 100)}% V
+              {Math.round(row.win_rate * 100)}% {tr("V", "W")}
             </div>
           )}
         </div>
@@ -589,7 +585,7 @@ function ColorSection({
 }) {
   if (rows.length === 0) return null;
 
-  const label = color === "white" ? "Bianco" : "Nero";
+  const label = color === "white" ? tr("Bianco", "White") : tr("Nero", "Black");
   const accentColor =
     color === "white" ? "var(--color-text-soft)" : "var(--color-brand-soft)";
 
@@ -651,7 +647,7 @@ export function RepertorioPanel({
   if (!repertoire || repertoire.length === 0) {
     return (
       <div className="text-sm leading-relaxed" style={{ color: "var(--color-faint)" }}>
-        Ancora pochi dati per il repertorio.
+        {tr("Ancora pochi dati per il repertorio.", "Not enough data for the repertoire yet.")}
       </div>
     );
   }
@@ -663,7 +659,7 @@ export function RepertorioPanel({
   if (!hasData) {
     return (
       <div className="text-sm leading-relaxed" style={{ color: "var(--color-faint)" }}>
-        Ancora pochi dati per il repertorio.
+        {tr("Ancora pochi dati per il repertorio.", "Not enough data for the repertoire yet.")}
       </div>
     );
   }
@@ -674,8 +670,7 @@ export function RepertorioPanel({
         className="text-sm leading-relaxed mb-5"
         style={{ color: "var(--color-text-soft)", maxWidth: "54ch" }}
       >
-        Dove perdi punti recuperabili in apertura. Clicca su un'apertura per vedere le posizioni
-        critiche e capire se il problema è la teoria o cosa viene dopo.
+        {tr("Dove perdi punti recuperabili in apertura. Clicca su un'apertura per vedere le posizioni critiche e capire se il problema è la teoria o cosa viene dopo.", "Where you lose recoverable points in the opening. Click an opening to see the critical positions and understand whether the problem is the theory or what comes after.")}
       </div>
       <ColorSection
         color="white"

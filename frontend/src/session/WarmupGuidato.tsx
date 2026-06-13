@@ -19,6 +19,7 @@ import { useBoardFit } from "../components/useBoardFit";
 import { useStockfish, type EvalResult } from "../engine/useStockfish";
 import { turnFromFen } from "../chess-utils";
 import type { DrillVerdict } from "./store";
+import { tr, getLang } from "../i18n/lang";
 
 // ---------------------------------------------------------------------------
 // Public interfaces
@@ -38,25 +39,46 @@ export interface DrillStepProps {
 
 // ---------------------------------------------------------------------------
 // Phrase banks
+// All phrase-bank functions are called at render time (not at module load),
+// so getLang() reads the current language and strings are never frozen.
 // ---------------------------------------------------------------------------
 
-const WARMUP_INTROS = [
-  "Muovi questo pezzo. Vediamo se trovi la mossa giusta.",
-  "Ti aiuto: muovi questo. La casa di partenza e' giusta. Trova dove.",
-  "Da questa casa parte la mossa che salva. Sta a te trovare dove va.",
-];
+function getWarmupIntros(): string[] {
+  if (getLang() === "en") {
+    return [
+      "Move this piece. Let's see if you find the right move.",
+      "I will help: move this one. The starting square is right. Find where it goes.",
+      "The right move starts from this square. Find where it lands.",
+    ];
+  }
+  return [
+    "Muovi questo pezzo. Vediamo se trovi la mossa giusta.",
+    "Ti aiuto: muovi questo. La casa di partenza e' giusta. Trova dove.",
+    "Da questa casa parte la mossa che salva. Sta a te trovare dove va.",
+  ];
+}
 
-const DRILL_INTROS = [
-  "Adesso senza aiuto. Trova tu la mossa.",
-  "Senza suggerimenti questa volta. Pensa, poi muovi.",
-  "Tutto su di te. Calma e attenzione.",
-];
+function getDrillIntros(): string[] {
+  if (getLang() === "en") {
+    return [
+      "On your own now. Find the move.",
+      "No hints this time. Think, then move.",
+      "All on you. Look carefully.",
+    ];
+  }
+  return [
+    "Adesso senza aiuto. Trova tu la mossa.",
+    "Senza suggerimenti questa volta. Pensa, poi muovi.",
+    "Tutto su di te. Calma e attenzione.",
+  ];
+}
 
-const VERDICT_PERFECT = [
-  "Bravo. Hai trovato.",
-  "Esatta.",
-  "Vista. Bene cosi.",
-];
+function getVerdictPerfect(): string[] {
+  if (getLang() === "en") {
+    return ["Good. You found it.", "Correct.", "Seen it. Good."];
+  }
+  return ["Bravo. Hai trovato.", "Esatta.", "Vista. Bene cosi."];
+}
 
 function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -66,7 +88,20 @@ function pick<T>(arr: T[]): T {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const MONTHS_IT = ["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"] as const;
+const MONTHS_IT = [
+  "gen",
+  "feb",
+  "mar",
+  "apr",
+  "mag",
+  "giu",
+  "lug",
+  "ago",
+  "set",
+  "ott",
+  "nov",
+  "dic",
+] as const;
 
 function formatGameDate(iso: string | null | undefined): string {
   if (!iso) return "";
@@ -77,7 +112,9 @@ function formatGameDate(iso: string | null | undefined): string {
     const month = MONTHS_IT[d.getMonth()];
     const year = d.getFullYear();
     return `${day} ${month} ${year}`;
-  } catch { return ""; }
+  } catch {
+    return "";
+  }
 }
 
 function getBestFromSquare(fen: string, bestSan: string): string | null {
@@ -85,7 +122,9 @@ function getBestFromSquare(fen: string, bestSan: string): string | null {
     const b = new Chess(fen);
     const mv = b.move(bestSan, { strict: false } as never);
     return mv ? mv.from : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function normalizeSan(san: string | null | undefined): string {
@@ -93,13 +132,18 @@ function normalizeSan(san: string | null | undefined): string {
   return san.replace(/[+#!?]+$/g, "").trim();
 }
 
-function sanToSquares(fen: string, san: string): { from: string; to: string } | null {
+function sanToSquares(
+  fen: string,
+  san: string,
+): { from: string; to: string } | null {
   try {
     const c = new Chess(fen);
     const mv = c.move(san, { strict: false } as never);
     if (!mv) return null;
     return { from: mv.from, to: mv.to };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function sideToMove(fen: string): "white" | "black" {
@@ -138,7 +182,10 @@ export interface PositionPuzzleProps {
   withHint: boolean;
   introLines: string[];
   onNext: () => void;
-  onVerdict?: (v: DrillVerdict, ctx: { cpLoss: number; attempts: number; playedSan: string | null }) => void;
+  onVerdict?: (
+    v: DrillVerdict,
+    ctx: { cpLoss: number; attempts: number; playedSan: string | null },
+  ) => void;
 }
 
 export function PositionPuzzle({
@@ -183,10 +230,13 @@ export function PositionPuzzle({
     if (attempts >= 3) return false;
 
     const b = new Chess(baseFen);
-    let mv: { from: string; to: string; san: string; lan: string } | null = null;
+    let mv: { from: string; to: string; san: string; lan: string } | null =
+      null;
     try {
       mv = b.move({ from, to, promotion: "q" } as never);
-    } catch { return false; }
+    } catch {
+      return false;
+    }
     if (!mv) return false;
 
     evaluatingRef.current = true;
@@ -202,8 +252,16 @@ export function PositionPuzzle({
       const evBefore: EvalResult = await sf.evaluate(baseFen, { depth: 14 });
       const evAfter: EvalResult = await sf.evaluate(fenAfter, { depth: 14 });
       const iAmWhite = orientation === "white";
-      const cpBefore = scoreFromMyPov(evBefore, iAmWhite, "white" === sideToMove(baseFen));
-      const cpAfter  = scoreFromMyPov(evAfter, iAmWhite, "white" === sideToMove(fenAfter));
+      const cpBefore = scoreFromMyPov(
+        evBefore,
+        iAmWhite,
+        "white" === sideToMove(baseFen),
+      );
+      const cpAfter = scoreFromMyPov(
+        evAfter,
+        iAmWhite,
+        "white" === sideToMove(fenAfter),
+      );
       const loss = Math.max(0, cpBefore - cpAfter);
       setCpLoss(loss);
 
@@ -212,24 +270,52 @@ export function PositionPuzzle({
 
       if (playedMatchesBest || loss < 30) {
         setVerdict("perfect");
-        setVerdictMsg(pick(VERDICT_PERFECT));
-        onVerdict?.("perfect", { cpLoss: loss, attempts: newAttempts, playedSan: mv.san });
+        setVerdictMsg(pick(getVerdictPerfect()));
+        onVerdict?.("perfect", {
+          cpLoss: loss,
+          attempts: newAttempts,
+          playedSan: mv.san,
+        });
       } else if (loss < 100) {
         setVerdict("ok");
         const best = position.best_san_sf ?? "";
-        setVerdictMsg(pick([
-          `Giocabile. Ma c'era di meglio: ${best}.`,
-          `Non sbagliato, pero' la mossa giusta era ${best}.`,
-        ]));
-        onVerdict?.("ok", { cpLoss: loss, attempts: newAttempts, playedSan: mv.san });
+        setVerdictMsg(
+          pick(
+            getLang() === "en"
+              ? [
+                  `Playable. But there was better: ${best}.`,
+                  `Not wrong, but the right move was ${best}.`,
+                ]
+              : [
+                  `Giocabile. Ma c'era di meglio: ${best}.`,
+                  `Non sbagliato, pero' la mossa giusta era ${best}.`,
+                ],
+          ),
+        );
+        onVerdict?.("ok", {
+          cpLoss: loss,
+          attempts: newAttempts,
+          playedSan: mv.san,
+        });
       } else {
         if (newAttempts >= 2) {
           const best = position.best_san_sf ?? "";
-          setVerdictMsg(`Non era quella. La mossa era ${best}. Adesso la sai.`);
+          setVerdictMsg(
+            tr(
+              `Non era quella. La mossa era ${best}. Adesso la sai.`,
+              `Not that one. The move was ${best}. Now you know.`,
+            ),
+          );
           setVerdict("wrong");
-          onVerdict?.("wrong", { cpLoss: loss, attempts: newAttempts, playedSan: mv.san });
+          onVerdict?.("wrong", {
+            cpLoss: loss,
+            attempts: newAttempts,
+            playedSan: mv.san,
+          });
         } else {
-          setVerdictMsg("Non era quella. Riprova.");
+          setVerdictMsg(
+            tr("Non era quella. Riprova.", "Not that one. Try again."),
+          );
           setVerdict(null);
           setDisplayFen(null);
           setPlayedSan(null);
@@ -298,10 +384,22 @@ export function PositionPuzzle({
 
   const arrows = [
     ...(position.last_opp_from && position.last_opp_to
-      ? [{ from: position.last_opp_from!, to: position.last_opp_to!, color: "#fde047" }]
+      ? [
+          {
+            from: position.last_opp_from!,
+            to: position.last_opp_to!,
+            color: "#fde047",
+          },
+        ]
       : []),
     ...(showHints && playedSquares
-      ? [{ from: playedSquares.from, to: playedSquares.to, color: verdictColor(verdict) }]
+      ? [
+          {
+            from: playedSquares.from,
+            to: playedSquares.to,
+            color: verdictColor(verdict),
+          },
+        ]
       : []),
     ...(showHints && bestSquares && verdict !== "perfect"
       ? [{ from: bestSquares.from, to: bestSquares.to, color: "#34d399" }]
@@ -320,7 +418,11 @@ export function PositionPuzzle({
           b10ee1a fix: avoids missing re-observation after keyed remount). */}
       <div className="flex flex-col items-center gap-2">
         <BoardScene sceneKey={puzzleKey}>
-          <div ref={fit.ref} className="sess-board-frame" style={{ width: "100%", maxWidth: fit.max }}>
+          <div
+            ref={fit.ref}
+            className="sess-board-frame"
+            style={{ width: "100%", maxWidth: fit.max }}
+          >
             <BoardView
               fen={displayFen || baseFen}
               resetKey={`${puzzleKey}:${attempts}`}
@@ -335,42 +437,86 @@ export function PositionPuzzle({
         </BoardScene>
         <BoardLegend
           items={(() => {
-            const hasOpp = !!(position.last_opp_from && position.last_opp_to);
+            const hasOpp = !!(
+              position.last_opp_from && position.last_opp_to
+            );
             if (verdict !== null) {
               return [
-                ...(hasOpp ? [{ color: "#fde047", label: "ultima mossa avversario" }] : []),
-                { color: "#f43f5e", label: "tua mossa" },
-                { color: "#34d399", label: "mossa giusta" },
+                ...(hasOpp
+                  ? [
+                      {
+                        color: "#fde047",
+                        label: tr(
+                          "ultima mossa avversario",
+                          "opponent's last move",
+                        ),
+                      },
+                    ]
+                  : []),
+                { color: "#f43f5e", label: tr("tua mossa", "your move") },
+                {
+                  color: "#34d399",
+                  label: tr("mossa giusta", "right move"),
+                },
               ];
             }
             if (withHint) {
               return [
-                ...(hasOpp ? [{ color: "#fde047", label: "ultima mossa avversario" }] : []),
-                { color: "#f6c64abb", label: "casa di partenza (aiuto)" },
+                ...(hasOpp
+                  ? [
+                      {
+                        color: "#fde047",
+                        label: tr(
+                          "ultima mossa avversario",
+                          "opponent's last move",
+                        ),
+                      },
+                    ]
+                  : []),
+                {
+                  color: "#f6c64abb",
+                  label: tr(
+                    "casa di partenza (aiuto)",
+                    "starting square (hint)",
+                  ),
+                },
               ];
             }
-            return hasOpp ? [{ color: "#fde047", label: "ultima mossa avversario" }] : [];
+            return hasOpp
+              ? [
+                  {
+                    color: "#fde047",
+                    label: tr(
+                      "ultima mossa avversario",
+                      "opponent's last move",
+                    ),
+                  },
+                ]
+              : [];
           })()}
         />
       </div>
 
       {/* Pannello */}
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-
         {/* Header — tema + titolo + meta */}
         <div>
           <div className="tt-eyebrow" style={{ marginBottom: "0.4rem" }}>
             {patternLabel}
           </div>
-          <h3 style={{
-            fontFamily: "var(--font-display)",
-            fontWeight: 700,
-            fontSize: "1.25rem",
-            color: "var(--color-text)",
-            marginBottom: "0.25rem",
-            letterSpacing: "-0.01em",
-          }}>
-            {orientation === "white" ? "Bianco" : "Nero"} muove
+          <h3
+            style={{
+              fontFamily: "var(--font-display)",
+              fontWeight: 700,
+              fontSize: "1.25rem",
+              color: "var(--color-text)",
+              marginBottom: "0.25rem",
+              letterSpacing: "-0.01em",
+            }}
+          >
+            {orientation === "white"
+              ? tr("Bianco muove", "White to move")
+              : tr("Nero muove", "Black to move")}
           </h3>
           <div className="sess-moment-meta">
             {formatGameDate(position.date) && (
@@ -393,18 +539,23 @@ export function PositionPuzzle({
 
         {/* Ultima mossa avversario */}
         {position.last_opp_san && (
-          <div style={{
-            padding: "0.625rem 0.875rem",
-            borderRadius: "8px",
-            background: "rgba(253,224,71,0.06)",
-            border: "1px solid rgba(253,224,71,0.22)",
-            display: "flex",
-            alignItems: "baseline",
-            gap: "0.5rem",
-            fontSize: "0.875rem",
-          }}>
+          <div
+            style={{
+              padding: "0.625rem 0.875rem",
+              borderRadius: "8px",
+              background: "rgba(253,224,71,0.06)",
+              border: "1px solid rgba(253,224,71,0.22)",
+              display: "flex",
+              alignItems: "baseline",
+              gap: "0.5rem",
+              fontSize: "0.875rem",
+            }}
+          >
             <span style={{ color: "var(--color-text-soft)" }}>
-              L&apos;avversario ha appena giocato
+              {tr(
+                "L'avversario ha appena giocato",
+                "Your opponent just played",
+              )}
             </span>
             <span
               className="mono"
@@ -416,8 +567,11 @@ export function PositionPuzzle({
         )}
 
         {!sf.isReady && (
-          <div className="tt-chip" style={{ display: "inline-flex", alignSelf: "flex-start" }}>
-            Carico motore…
+          <div
+            className="tt-chip"
+            style={{ display: "inline-flex", alignSelf: "flex-start" }}
+          >
+            {tr("Carico motore…", "Loading engine...")}
           </div>
         )}
 
@@ -426,13 +580,28 @@ export function PositionPuzzle({
           <div className="sess-nonno">
             <span className="who">Nonno</span>
             <p>
-              {verdictMsg !== ""
-                ? <span style={{ color: "var(--color-gold-soft)" }}>{verdictMsg}</span>
-                : intro}
+              {verdictMsg !== "" ? (
+                <span style={{ color: "var(--color-gold-soft)" }}>
+                  {verdictMsg}
+                </span>
+              ) : (
+                intro
+              )}
             </p>
             {withHint && hintFrom && verdictMsg === "" && (
-              <p style={{ marginTop: "6px", fontSize: "0.82rem", color: "var(--color-text-soft)", fontFamily: "var(--font-sans)", fontWeight: 400 }}>
-                La casa di partenza e&apos; evidenziata in oro sulla scacchiera.
+              <p
+                style={{
+                  marginTop: "6px",
+                  fontSize: "0.82rem",
+                  color: "var(--color-text-soft)",
+                  fontFamily: "var(--font-sans)",
+                  fontWeight: 400,
+                }}
+              >
+                {tr(
+                  "La casa di partenza e' evidenziata in oro sulla scacchiera.",
+                  "The starting square is highlighted in gold on the board.",
+                )}
               </p>
             )}
           </div>
@@ -440,26 +609,30 @@ export function PositionPuzzle({
 
         {/* Valutazione in corso */}
         {evaluating && (
-          <div style={{
-            padding: "0.75rem 1rem",
-            borderRadius: "8px",
-            border: "1px solid var(--color-line)",
-            background: "rgba(255,255,255,0.02)",
-            fontSize: "0.875rem",
-            color: "var(--color-muted)",
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-          }}>
-            <span style={{
-              width: "0.45rem",
-              height: "0.45rem",
-              borderRadius: "999px",
-              background: "var(--color-brand-soft)",
-              flexShrink: 0,
-              animation: "pulseGlow 1.4s ease-in-out infinite",
-            }} />
-            Guardo la mossa…
+          <div
+            style={{
+              padding: "0.75rem 1rem",
+              borderRadius: "8px",
+              border: "1px solid var(--color-line)",
+              background: "rgba(255,255,255,0.02)",
+              fontSize: "0.875rem",
+              color: "var(--color-muted)",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <span
+              style={{
+                width: "0.45rem",
+                height: "0.45rem",
+                borderRadius: "999px",
+                background: "var(--color-brand-soft)",
+                flexShrink: 0,
+                animation: "pulseGlow 1.4s ease-in-out infinite",
+              }}
+            />
+            {tr("Guardo la mossa…", "Looking at the move...")}
           </div>
         )}
 
@@ -473,34 +646,45 @@ export function PositionPuzzle({
             }}
           >
             {/* Messaggio principale */}
-            <div style={{
-              fontFamily: "var(--font-display)",
-              fontWeight: 600,
-              fontSize: "1.2rem",
-              lineHeight: 1.25,
-              color,
-            }}>
+            <div
+              style={{
+                fontFamily: "var(--font-display)",
+                fontWeight: 600,
+                fontSize: "1.2rem",
+                lineHeight: 1.25,
+                color,
+              }}
+            >
               {verdictMsg}
             </div>
 
             {/* Dettagli mossa */}
-            <div style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "6px",
-              paddingBottom: "12px",
-              borderBottom: "1px solid var(--color-line)",
-            }}>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+                paddingBottom: "12px",
+                borderBottom: "1px solid var(--color-line)",
+              }}
+            >
               {playedSan && (
                 <div className="sess-move-row">
-                  <span className="lbl">Hai giocato</span>
-                  <span className="san" style={{ color }}>{playedSan}</span>
+                  <span className="lbl">{tr("Hai giocato", "You played")}</span>
+                  <span className="san" style={{ color }}>
+                    {playedSan}
+                  </span>
                 </div>
               )}
               {position.best_san_sf && position.best_san_sf !== playedSan && (
                 <div className="sess-move-row">
-                  <span className="lbl">Mossa giusta</span>
-                  <span className="san" style={{ color: "var(--color-ok)" }}>
+                  <span className="lbl">
+                    {tr("Mossa giusta", "Right move")}
+                  </span>
+                  <span
+                    className="san"
+                    style={{ color: "var(--color-ok)" }}
+                  >
                     {position.best_san_sf}
                   </span>
                 </div>
@@ -512,11 +696,10 @@ export function PositionPuzzle({
               className="btn btn-primary btn-lg"
               style={{ width: "100%", justifyContent: "center" }}
             >
-              Avanti
+              {tr("Avanti", "Next")}
             </button>
           </div>
         )}
-
       </div>
     </div>
   );
@@ -526,14 +709,18 @@ export function PositionPuzzle({
 // Public exports (compat legacy)
 // ---------------------------------------------------------------------------
 
-export function WarmupGuidato({ position, patternLabel, onNext }: WarmupGuidatoProps) {
+export function WarmupGuidato({
+  position,
+  patternLabel,
+  onNext,
+}: WarmupGuidatoProps) {
   return (
     <div className="warmup-guidato">
       <PositionPuzzle
         position={position}
         patternLabel={patternLabel}
         withHint={true}
-        introLines={WARMUP_INTROS}
+        introLines={getWarmupIntros()}
         onNext={onNext}
       />
     </div>
@@ -547,7 +734,7 @@ export function DrillStep({ position, patternLabel, onNext }: DrillStepProps) {
         position={position}
         patternLabel={patternLabel}
         withHint={false}
-        introLines={DRILL_INTROS}
+        introLines={getDrillIntros()}
         onNext={onNext}
       />
     </div>
