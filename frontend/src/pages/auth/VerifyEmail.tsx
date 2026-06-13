@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { supabase } from "../../auth/supabaseClient";
 import { AuthShell } from "./AuthShell";
+import { tr } from "../../i18n/lang";
 
 interface LocationState {
   email?: string;
@@ -32,21 +33,27 @@ export function VerifyEmail() {
 
   return (
     <AuthShell
-      title="Controlla la posta."
+      title={tr("Controlla la posta.", "Check your email.")}
       subtitle={
         email ? (
           <>
-            Ti abbiamo mandato un link di conferma a <span className="font-mono">{email}</span>.
-            Cliccalo e torni qui.
+            {tr("Ti abbiamo mandato un link di conferma a ", "We sent a confirmation link to ")}
+            <span className="font-mono">{email}</span>
+            {tr(". Cliccalo e torni qui.", ". Click it and come back.")}
           </>
         ) : (
-          "Ti abbiamo mandato un link di conferma. Cliccalo per attivare l'account."
+          tr(
+            "Ti abbiamo mandato un link di conferma. Cliccalo per attivare l'account.",
+            "We sent you a confirmation link. Click it to activate your account."
+          )
         )
       }
     >
       <p className="text-sm text-[color:var(--color-text-soft)] leading-relaxed">
-        Se non lo vedi, controlla la cartella spam. Il link scade dopo qualche ora,
-        se è già scaduto puoi richiederne uno nuovo.
+        {tr(
+          "Se non lo vedi, controlla la cartella spam. Il link scade dopo qualche ora, se è già scaduto puoi richiederne uno nuovo.",
+          "If you do not see it, check your spam folder. The link expires after a few hours. If it has expired, you can request a new one."
+        )}
       </p>
       {email ? (
         <button
@@ -54,7 +61,11 @@ export function VerifyEmail() {
           className="btn btn-ghost mt-4 w-full"
           disabled={sending || resent}
         >
-          {resent ? "Email rispedita." : sending ? "Invio…" : "Rispedisci email"}
+          {resent
+            ? tr("Email rispedita.", "Email sent.")
+            : sending
+            ? tr("Invio…", "Sending…")
+            : tr("Rispedisci email", "Resend email")}
         </button>
       ) : null}
       {error ? (
@@ -62,7 +73,7 @@ export function VerifyEmail() {
       ) : null}
       <div className="mt-6 text-center text-xs text-[color:var(--color-muted)]">
         <Link to="/login" className="underline">
-          Torna al login
+          {tr("Torna al login", "Back to sign in")}
         </Link>
       </div>
     </AuthShell>

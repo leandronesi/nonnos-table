@@ -26,12 +26,15 @@ import type { Focus } from "./stanza/StanzaScene";
 
 const StanzaScene = lazy(() => import("./stanza/StanzaScene"));
 
-/** Hint chip copy per focused object — the second tap enters. */
-const FOCUS_HINTS: Record<Exclude<Focus, "tavolo">, string> = {
-  scacchiera: "Sediamoci su questa",
-  quaderno: "Apri il Quaderno",
-  scatola: "Vai alle Cadute",
-};
+/** Hint chip copy per focused object — the second tap enters. Must be a
+ *  function so tr() is evaluated at render-time, not frozen at module load. */
+function getFocusHints(): Record<Exclude<Focus, "tavolo">, string> {
+  return {
+    scacchiera: tr("Sediamoci su questa", "Let's sit down with this one"),
+    quaderno: tr("Apri il Quaderno", "Open the Notebook"),
+    scatola: tr("Vai alle Cadute", "Go to Stumbles"),
+  };
+}
 
 // ── Handicap derivation (same guards as buildHandicapLine) ────────────────────
 
@@ -76,8 +79,8 @@ class SceneBoundary extends Component<{ children: ReactNode }, { broken: boolean
     if (this.state.broken) {
       return (
         <div className="stanza-errore">
-          <p>Questa stanza chiede un dispositivo piu&apos; recente.</p>
-          <Link to="/tavolo">Vai al Tavolo</Link>
+          <p>{tr("Questa stanza chiede un dispositivo piu' recente.", "This room requires a more recent device.")}</p>
+          <Link to="/tavolo">{tr("Vai al Tavolo", "Go to the Table")}</Link>
         </div>
       );
     }
@@ -189,8 +192,8 @@ export function StanzaHome() {
   // ── Loading / error ──────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="stanza-shell" aria-label="La stanza sta apparecchiando">
-        <div className="stanza-attesa">La Stanza</div>
+      <div className="stanza-shell" aria-label={tr("La stanza sta apparecchiando", "The room is getting ready")}>
+        <div className="stanza-attesa">{tr("La Stanza", "The Room")}</div>
       </div>
     );
   }
@@ -199,8 +202,8 @@ export function StanzaHome() {
     return (
       <div className="stanza-shell">
         <div className="stanza-errore">
-          <p>Qualcosa si e&apos; inceppato.</p>
-          <Link to="/tavolo">Vai al Tavolo</Link>
+          <p>{tr("Qualcosa si e’ inceppato.", "Something went wrong.")}</p>
+          <Link to="/tavolo">{tr("Vai al Tavolo", "Go to the Table")}</Link>
         </div>
       </div>
     );
@@ -208,9 +211,9 @@ export function StanzaHome() {
 
   // ── The room ─────────────────────────────────────────────────────────────────
   return (
-    <div className="stanza-shell" role="main" aria-label="La stanza del Nonno">
+    <div className="stanza-shell" role="main" aria-label={tr("La stanza del Nonno", "Nonno's room")}>
       <SceneBoundary>
-      <Suspense fallback={<div className="stanza-attesa">La Stanza</div>}>
+      <Suspense fallback={<div className="stanza-attesa">{tr("La Stanza", "The Room")}</div>}>
         <StanzaScene
           fen={momento?.fen_before ?? null}
           playedMove={uciToPair(momento?.played_uci)}
@@ -253,7 +256,7 @@ export function StanzaHome() {
 
       {/* The brand moment: you have arrived at Nonno's table */}
       <div className="scena-marchio" aria-hidden="true">
-        il Tavolo del <b>Nonno</b>
+        <b>Nonno&apos;s</b> Table
       </div>
 
       {/* The door to the working surface */}
@@ -288,7 +291,7 @@ export function StanzaHome() {
             }
           }}
         >
-          {FOCUS_HINTS[focus]}
+          {getFocusHints()[focus]}
         </button>
       )}
 
@@ -301,7 +304,7 @@ export function StanzaHome() {
           className={`scena-board-invito${spoken && !boardVisited ? " scena-board-invito-in" : ""}`}
           aria-label="Invito a toccare la scacchiera"
         >
-          Toccala: rivediamo la tua ultima partita
+          {tr("Toccala: rivediamo la tua ultima partita", "Touch it: we look at your last game")}
         </div>
       )}
 
@@ -310,13 +313,16 @@ export function StanzaHome() {
         {spoken && (
           <>
             <div className="scena-dialogo-eyebrow">Nonno</div>
-            <p className="scena-dialogo-battuta">Bentornato.</p>
+            <p className="scena-dialogo-battuta">{tr("Bentornato.", "There you are.")}</p>
             {memoriaVisibile && (
               <p className="scena-dialogo-memoria">{memoriaVisibile}</p>
             )}
             {backgroundRunning && (
               <p className="scena-dialogo-memoria">
-                Mi sto ancora guardando le tue partite. Tu intanto siediti.
+                {tr(
+                  "Mi sto ancora guardando le tue partite. Tu intanto siediti.",
+                  "Still looking at your games. Sit down.",
+                )}
               </p>
             )}
             {/* The one loud action of the foyer: walk to the table */}
@@ -324,7 +330,7 @@ export function StanzaHome() {
               className="btn btn-primary scena-cta"
               onClick={() => nav("/tavolo")}
             >
-              Vieni al Tavolo
+              {tr("Vieni al Tavolo", "Come to the Table.")}
             </button>
           </>
         )}

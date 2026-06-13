@@ -198,8 +198,7 @@ function DesktopSidebar({
             color: "var(--color-text)",
             letterSpacing: "-0.01em",
           }}>
-            il Tavolo del{" "}
-            <span style={{ color: "var(--color-gold-soft)" }}>Nonno</span>
+            <span style={{ color: "var(--color-gold-soft)" }}>Nonno&apos;s</span> Table
           </div>
         </div>
       </div>
@@ -364,8 +363,7 @@ function MobileTopBar({
           letterSpacing: "-0.01em",
           flexShrink: 0,
         }}>
-          il Tavolo del{" "}
-          <span style={{ color: "var(--color-gold-soft)" }}>Nonno</span>
+          <span style={{ color: "var(--color-gold-soft)" }}>Nonno&apos;s</span> Table
         </span>
         {silentRefreshing && <SilentRefreshPill />}
       </div>

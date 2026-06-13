@@ -368,9 +368,9 @@ function SessionHeader({
       className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b border-[color:var(--color-line)]"
       style={{ background: "var(--header-bg)", backdropFilter: "blur(14px)" }}
     >
-      <div className="tt-eyebrow" style={{ minWidth: "4rem" }}>
-        {tr("Sessione", "Session")}
-      </div>
+      {/* Empty spacer (was a redundant "Session" eyebrow that collided with the
+          AppShell brand): keeps the PhaseThread centred between it and Exit. */}
+      <div style={{ minWidth: "4rem" }} aria-hidden="true" />
       <PhaseThread current={phase} />
       <button
         onClick={onExit}

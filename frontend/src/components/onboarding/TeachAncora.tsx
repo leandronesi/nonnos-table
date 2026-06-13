@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { tr } from "../../i18n/lang";
 
 // Posizioni iniziali dei puntini (relativi a viewport 100x80)
 const DOTS_INITIAL = [
@@ -122,7 +123,7 @@ export function TeachAncora() {
         letterSpacing="0.1em"
         style={{ transition: "fill 600ms cubic-bezier(0.23,1,0.32,1)" }}
       >
-        {converged ? "UN'ANCORA" : "tanti segnali"}
+        {converged ? tr("UN'ANCORA", "ONE ANCHOR") : tr("tanti segnali", "many signals")}
       </text>
     </svg>
   );

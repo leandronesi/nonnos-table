@@ -21,6 +21,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { supabase } from "../../auth/supabaseClient";
 import type { TimeClass } from "../../auth/db.types";
 import { AuthShell, Field, inputClass } from "./AuthShell";
+import { tr } from "../../i18n/lang";
 
 interface ChessComPlayer {
   username: string;
@@ -91,10 +92,11 @@ export function Onboarding() {
   const [weeklyMinutes, setWeeklyMinutes] = useState(120);
 
   // Deadline: driven by chip selection (13 / 26 / 52 weeks). DEFAULT = 26.
+  // Built as a function so tr() is called at render-time, not frozen at module load.
   const DEADLINE_CHIPS: Array<{ label: string; weeks: number }> = [
-    { label: "Con calma, 3 mesi", weeks: 13 },
-    { label: "Entro 6 mesi", weeks: 26 },
-    { label: "Nell'anno", weeks: 52 },
+    { label: tr("Con calma, 3 mesi", "3 months, no rush"), weeks: 13 },
+    { label: tr("Entro 6 mesi", "Within 6 months"), weeks: 26 },
+    { label: tr("Nell'anno", "Within the year"), weeks: 52 },
   ];
   const [goalHorizonWeeks, setGoalHorizonWeeks] = useState<number>(26);
 
@@ -155,14 +157,19 @@ export function Onboarding() {
   async function onConfirmChessCom() {
     setChessError(null);
     if (!usernameInput.trim()) {
-      setChessError("Inserisci il tuo username Chess.com.");
+      setChessError(tr("Inserisci il tuo username Chess.com.", "Enter your Chess.com username."));
       return;
     }
     setChecking(true);
     try {
       const p = await fetchChessComPlayer(usernameInput.trim());
       if (!p) {
-        setChessError(`Nessun account Chess.com con username "${usernameInput.trim()}".`);
+        setChessError(
+          tr(
+            `Nessun account Chess.com con username "${usernameInput.trim()}".`,
+            `No Chess.com account found for "${usernameInput.trim()}".`
+          )
+        );
         setChecking(false);
         return;
       }
@@ -179,7 +186,7 @@ export function Onboarding() {
   // Returns true on success, false on error (sets submitError internally).
   async function onConfirmGoal(): Promise<boolean> {
     if (!user || !player) {
-      setSubmitError("Sessione persa. Ricarica la pagina.");
+      setSubmitError(tr("Sessione persa. Ricarica la pagina.", "Session lost. Reload the page."));
       return false;
     }
     setSubmitting(true);
@@ -198,7 +205,10 @@ export function Onboarding() {
       setSubmitting(false);
       if (/duplicate key|unique/i.test(pErr.message)) {
         setSubmitError(
-          "Questo username Chess.com e' gia' collegato a un altro account."
+          tr(
+            "Questo username Chess.com e' gia' collegato a un altro account.",
+            "This Chess.com username is already linked to another account."
+          )
         );
         return false;
       }
@@ -227,16 +237,16 @@ export function Onboarding() {
   if (step === "chesscom" || !player) {
     return (
       <AuthShell
-        eyebrow="1 di 2"
-        title="Come ti chiami al tavolo?"
-        subtitle="Dimmi il tuo username Chess.com. Leggo le tue partite pubbliche."
+        eyebrow={tr("1 di 2", "1 of 2")}
+        title={tr("Come ti chiami al tavolo?", "What do they call you at the table?")}
+        subtitle={tr("Dimmi il tuo username Chess.com. Leggo le tue partite pubbliche.", "Tell me your Chess.com username. I read your public games.")}
       >
         {!player ? (
           <>
             <Field
-              label="Username Chess.com"
+              label={tr("Username Chess.com", "Chess.com username")}
               htmlFor="chesscom"
-              hint="Quello che vedi nell'URL del tuo profilo Chess.com."
+              hint={tr("Quello che vedi nell'URL del tuo profilo Chess.com.", "The one in the URL of your Chess.com profile.")}
               error={chessError}
             >
               <input
@@ -260,7 +270,7 @@ export function Onboarding() {
               className="btn btn-primary btn-lg w-full"
               disabled={checking}
             >
-              {checking ? "Cerco…" : "Trovami su Chess.com"}
+              {checking ? tr("Cerco…", "Looking…") : tr("Trovami su Chess.com", "Find me on Chess.com")}
             </button>
           </>
         ) : (
@@ -335,8 +345,14 @@ export function Onboarding() {
               const rating = ratingMap[defaultTC];
               const phrase =
                 rating
-                  ? `Eccoti, ${player.username}. Ho visto le tue partite ${tcLabel}: sei a ${rating}. Siediti, cominciamo da qui.`
-                  : `Eccoti, ${player.username}. Le partite le ho trovate. Siediti, cominciamo da qui.`;
+                  ? tr(
+                      `Eccoti, ${player.username}. Ho visto le tue partite ${tcLabel}: sei a ${rating}. Siediti, cominciamo da qui.`,
+                      `There you are, ${player.username}. I looked at your ${tcLabel} games: you are at ${rating}. Sit down, let's start from here.`
+                    )
+                  : tr(
+                      `Eccoti, ${player.username}. Le partite le ho trovate. Siediti, cominciamo da qui.`,
+                      `There you are, ${player.username}. I found your games. Sit down, let's start from here.`
+                    );
               return (
                 <div
                   style={{
@@ -365,14 +381,14 @@ export function Onboarding() {
                 className="btn btn-ghost"
                 style={{ flex: 1 }}
               >
-                Non sono io
+                {tr("Non sono io", "That's not me")}
               </button>
               <button
                 onClick={() => setStep("goal")}
                 className="btn btn-primary"
                 style={{ flex: 1 }}
               >
-                Sono io
+                {tr("Sono io", "That's me")}
               </button>
             </div>
           </>
@@ -384,12 +400,12 @@ export function Onboarding() {
   // ---- Step 2 ---- goal
   return (
     <AuthShell
-      eyebrow="2 di 2"
-      title="Dove vuoi arrivare?"
-      subtitle="Dimmi dove punta la sedia. Poi lavoriamo."
+      eyebrow={tr("2 di 2", "2 of 2")}
+      title={tr("Dove vuoi arrivare?", "Where do you want to go?")}
+      subtitle={tr("Dimmi dove punta la sedia. Poi lavoriamo.", "Tell me where your chair is pointing. Then we work.")}
     >
       {/* Categoria di tempo */}
-      <Field label="Categoria di tempo" htmlFor="tc" hint="Su quale cadenza giochi di piu'.">
+      <Field label={tr("Categoria di tempo", "Time control")} htmlFor="tc" hint={tr("Su quale cadenza giochi di piu'.", "Which time control do you play most.")}>
         <div style={{ display: "flex", gap: "0.5rem" }}>
           {(["bullet", "blitz", "rapid"] as TimeClass[]).map((tc) => {
             const active = goalTC === tc;
@@ -424,9 +440,9 @@ export function Onboarding() {
 
       {/* Slider target rating */}
       <Field
-        label="Dove punta la sedia"
+        label={tr("Dove punta la sedia", "Where is your chair pointing")}
         htmlFor="goal-rating"
-        hint={`Oggi sei ${currentRating} in ${goalTC}.`}
+        hint={tr(`Oggi sei ${currentRating} in ${goalTC}.`, `You are at ${currentRating} in ${goalTC}.`)}
       >
         <input
           id="goal-rating"
@@ -489,14 +505,29 @@ export function Onboarding() {
             {(() => {
               const delta = goalRating - currentRating;
               if (delta <= 0)
-                return "Stai puntando sotto di te. Possiamo lavorarci lo stesso, ma dimmi: sicuro?";
+                return tr(
+                  "Stai puntando sotto di te. Possiamo lavorarci lo stesso, ma dimmi: sicuro?",
+                  "You are pointing below where you are. We can still work with it, but tell me: are you sure?"
+                );
               if (delta < 100)
-                return `Ci sei quasi. Quei ${delta} punti dipendono da una cosa sola. La troviamo.`;
+                return tr(
+                  `Ci sei quasi. Quei ${delta} punti dipendono da una cosa sola. La troviamo.`,
+                  `You are close. Those ${delta} points come down to one thing. We will find it.`
+                );
               if (delta <= 250)
-                return `${delta} punti. Non e' poco, ma e' esattamente dove posso aiutarti. Si comincia.`;
+                return tr(
+                  `${delta} punti. Non e' poco, ma e' esattamente dove posso aiutarti. Si comincia.`,
+                  `${delta} points. That is real work, but it is exactly where I can help. Let's start.`
+                );
               if (delta <= 400)
-                return `Stai puntando in alto. ${delta} punti vogliono tempo e una cosa per volta. Ce la fai.`;
-              return "E' una salita lunga. Tienila, ma sappi che non si fa in fretta. Io ci sono per tutto il percorso.";
+                return tr(
+                  `Stai puntando in alto. ${delta} punti vogliono tempo e una cosa per volta. Ce la fai.`,
+                  `You are aiming high. ${delta} points take time, one thing at a time. You can get there.`
+                );
+              return tr(
+                "E' una salita lunga. Tienila, ma sappi che non si fa in fretta. Io ci sono per tutto il percorso.",
+                "That is a long climb. Keep it, but know it does not happen fast. I am here for all of it."
+              );
             })()}
           </p>
         )}
@@ -530,7 +561,7 @@ export function Onboarding() {
       </Field>
 
       {/* Deadline — 3 chips */}
-      <Field label="In quanto tempo?" htmlFor="goal-deadline" hint="Nonno calibra il passo su questo.">
+      <Field label={tr("In quanto tempo?", "How long do you have?")} htmlFor="goal-deadline" hint={tr("Nonno calibra il passo su questo.", "Nonno sets the pace from this.")}>
         <div style={{ display: "flex", gap: "0.5rem" }}>
           {DEADLINE_CHIPS.map((chip) => {
             const active = goalHorizonWeeks === chip.weeks;
@@ -565,14 +596,14 @@ export function Onboarding() {
       </Field>
 
       {/* Minuti a settimana */}
-      <Field label="Quanto puoi sederti a settimana?" htmlFor="weekly">
+      <Field label={tr("Quanto puoi sederti a settimana?", "How much time can you sit down each week?")} htmlFor="weekly">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.5rem" }}>
-          {([
-            [30, "Mezz'ora"],
-            [60, "Un'ora"],
-            [120, "Due ore"],
-            [180, "Tre ore"],
-          ] as Array<[number, string]>).map(([m, label]) => {
+          {(([
+            [30, tr("Mezz'ora", "Half an hour")],
+            [60, tr("Un'ora", "One hour")],
+            [120, tr("Due ore", "Two hours")],
+            [180, tr("Tre ore", "Three hours")],
+          ] as Array<[number, string]>)).map(([m, label]) => {
             const active = weeklyMinutes === m;
             return (
               <button
@@ -623,7 +654,7 @@ export function Onboarding() {
           className="btn btn-ghost"
           style={{ flex: 1 }}
         >
-          Indietro
+          {tr("Indietro", "Back")}
         </button>
         <button
           onClick={() => {
@@ -652,7 +683,7 @@ export function Onboarding() {
           style={{ flex: 1 }}
           disabled={signing || submitting}
         >
-          {submitting ? "Salvo…" : "Apparecchia il Tavolo"}
+          {submitting ? tr("Salvo…", "Saving…") : tr("Apparecchia il Tavolo", "Set the Table")}
         </button>
       </div>
     </AuthShell>

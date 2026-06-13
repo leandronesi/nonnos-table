@@ -5,6 +5,7 @@ import { Chess } from "chess.js";
 import { BoardView } from "../components/BoardView";
 import { prefersReducedMotion, useInkDraw } from "../lib/motion";
 import { LangToggle } from "../i18n/LangToggle";
+import { tr } from "../i18n/lang";
 
 // ── Demo board: the moment the payoff describes ───────────────────────────────
 //
@@ -63,11 +64,11 @@ export function Landing() {
   return (
     <div className="public-home">
       <header className="public-topbar">
-        <Link to="/" className="public-brand" aria-label="il Tavolo del Nonno">
+        <Link to="/" className="public-brand" aria-label="Nonno's Table">
           <img src={NONNO_FACE} alt="" className="public-brand-face" aria-hidden />
           {/* §2d — wordmark topbar: font-voice 600 */}
           <span className="public-brand-wordmark">
-            il Tavolo del <b>Nonno</b>
+            <b>Nonno&apos;s</b> Table
           </span>
         </Link>
 
@@ -75,7 +76,7 @@ export function Landing() {
           <LangToggle />
           <Link to="/login" className="public-login">
             <LogIn size={16} strokeWidth={2.2} aria-hidden />
-            Accedi
+            {tr("Accedi", "Sign in")}
           </Link>
         </div>
       </header>
@@ -85,21 +86,27 @@ export function Landing() {
           {/* ── Copy column — stagger settle-in on each child ── */}
           <div className="public-copy">
             {/* §1c — stagger delays via explicit classes */}
-            <div className="public-kicker public-copy-c0">Beta su invito</div>
+            <div className="public-kicker public-copy-c0">{tr("Beta su invito", "Invite-only beta")}</div>
 
             {/* §2a — h1: font-voice 700, "Nonno" stays gold */}
             <h1 id="home-title" className="public-copy-c1">
-              il Tavolo del <span>Nonno</span>
+              <span>Nonno&apos;s</span> Table
             </h1>
 
             {/* §2b — payoff: font-voice 600 — la voce */}
             <p className="public-payoff public-copy-c2">
-              Solo 1 su 8 al tuo livello l&apos;avrebbe trovata. Ce la rivediamo insieme.
+              {tr(
+                "Solo 1 su 8 al tuo livello l’avrebbe trovata. Ce la rivediamo insieme.",
+                "One in eight players at your level finds that. We look at it together."
+              )}
             </p>
 
             {/* §2c — lede: sans weight 500, claim editoriale */}
             <p className="public-lede public-copy-c3">
-              Non analizzi le tue partite. Ti siedi col Nonno a rivederle.
+              {tr(
+                "Non analizzi le tue partite. Ti siedi col Nonno a rivederle.",
+                "You do not analyze your games. You sit down with Nonno and look at them."
+              )}
             </p>
 
             <div className="public-copy-c4">
@@ -110,23 +117,25 @@ export function Landing() {
             <figure className="public-nonno public-copy-c5">
               <img src={NONNO_FACE} alt="Nonno O." className="public-nonno-face" />
               <figcaption>
-                <span>Nonno, quando ti siedi</span>
-                Ti aspetto qui. Giochiamo al tuo passo. Ma tengo la sedia un passo
-                piu&apos; avanti: per mostrarti, una mossa alla volta, dove stai andando.
+                <span>{tr("Nonno, quando ti siedi", "Nonno, when you sit down")}</span>
+                {tr(
+                  "Ti aspetto qui. Giochiamo al tuo passo. Ma tengo la sedia un passo più avanti: per mostrarti, una mossa alla volta, dove stai andando.",
+                  "I am here. We play at your pace. But I keep my chair one step ahead: to show you, one move at a time, where you are going."
+                )}
               </figcaption>
             </figure>
 
             <div className="public-actions public-copy-c6">
               <Link to="/signup" className="btn btn-primary btn-lg public-cta">
-                Crea il tuo Tavolo
+                {tr("Crea il tuo Tavolo", "Set up your Table")}
                 <ArrowRight size={18} strokeWidth={2.3} aria-hidden />
               </Link>
-              <p>Serve un codice invito per entrare.</p>
+              <p>{tr("Serve un codice invito per entrare.", "You need an invite code to join.")}</p>
             </div>
           </div>
 
           {/* ── Stage — 4 cards settle after lamp glow ── */}
-          <div className="public-stage" aria-label="Il tavolo serale di Nonno">
+          <div className="public-stage" aria-label={tr("Il tavolo serale di Nonno", "Nonno's evening table")}>
             <div className="public-wall" aria-hidden />
 
             {/* §1a — lamp: glow fades in one-shot, shade/stem/base visibili subito */}
@@ -141,19 +150,19 @@ export function Landing() {
 
             {/* §1b — cards settle-in with stagger */}
             <div className="public-target-card settle-in" style={{ animationDelay: "350ms" }}>
-              <span className="public-panel-label honey">Obiettivo</span>
+              <span className="public-panel-label honey">{tr("Obiettivo", "Target")}</span>
               <div className="public-rating-line">
                 <strong>1240</strong>
                 <span />
                 <b>1500</b>
               </div>
-              <p>Il posto che stai raggiungendo.</p>
+              <p>{tr("Il posto che stai raggiungendo.", "Where you are headed.")}</p>
             </div>
 
             <div className="public-session-card settle-in" style={{ animationDelay: "500ms" }}>
-              <span className="public-panel-label">Oggi al tavolo</span>
-              <strong>Pezzo in presa</strong>
-              <p>Perdi un pezzo muovendo in meno di 8 secondi. Guarda prima di muovere.</p>
+              <span className="public-panel-label">{tr("Oggi al tavolo", "Today at the Table")}</span>
+              <strong>{tr("Pezzo in presa", "Piece left hanging")}</strong>
+              <p>{tr("Perdi un pezzo muovendo in meno di 8 secondi. Guarda prima di muovere.", "You give the piece away moving in under 8 seconds. Look before you move.")}</p>
             </div>
 
             <div className="public-board-card settle-in" style={{ animationDelay: "650ms" }}>
@@ -162,49 +171,59 @@ export function Landing() {
               </div>
 
               <div className="public-gap">
-                <span className="public-panel-label muted">Pezzo in presa</span>
-                <GapBar label="tu" value={37} color="brand" />
+                <span className="public-panel-label muted">{tr("Pezzo in presa", "Piece left hanging")}</span>
+                <GapBar label={tr("tu", "you")} value={37} color="brand" />
                 <GapBar label="1500" value={67} color="gold" />
               </div>
             </div>
 
             <div className="public-notebook settle-in" style={{ animationDelay: "800ms" }}>
-              <span className="public-panel-label muted">Quaderno</span>
+              <span className="public-panel-label muted">{tr("Quaderno", "Notebook")}</span>
               <div className="public-note-lines" aria-hidden>
                 <span />
                 <span />
                 <span />
               </div>
               <p>
-                Ce lo segniamo. Hai chiuso <b>21%</b> della distanza, e la
-                prossima sera ripartiamo da li'.
+                {tr("Ce lo segniamo. Hai chiuso ", "We note it down. You closed ")}
+                <b>21%</b>
+                {tr(" della distanza, e la prossima sera ripartiamo da li'.", " of the gap, and next time we pick it up from there.")}
               </p>
             </div>
           </div>
         </section>
 
         {/* §4a — story cards: scroll reveal with settle stagger, 80ms between cards */}
-        <section className="public-story-grid" aria-label="Come si usa il Tavolo">
+        <section className="public-story-grid" aria-label={tr("Come si usa il Tavolo", "How the Table works")}>
           <StoryCard
             label="01"
             kind="target"
             revealDelay={0}
-            title="Il posto da raggiungere"
-            body="Dici 1500 rapid, e il tavolo cambia misura. Nonno non ti confronta con il motore: ti confronta con la sedia accanto."
+            title={tr("Il posto da raggiungere", "Where you are going")}
+            body={tr(
+              "Dici 1500 rapid, e il tavolo cambia misura. Nonno non ti confronta con il motore: ti confronta con la sedia accanto.",
+              "You say 1500 rapid, and the Table takes measure. Nonno does not compare you to an engine. He compares you to the chair next to yours."
+            )}
           />
           <StoryCard
             label="02"
             kind="moment"
             revealDelay={80}
-            title="La mossa che ritorna"
-            body="Non rivedi la stessa posizione a memoria. Rivedi la stessa idea, in un'altra sera, finche' la riconosci da solo."
+            title={tr("La mossa che ritorna", "The move that comes back")}
+            body={tr(
+              "Non rivedi la stessa posizione a memoria. Rivedi la stessa idea, in un'altra sera, finche' la riconosci da solo.",
+              "You do not memorize the same position. You see the same idea again, on another evening, until you recognize it on your own."
+            )}
           />
           <StoryCard
             label="03"
             kind="notebook"
             revealDelay={160}
-            title="Il Quaderno ti riconosce"
-            body="Quando torni, Nonno sa dove eravate rimasti. Non riparti da un report: riparti da una storia che continua."
+            title={tr("Il Quaderno ti riconosce", "The Notebook knows you")}
+            body={tr(
+              "Quando torni, Nonno sa dove eravate rimasti. Non riparti da un report: riparti da una storia che continua.",
+              "When you come back, Nonno knows where you left off. You do not start from a report. You pick up a story that continues."
+            )}
           />
         </section>
       </main>
@@ -320,9 +339,9 @@ function TargetRail() {
   const { ref: inkRef, drawn } = useInkDraw();
 
   return (
-    <div className="public-target-rail" aria-label="Selettore ELO target">
+    <div className="public-target-rail" aria-label={tr("Selettore ELO target", "Target rating selector")}>
       <div>
-        <span>oggi</span>
+        <span>{tr("oggi", "today")}</span>
         <strong>1240</strong>
       </div>
 
@@ -364,7 +383,7 @@ function TargetRail() {
       </div>
 
       <div>
-        <span>dove vai</span>
+        <span>{tr("dove vai", "where you're going")}</span>
         <strong>1500</strong>
       </div>
     </div>
