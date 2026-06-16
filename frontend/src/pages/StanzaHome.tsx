@@ -338,9 +338,11 @@ export function StanzaHome() {
           Visible only before the first interaction (gate-once via localStorage).
           On reducedMotion the animation is suppressed via CSS but the text stays:
           it is information, not decoration. */}
+      {/* Invite whisper — visible before the first touch, hidden once the camera
+          leans in (the chip takes over as the voice from that point on). */}
       {momento && (
         <div
-          className={`scena-board-invito${spoken && !boardVisited ? " scena-board-invito-in" : ""}`}
+          className={`scena-board-invito${spoken && !boardVisited && focus !== "scacchiera" ? " scena-board-invito-in" : ""}`}
           aria-label="Invito a toccare la scacchiera"
         >
           {tr("Toccala: rivediamo la tua ultima partita", "Touch it: we look at your last game")}

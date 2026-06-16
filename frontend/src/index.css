@@ -6962,7 +6962,12 @@ button:disabled, [aria-disabled="true"] {
   padding: 0.7rem 1.6rem;
 }
 
-/* The focus chip — leaning over an object, one more tap enters it */
+/* The focus chip — leaning over an object, one more tap enters it.
+ *
+ * Entry: fade + rise from 6px below, canonical ease-out curve (nonno-motion §10).
+ * No bounce, no overshoot — the chip settles like a word that lands on a page.
+ * The chip is remounted each time the focus changes (React unmounts on focus="tavolo"),
+ * so the animation re-fires naturally on every new lean. */
 .scena-focus-chip {
   position: fixed;
   right: clamp(1.2rem, 3vw, 2.4rem);
@@ -6979,7 +6984,8 @@ button:disabled, [aria-disabled="true"] {
   cursor: pointer;
   backdrop-filter: blur(6px);
   transition: border-color 200ms var(--ease-out), transform 200ms var(--ease-out);
-  animation: settle-in 500ms var(--ease-settle) both;
+  /* Canonical fade+rise — ease-out only, no overshoot (nonno-motion §4, §10) */
+  animation: scena-chip-in 650ms cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 .scena-focus-chip:hover {
   border-color: rgba(246, 198, 74, 0.7);
@@ -6988,6 +6994,10 @@ button:disabled, [aria-disabled="true"] {
 .scena-focus-chip:focus-visible {
   outline: 2px solid var(--color-brand-soft);
   outline-offset: 3px;
+}
+@keyframes scena-chip-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);   }
 }
 
 /* Board invite label — Nonno's whisper before the first touch.
