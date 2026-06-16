@@ -565,7 +565,7 @@ export function MomentReview({
             className="sess-board-frame"
             style={{
               width: "100%",
-              maxWidth: fit.max,
+              maxWidth: `min(${fit.max}px, calc(100vw - 1.5rem))`,
               viewTransitionName: "tavolo-board",
             }}
           >

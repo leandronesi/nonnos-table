@@ -58,7 +58,15 @@ export function BoardView({
     function measure() {
       const parent = wrapRef.current?.parentElement;
       if (!parent) return;
-      const availableWidth = parent.offsetWidth;
+      // Size to the parent's CONTENT box (clientWidth minus its own padding):
+      // measuring offsetWidth included the frame's 10px padding, so the board
+      // came out wider than its slot and — being centered — got clipped on both
+      // sides by .board-scene{overflow-x:hidden} on narrow screens. Also cap to
+      // the visual viewport so an over-wide ancestor can never push it off-screen.
+      const cs = getComputedStyle(parent);
+      const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      const contentWidth = parent.clientWidth - padX;
+      const availableWidth = Math.min(contentWidth, window.innerWidth - 16);
       // Ignore implausibly small / transient reads: a flex item that collapsed
       // mid-reflow, or a pre-layout measurement, can report a near-zero width.
       // Applying it would lock the board to a tiny size and keep it there until
@@ -73,9 +81,12 @@ export function BoardView({
     const ro = new ResizeObserver(measure);
     const target = wrapRef.current?.parentElement ?? wrapRef.current;
     if (target) ro.observe(target);
+    // Viewport changes (rotation, browser chrome) may not resize the parent.
+    window.addEventListener("resize", measure);
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
+      window.removeEventListener("resize", measure);
     };
   }, [maxSize]);
 
