@@ -26,6 +26,28 @@ import type { Focus } from "./stanza/StanzaScene";
 
 const StanzaScene = lazy(() => import("./stanza/StanzaScene"));
 
+/**
+ * WebGL capability probe. R3F's <Canvas> creates the renderer asynchronously,
+ * so a failed context throws inside a promise that React error boundaries
+ * cannot catch (the SceneBoundary below only sees synchronous render errors).
+ * On machines where the GPU is disabled (locked-down corporate setups, very
+ * old devices) that left a black void instead of the door. We probe up front
+ * and open the door before ever mounting the Canvas.
+ */
+function hasWebGL(): boolean {
+  try {
+    const canvas = document.createElement("canvas");
+    return !!(
+      window.WebGLRenderingContext &&
+      (canvas.getContext("webgl2") ||
+        canvas.getContext("webgl") ||
+        canvas.getContext("experimental-webgl"))
+    );
+  } catch {
+    return false;
+  }
+}
+
 /** Hint chip copy per focused object — the second tap enters. Must be a
  *  function so tr() is evaluated at render-time, not frozen at module load. */
 function getFocusHints(): Record<Exclude<Focus, "tavolo">, string> {
@@ -109,6 +131,10 @@ export function StanzaHome() {
   const { backgroundRunning } = useOnboardingRun();
 
   const reduced = prefersReducedMotion();
+
+  // WebGL probe (once): no context means the room can't be drawn, so we open
+  // the door instead of leaving a black canvas. See hasWebGL note above.
+  const [webglOk] = useState(hasWebGL);
 
   // The dialogue arrives after the camera has sat down (~3s dolly + a breath).
   const [spoken, setSpoken] = useState(reduced);
@@ -203,6 +229,19 @@ export function StanzaHome() {
       <div className="stanza-shell">
         <div className="stanza-errore">
           <p>{tr("Qualcosa si e’ inceppato.", "Something went wrong.")}</p>
+          <Link to="/tavolo">{tr("Vai al Tavolo", "Go to the Table")}</Link>
+        </div>
+      </div>
+    );
+  }
+
+  // No WebGL (GPU disabled / very old device): the room can't be drawn, so we
+  // open the door straight to the working surface instead of a black canvas.
+  if (!webglOk) {
+    return (
+      <div className="stanza-shell">
+        <div className="stanza-errore">
+          <p>{tr("Questa stanza chiede un dispositivo piu' recente.", "This room requires a more recent device.")}</p>
           <Link to="/tavolo">{tr("Vai al Tavolo", "Go to the Table")}</Link>
         </div>
       </div>
