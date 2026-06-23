@@ -1,0 +1,849 @@
+{
+  "_note": "Copia runtime di docs/principi/curriculum.json - non editare a mano, rigenerare dalla sorgente.",
+  "principles": [
+    {
+      "id": "P01",
+      "name_it": "I pezzi non difesi cadono (LPDO)",
+      "idea_it": "Un pezzo senza difensori e' gia' mezzo perso. Prima di muovere, conta i tuoi pezzi sciolti: se ce n'e' uno, difendilo o spostalo.",
+      "fix_it": "Prima di giocare, fai il giro: ogni mio pezzo e' difeso? Se no, prima sistemo quello.",
+      "recognize": "Segnale diretto: pezzo_in_presa / hanging_piece. Si attiva quando cp_loss alto + error_type hung_piece + p_maia_target_top alta. Fase: qualsiasi, picco in mediogioco con pezzi aperti. Quasi tutti i motivi tattici avversari (forchetta, scoperto, difensore rimosso) iniziano da un pezzo sciolto dell'utente.",
+      "example": "Il tuo alfiere e' in d4, nessun pezzo lo protegge. Il nemico gioca Cc6 attaccando l'alfiere. Risultato: perdi l'alfiere per niente.",
+      "level": "tutti",
+      "maps_to": [
+        "pezzo_in_presa",
+        "hanging_piece",
+        "hung_piece",
+        "careless",
+        "fork",
+        "discovered_attack",
+        "removed_defender",
+        "p_maia_mine_top",
+        "p_maia_target_top",
+        "cp_loss"
+      ],
+      "source_lineage": "Heisman LPDO (Novice Nook); attribuito a Nunn, Secrets of Practical Chess. Appare in: tattica-elementare (lpdo-pezzi-sciolti), apertura (loose-pieces-drop-off), strategia-posizionale (pezzi-sciolti-cadono), finale (pezzo-sciolto-nel-finale), processo-di-pensiero (loose-pieces-drop-off)"
+    },
+    {
+      "id": "P02",
+      "name_it": "Il controllo sicurezza prima di muovere (CCT)",
+      "idea_it": "Dopo aver trovato la mossa, fermati: scacchi? catture? minacce? Se l'avversario ha una risposta forzata che non sai parare, cambia mossa.",
+      "fix_it": "Prima di muovere, di' a te stesso: 'Se gioco qui, cosa puo' fare lui?' Cerca prima scacchi, poi catture, poi minacce.",
+      "recognize": "Trigger principale: error_type rushed + spent_seconds bassi. Quando p_maia_target_top e' alta ma p_maia_mine_top e' bassa, il giocatore non ha visto la risposta del nemico. Qualsiasi fase: una scansione di pochi secondi prima di completare la mossa.",
+      "example": "Vuoi portare la torre in e5. Prima di farlo, cerchi le mosse del nemico: Cc4 ti fa la forchetta tra torre e alfiere. Meglio scegliere un'altra mossa.",
+      "level": "tutti",
+      "maps_to": [
+        "careless",
+        "hung_piece",
+        "rushed",
+        "missed_tactic",
+        "fork",
+        "pin",
+        "skewer",
+        "back_rank",
+        "spent_seconds",
+        "time_state",
+        "p_maia_mine_top",
+        "cp_loss"
+      ],
+      "source_lineage": "Heisman CCT (Checks, Captures, Threats) / 'Is It Safe?' / Novice Nook. Fonde: controllo-sicurezza-prima-di-muovere (tattica-elementare), safety-check-before-every-move (apertura), cct-ogni-mossa (processo-di-pensiero), sanity-check-prima-di-muovere (processo-di-pensiero)"
+    },
+    {
+      "id": "P03",
+      "name_it": "Verifica prima di giocare, non dopo",
+      "idea_it": "Muovere sperando che l'avversario non veda non e' giocare a scacchi. Giocare a speranza e' il modo piu' rapido per perdere. Una mossa e' buona solo se regge alla risposta migliore del nemico.",
+      "fix_it": "Non giocare mai una mossa pensando 'speriamo non veda'. Immagina che lui trovi sempre la risposta piu' ovvia. Se ti batte, cambia.",
+      "recognize": "Trigger: rushed + spent_seconds bassi + cp_loss alto. Caratteristico di error_type careless. Il giocatore ha giocato senza cercare le risposte nemiche. p_maia_mine_top bassa su mosse in cui la risposta era ovvia.",
+      "example": "Muovi la torre in e5 pensando che il nemico non vedra' che e' indifesa. Lui gioca Cc4 e la forchetta con la donna. Dovevi verificare prima.",
+      "level": "tutti",
+      "maps_to": [
+        "careless",
+        "rushed",
+        "hung_piece",
+        "missed_tactic",
+        "spent_seconds",
+        "time_state",
+        "p_maia_mine_top",
+        "p_maia_target_top",
+        "cp_loss"
+      ],
+      "source_lineage": "Heisman, 'Hope Chess vs Real Chess' / Novice Nook. Fonde: non-sperare-analizza (tattica-elementare), hope-chess-vs-real-chess (processo-di-pensiero), assumi-mossa-migliore-avversario (processo-di-pensiero)"
+    },
+    {
+      "id": "P04",
+      "name_it": "La forchetta: attacca due pezzi insieme",
+      "idea_it": "Una mossa che attacca due pezzi nemici allo stesso tempo mette il nemico in trappola: ne salva uno, perde l'altro. Il cavallo e' il re delle forchette.",
+      "fix_it": "Cerca sempre le case dove il tuo cavallo raggiunge due pezzi nemici con un salto. E controlla che il tuo avversario non abbia la stessa opportunita'.",
+      "recognize": "Motivo: fork. Trigger Maia: p_maia_target_top alta su posizioni con cavallo in centro o pezzi nemici su case raggiungibili con un salto. Spesso missed_tactic quando il giocatore non vede la casa di salto. Fase: mediogioco.",
+      "example": "Il tuo cavallo va in d5: attacca la torre in e7 e l'alfiere in c3. Il nemico ne salva uno. Tu prendi l'altro.",
+      "level": "1000-1200",
+      "maps_to": [
+        "fork",
+        "missed_tactic",
+        "pezzo_in_presa",
+        "p_maia_target_top",
+        "mediogioco"
+      ],
+      "source_lineage": "Canone tattico standard; Heisman Seeds of Tactical Destruction. Fonte: tattica-elementare (forchetta-doppio-attacco)"
+    },
+    {
+      "id": "P05",
+      "name_it": "L'inchiodatura: il pezzo che non puo' muovere",
+      "idea_it": "Quando inchiodi un pezzo nemico su una linea col re, quel pezzo e' paralizzato. Puoi attaccarlo di nuovo e non riesce a difendersi.",
+      "fix_it": "Cerca i pezzi nemici allineati su righe, colonne, diagonali. Alfiere o torre che inchiodano meritano sempre di essere considerati prima di fare altro.",
+      "recognize": "Motivo: pin. Segnali: pezzi nemici allineati su diagonale/colonna/traversa. p_maia_target_top alta quando la inchiodatura e' disponibile da subito. missed_tactic se il giocatore non sfrutta l'inchiodatura esistente.",
+      "example": "Il tuo alfiere va in b5: inchioda il cavallo in c6 al re in e8. Il cavallo non puo' muovere. Attacchi il cavallo con d4 e lui non puo' fuggire.",
+      "level": "1000-1200",
+      "maps_to": [
+        "pin",
+        "missed_tactic",
+        "pezzo_in_presa",
+        "p_maia_target_top",
+        "mediogioco"
+      ],
+      "source_lineage": "Canone tattico standard; Heisman Seeds of Tactical Destruction. Fonte: tattica-elementare (inchiodatura-pezzo-bloccato)"
+    },
+    {
+      "id": "P06",
+      "name_it": "L'infilata: il pezzo forte in primo piano",
+      "idea_it": "E' il contrario della inchiodatura. Attacchi il pezzo piu' prezioso, lui scappa, e dietro c'e' qualcosa di piu' debole che prendi. Re e donna in prima linea sono vittime perfette.",
+      "fix_it": "Dopo ogni scambio che apre una colonna o diagonale, controlla se re o donna nemici sono esposti alla tua torre o al tuo alfiere.",
+      "recognize": "Motivo: skewer. Si attiva quando re o donna avversari sono su colonne/diagonali aperte senza copertura. p_maia_target_top alta. Spesso missed_tactic. Piu' frequente in finale con torri e alfieri.",
+      "example": "La tua torre va in e1: attacca il re nemico in e8, dietro c'e' la donna in e7. Il re scappa, tu prendi la donna.",
+      "level": "1200-1500",
+      "maps_to": [
+        "skewer",
+        "missed_tactic",
+        "pezzo_in_presa",
+        "p_maia_target_top",
+        "finale",
+        "mediogioco"
+      ],
+      "source_lineage": "Canone tattico standard; Heisman Seeds of Tactical Destruction. Fonte: tattica-elementare (infilata-pezzo-prezioso-davanti)"
+    },
+    {
+      "id": "P07",
+      "name_it": "Lo scoperto: il pezzo nascosto che colpisce",
+      "idea_it": "Muovi un pezzo e riveli l'attacco di un altro pezzo tuo che era bloccato dietro. Il nemico risponde alla prima minaccia, ma la seconda rimane.",
+      "fix_it": "Cerca i tuoi pezzi allineati con pezzi nemici di valore, anche con un tuo pezzo in mezzo. Chiedi: se sposto questo, cosa colpisce quello dietro?",
+      "recognize": "Motivo: discovered_attack. Trigger Maia: p_maia_target_top molto alta rispetto a p_maia_mine_top. Il giocatore non vede che il suo pezzo e' allineato con un pezzo nemico di valore. error_type missed_tactic. Fase: mediogioco.",
+      "example": "Il tuo cavallo e' in e4, dietro c'e' il tuo alfiere su a8 allineato con la torre nemica in h1. Muovi il cavallo in f6 con scacco. Mentre il re fugge, l'alfiere prende la torre.",
+      "level": "1200-1500",
+      "maps_to": [
+        "discovered_attack",
+        "missed_tactic",
+        "pezzo_in_presa",
+        "p_maia_target_top",
+        "p_maia_mine_top",
+        "mediogioco"
+      ],
+      "source_lineage": "Canone tattico standard; Heisman Seeds of Tactical Destruction. Fonte: tattica-elementare (attacco-scoperto-pezzo-nascosto)"
+    },
+    {
+      "id": "P08",
+      "name_it": "Il difensore che fa troppo",
+      "idea_it": "Un solo pezzo che difende due obiettivi non ce la fa mai. Attacca uno, il difensore e' costretto a scegliere, e tu prendi l'altro.",
+      "fix_it": "Quando vuoi prendere un pezzo difeso, chiediti: quel difensore sta proteggendo anche qualcos'altro? Se si', attacca entrambi in sequenza.",
+      "recognize": "Motivo: removed_defender (per via di sovraccarico). Segnale Maia: p_maia_target_top alta su posizioni dove una torre o donna nemica difende due pezzi insieme. missed_tactic quando il giocatore non vede la doppia funzione del difensore. Fase: mediogioco.",
+      "example": "La donna nemica in d7 difende sia l'alfiere in d4 sia la torre in d8. Tu attacchi la donna con Cc5. La donna si sposta per salvarsi, e tu prendi o l'alfiere o la torre.",
+      "level": "1200-1500",
+      "maps_to": [
+        "removed_defender",
+        "missed_tactic",
+        "pezzo_in_presa",
+        "p_maia_target_top",
+        "mediogioco"
+      ],
+      "source_lineage": "Heisman Seeds of Tactical Destruction (overworked pieces). Fonte: tattica-elementare (difensore-sovraccarico)"
+    },
+    {
+      "id": "P09",
+      "name_it": "Deviazione e attrazione: portalo dove vuoi tu",
+      "idea_it": "A volte devi spostare un pezzo nemico dalla sua guardia. Sacrifichi qualcosa per farlo muovere dove fa meno danni, poi colpisci cio' che stava proteggendo.",
+      "fix_it": "Se un pezzo nemico blocca la tua tattica, chiediti: posso farlo muovere sacrificando qualcosa di meno? Se guadagno di piu', lo faccio.",
+      "recognize": "Motivo: removed_defender (per via di deviazione o attrazione). missed_tactic quando p_maia_target_top e' alta. Il giocatore non vede che un sacrificio a basso costo sgombra la guardia. Fase: mediogioco.",
+      "example": "La torre nemica in g7 difende la casa g8 contro il matto. Tu sacrifichi la donna in g8: la torre deve prendere in g8. Poi scacchi matto con la torre in g1.",
+      "level": "1500-1800",
+      "maps_to": [
+        "removed_defender",
+        "missed_tactic",
+        "pezzo_in_presa",
+        "p_maia_target_top",
+        "hard_calc",
+        "mediogioco"
+      ],
+      "source_lineage": "Canone tattico standard; Heisman Seeds of Tactical Destruction (removable defenders). Fonte: tattica-elementare (deviazione-attrazione)"
+    },
+    {
+      "id": "P10",
+      "name_it": "L'ottava traversa e il respiro del re",
+      "idea_it": "Un re castled con i tre pedoni immobili davanti e' murato vivo. Basta una torre o donna sull'ottava traversa per il matto. Apri una via di fuga in tempo: il respiro del re, quello che i vecchi chiamano luft.",
+      "fix_it": "Controlla sempre se il tuo re ha una via di fuga (muovi un pedone di un passo). E cerca se il re nemico e' chiuso su colonne aperte.",
+      "recognize": "Motivo: back_rank. Segnale diretto: re castled con pedoni f, g, h immobili + colonna aperta verso l'ottava. p_maia_target_top molto alta su questi schemi. missed_tactic o conversion quando il giocatore in vantaggio non chiude la partita. Fase: mediogioco e finale.",
+      "example": "Il re nero e' in g8 con i pedoni f7, g7, h7 immobili. La colonna e e' aperta. Giochi Te1 con minaccia Te8 matto. Il nero non ha difesa.",
+      "level": "1000-1200",
+      "maps_to": [
+        "back_rank",
+        "missed_tactic",
+        "conversion",
+        "p_maia_target_top",
+        "mediogioco",
+        "finale"
+      ],
+      "source_lineage": "Heisman Seeds of Tactical Destruction (weak back rank); canone tattico. Fonte: tattica-elementare (ottava-traversa-luft)"
+    },
+    {
+      "id": "P11",
+      "name_it": "Conta attaccanti e difensori",
+      "idea_it": "Su un pezzo in discussione, conta quante volte e' attaccato e quante volte e' difeso. Piu' attaccanti che difensori, con valori giusti, vuol dire che lo prendi.",
+      "fix_it": "Su ogni pezzo in discussione: conta attacchi miei, difese sue, chi prende per primo. Poi controlla il valore degli scambi.",
+      "recognize": "Attiva quando cp_loss si spiega con scambio sfavorevole. error_type hard_calc o careless. Spesso p_maia_target_top e' alta: un 1500 vede il conteggio, il giocatore no. Rilevante in mediogioco e finale.",
+      "example": "La torre nemica e' in e5: attaccata due volte da te, difesa una sola volta. Puoi prenderla. Verifica che il valore degli scambi non ti faccia perdere di piu'.",
+      "level": "1000-1200",
+      "maps_to": [
+        "pezzo_in_presa",
+        "hung_piece",
+        "hard_calc",
+        "careless",
+        "cp_loss",
+        "p_maia_target_top"
+      ],
+      "source_lineage": "Heisman Back to Basics Tactics (counting). Fonte: tattica-elementare (conta-attaccanti-difensori)"
+    },
+    {
+      "id": "P12",
+      "name_it": "Il radar dei pezzi allineati",
+      "idea_it": "Due pezzi nemici sulla stessa riga, colonna o diagonale sono un segnale. Puo' nascondersi una inchiodatura, infilata, scoperto o forchetta di torre. Accendi il radar prima di ogni mossa.",
+      "fix_it": "Prima di muovere, passa in rassegna i pezzi avversari: ce ne sono due sulla stessa linea? Controlla se puoi sfruttarlo.",
+      "recognize": "Seed tattico trasversale (da Heisman): pezzi allineati sono precondizione per inchiodatura, infilata, raggio X, scoperto. Attiva con p_maia_target_top alta e missed_tactic. Il giocatore non ha passato in rassegna gli allineamenti prima di muovere.",
+      "example": "Il re nemico e' in e8, la donna in e6: stessa colonna. Il tuo alfiere su a2 punta quella colonna. Giochi Te1 e il re deve muoversi, poi prendi la donna con la torre.",
+      "level": "1000-1200",
+      "maps_to": [
+        "pin",
+        "skewer",
+        "discovered_attack",
+        "missed_tactic",
+        "pezzo_in_presa",
+        "p_maia_target_top",
+        "mediogioco"
+      ],
+      "source_lineage": "Heisman Seeds of Tactical Destruction (pinned/skewerable pieces, discovered attack targets). Fonte: tattica-elementare (pezzi-allineati-radar)"
+    },
+    {
+      "id": "P13",
+      "name_it": "Quando stai vincendo, chiudi la partita",
+      "idea_it": "Avere un pezzo in piu' non basta se giochi a caso. Un vantaggio materiale si perde in fretta con un errore grave. Quando sei avanti, semplifica e non lasciare pezzi sciolti.",
+      "fix_it": "Quando sei in vantaggio, rallenta. Doppio controllo sicurezza: controlla i tuoi pezzi sciolti e la risposta nemica prima di ogni mossa.",
+      "recognize": "error_type: conversion. state_before: winning. cp_loss alto nonostante il vantaggio. Spesso rushed o zeitnot. p_maia_mine_top bassa: il giocatore smette di giocare bene una volta avanti. Anche hung_piece in posizione vincente.",
+      "example": "Hai una torre in piu'. Ti affretti a portare i pedoni avanti. Lasci un alfiere indifeso in c4. Il nemico lo prende con un cavallo. Il vantaggio si e' dimezzato.",
+      "level": "1200-1500",
+      "maps_to": [
+        "conversion",
+        "hung_piece",
+        "rushed",
+        "careless",
+        "state_before",
+        "cp_loss",
+        "p_maia_mine_top",
+        "zeitnot"
+      ],
+      "source_lineage": "Heisman Novice Nook (safety first, activity second); canone didattico conversione. Fonde: chiudi-quando-stai-vincendo (tattica-elementare), semplifica-da-vincente (processo-di-pensiero)"
+    },
+    {
+      "id": "P14",
+      "name_it": "Sviluppa in fretta, non spostare lo stesso pezzo due volte",
+      "idea_it": "Ogni volta che sposti lo stesso pezzo due volte in apertura, regali una mossa al nemico. Lui porta fuori un pezzo nuovo, tu sistemi quello che hai gia'.",
+      "fix_it": "Nelle prime 10 mosse, ogni mossa porta fuori un pezzo nuovo. Sposta lo stesso pezzo una seconda volta solo se sei davvero costretto.",
+      "recognize": "Fase apertura: conta le mosse dei propri pezzi minori. Se un cavallo o alfiere si e' mosso due volte mentre l'avversario ha due pezzi nuovi fuori, sei indietro di sviluppo. Segnale: p_maia_target_top piu' alto del tuo. error_type rushed.",
+      "example": "Bianco gioca 1.e4 2.Cf3 3.Ce5 spostando il cavallo due volte. Il nero gioca 1...e5 2...Cc6 3...Cf6 e ha gia' due pezzi attivi contro uno.",
+      "level": "1000-1200",
+      "maps_to": [
+        "apertura",
+        "rushed",
+        "careless"
+      ],
+      "source_lineage": "Capablanca Chess Fundamentals (1921, pubblico dominio); Lasker Common Sense in Chess (1896, pubblico dominio). Fonte: apertura (develop-fast-do-not-move-twice)"
+    },
+    {
+      "id": "P15",
+      "name_it": "Contendi il centro fin dalla prima mossa",
+      "idea_it": "Le quattro caselle centrali sono il cuore della scacchiera. Chi le controlla muove i pezzi piu' velocemente e attacca da tutte le parti.",
+      "fix_it": "Inizia con e4 o d4. Rispondi alle aperture avversarie contendendo il centro, non cedendolo.",
+      "recognize": "Se dopo 5-6 mosse l'avversario ha pedoni su e4 e d4 mentre i tuoi sono ancora sul bordo, sei gia' in difficolta' di spazio. Segnale: cp_loss progressivo nelle prime mosse indica errori di principio, non di tattica.",
+      "example": "Bianco 1.e4, Nero 1...e5, Bianco 2.d4 occupa il centro. Nero se non risponde con 2...exd4 o 2...d5 lascia al bianco un centro imponente.",
+      "level": "1000-1200",
+      "maps_to": [
+        "apertura",
+        "careless"
+      ],
+      "source_lineage": "Capablanca Chess Fundamentals (1921, pubblico dominio); Lasker Common Sense in Chess (1896, pubblico dominio). Fonte: apertura (control-the-center)"
+    },
+    {
+      "id": "P16",
+      "name_it": "Arrocca presto, metti il re al sicuro",
+      "idea_it": "Finche' il re sta in mezzo, ogni fila aperta e' un pericolo. Arroccando prima della decima mossa lo porti al riparo e attivi anche una torre.",
+      "fix_it": "Sviluppa cavallo e alfiere del lato in cui vuoi arroccare prima possibile. Punta ad arroccare entro la mossa 8-10.",
+      "recognize": "Re ancora al centro dopo la mossa 10 con file semiaperte e' un segnale rosso. Motivi associati: back_rank, discovered_attack. Segnale: state_before losing con re non arrocato.",
+      "example": "Bianco ha sviluppato tutti i pezzi ma non ha arrocato. Nero apre la colonna e con uno scacco di torre vince materiale perche' il re deve muoversi.",
+      "level": "1000-1200",
+      "maps_to": [
+        "apertura",
+        "careless",
+        "rushed",
+        "back_rank",
+        "discovered_attack"
+      ],
+      "source_lineage": "Capablanca Chess Fundamentals (1921, pubblico dominio). Fonte: apertura (castle-early-king-safety)"
+    },
+    {
+      "id": "P17",
+      "name_it": "Non portare fuori la donna troppo presto",
+      "idea_it": "La donna e' il pezzo piu' forte, ma se esce troppo presto viene cacciata da ogni pezzo avversario che si sviluppa. Ogni attacco alla donna regala una mossa al nemico.",
+      "fix_it": "Lascia la donna in casa finche' non hai sviluppato cavalli e alfieri. Usala quando ha un bersaglio preciso.",
+      "recognize": "Donna uscita al quarto o quinto turno senza un piano chiaro. Segnale: mosse spese a spostare la donna invece di sviluppare, rushed e deficit di sviluppo. p_maia_target_top alto indica che il 1500 vede come sfruttare la donna esposta.",
+      "example": "Bianco gioca 1.e4 2.Df3 in attesa di Dxf7. Nero risponde con 2...Cc6 3...Cf6 guadagnando tempo sullo sviluppo mentre la donna bianca deve cercare rifugio.",
+      "level": "1000-1200",
+      "maps_to": [
+        "apertura",
+        "rushed",
+        "careless",
+        "hung_piece"
+      ],
+      "source_lineage": "Capablanca Chess Fundamentals (1921, pubblico dominio). Fonte: apertura (do-not-bring-queen-out-early)"
+    },
+    {
+      "id": "P18",
+      "name_it": "I cavalli vengono prima degli alfieri",
+      "idea_it": "I cavalli hanno solo poche case buone in apertura. Gli alfieri aspettano di vedere dove andranno i pedoni. Prima i cavalli, poi decidi per gli alfieri.",
+      "fix_it": "Prime due mosse di sviluppo: Cc3 e Cf3 (o Cc6 e Cf6 per il nero). Poi decidi dove vanno gli alfieri.",
+      "recognize": "Alfiere sviluppato prima che i cavalli siano fuori indica rischio di ritrovarsi con un alfiere attivo ma i cavalli ancora bloccati. Segnale: sviluppo squilibrato visibile dopo 5 mosse.",
+      "example": "Bianco gioca 1.e4 2.Ac4 3.Ab3 due mosse di alfiere. Il nero con 2...Cc6 3...Cf6 ha gia' piu' pezzi attivi.",
+      "level": "1000-1200",
+      "maps_to": [
+        "apertura",
+        "careless"
+      ],
+      "source_lineage": "Capablanca Chess Fundamentals (1921, pubblico dominio). Fonte: apertura (develop-knights-before-bishops)"
+    },
+    {
+      "id": "P19",
+      "name_it": "Non sprecare mosse con i pedoni in apertura",
+      "idea_it": "Muovere tre o quattro pedoni prima di aver portato fuori i pezzi e' come costruire un muro intorno ai propri soldati. I pezzi restano bloccati in casa.",
+      "fix_it": "In apertura muovi solo i pedoni che aprono diagonali o controllano il centro (e4, d4). I pedoni di bordo aspettano.",
+      "recognize": "Conta le mosse di pedone dopo 6 turni. Piu' di due o tre mosse di pedone prima che cavalli e alfieri siano fuori indica sviluppo rallentato. Segnale: avversario ha piu' pezzi attivi con meno mosse.",
+      "example": "1.e4 2.h3 3.a3 4.g3 sono quattro mosse di pedone, zero sviluppo. L'avversario gioca 1...e5 2...Cc6 3...Cf6 4...Ac5 e ha gia' tre pezzi attivi.",
+      "level": "1000-1200",
+      "maps_to": [
+        "apertura",
+        "rushed",
+        "careless"
+      ],
+      "source_lineage": "Lasker Common Sense in Chess (1896); Capablanca Chess Fundamentals (1921, pubblico dominio). Fonte: apertura (limit-pawn-moves-in-opening)"
+    },
+    {
+      "id": "P20",
+      "name_it": "Collega le torri prima di passare al mediogioco",
+      "idea_it": "Quando le due torri si vedono libere nella prima traversa, lo sviluppo e' davvero finito. Finche' c'e' un pezzo in mezzo, sei ancora in apertura.",
+      "fix_it": "Usa 'collegare le torri' come test del tuo sviluppo. Se non ci sei ancora, finisci di sviluppare prima di attaccare.",
+      "recognize": "Controllo visivo: dopo l'arrocco, quanti pezzi minori restano ancora sulla prima traversa? Ogni pezzo non sviluppato e' una torre bloccata. Segnale: torri non collegate al quindicesimo turno indica sviluppo incompiuto.",
+      "example": "Bianco ha arrocato ma l'alfiere di donna e' ancora su c1. Le torri non sono collegate. Attacca lo stesso e perde un pezzo perche' non aveva le forze coordinate.",
+      "level": "1200-1500",
+      "maps_to": [
+        "apertura",
+        "careless",
+        "rushed"
+      ],
+      "source_lineage": "Capablanca Chess Fundamentals (1921, pubblico dominio). Fonte: apertura (connect-the-rooks)"
+    },
+    {
+      "id": "P21",
+      "name_it": "Ogni mossa di sviluppo deve fare qualcosa",
+      "idea_it": "Portare fuori un pezzo e basta non e' abbastanza. La mossa migliore sviluppa e minaccia qualcosa al tempo stesso. Cosi' metti pressione invece di aspettare.",
+      "fix_it": "Per ogni mossa di sviluppo chiedi: questo pezzo attacca qualcosa? Controlla una casa importante? Se non fa nulla, trova una casa migliore.",
+      "recognize": "Dopo aver scelto la tua mossa di sviluppo, chiediti: cosa minaccia? Se la risposta e' 'niente', cerca un pezzo da mettere su una casa piu' attiva. Segnale: p_maia_mine_top basso su mosse di sviluppo passive.",
+      "example": "Af5 invece di Ae7: l'alfiere attacca il pedone in c2 e controlla la colonna. Lo stesso sviluppo, ma con un obiettivo.",
+      "level": "1200-1500",
+      "maps_to": [
+        "apertura",
+        "careless",
+        "missed_tactic"
+      ],
+      "source_lineage": "Capablanca Chess Fundamentals (1921, pubblico dominio). Fonte: apertura (develop-with-purpose)"
+    },
+    {
+      "id": "P22",
+      "name_it": "Il cavallo sull'avamposto",
+      "idea_it": "Un cavallo su una casa avanzata che nessun pedone avversario puo' cacciare e' come un cancello chiuso in casa sua. Da li' minaccia tutto e non si muove.",
+      "fix_it": "Trova la casa avanzata senza pedoni avversari vicini. Porta il cavallo li' con calma, poi tienilo.",
+      "recognize": "Fase mediogioco. Casa candidata: d5/e5 (o d4/e4 per il nero) senza pedoni avversari adiacenti. Segnale Maia: p_maia_target_top alta su mosse che eliminano o ignorano quel cavallo. Motivo: pezzi inattivi se il cavallo e' ancora in c3/f3 con casa avamposto libera.",
+      "example": "Pedoni bianchi in e4 e c4, nessun pedone nero in d5 o f5. Il bianco porta il cavallo in d5: non se ne va piu' per tutto il mediogioco.",
+      "level": "1200-1500",
+      "maps_to": [
+        "mediogioco",
+        "missed_tactic",
+        "hard_calc"
+      ],
+      "source_lineage": "Nimzowitsch My System (cap. Avamposti). Fonte: strategia-posizionale (avamposto-cavallo)"
+    },
+    {
+      "id": "P23",
+      "name_it": "La torre vuole la colonna aperta",
+      "idea_it": "Una torre su una colonna senza pedoni entra direttamente in casa avversaria. Tenerla chiusa e' uno spreco.",
+      "fix_it": "Quando si apre una colonna, metti subito la torre li'. Se puoi raddoppiare le torri, fallo.",
+      "recognize": "Fase mediogioco. Segnale: torre ancora sulla prima traversa con colonna semiaperta disponibile. p_maia_mine_top bassa quando la mossa giusta e' posizionare la torre sulla colonna libera. spent_seconds bassi indicano che non si e' valutato dove mettere la torre.",
+      "example": "Viene scambiato il pedone in d4. La colonna d si apre. Il bianco gioca subito Td1 e poi Td7, invadendo la settima traversa.",
+      "level": "1000-1200",
+      "maps_to": [
+        "mediogioco",
+        "rushed",
+        "careless"
+      ],
+      "source_lineage": "Nimzowitsch My System (cap. Colonne Aperte); Capablanca Chess Fundamentals (pubblico dominio). Fonte: strategia-posizionale (colonna-aperta-torre)"
+    },
+    {
+      "id": "P24",
+      "name_it": "L'alfiere cattivo",
+      "idea_it": "Se i tuoi pedoni stanno sulle stesse case del tuo alfiere, lui non puo' muoversi e non conta niente. Metti i pedoni sul colore opposto oppure fai uscire l'alfiere dalla catena.",
+      "fix_it": "Prima di bloccare i pedoni, guarda di che colore e' il tuo alfiere. Se sei bloccato, cerca di cambiarlo con un pezzo attivo dell'avversario.",
+      "recognize": "Fase mediogioco. Alfiere bloccato dietro catena pedonale dello stesso colore. Segnale Maia: p_maia_target_top alta su mosse che sfruttano l'alfiere cattivo avversario. Motivo: pezzi inattivi.",
+      "example": "Il bianco ha pedoni in e4 e d4 sullo stesso colore dell'alfiere. L'alfiere in c1 non esce mai. Il nero piazza un cavallo in d5 che non si muove e vince la partita di posizione.",
+      "level": "1500-1800",
+      "maps_to": [
+        "mediogioco",
+        "hard_calc",
+        "missed_tactic"
+      ],
+      "source_lineage": "Silman How to Reassess Your Chess (Minor Piece Imbalances). Fonte: strategia-posizionale (alfiere-cattivo)"
+    },
+    {
+      "id": "P25",
+      "name_it": "La coppia degli alfieri",
+      "idea_it": "Due alfieri insieme coprono entrambi i colori e diventano devastanti quando la posizione si apre. Tenerli entrambi e aprire il gioco e' un piano concreto.",
+      "fix_it": "Non cambiare un alfiere con un cavallo senza un motivo tattico preciso. Con la coppia, apri la posizione con avanzate pedonali.",
+      "recognize": "Fase mediogioco/finale. Posizione semi-aperta con entrambi gli alfieri ancora in campo. Segnale Maia: p_maia_mine_top alta su aperture di linee (avanzate pedonali, scambi). state_before equalish indica vantaggio crescente se si apre.",
+      "example": "Bianco ha due alfieri, nero ha alfiere e cavallo. Bianco gioca f4-f5 per aprire la diagonale del suo alfiere in g2. I due alfieri dominano lo spazio.",
+      "level": "1500-1800",
+      "maps_to": [
+        "mediogioco",
+        "rushed",
+        "hard_calc"
+      ],
+      "source_lineage": "Silman How to Reassess Your Chess (Minor Piece Imbalances). Fonte: strategia-posizionale (coppia-alfieri)"
+    },
+    {
+      "id": "P26",
+      "name_it": "Fermalo prima che parta",
+      "idea_it": "Prima di fare il tuo piano, chiediti cosa vuole fare lui. Se c'e' una mossa avversaria pericolosa, neutralizzala subito.",
+      "fix_it": "Dopo ogni mossa avversaria, prima di guardare le tue opzioni, chiediti: cosa minaccia? Come lo fermo?",
+      "recognize": "Fase mediogioco. Segnale: cp_loss alto dopo una mossa aggressiva avversaria che si poteva prevenire. rushed / attacco_prematuro: il giocatore ha spinto senza guardare la risposta. p_maia_target_top alta indica che il 1500 vede la minaccia.",
+      "example": "Il nero minaccia Cg4 che attacca l'alfiere in f2. Il bianco invece gioca h3 in modo preventivo, e il cavallo non ha piu' quella casa.",
+      "level": "1000-1200",
+      "maps_to": [
+        "mediogioco",
+        "rushed",
+        "careless",
+        "missed_tactic",
+        "attacco_prematuro"
+      ],
+      "source_lineage": "Nimzowitsch My System (cap. Profilassi); Heisman Novice Nook. Fonte: strategia-posizionale (profilassi-piano-avversario)"
+    },
+    {
+      "id": "P27",
+      "name_it": "Blocca il pedone passato",
+      "idea_it": "Un pedone passato avversario che avanza e' un pericolo che cresce ogni mossa. Metti un pezzo davanti a lui subito. Il cavallo e' il blocco migliore.",
+      "fix_it": "Appena vedi un pedone passato avversario, calcola subito come metterci un pezzo davanti. Non aspettare.",
+      "recognize": "Fase mediogioco/finale. Pedone passato avversario in quinta o sesta traversa. Segnale: cp_loss alto se si ignora il pedone. state_before winning con conversion fallita se non si blocca. missed_tactic se si manca la mossa di blocco.",
+      "example": "Il nero ha un pedone in d5 passato. Il bianco gioca Cd4, blocca il pedone, lo tiene fermo tutta la partita e poi lo vince.",
+      "level": "1200-1500",
+      "maps_to": [
+        "mediogioco",
+        "finale",
+        "missed_tactic",
+        "conversion",
+        "hard_calc"
+      ],
+      "source_lineage": "Nimzowitsch My System (cap. Blocco e Pedone Passato). Fonte: strategia-posizionale (blocco-pedone-passato)"
+    },
+    {
+      "id": "P28",
+      "name_it": "Il buco nella posizione",
+      "idea_it": "Una casa che non puo' piu' essere protetta dai tuoi pedoni e' un buco. Il pezzo avversario ci si siede e non se ne va piu'. I buchi si creano spingendo i pedoni a caso.",
+      "fix_it": "Prima di avanzare un pedone, chiediti: la casa che lascio debole e' difendibile? Se no, non spingere.",
+      "recognize": "Fase mediogioco. Casa avanzata senza pedoni difensori adiacenti. Segnale: pezzi inattivi se l'avversario ha gia' un pezzo sul buco. p_maia_target_top alta su mosse che sfruttano il buco. rushed: pedone spinto senza considerare la casa lasciata debole.",
+      "example": "Il bianco gioca g4 per attaccare. La casa f4 diventa un buco. Il nero piazza il cavallo in f4 e non lo muove piu': domina tutta la partita.",
+      "level": "1200-1500",
+      "maps_to": [
+        "mediogioco",
+        "rushed",
+        "careless",
+        "attacco_prematuro"
+      ],
+      "source_lineage": "Silman The Amateur's Mind / How to Reassess Your Chess (Weak Squares e Holes). Fonte: strategia-posizionale (casa-debole-buco)"
+    },
+    {
+      "id": "P29",
+      "name_it": "Migliora il pezzo peggiore",
+      "idea_it": "Se non sai cosa fare, guarda quale tuo pezzo sta peggio di tutti. Spostalo in una casa migliore. Una partita si vince portando tutti i pezzi a lavorare insieme.",
+      "fix_it": "Quando sei bloccato, chiediti: quale mio pezzo fa meno? Trova una casa migliore per lui.",
+      "recognize": "Fase mediogioco senza tattica immediata. Segnale: spent_seconds bassi (calcolo profondo assente) indica che il giocatore non sa cosa fare e sposta a caso. Motivo: pezzi inattivi. p_maia_mine_top bassa su mosse di riposizionamento.",
+      "example": "Il bianco ha tutto sviluppato tranne la torre in a1 chiusa. Gioca b3-Ab2-Tc1 per mettere la torre sulla colonna c aperta. Ora tutti i pezzi lavorano.",
+      "level": "1000-1200",
+      "maps_to": [
+        "mediogioco",
+        "rushed",
+        "careless",
+        "zeitnot"
+      ],
+      "source_lineage": "Silman The Amateur's Mind; Grooten / Heisman (principio generale di attivita'). Fonte: strategia-posizionale (peggiora-il-pezzo-peggiore)"
+    },
+    {
+      "id": "P30",
+      "name_it": "Due debolezze, una resa",
+      "idea_it": "Se il tuo avversario ha solo un problema, puo' difendersi. Creagli un secondo problema dall'altra parte della scacchiera: non potra' stare su due fronti.",
+      "fix_it": "Quando hai un vantaggio, non attaccare solo una debolezza. Crea pressione su un lato, poi minaccia dall'altro.",
+      "recognize": "Fase mediogioco con vantaggio posizionale gia' acquisito. Segnale: conversion fallita se si martella solo su un punto. cp_loss alto su mosse che non creano la seconda debolezza. hard_calc per calcolare il trasferimento delle minacce.",
+      "example": "Il bianco ha un pedone debole in a6 avversario. Attacca li', poi quando le torri nere si spostano a difendere, apre il fronte di re con g4-g5. Il nero non puo' difendere entrambi.",
+      "level": "1500-1800",
+      "maps_to": [
+        "mediogioco",
+        "conversion",
+        "hard_calc",
+        "zeitnot"
+      ],
+      "source_lineage": "Nimzowitsch My System; Capablanca (applicazione pratica, pubblico dominio). Fonte: strategia-posizionale (due-debolezze)"
+    },
+    {
+      "id": "P31",
+      "name_it": "Attacca la base della catena pedonale",
+      "idea_it": "Una catena di pedoni e' forte in cima e debole alla base. Colpire la testa e' inutile. Attacca il pedone in basso, quello che regge tutti gli altri.",
+      "fix_it": "Identifica la base della catena avversaria. Porta i pezzi a premere su quel pedone. Non spingere frontalmente.",
+      "recognize": "Fase mediogioco con strutture chiuse o semi-chiuse. Segnale Maia: p_maia_target_top alta su avanzate pedonali che colpiscono la base. rushed se si attacca la testa della catena senza effetto.",
+      "example": "Il nero ha pedoni in e5-d6-c5. La base e' c5. Il bianco gioca b4-b5 per attaccare c5. Quando c5 cade, tutta la struttura si indebolisce.",
+      "level": "1200-1500",
+      "maps_to": [
+        "mediogioco",
+        "rushed",
+        "hard_calc"
+      ],
+      "source_lineage": "Nimzowitsch My System (cap. Catene di Pedoni). Fonte: strategia-posizionale (catena-pedonale-base)"
+    },
+    {
+      "id": "P32",
+      "name_it": "Proteggi i punti chiave piu' del necessario",
+      "idea_it": "Una casa o un pezzo centrale importante va difeso anche quando non sembra necessario. Se un attacco arriva, hai gia' i difensori pronti e non devi sprecare tempi.",
+      "fix_it": "Dopo aver piazzato un pezzo su una casa forte, aggiungi un secondo difensore prima di fare altro.",
+      "recognize": "Fase mediogioco con pezzo centrale (cavallo su d5, pedone in e5). Segnale: cp_loss alto dopo rimosso_difensore su un punto che sembrava sicuro. careless: si dava per scontata la protezione.",
+      "example": "Il bianco ha un cavallo in e5. Lo difende con pedone d4 e alfiere d3. Anche se il nero gioca f6 per cacciarlo, c'e' sempre una risposta. Non deve muovere il cavallo in fretta.",
+      "level": "1500-1800",
+      "maps_to": [
+        "mediogioco",
+        "removed_defender",
+        "careless",
+        "missed_tactic"
+      ],
+      "source_lineage": "Nimzowitsch My System (cap. Sovraprotezione). Fonte: strategia-posizionale (sovraprotezione-punti-chiave)"
+    },
+    {
+      "id": "P33",
+      "name_it": "Il pedone isolato e' un bersaglio fisso",
+      "idea_it": "Un pedone senza amici sulle colonne vicine non si puo' difendere con altri pedoni. Mettici un pezzo davanti e attaccalo con la torre sulla colonna per tutta la partita.",
+      "fix_it": "Quando l'avversario ha un pedone isolato, metti subito un pezzo sulla casa davanti. Poi porta le torri sulla colonna.",
+      "recognize": "Fase mediogioco. Pedone isolato avversario (spesso d5 isolato dopo aperture semiaperte). Segnale: p_maia_target_top alta su mosse che occupano la casa davanti al pedone isolato. missed_tactic se non si sfrutta il bersaglio.",
+      "example": "Il nero ha un pedone in d5 isolato. Il bianco piazza il cavallo in d4, blocca il pedone, porta Td1 sulla colonna d. Il pedone cade al ventesimo turno.",
+      "level": "1200-1500",
+      "maps_to": [
+        "mediogioco",
+        "missed_tactic",
+        "hard_calc"
+      ],
+      "source_lineage": "Silman How to Reassess Your Chess (Pawn Structure); Nimzowitsch My System. Fonte: strategia-posizionale (pedone-isolato-punto-debole)"
+    },
+    {
+      "id": "P34",
+      "name_it": "Il re diventa un pezzo nel finale",
+      "idea_it": "Nel finale il re non e' piu' un peso da proteggere. Va portato al centro o vicino ai pedoni. Un re passivo regala tempi preziosi.",
+      "fix_it": "Prima di spingere un pedone, porta il re al centro. Ogni mossa del re vale come una mossa di pedone.",
+      "recognize": "Fase finale, state_before winning o equalish, re ancora sul bordo mentre il mediogioco e' finito. Maia vede avanzata del re, l'utente aspetta. cp_loss cresce per passivita' non per tattica.",
+      "example": "Bianco ha pedone in c5 e torre, re in g1. Invece di Tc1-c7, gioca Te1-d2-c3-b4: ora il re supporta il pedone passato e taglia il re nero.",
+      "level": "1000-1200",
+      "maps_to": [
+        "finale",
+        "conversion",
+        "rushed"
+      ],
+      "source_lineage": "Capablanca Chess Fundamentals (pubblico dominio), cap. I-II. Fonte: finale (king-attivo-nel-finale)"
+    },
+    {
+      "id": "P35",
+      "name_it": "L'opposizione: chi deve muovere apre la strada",
+      "idea_it": "Quando i re si fronteggiano con una casa di distanza, chi deve muovere e' costretto ad aprire la strada. Prendere l'opposizione e' come guadagnare un tempo gratis.",
+      "fix_it": "Chiedi sempre: se avanzo, i re si fronteggiano? Se si', conta chi deve muovere. Quello e' costretto a cedere.",
+      "recognize": "Fase finale, pochi pedoni sulla scacchiera, re vicini. Maia (livello 1500) trova la casa di opposizione; l'utente muove il re nel posto sbagliato e p_maia_mine_top cala. cp_loss medio-basso ma posizione passa da vincente a patta.",
+      "example": "Bianco Te e4, pedone e5. Nero Te e6. Bianco gioca Te d4 (non Te f4), prende l'opposizione laterale: ora il nero e' costretto a cedere e5.",
+      "level": "1200-1500",
+      "maps_to": [
+        "finale",
+        "conversion",
+        "missed_tactic"
+      ],
+      "source_lineage": "Capablanca Chess Fundamentals (pubblico dominio), sez. 13; Silman Complete Endgame Course. Fonte: finale (opposizione-re-e-pedone)"
+    },
+    {
+      "id": "P36",
+      "name_it": "La regola del quadrato: il re arriva in tempo?",
+      "idea_it": "Immagina un quadrato dal pedone passante alla casa di promozione. Se il re nemico entra in quel quadrato, prende il pedone. Altrimenti il pedone passa da solo.",
+      "fix_it": "Disegna il quadrato in testa. Se il re nemico e' fuori, spingi il pedone senza esitare.",
+      "recognize": "Fase finale, un pedone passante senza supporto del re, i due re lontani. spent_seconds alto indica che l'utente calcola a lungo invece di usare la regola. p_maia_target_top mostra che un 1500 la applica subito.",
+      "example": "Pedone bianco in h4, re nero in a8, re bianco in a1. Il quadrato va da h4 a h8 e d8. Il re nero non puo' entrarci in un turno: il pedone promuove da solo.",
+      "level": "1000-1200",
+      "maps_to": [
+        "finale",
+        "hard_calc",
+        "zeitnot"
+      ],
+      "source_lineage": "Dvoretsky Endgame Manual; Pandolfini Endgame Course. Fonte: finale (regola-del-quadrato)"
+    },
+    {
+      "id": "P37",
+      "name_it": "La torre va dietro al pedone passato",
+      "idea_it": "La torre e' piu' forte dietro al pedone passante: lo spinge e guadagna spazio ad ogni avanzata. Davanti al pedone perde forza a ogni mossa.",
+      "fix_it": "Prima di spingere il pedone passante, porta la torre nella colonna DIETRO al pedone.",
+      "recognize": "Fase finale, pedone passante presente, torre mal piazzata (davanti o di fianco al pedone). Maia sceglie torre dietro, l'utente la lascia davanti. cp_loss progressivo non immediato.",
+      "example": "Pedone passante bianco in d5, torre in d1. Giusta: Td1 rimane in d1 mentre il pedone avanza in d6, d7: la torre guadagna la settima traversa. Sbagliata: torre in d6 blocca il pedone.",
+      "level": "1200-1500",
+      "maps_to": [
+        "finale",
+        "conversion",
+        "careless"
+      ],
+      "source_lineage": "Capablanca Chess Fundamentals (pubblico dominio), cap. III; Nimzowitsch My System. Fonte: finale (torre-dietro-al-passato)"
+    },
+    {
+      "id": "P38",
+      "name_it": "Il pedone passato vuole correre",
+      "idea_it": "Un pedone passato che resta fermo non vince niente. Va avanzato finche' non forza una risposta dal nemico. Chi lo blocca deve usare un pezzo, e quel pezzo e' tolto dal gioco.",
+      "fix_it": "Se hai un pedone passante, chiediti ogni mossa: posso avanzarlo? Se non c'e' un pericolo tattico concreto, avanzalo.",
+      "recognize": "Fase finale, pedone passante esistente, l'utente non lo spinge per molte mosse (attende senza motivo). p_maia_mine_top mostra avanzata del pedone. cp_loss lento per mancata promozione.",
+      "example": "Bianco ha pedone in c6, re nero in e6. Invece di aspettare, Bianco c6-c7: ora il re nero deve accorrere e il re bianco puo' invadere dal lato opposto.",
+      "level": "1000-1200",
+      "maps_to": [
+        "finale",
+        "conversion",
+        "rushed",
+        "careless"
+      ],
+      "source_lineage": "Capablanca Chess Fundamentals (pubblico dominio), sez. 11; Nimzowitsch My System. Fonte: finale (pedone-passato-avanza)"
+    },
+    {
+      "id": "P39",
+      "name_it": "Il pedone passato esterno: un'esca per il re nemico",
+      "idea_it": "Un pedone passante sul fianco lontano dai pedoni avversari serve da esca. Il re nemico corre a fermarlo, il tuo re invade dall'altro lato e mangia i pedoni abbandonati.",
+      "fix_it": "Avanza il pedone esterno per costringere il re nemico ad allontanarsi. Poi porta il tuo re dove i pedoni avversari sono soli.",
+      "recognize": "Fase finale, pedoni su entrambi i fianchi, un pedone passante lontano dai pedoni avversari. Maia gioca avanzata del passante esterno mentre l'utente cerca di vincere dove non ci sono pedoni passanti.",
+      "example": "Bianco ha pedone passato in a5, pedoni in f4-g4-h4. Nero ha pedoni in f5-g5-h5. Bianco avanza a5-a6: il re nero corre in a7, il re bianco invade in f6 e vince i pedoni di re.",
+      "level": "1500-1800",
+      "maps_to": [
+        "finale",
+        "conversion",
+        "missed_tactic"
+      ],
+      "source_lineage": "Capablanca Chess Fundamentals (pubblico dominio), cap. II-III; Silman Complete Endgame Course. Fonte: finale (pedone-passato-esterno)"
+    },
+    {
+      "id": "P40",
+      "name_it": "Matti di base senza dare stallo",
+      "idea_it": "Con Regina e Re contro Re si vince sempre. Ma molti la buttano via con uno stallo. Prima di muovere la Regina, controlla che il re nemico abbia almeno una mossa.",
+      "fix_it": "Prima di ogni mossa della Regina, guarda il re nemico: ha case libere? Se e' in angolo senza uscite, spostati prima.",
+      "recognize": "Fase finale, materiale Re+Regina vs Re (o Re+Torre vs Re). error_type conversion. L'utente ha vantaggio schiacciante, state_before winning, poi cp_loss catastrofico per stallo o perdita del pezzo.",
+      "example": "Bianco Te c6, Regina d5. Nero Te a8. Se Bianco gioca Dd8 e' stallo. Giusto: Db7+ Te a7-a8, poi Ta6-Ta7 e Tc8 matto.",
+      "level": "1000-1200",
+      "maps_to": [
+        "finale",
+        "conversion",
+        "careless",
+        "hung_piece"
+      ],
+      "source_lineage": "Capablanca Chess Fundamentals (pubblico dominio), sez. 1-4; canone universale. Fonte: finale (matto-di-base-no-stallo)"
+    },
+    {
+      "id": "P41",
+      "name_it": "Lucena vince, Philidor pareggia: i due caposaldi delle torri",
+      "idea_it": "Nella finale Torre e Pedone contro Torre ci sono due posizioni da sapere a memoria. Lucena: costruisci un ponte per proteggere il pedone. Philidor: tieni la torre sulla terza traversa per bloccare il re nemico.",
+      "fix_it": "Se attacchi, porta il re DAVANTI al pedone e poi costruisci il ponte. Se difendi, torre sulla terza traversa finche' il pedone non avanza in settima.",
+      "recognize": "Fase finale, finale Torre+Pedone vs Torre. cp_loss su entrambi i lati: il vincitore non sa costruire il ponte (conversion), il difensore non conosce la posizione Philidor e perde (conversion). spent_seconds alto indica calcolo prolungato invece di schema.",
+      "example": "Posizione Lucena: Bianco Te f7, pedone f6, Torre a1. Nero Te h7, Torre h8+. Bianco gioca Ta8-a4: ponte costruito, la Torre para gli scacchi laterali mentre il pedone avanza in f7.",
+      "level": "1500-1800",
+      "maps_to": [
+        "finale",
+        "conversion",
+        "hard_calc"
+      ],
+      "source_lineage": "Lucena (~1497); Philidor Analyse du jeu des echecs (1749); Dvoretsky Endgame Manual. Fonte: finale (lucena-philidor-torre-e-pedone)"
+    },
+    {
+      "id": "P42",
+      "name_it": "Zugzwang e triangolazione: perdere un tempo per vincere",
+      "idea_it": "In certi finali di pedoni il problema non e' avanzare ma far muovere l'avversario. Il re puo' girare in triangolo per perdere un tempo e mettere il nemico in zugzwang.",
+      "fix_it": "Se avanzare diretto non funziona, chiedi: posso perdere un tempo col re e obbligare l'avversario a cedere la casa critica?",
+      "recognize": "Fase finale, finale di pedoni puro o con pochi pezzi leggeri. Maia gioca triangolazione (re che torna su), l'utente avanza diretto e manca lo zugzwang. p_maia_target_top evidenzia la casa 'sprecata' che l'utente ignora.",
+      "example": "Te bianco d4, Te nero d6, pedone bianco c4, pedone nero c6. Avanzare c5 non basta. Te d4-e4-e3-d3 (triangolo) mette il nero in zugzwang: deve cedere d5 o aprire la colonna c.",
+      "level": "1500-1800",
+      "maps_to": [
+        "finale",
+        "conversion",
+        "hard_calc",
+        "missed_tactic"
+      ],
+      "source_lineage": "Capablanca Chess Fundamentals (pubblico dominio), sez. 13; Dvoretsky Endgame Manual. Fonte: finale (zugzwang-e-triangolazione)"
+    },
+    {
+      "id": "P43",
+      "name_it": "Mosse candidate prima del calcolo",
+      "idea_it": "Non calcolare la prima mossa che ti viene in mente. Fai prima una lista mentale di due o tre mosse plausibili, poi scegli la piu' promettente da approfondire.",
+      "fix_it": "Nelle posizioni tattiche, nomina tre mosse candidate prima di calcolarne una. La mossa ovvia non e' sempre la migliore.",
+      "recognize": "Partite con cp_loss alto dove Stockfish indica che la mossa migliore era nella lista naturale dell'utente ma non e' stata mai considerata. error_type rushed o careless. spent_seconds basso (mossa veloce). Fase: mediogioco, momenti tattici.",
+      "example": "Vedi uno scacco immediato e lo giochi senza cercare altro. Bastava un secondo per notare che c'era prima una cattura gratuita. Il calcolo prematuro ha perso materiale.",
+      "level": "1200-1500",
+      "maps_to": [
+        "rushed",
+        "careless",
+        "missed_tactic",
+        "spent_seconds",
+        "p_maia_mine_top",
+        "mediogioco"
+      ],
+      "source_lineage": "Kotov Think Like a Grandmaster (1971). Fonte: processo-di-pensiero (mosse-candidate-prima-di-calcolare)"
+    },
+    {
+      "id": "P44",
+      "name_it": "Non fermare il calcolo troppo presto",
+      "idea_it": "Hai calcolato tre mosse e la posizione ti sembra tranquilla. Ma se da quella posizione l'avversario ha ancora una cattura o uno scacco, devi continuare a guardare.",
+      "fix_it": "Dopo aver calcolato la tua variante, guarda l'ultima posizione: l'avversario ha ancora uno scacco, una cattura, una minaccia? Se si', calcola ancora un passo.",
+      "recognize": "Errori in cui la sequenza calcolata era corretta fino al penultimo passo, ma l'ultimo pezzo era ancora in presa o c'era una risposta forzata non vista. error_type missed_tactic, hard_calc. cp_loss medio-alto. p_maia_mine_top basso. Motivi: pezzo_in_presa, back_rank, skewer.",
+      "example": "Calcoli Txd1+ Txd1 e pensi di aver vinto la torre. Non hai visto che l'avversario non riprende subito: prima salva l'alfiere in presa, e improvvisamente hai due pezzi sospesi.",
+      "level": "1200-1500",
+      "maps_to": [
+        "missed_tactic",
+        "hard_calc",
+        "pezzo_in_presa",
+        "back_rank",
+        "skewer",
+        "p_maia_mine_top",
+        "cp_loss"
+      ],
+      "source_lineage": "Heisman 'The Immortal Quiescence Error Game' / Novice Nook #163. Fonte: processo-di-pensiero (errore-di-quiescenza)"
+    },
+    {
+      "id": "P45",
+      "name_it": "Usa il tempo sulle mosse che contano",
+      "idea_it": "Non e' sbagliato muovere veloce in posizioni calme. E' sbagliato muovere veloce nelle posizioni tattiche. Il tempo sull'orologio non serve a niente se lo sprechi dove non conta.",
+      "fix_it": "Nelle posizioni tattiche, prenditi il doppio del tempo che istintivamente vorresti. Tieni almeno un terzo del tempo per la seconda meta' della partita.",
+      "recognize": "Partite con error_type rushed o zeitnot, dove spent_seconds e' basso in mediogioco su mosse con alta cp_loss. time_state rushed o normal (non zeitnot) indica che l'utente aveva tempo ma non lo ha usato. Correlazione: state_before equalish e poi caduta improvvisa.",
+      "example": "Sei in una posizione equilibrata al venticinquesimo turno, hai 18 minuti. Muovi veloce per dieci mosse. Al trentacinquesimo, posizione tattica complicata: hai 3 minuti. Zeitnot autoprodotto.",
+      "level": "1200-1500",
+      "maps_to": [
+        "rushed",
+        "zeitnot",
+        "spent_seconds",
+        "time_state",
+        "cp_loss",
+        "state_before",
+        "mediogioco"
+      ],
+      "source_lineage": "Heisman Time Management principles. Fonte: processo-di-pensiero (gestione-orologio-posizioni-critiche)"
+    },
+    {
+      "id": "P46",
+      "name_it": "La mossa dopo l'errore grave e' la piu' pericolosa",
+      "idea_it": "Hai appena fatto un errore grave. L'impulso e' di reagire subito. Resisti. Fermati, guarda la posizione com'e' adesso, non com'era prima del tuo errore.",
+      "fix_it": "Dopo un errore, forza una pausa. Non muovere per almeno 30 secondi. Guardala come se fosse la prima mossa della partita da questa posizione.",
+      "recognize": "Sequenze di due o piu' errori gravi consecutivi in pochi turni. cp_loss alto su due mosse consecutive. error_type careless su entrambe. spent_seconds basso sulla mossa successiva all'errore (reazione impulsiva). state_before peggiora rapidamente da equalish a losing.",
+      "example": "Perdi l'alfiere per distrazione. Il turno dopo, per riprenderti in fretta, giochi un attacco impulsivo e perdi anche il cavallo. Due errori gravi in due mosse: il secondo era evitabile.",
+      "level": "tutti",
+      "maps_to": [
+        "careless",
+        "rushed",
+        "cp_loss",
+        "spent_seconds",
+        "state_before",
+        "mediogioco",
+        "p_maia_mine_top"
+      ],
+      "source_lineage": "Psicologia del tilt scacchistico; Heisman 'Never play a bad move fast'. Fonte: processo-di-pensiero (tilt-mossa-dopo-errore)"
+    },
+    {
+      "id": "P47",
+      "name_it": "La tua ancora: l'errore che ti ripeti",
+      "idea_it": "Lo stesso tipo di errore che torna partita dopo partita non e' sfortuna, e' un'abitudine. Quella e' la tua ancora: scioglierla vale piu' di mille esercizi nuovi.",
+      "fix_it": "Quando Nonno ti dice che un errore e' tornato di nuovo, fermati li': non e' un caso isolato, e' il lavoro che conta di piu'.",
+      "recognize": "Segnale transfer_motif / ancora ricorrente: stesso error_type o motivo in piu' partite. Si lega alle Ancore del prodotto. Non si attiva su un singolo errore ma su una sequenza di partite con lo stesso schema.",
+      "example": "Tre volte questo mese hai lasciato un pezzo in presa nello stesso modo: dopo un cambio al centro. Non e' sfortuna, e' un'abitudine da rompere.",
+      "level": "tutti",
+      "maps_to": [
+        "transfer_motif",
+        "careless",
+        "hung_piece"
+      ],
+      "source_lineage": "Concetto-cardine del prodotto (le Ancore); pedagogia dell'errore ricorrente"
+    }
+  ],
+  "method": [
+    {
+      "id": "M01",
+      "name": "Nomina la tentazione prima di tutto",
+      "role": "Aggancio emotivo: prima di spiegare la mossa giusta, nomina la mossa ovvia che il giocatore voleva fare. Senza quello, la lezione cade nel vuoto."
+    },
+    {
+      "id": "M02",
+      "name": "Mostra la punizione in mezza riga",
+      "role": "Variante concreta: la punizione di un errore va detta con mosse precise, non con aggettivi. Una riga di variante vale piu' di tre righe di giudizio."
+    },
+    {
+      "id": "M03",
+      "name": "Chiudi sempre con il principio trasferibile",
+      "role": "Regola portabile: ogni spiegazione finisce con una regola corta che il giocatore puo' portare alla prossima partita."
+    },
+    {
+      "id": "M04",
+      "name": "Metti a confronto due mosse vicine",
+      "role": "Contrasto analitico: la mossa giusta si capisce meglio accanto alla mossa sbagliata. Il contrasto e' il motore della comprensione."
+    },
+    {
+      "id": "M05",
+      "name": "Segnala il pericolo prima di parlare del tuo piano",
+      "role": "Ordine corretto: ogni volta che l'avversario ha una minaccia concreta, quella va nominata per prima. Chi salta questo ordine gioca a speranza."
+    },
+    {
+      "id": "M06",
+      "name": "Di' quanto era difficile vedere quella mossa",
+      "role": "Calibrazione del tono: non ogni errore e' uguale. La difficolta' (p_maia_mine_top vs p_maia_target_top) calibra se 'potevi vederla' o 'non ti preoccupare'."
+    },
+    {
+      "id": "M07",
+      "name": "Risali alla mossa che ha creato il problema",
+      "role": "Radice narrativa: un errore grave non nasce dal nulla. Risalire alla mossa radice vale piu' che commentare solo il blunder finale."
+    }
+  ],
+  "teaching_pattern": "SCHEMA VOCE-MAESTRO: Perche' questa e non quella. Derivato da Chernev (Logical Chess Move by Move), Heisman (CCT / Hope Chess) e dal cluster metodo-di-spiegazione. La sequenza obbligatoria in 4 passi: 1. TENTAZIONE (M01): nomina la mossa che il giocatore VOLEVA fare, non quella giocata. Formato: 'Qui volevi [mossa X], vero? Si capisce: [motivo emotivo breve].' Segnale di attivazione: p_maia_mine_top alta su una mossa diversa da quella giocata. 2. PUNIZIONE CONCRETA (M02): mostra con mosse precise cosa sarebbe successo con la tentazione. Una variante, non un giudizio. Formato: 'Se giocavi [X], arrivava [risposta Y] e [conseguenza Z].' Massimo una mossa di variante. Con M06: se p_maia_target_top era bassa anche per un 1500, aggiungi 'era difficile da vedere'. 3. PRINCIPIO (M03): collega l'errore al principio universale corrispondente. Formato: 'La regola che salva da questo e': [idea_it del principio in una frase].' Selezione: usa maps_to dell'errore per trovare il principio: hung_piece + careless -> P01 LPDO; missed_tactic + fork -> P04; conversion + state_before winning -> P13. 4. CONFRONTO (M04): mostra la mossa giusta accanto a quella sbagliata. Formato: 'Hai giocato [X]. Guarda se invece facevi [Y]: [conseguenza concreta].' Non ripetere la variante del passo 2. Eventuale radice (M07): se state_before mostra che la posizione era gia' compromessa due mosse prima, aggiungi: 'Ma il problema era nato gia' al turno [N].' TONO: Nonno O. parla in seconda persona, diretto ma affettuoso. Mai accusatorio. Niente aggettivi di giudizio: solo fatti e mosse. Una sola regola per spiegazione. Lunghezza target: 3-4 frasi totali. ESEMPIO COMPLETO (P01 su hung_piece): 'Qui volevi spingere il pedone in d5 subito: si capisce, volevi il centro. Ma il tuo alfiere in e4 non era difeso: se giocavi d5, lui rispondeva Cxe4 e ti prendeva l'alfiere gratis. La regola che salva e' questa: prima di muovere, guarda se hai un pezzo senza difensori. Hai giocato d5: se invece facevi Ae2 prima, mettevi l'alfiere al sicuro e poi potevi spingere.'",
+  "top12": [
+    "P01",
+    "P02",
+    "P03",
+    "P10",
+    "P04",
+    "P13",
+    "P16",
+    "P26",
+    "P05",
+    "P34",
+    "P46",
+    "P45"
+  ],
+  "gaps": [
+    "attacco_prematuro senza principio dedicato: P26 (profilassi) e P28 (buco) lo sfiorano, ma nessuno insegna esplicitamente 'quando NON attaccare' come check prima di lanciare un'operazione tattica",
+    "pezzi_inattivi come segnale autonomo: P22 (avamposto), P23 (torre-colonna), P29 (migliora il pezzo peggiore) coprono il rimedio ma non esiste un principio che insegna a RICONOSCERE la coppia cavallo-in-c3-torre-in-a1 come segnale di allarme",
+    "finale Re+Pedone vs Re: manca il principio su quando il pedone promuove o fa patta a seconda del colore della casa e del re, presupposto spesso errato sotto 1400",
+    "finale Re+Torre vs Re: manca la tecnica Lucena senza pedone (matto di base con torre)",
+    "apertura: nessun principio sulle aperture semi-aperte o difese indiane per il livello 1500-1800; il cluster apertura copre solo i fondamentali 1000-1500",
+    "gestione del vantaggio materiale minore (pedone in piu'): P13 lo tocca dal lato del errore grave, non come tecnica di conversione sistematica (ridurre i pezzi, attivare il re, creare un passato)"
+  ]
+}

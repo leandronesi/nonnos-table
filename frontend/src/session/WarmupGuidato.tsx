@@ -20,6 +20,10 @@ import { useStockfish, type EvalResult } from "../engine/useStockfish";
 import { turnFromFen } from "../chess-utils";
 import type { DrillVerdict } from "./store";
 import { tr, getLang } from "../i18n/lang";
+import { buildMoveReason, buildFoundReason, extractMoveFacts } from "./moveReason";
+import { fetchLesson, buildTeachArgs } from "../coach/teachClient";
+import { enrichPunishment } from "../coach/engineLine";
+import { MaestroLoader } from "../coach/MaestroLoader";
 
 // ---------------------------------------------------------------------------
 // Public interfaces
@@ -209,6 +213,11 @@ export function PositionPuzzle({
   const [intro] = useState(() => pick(introLines));
   const [verdictMsg, setVerdictMsg] = useState<string>("");
 
+  // Lezione maestro (progressive enhancement): parte null (floor deterministico),
+  // si sostituisce quando fetchLesson risponde. Se null, resta il floor. Mai vuoto.
+  const [maestroLesson, setMaestroLesson] = useState<string | null>(null);
+  const [lessonLoading, setLessonLoading] = useState(false);
+
   const baseFen = position.fen_before;
   const orientation = position.my_color || turnFromFen(baseFen);
   const puzzleKey = `${position.game_id}:${position.ply}`;
@@ -221,7 +230,77 @@ export function PositionPuzzle({
     setAttempts(0);
     setVerdictMsg("");
     evaluatingRef.current = false;
+    setMaestroLesson(null);
+    setLessonLoading(false);
   }, [puzzleKey]);
+
+  // Effect: lezione maestro (progressive enhancement).
+  // Scatta quando il verdict e' 'ok' o 'wrong' (errore reale).
+  // 'perfect' non ha bisogno di spiegazione -- lascia buildFoundReason com'e'.
+  // Fallback al floor buildMoveReason se fetchLesson torna null.
+  useEffect(() => {
+    let cancelled = false;
+    // 'perfect' non carica il maestro: niente loader, niente fetch
+    if (verdict !== "ok" && verdict !== "wrong") {
+      setLessonLoading(false);
+      return () => { cancelled = true; };
+    }
+
+    const normSan = (s: string | null | undefined) =>
+      (s ?? "").replace(/[+#!?]+$/, "").trim();
+    // Guard: solo se c'e' un errore reale (best != played)
+    if (
+      !position.best_san_sf ||
+      normSan(position.best_san_sf) === normSan(playedSan)
+    ) {
+      setLessonLoading(false);
+      return () => { cancelled = true; };
+    }
+
+    // Reset lezione precedente
+    setMaestroLesson(null);
+
+    const input = {
+      fenBefore: baseFen,
+      myColor: orientation as "white" | "black",
+      playedSan: playedSan,
+      bestUci: position.best_uci ?? null,
+      bestSan: position.best_san_sf ?? null,
+      motif: position.motif ?? null,
+      phase: position.phase ?? null,
+      lastOppSan: position.last_opp_san ?? null,
+      p_maia_mine_top: position.p_maia_mine_top ?? null,
+      p_maia_target_top: position.p_maia_target_top ?? null,
+      pv_san_sf: null, // PositionRow non espone pv_san_sf in WarmupGuidato
+      state_before: null,
+      error_type: position.motif ?? null,
+    };
+
+    const facts = extractMoveFacts(input);
+    if (!facts) {
+      // nessun fatto estraibile: il floor basta, niente loader
+      setLessonLoading(false);
+      return () => { cancelled = true; };
+    }
+
+    // Facts presenti: mostra loader (copre anche l'attesa del motore)
+    setLessonLoading(true);
+
+    enrichPunishment(input, facts)
+      .then((enriched) => {
+        if (cancelled) return null; // smontato o puzzle cambiato — stage 1
+        return fetchLesson(buildTeachArgs(enriched, facts));
+      })
+      .then((lesson) => {
+        if (cancelled) return; // smontato o puzzle cambiato — stage 2
+        setLessonLoading(false);
+        if (lesson) setMaestroLesson(lesson);
+        // se null, lessonLoading=false -> render mostra il floor
+      });
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verdict, puzzleKey, getLang()]);
 
   async function onDrop(from: string, to: string): Promise<boolean> {
     if (verdict !== null && verdict !== "wrong") return false;
@@ -657,6 +736,68 @@ export function PositionPuzzle({
             >
               {verdictMsg}
             </div>
+
+            {/* Riga-perche': frase vera dalla posizione.
+                'perfect': buildFoundReason (nessun maestro).
+                'ok'/'wrong': floor buildMoveReason oppure lezione maestro se arrivata.
+                La lezione maestro entra via progressive enhancement: opacita' piena
+                e font leggermente piu' grande segnalano che e' piu' ricca del floor. */}
+            {(() => {
+              if (verdict === "perfect") {
+                const reason = buildFoundReason({
+                  fenBefore: baseFen,
+                  myColor: orientation,
+                  playedSan: playedSan,
+                  bestSan: position.best_san_sf,
+                  bestUci: position.best_uci,
+                  motif: position.motif,
+                });
+                if (!reason) return null;
+                return (
+                  <p
+                    style={{
+                      fontSize: "0.82rem",
+                      color: "var(--color-text-soft)",
+                      fontFamily: "var(--font-sans)",
+                      fontWeight: 400,
+                      lineHeight: 1.5,
+                      marginTop: "4px",
+                    }}
+                  >
+                    {reason}
+                  </p>
+                );
+              }
+              // ok or wrong: loader mentre carica, poi maestro o floor
+              if (lessonLoading) return <MaestroLoader />;
+
+              const floorReason = buildMoveReason({
+                fenBefore: baseFen,
+                myColor: orientation,
+                playedSan: playedSan,
+                bestSan: position.best_san_sf,
+                bestUci: position.best_uci,
+                motif: position.motif,
+              });
+              const displayText = maestroLesson ?? floorReason;
+              if (!displayText) return null;
+              const isMaestro = !!maestroLesson;
+              return (
+                <p
+                  style={{
+                    fontSize: isMaestro ? "0.875rem" : "0.82rem",
+                    color: "var(--color-text-soft)",
+                    fontFamily: "var(--font-sans)",
+                    fontWeight: 400,
+                    lineHeight: 1.5,
+                    marginTop: "4px",
+                    opacity: isMaestro ? 1 : 0.85,
+                  }}
+                >
+                  {displayText}
+                </p>
+              );
+            })()}
 
             {/* Dettagli mossa */}
             <div

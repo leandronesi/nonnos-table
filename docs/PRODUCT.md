@@ -31,6 +31,61 @@ Il resto del manifesto (lessico §17, le 3 firme §10, il loop temporale §13) r
 
 ---
 
+## 0.5 Aggiornamento 2026-06-22 — non più «mostra», ma «spiega»
+
+Feedback del tester Daniele (principiante vero): «bello il tavolo del nonno,
+ma mi piacerebbe spiegasse perché. Non sono così bravo da capirlo al volo.»
+Il prodotto era tarato su un giocatore esperto. Questa è la correzione di rotta:
+**dove confligge con §7, §10, §11.3 e §0.2, prevale quanto segue.**
+
+### Il principio
+
+Ogni verdetto porta con sé il **perché vero**. Non basta mostrare la mossa
+giusta: Nonno dice *cosa* fa quella mossa e *cosa* lasciava la tua.
+«La mossa giusta era Tf1» diventa «Il tuo cavallo in e5 era in presa: dopo
+Txd5 te lo prendeva gratis. Tf1 lo mette al sicuro.»
+
+### Il meccanismo: «frase vera dalla posizione»
+
+Il perché è **board-aware deterministico**: chess.js legge la posizione e ne
+estrae i fatti reali (quale pezzo era in presa, su quale casa, cosa minaccia la
+mossa giusta), e Nonno li racconta con la sua voce. **Zero LLM, offline,
+istantaneo, sempre coerente.** Regola dura: **mai inventare**. Si emettono solo
+fatti veri della scacchiera; quando il fatto non è certo, Nonno tace e resta il
+verdetto nudo (meglio il silenzio di una spiegazione sbagliata).
+
+Scartati dal PO: i *template generici* per motivo («il pezzo era in presa»,
+uguale per tutti) come troppo superficiali; l'*LLM-per-mossa* (racconto generato
+su ogni posizione) rinviato come possibile **approfondimento futuro su
+richiesta** (un «entriamo nel dettaglio?» che chiama la voce), non come base.
+
+### Due pattern di spiegazione, separati per superficie
+
+- **Sessione (verdetti delle mosse):** la frase-perché è **sempre visibile**
+  sotto il verdetto. Non è un bottone. Questo **supera** il «Niente Spiegami di
+  più» del §7: il perché non è un extra opzionale, è parte del verdetto. Resta
+  una sola CTA «Avanti» (nessun nuovo bottone nel flusso).
+- **Grafici e dati (Tavolo, Quaderno):** **tocca-per-spiegare** (il «?» di
+  `NonnoExplain`), on-demand, come già previsto da §0.2. Clicchi un grafico che
+  non capisci, Nonno ti dice cosa vuol dire e cosa farci. Il gergo tecnico
+  (ACPL, performance rolling) va tradotto in lingua naturale.
+
+### Ancore: mostra l'azione, non solo l'etichetta
+
+Ogni Ancora porta con sé la sua **frase-azione** (cosa fare di concreto, già
+scritta in `i18n/anchors.ts`), sempre visibile accanto all'etichetta e al
+guadagno. «Pezzi in presa · +18 punti» non basta: «Controlla sempre le catture
+dell'avversario prima di muovere.»
+
+### La voce
+
+Le frasi-perché sono **voce di Nonno autoriale** (frammenti scritti, non LLM):
+valgono come voce a tutti gli effetti se rispettano la skill `nonno-voice`
+(frasi corte, lessico scacchistico italiano, niente em-dash, 2a persona, mai
+paternalismo). Bilingui IT/EN.
+
+---
+
 ## 1. Cosa è il prodotto, in una frase
 
 > Un **tavolo quotidiano** con un nonno scacchista che ti conosce attraverso
@@ -157,7 +212,9 @@ Note tecniche:
 - Tempo, probabilità MAIA mine vs target, alternative "di attesa" sono
   parte del **discorso di Nonno**, non statistiche affiancate.
 - Una sola CTA: "Avanti". Niente "Salta", niente "Tutorial", niente
-  "Spiegami di più".
+  "Spiegami di più". **[Superato da §0.5]** Il perché della mossa è ora
+  SEMPRE VISIBILE sotto il verdetto (riga-perché board-aware), non un bottone:
+  resta vero che non c'è un secondo CTA nel flusso.
 
 ## 8. Scena: Sessione — la PARTITA finale
 

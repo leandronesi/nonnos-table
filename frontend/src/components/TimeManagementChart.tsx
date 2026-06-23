@@ -12,6 +12,8 @@ import {
   YAxis,
 } from "recharts";
 import type { TimeManagement, Tilt } from "../types";
+import { NonnoExplain } from "./NonnoExplain";
+import { tr } from "../i18n/lang";
 
 /**
  * "Cosa succede quando l'orologio scende."
@@ -50,6 +52,23 @@ export function TimeManagementChart({
 
   return (
     <div className="surface surface-padded">
+      {/* Header with NonnoExplain — placed above the chart area */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.75rem" }}>
+        <div className="label-eyebrow">{tr("Gestione del tempo", "Time management")}</div>
+        <NonnoExplain
+          title={tr("L'orologio", "The clock")}
+          lines={[
+            tr(
+              "Questo e' l'orologio. Piu' scendi col tempo, piu' sbagli: la linea sale verso destra dove restano pochi secondi.",
+              "This is the clock. The less time you have left, the more you err: the line climbs on the right where the seconds run out.",
+            ),
+            tr(
+              "Se la parte pesante e' quando resti senza secondi, gestisci meglio il tempo all'inizio: non arrivare in zeitnot sulle posizioni che contano.",
+              "If the worst zone is when you have almost no time left, manage the clock better early on: do not reach time trouble on the positions that matter.",
+            ),
+          ]}
+        />
+      </div>
       <div className="h-[320px]" role="img" aria-label="Grafico tempo rimasto vs errori">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 30, right: 24, left: 0, bottom: 4 }}>

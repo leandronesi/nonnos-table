@@ -22,6 +22,9 @@ export interface BatchEvalResult {
   /** MultiPV lines ordered by index (lines[0] = multipv 1 = best).
    *  Fallback: single-element array mirroring scoreCp/mate/bestMoveUci. */
   lines: MultiPVLine[];
+  /** Full principal variation (UCI sequence) for multipv 1.
+   *  Example: "e2e4 e7e5 g1f3". null if no pv was parsed. */
+  pvUci: string | null;
 }
 
 const ENGINE_PATH = `${import.meta.env.BASE_URL || "/"}engine/stockfish-18-lite-single.js`;
@@ -40,7 +43,10 @@ export class StockfishEngine {
     bestMoveUci: null,
     depth: 0,
     lines: [],
+    pvUci: null,
   };
+  /** Stores the raw pv token sequence for multipv 1, updated on each info line. */
+  private currentPvUci: string | null = null;
   /** Accumulates MultiPV lines keyed by multipv index (1-based) during search. */
   private currentLines: Map<number, MultiPVLine> = new Map();
   private pendingResolve: ((r: BatchEvalResult) => void) | null = null;
@@ -55,6 +61,7 @@ export class StockfishEngine {
     this.pendingResolve = null;
     this.pendingReject = null;
     this.currentLines = new Map();
+    this.currentPvUci = null;
   }
 
   private init() {
@@ -104,6 +111,9 @@ export class StockfishEngine {
               moveUci: this.current.bestMoveUci,
             }];
           }
+          // Attach the full principal variation captured during search.
+          this.current.pvUci = this.currentPvUci;
+          this.currentPvUci = null;
           // Resolve via the wrapper stored in pendingResolve; the wrapper
           // handles clearTimeout + settled flag internally.
           const resolveFn = this.pendingResolve;
@@ -146,9 +156,11 @@ export class StockfishEngine {
       lineCp = mate[1].startsWith("-") ? -10000 : 10000;
     }
 
-    // Parse first move from pv.
-    const pvMatch = line.match(/\bpv ([a-h][1-8][a-h][1-8][qrbnQRBN]?)/);
-    const pvMove = pvMatch ? pvMatch[1] : null;
+    // Parse full pv sequence (all moves in the principal variation).
+    const pvFullMatch = line.match(/\bpv ((?:[a-h][1-8][a-h][1-8][qrbnQRBN]? ?)+)/);
+    const pvFull = pvFullMatch ? pvFullMatch[1].trim() : null;
+    // First move only (for MultiPVLine.moveUci, unchanged semantics).
+    const pvMove = pvFull ? pvFull.split(" ")[0] : null;
 
     if (mpvIdx !== null) {
       // MultiPV line: accumulate per-index.
@@ -166,6 +178,8 @@ export class StockfishEngine {
           this.current.scoreCp = lineCp;
           this.current.mate = null;
         }
+        // Capture full pv for multipv 1 only.
+        if (pvFull) this.currentPvUci = pvFull;
       }
     } else {
       // No multipv tag (single-pv mode or header line): update current directly.
@@ -176,6 +190,8 @@ export class StockfishEngine {
         this.current.scoreCp = lineCp;
         this.current.mate = null;
       }
+      // Capture full pv in single-pv mode too.
+      if (pvFull) this.currentPvUci = pvFull;
     }
   }
 
@@ -189,8 +205,9 @@ export class StockfishEngine {
       await this.queue.catch(() => undefined);
       await this.waitReady();
       const w = this.worker!;
-      this.current = { scoreCp: null, mate: null, bestMoveUci: null, depth: 0, lines: [] };
+      this.current = { scoreCp: null, mate: null, bestMoveUci: null, depth: 0, lines: [], pvUci: null };
       this.currentLines = new Map();
+      this.currentPvUci = null;
       return new Promise<BatchEvalResult>((resolve, reject) => {
         let settled = false;
 

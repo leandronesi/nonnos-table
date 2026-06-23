@@ -53,6 +53,7 @@ import { CaduteTrainer } from "../../session/CaduteTrainer";
 import { uciToArrow, uciToSan } from "./boardArrows";
 import { tr, getLang } from "../../i18n/lang";
 import { getAnchorLabel, getAnchorMeta } from "../../i18n/anchors";
+import { buildMoveReason } from "../../session/moveReason";
 
 // ── Tab definition ─────────────────────────────────────────────────────────────
 
@@ -330,14 +331,23 @@ function AnchorTrailsSection({
                       )}
                     </div>
                     {(() => {
-                      const meaning = getAnchorMeta(trail.key, getLang(), {
+                      const meta = getAnchorMeta(trail.key, getLang(), {
                         label_it: trail.label_it,
-                      }).meaning;
-                      return meaning ? (
-                        <div style={{ marginBottom: "0.375rem", fontSize: "0.78rem", color: "var(--color-faint)", lineHeight: 1.45 }}>
-                          {meaning}
-                        </div>
-                      ) : null;
+                      });
+                      return (
+                        <>
+                          {meta.meaning ? (
+                            <div style={{ marginBottom: "0.2rem", fontSize: "0.78rem", color: "var(--color-faint)", lineHeight: 1.45 }}>
+                              {meta.meaning}
+                            </div>
+                          ) : null}
+                          {meta.action ? (
+                            <div style={{ marginBottom: "0.375rem", fontSize: "0.72rem", color: "var(--color-faint)", lineHeight: 1.4, fontStyle: "italic" }}>
+                              {meta.action}
+                            </div>
+                          ) : null}
+                        </>
+                      );
                     })()}
                     <div style={{ fontSize: "0.82rem", color: "var(--color-text-soft)", lineHeight: 1.55 }}>
                       {verdict}
@@ -1336,6 +1346,7 @@ interface CaduteGroup {
   key: string;          // anchor (error_type) key, "varie" for unclassified
   label: string;        // Italian display label
   meaning?: string;     // one-line explanation of the anchor
+  action?: string;      // one-line directive: what to do about this anchor
   positions: PositionExample[];
 }
 
@@ -1352,7 +1363,7 @@ function buildCaduteGroups(raw: PositionExample[]): CaduteGroup[] {
 
     let grp = map.get(key);
     if (!grp) {
-      grp = { key, label, meaning: anchorMeta?.meaning ?? meta?.meaning_it, positions: [] };
+      grp = { key, label, meaning: anchorMeta?.meaning ?? meta?.meaning_it, action: anchorMeta?.action ?? meta?.action_it, positions: [] };
       map.set(key, grp);
     }
     grp.positions.push(pos);
@@ -1397,6 +1408,22 @@ function GroupGallery({ positions, onOpeningLink }: { positions: PositionExample
               )}
               {avoid === "evitabile" && <span className="tt-chip warn" style={{ fontSize: "0.65rem" }}>{tr("Evitabile", "Avoidable")}</span>}
             </div>
+            {(() => {
+              const reason = buildMoveReason({
+                fenBefore: c.fen_before,
+                myColor: c.color,
+                playedUci: c.played_uci,
+                bestUci: c.best_uci ?? null,
+                motif: c.motif ?? null,
+                phase: c.phase ?? null,
+                lastOppSan: c.last_opp_san ?? null,
+              });
+              return reason ? (
+                <div style={{ marginTop: "0.3rem", fontSize: "0.65rem", color: "var(--color-text-soft)", lineHeight: 1.4 }}>
+                  {reason}
+                </div>
+              ) : null;
+            })()}
             <div className="font-mono" style={{ fontSize: "0.65rem", color: "var(--color-muted)", marginTop: "0.25rem", fontVariantNumeric: "tabular-nums" }}>
               <span style={{ color: "var(--color-danger)", fontWeight: 600 }}>{c.san}</span>
               <span style={{ color: "var(--color-faint)" }}>{" > "}</span>
@@ -1632,6 +1659,11 @@ function TabCadute({
                       {grp.meaning && (
                         <div style={{ marginTop: "0.25rem", fontSize: "0.8rem", color: "var(--color-muted)", lineHeight: 1.5 }}>
                           {grp.meaning}
+                        </div>
+                      )}
+                      {grp.action && (
+                        <div style={{ marginTop: "0.2rem", fontSize: "0.75rem", color: "var(--color-faint)", lineHeight: 1.4, fontStyle: "italic" }}>
+                          {grp.action}
                         </div>
                       )}
                       <div style={{ marginTop: "0.25rem", display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>

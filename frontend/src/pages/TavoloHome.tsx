@@ -34,7 +34,7 @@ import type { AnchorTrail } from "../types";
 import { useTavoloData } from "./tavolo/useTavoloData";
 import { useOnboardingRun } from "../pipeline/OnboardingRunContext";
 import { tr, getLang } from "../i18n/lang";
-import { getAnchorLabel } from "../i18n/anchors";
+import { getAnchorLabel, getAnchorMeta } from "../i18n/anchors";
 
 // ── Reveal hook ───────────────────────────────────────────────────────────────
 
@@ -344,36 +344,81 @@ function AnchorMicroTrail({ trail }: { trail: AnchorTrail }) {
   const lx = parseFloat(lastPt[0]);
   const ly = parseFloat(lastPt[1]);
 
+  // Direction: compare first vs last freq value.
+  // freq is "errors per game" — higher = worse.
+  // A meaningful change threshold: > 10% of the max value.
+  const threshold = maxF * 0.10;
+  const delta = freqPoints[freqPoints.length - 1] - freqPoints[0];
+  const isImproving = delta < -threshold;
+  const isWorsening = delta > threshold;
+
+  // Label shown next to sparkline: "cala" = fewer errors = good (green),
+  // "sale" = more errors = bad (warn color).
+  const dirLabel = isImproving
+    ? tr("cala", "falling")
+    : isWorsening
+    ? tr("sale", "rising")
+    : null;
+  const dirColor = isImproving
+    ? "var(--color-ok, #34d399)"
+    : isWorsening
+    ? "var(--color-warn, #f5a524)"
+    : "var(--color-faint)";
+
   return (
     <div
-      className={drawn ? "ink-drawn" : ""}
-      ref={inkRef as React.RefCallback<HTMLDivElement>}
-      style={{ flexShrink: 0, lineHeight: 0 }}
-      aria-hidden="true"
+      style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: "0.15rem" }}
     >
-      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
-        <polyline
-          points={polylinePoints}
-          pathLength={1}
-          className="ink-path"
-          stroke="var(--color-text-soft)"
-          strokeWidth="1.5"
-          fill="none"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <circle
-          cx={lx}
-          cy={ly}
-          r="2"
-          fill="var(--color-text-soft)"
+      <div
+        className={drawn ? "ink-drawn" : ""}
+        ref={inkRef as React.RefCallback<HTMLDivElement>}
+        style={{ lineHeight: 0 }}
+        aria-hidden="true"
+      >
+        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+          <polyline
+            points={polylinePoints}
+            pathLength={1}
+            className="ink-path"
+            stroke="var(--color-text-soft)"
+            strokeWidth="1.5"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <circle
+            cx={lx}
+            cy={ly}
+            r="2"
+            fill="var(--color-text-soft)"
+            style={{
+              opacity: drawn ? 1 : 0,
+              transition: "opacity 300ms var(--ease-out)",
+              transitionDelay: drawn ? "950ms" : "0ms",
+            }}
+          />
+        </svg>
+      </div>
+      {dirLabel && (
+        <div
+          aria-label={
+            isImproving
+              ? tr("questa ancora sta calando", "this anchor is improving")
+              : tr("questa ancora sta salendo", "this anchor is worsening")
+          }
           style={{
-            opacity: drawn ? 1 : 0,
-            transition: "opacity 300ms var(--ease-out)",
-            transitionDelay: drawn ? "950ms" : "0ms",
+            fontSize: "0.58rem",
+            fontFamily: "var(--font-mono)",
+            fontWeight: 700,
+            letterSpacing: "0.04em",
+            color: dirColor,
+            lineHeight: 1,
+            textAlign: "center",
           }}
-        />
-      </svg>
+        >
+          {dirLabel}
+        </div>
+      )}
     </div>
   );
 }
@@ -479,6 +524,24 @@ function AnchorRow({ anchor, rank, trail }: { anchor: Anchor; rank: number; trai
               {tr(`In ${anchor.games_with} partite diverse`, `Across ${anchor.games_with} games`)}
             </div>
           )}
+          {/* Action line — what to do about this anchor */}
+          {(() => {
+            const action = getAnchorMeta(anchor.type, lang, {
+              label_it: anchor.label_it,
+              action_it: anchor.action_it,
+            }).action;
+            return action ? (
+              <div style={{
+                marginTop: "0.3rem",
+                fontSize: "0.72rem",
+                color: "var(--color-faint)",
+                lineHeight: 1.4,
+                fontStyle: "italic",
+              }}>
+                {action}
+              </div>
+            ) : null;
+          })()}
         </div>
 
         {/* Micro-trail sparkline — ink, no colour judgment, ink tells the story */}
@@ -1053,67 +1116,82 @@ export function TavoloHome() {
         <VarcoQuaderno onNavigate={() => navigateWithTransition(() => nav("/quaderno"))} />
       </Reveal>
 
-      {/* ── 6. AZIONI SECONDARIE (mobile only — desktop uses sidebar links) ── */}
-      {/* On desktop these live as quiet text links in the AppShell sidebar footer. */}
-      <div
-        className="appshell-mobile-actions"
-        style={{
-          borderTop: "1px solid var(--color-line)",
-          paddingTop: "1rem",
-          paddingBottom: "0.5rem",
-          marginBottom: "0.5rem",
-          fontSize: "0.75rem",
-          color: "var(--color-faint)",
-          textAlign: "center",
-          justifyContent: "center",
-          gap: "0",
-        }}
-      >
-        <button
-          onClick={() => void handleRefresh()}
-          disabled={refreshing || reanalyzing}
+      {/* ── 6. AGGIORNA LE PARTITE — bottone secondario, sempre visibile ────
+          Prominent secondary action: visible on all viewports (desktop + mobile).
+          Visually subordinate to Sediamoci: surface-2 bg + border, text-soft color,
+          no Twilight (reserved for primary CTA), no gold (reserved for Obiettivo).
+          "Rianalizza da capo" stays quiet as ghost text below it — it is
+          destructive and heavy, should not compete. */}
+      <Reveal delay={300} className="mb-10">
+        <div
           style={{
-            background: "none",
-            border: "none",
-            padding: 0,
-            cursor: refreshing || reanalyzing ? "default" : "pointer",
-            opacity: refreshing || reanalyzing ? 0.4 : 1,
-            color: "var(--color-faint)",
-            fontSize: "inherit",
-            fontFamily: "inherit",
-            textDecoration: "underline",
-            textDecorationColor: "color-mix(in srgb, var(--color-faint) 50%, transparent)",
-            textUnderlineOffset: "2px",
+            borderTop: "1px solid var(--color-line)",
+            paddingTop: "1.5rem",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            gap: "0.75rem",
           }}
         >
-          {refreshing ? tr("Preparo...", "One moment...") : tr("Aggiorna le partite", "Sync your games")}
-        </button>
-        <span style={{ color: "var(--color-faint)", padding: "0 0.4rem", userSelect: "none" }}> · </span>
-        <button
-          onClick={handleReanalyzeClick}
-          disabled={refreshing || reanalyzing}
-          style={{
-            background: "none",
-            border: "none",
-            padding: 0,
-            cursor: refreshing || reanalyzing ? "default" : "pointer",
-            opacity: refreshing || reanalyzing ? 0.4 : 1,
-            color: reanalyzeConfirming ? "var(--color-warn)" : "var(--color-faint)",
-            fontSize: "inherit",
-            fontFamily: "inherit",
-            textDecoration: "underline",
-            textDecorationColor: "color-mix(in srgb, var(--color-faint) 50%, transparent)",
-            textUnderlineOffset: "2px",
-            transition: "color 200ms ease",
-          }}
-        >
-          {reanalyzing
-            ? tr("Rianalizzando...", "Reanalyzing...")
-            : reanalyzeConfirming
-              ? tr("Sicuro? Ricomincio da zero", "Are you sure? This resets everything.")
-              : tr("Rianalizza da capo", "Reanalyze from scratch.")}
-        </button>
-      </div>
+          <button
+            onClick={() => void handleRefresh()}
+            disabled={refreshing || reanalyzing}
+            style={{
+              background: "var(--color-surface-2)",
+              border: "1px solid var(--color-line)",
+              borderRadius: "10px",
+              padding: "10px 20px",
+              cursor: refreshing || reanalyzing ? "default" : "pointer",
+              opacity: refreshing || reanalyzing ? 0.5 : 1,
+              color: "var(--color-text-soft)",
+              fontSize: "0.9rem",
+              fontFamily: "var(--font-body)",
+              fontWeight: 500,
+              transition: "border-color 160ms cubic-bezier(0.23,1,0.32,1), background-color 160ms cubic-bezier(0.23,1,0.32,1)",
+            }}
+            onMouseEnter={(e) => {
+              if (!refreshing && !reanalyzing) {
+                const btn = e.currentTarget as HTMLButtonElement;
+                btn.style.borderColor = "var(--color-line-strong)";
+                btn.style.backgroundColor = "var(--color-surface-3)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              const btn = e.currentTarget as HTMLButtonElement;
+              btn.style.borderColor = "var(--color-line)";
+              btn.style.backgroundColor = "var(--color-surface-2)";
+            }}
+          >
+            {refreshing ? tr("Preparo...", "One moment...") : tr("Aggiorna le partite", "Sync your games")}
+          </button>
+
+          {/* Rianalizza: ghost text link — destructive, stays quiet */}
+          <button
+            onClick={handleReanalyzeClick}
+            disabled={refreshing || reanalyzing}
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              cursor: refreshing || reanalyzing ? "default" : "pointer",
+              opacity: refreshing || reanalyzing ? 0.4 : 1,
+              color: reanalyzeConfirming ? "var(--color-warn)" : "var(--color-faint)",
+              fontSize: "0.75rem",
+              fontFamily: "var(--font-body)",
+              textDecoration: "underline",
+              textDecorationColor: "color-mix(in srgb, var(--color-faint) 50%, transparent)",
+              textUnderlineOffset: "2px",
+              transition: "color 200ms ease-out",
+            }}
+          >
+            {reanalyzing
+              ? tr("Rianalizzando...", "Reanalyzing...")
+              : reanalyzeConfirming
+                ? tr("Sicuro? Ricomincio da zero", "Are you sure? This resets everything.")
+                : tr("Rianalizza da capo", "Reanalyze from scratch.")}
+          </button>
+        </div>
+      </Reveal>
 
         </>
         );

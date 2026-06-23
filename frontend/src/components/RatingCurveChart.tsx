@@ -12,6 +12,8 @@ import {
   YAxis,
 } from "recharts";
 import type { RatingPoint, Goal } from "../types";
+import { NonnoExplain } from "./NonnoExplain";
+import { tr } from "../i18n/lang";
 
 /**
  * Curva Elo: rating ufficiale + performance rolling 5 + performance rolling 20.
@@ -61,7 +63,22 @@ export function RatingCurveChart({ ratingCurve, goal }: Props) {
     <div className="surface surface-padded">
       <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
         <div>
-          <div className="label-eyebrow">Elo atteso · rolling 5 + 20</div>
+          <div className="label-eyebrow" style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            Elo atteso · rolling 5 + 20
+            <NonnoExplain
+              title={tr("La tua salita", "Your climb")}
+              lines={[
+                tr(
+                  "Questa e' la tua salita. La linea chiara e' il rating ufficiale, quella piena e' come stai giocando davvero nelle ultime partite.",
+                  "This is your climb. The light line is your official rating, the solid one is how you have actually been playing in recent games.",
+                ),
+                tr(
+                  "Quando la linea piena sta sopra quella chiara, il rating sta per salire. Quando sta sotto, stai cedendo terreno.",
+                  "When the solid line is above the light one, your rating is about to go up. When it is below, you are giving ground.",
+                ),
+              ]}
+            />
+          </div>
           <h3 className="section-title mt-1">Sto migliorando?</h3>
           <p className="section-sub mt-0.5" style={{ fontSize: "0.72rem", color: "var(--color-muted)" }}>
             Performance recente vs Elo ufficiale{curveCount > 0 ? ` · su ${curveCount} partite` : ""}

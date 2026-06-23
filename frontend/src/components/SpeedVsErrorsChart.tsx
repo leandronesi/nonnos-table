@@ -12,6 +12,8 @@ import {
   YAxis,
 } from "recharts";
 import type { SpentBucket } from "../types";
+import { NonnoExplain } from "./NonnoExplain";
+import { tr } from "../i18n/lang";
 
 /** % errori evitabili per fascia di tempo, da aggregates.maia_weighted.spent_vs_avoidable. */
 export interface AvoidableByTime {
@@ -62,7 +64,22 @@ export function SpeedVsErrorsChart({
 
   return (
     <div className="surface surface-padded">
-      <div className="label-eyebrow">Velocità della mossa</div>
+      <div className="label-eyebrow" style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+        Velocità della mossa
+        <NonnoExplain
+          title={tr("Velocita' e errori", "Speed and errors")}
+          lines={[
+            tr(
+              "Qui vedi quanto sbagli in base al tempo che ci metti sulla singola mossa. Barre alte sulle mosse veloci: stai correndo su posizioni che potevi risolvere.",
+              "Here you see how much you err depending on the time you spend on each move. Tall bars on fast moves: you are rushing through positions you could have worked out.",
+            ),
+            tr(
+              "Rallenta su quelle che contano. La linea mostra l'errore medio per mossa: piu' alta, piu' stai sbagliando.",
+              "Slow down on the ones that matter. The line shows the average error per move: the higher it goes, the more you are going wrong.",
+            ),
+          ]}
+        />
+      </div>
       <h3 className="section-title mt-1">Sbagli perché muovi in fretta?</h3>
       <p className="section-sub mb-4">
         Tempo speso sulla singola mossa (non il tempo rimasto sull'orologio). La linea sale quando la mossa e' peggiore.{hasAvoidable ? " Sotto ogni fascia: quanti di quegli errori erano alla tua portata." : ""}
@@ -98,11 +115,11 @@ export function SpeedVsErrorsChart({
             <Tooltip
               cursor={{ fill: "rgba(255,255,255,0.03)" }}
               formatter={(value: number, name: string) => {
-                if (name === "error_pct") return [`${value}%`, "Errori"];
-                if (name === "acpl") return [value, "Errore medio"];
+                if (name === "error_pct") return [`${value}%`, tr("Errori", "Errors")];
+                if (name === "acpl") return [value, tr("Errore medio per mossa", "Average error per move")];
                 return [value, name];
               }}
-              labelFormatter={(label: string) => `Tempo: ${label}`}
+              labelFormatter={(label: string) => `${tr("Tempo", "Time")}: ${label}`}
               contentStyle={{
                 background: "var(--color-surface-2)",
                 border: "1px solid var(--color-line)",
@@ -117,7 +134,7 @@ export function SpeedVsErrorsChart({
             <Legend
               verticalAlign="bottom"
               height={28}
-              formatter={(v: string) => (v === "error_pct" ? "Errori (% mosse)" : "Errore medio")}
+              formatter={(v: string) => (v === "error_pct" ? tr("Errori (% mosse)", "Errors (% of moves)") : tr("Errore medio per mossa", "Average error per move"))}
               wrapperStyle={{ fontSize: "0.72rem", fontFamily: "var(--font-mono)" }}
             />
             <Bar yAxisId="err" dataKey="error_pct" name="error_pct" radius={[6, 6, 0, 0]} maxBarSize={64}>

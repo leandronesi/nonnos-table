@@ -19,6 +19,10 @@ import { BoardScene } from "../components/BoardScene";
 import { useBoardFit } from "../components/useBoardFit";
 import { useStockfish } from "../engine/useStockfish";
 import { tr, getLang } from "../i18n/lang";
+import { buildMoveReason, extractMoveFacts } from "./moveReason";
+import { fetchLesson, buildTeachArgs } from "../coach/teachClient";
+import { enrichPunishment } from "../coach/engineLine";
+import { MaestroLoader } from "../coach/MaestroLoader";
 
 // ---------------------------------------------------------------------------
 // Threshold: below this p_maia_mine_top we try to find a waiting move
@@ -424,6 +428,11 @@ export function MomentReview({
   >(null);
   const waitingAttemptedRef = useRef(false);
 
+  // Lezione maestro: parte null (floor deterministico), si sostituisce quando
+  // fetchLesson risponde. Se null, resta la frase del floor. Mai vuoto.
+  const [maestroLesson, setMaestroLesson] = useState<string | null>(null);
+  const [lessonLoading, setLessonLoading] = useState(false);
+
   const pMine = position.p_maia_mine_top ?? null;
 
   useEffect(() => {
@@ -466,6 +475,69 @@ export function MomentReview({
     waitingAttemptedRef.current = false;
     setWaitingComputed(null);
   }, [position.fen_before, position.ply]);
+
+  // Effect: lezione maestro (progressive enhancement).
+  // 1. Calcola i fatti deterministici (chess.js, zero LLM).
+  // 2. Se ci sono fatti e c'e' un errore reale, chiama fetchLesson in async.
+  // 3. Quando arriva la lezione, sostituisce il loader. Se null, mostra il floor.
+  // 4. Cancella la call se il componente smonta o cambia posizione.
+  useEffect(() => {
+    let cancelled = false;
+    // Reset immediato al cambio posizione
+    setLessonLoading(false);
+    setMaestroLesson(null);
+
+    // Guard: solo quando c'e' un errore reale (best != played)
+    const normSan = (s: string | null | undefined) =>
+      (s ?? "").replace(/[+#!?]+$/, "").trim();
+    if (
+      !position.best_san_sf ||
+      normSan(position.best_san_sf) === normSan(position.san)
+    ) {
+      // Nessun errore: niente loader, mostra floor direttamente
+      return () => { cancelled = true; };
+    }
+
+    const input = {
+      fenBefore: position.fen_before,
+      myColor: position.my_color,
+      playedSan: position.san,
+      bestUci: position.best_uci ?? null,
+      bestSan: position.best_san_sf,
+      motif: position.motif ?? null,
+      phase: position.phase ?? null,
+      lastOppSan: position.last_opp_san ?? null,
+      p_maia_mine_top: position.p_maia_mine_top ?? null,
+      p_maia_target_top: position.p_maia_target_top ?? null,
+      pv_san_sf: position.pv_san_sf ?? null,
+      state_before: null, // PositionRow non espone state_before; SelectContext degradera' gracefully
+      error_type: position.motif ?? null,
+    };
+
+    const facts = extractMoveFacts(input);
+    if (!facts) {
+      // Nessun fatto estraibile: il floor basta, niente loader
+      return () => { cancelled = true; };
+    }
+
+    // Facts presenti e c'e' un errore reale: mostra loader (copre anche l'attesa del motore)
+    setLessonLoading(true);
+
+    enrichPunishment(input, facts)
+      .then((enriched) => {
+        if (cancelled) return null; // smontato o posizione cambiata — stage 1
+        return fetchLesson(buildTeachArgs(enriched, facts));
+      })
+      .then((lesson) => {
+        if (cancelled) return; // smontato o posizione cambiata — stage 2
+        setLessonLoading(false);
+        if (lesson) setMaestroLesson(lesson);
+        // se null, lessonLoading=false -> render mostra il floor
+      });
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [position.fen_before, position.ply, getLang()]);
 
   // Freccia ultima mossa avversario
   const arrows =
@@ -619,6 +691,56 @@ export function MomentReview({
             {lines.map((line, i) => (
               <p key={i}>{line}</p>
             ))}
+
+            {/* Riga 2b: voce del maestro.
+                - Mentre fetchLesson e' in volo: <MaestroLoader/> (loader sobrio).
+                - Arrivata la lezione: testo maestro (font pieno).
+                - Se LLM torna null o nessun fatto: floor buildMoveReason.
+                - Se nessun errore reale (best === played): niente. */}
+            {(() => {
+              // Only show when there is a genuine error (best !== played)
+              const normSan = (s: string | null | undefined) =>
+                (s ?? "").replace(/[+#!?]+$/, "").trim();
+              if (
+                !position.best_san_sf ||
+                normSan(position.best_san_sf) === normSan(position.san)
+              )
+                return null;
+
+              // Loader mentre l'LLM risponde
+              if (lessonLoading) return <MaestroLoader />;
+
+              // Testo: lezione maestro se arrivata, floor altrimenti
+              const displayText: string | null = maestroLesson ?? buildMoveReason({
+                fenBefore: position.fen_before,
+                myColor: position.my_color,
+                playedSan: position.san,
+                bestUci: position.best_uci ?? null,
+                bestSan: position.best_san_sf,
+                motif: position.motif,
+                phase: position.phase,
+                lastOppSan: position.last_opp_san,
+              });
+
+              if (!displayText) return null;
+
+              const isMaestro = !!maestroLesson;
+              return (
+                <p
+                  style={{
+                    fontSize: isMaestro ? "0.875rem" : "0.82rem",
+                    color: "var(--color-text-soft)",
+                    fontFamily: "var(--font-sans)",
+                    fontWeight: 400,
+                    lineHeight: 1.55,
+                    marginTop: "4px",
+                    opacity: isMaestro ? 1 : 0.85,
+                  }}
+                >
+                  {displayText}
+                </p>
+              );
+            })()}
 
             {/* Barre drill_value esplicite (solo se entrambi i campi Maia presenti) */}
             {showDrillBars && pMineCoach != null && pTarget != null && (

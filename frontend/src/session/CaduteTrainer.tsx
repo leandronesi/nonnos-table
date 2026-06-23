@@ -23,6 +23,10 @@ import { BoardLegend } from "../components/BoardLegend";
 import { useBoardFit } from "../components/useBoardFit";
 import { useStockfish } from "../engine/useStockfish";
 import { uciToArrow, uciToSan } from "../pages/quaderno/boardArrows";
+import { buildMoveReason, extractMoveFacts } from "./moveReason";
+import { fetchLesson, buildTeachArgs } from "../coach/teachClient";
+import { enrichPunishment } from "../coach/engineLine";
+import { MaestroLoader } from "../coach/MaestroLoader";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Types & constants
@@ -73,15 +77,37 @@ function dateIt(iso: string | null | undefined): string {
 function buildGuardaLine(pos: PositionExample): string {
   const bestSan = uciToSan(pos.fen_before, pos.best_uci ?? null);
   const oppCtx = pos.last_opp_san
-    ? `Dopo ${pos.last_opp_san}, la mossa giusta era ${bestSan}.`
-    : `La mossa giusta era ${bestSan}.`;
+    ? tr(
+        `Dopo ${pos.last_opp_san}, la mossa giusta era ${bestSan}.`,
+        `After ${pos.last_opp_san}, the right move was ${bestSan}.`,
+      )
+    : tr(
+        `La mossa giusta era ${bestSan}.`,
+        `The right move was ${bestSan}.`,
+      );
 
+  // Try to build a real chess-fact explanation from the position.
+  const reason = buildMoveReason({
+    fenBefore: pos.fen_before,
+    myColor: pos.color,
+    playedUci: pos.played_uci,
+    bestUci: pos.best_uci ?? null,
+    motif: pos.motif,
+    phase: pos.phase,
+    lastOppSan: pos.last_opp_san,
+  });
+
+  if (reason) {
+    return `${oppCtx} ${reason}`;
+  }
+
+  // Fallback: severity-based comment (no made-up chess facts)
   if (pos.cp_loss > 200) {
-    return `${oppCtx} Riconosci il pattern.`;
+    return `${oppCtx} ${tr("Guarda bene la posizione.", "Look carefully at the position.")}`;
   } else if (pos.cp_loss > 80) {
-    return `${oppCtx} Era evitabile.`;
+    return `${oppCtx} ${tr("Era evitabile.", "It was avoidable.")}`;
   } else {
-    return `${oppCtx} Una piccola imprecisione, ma si ripete.`;
+    return `${oppCtx} ${tr("Una piccola imprecisione, ma si ripete.", "A small slip, but it keeps showing up.")}`;
   }
 }
 
@@ -155,7 +181,65 @@ function PhaseGuarda({
 }) {
   const [idx, setIdx] = useState(0);
   const fit = useBoardFit({ min: 232, max: 380 });
+
+  // Lezione maestro (progressive enhancement): parte null (floor nonnoLine),
+  // si sostituisce quando fetchLesson risponde. Se null, resta il floor. Mai vuoto.
+  const [maestroLesson, setMaestroLesson] = useState<string | null>(null);
+  const [lessonLoading, setLessonLoading] = useState(false);
+
   const pos = positions[idx];
+
+  // Effect: lezione maestro per la posizione corrente nel carosello.
+  // Scatta al cambio idx (nuova posizione) e al mount.
+  useEffect(() => {
+    let cancelled = false;
+    // Reset immediato al cambio posizione
+    setLessonLoading(false);
+    setMaestroLesson(null);
+
+    if (!pos) return () => { cancelled = true; };
+
+    const input = {
+      fenBefore: pos.fen_before,
+      myColor: pos.color,
+      playedUci: pos.played_uci ?? null,
+      bestUci: pos.best_uci ?? null,
+      bestSan: null, // non disponibile su PositionExample; extractMoveFacts usa bestUci
+      motif: pos.motif ?? null,
+      phase: pos.phase ?? null,
+      lastOppSan: pos.last_opp_san ?? null,
+      p_maia_mine_top: pos.p_maia_mine_top ?? null,
+      p_maia_target_top: pos.p_maia_target_top ?? null,
+      pv_san_sf: null, // non disponibile su PositionExample
+      state_before: pos.state_before ?? null,
+      error_type: pos.error_type ?? null,
+    };
+
+    const facts = extractMoveFacts(input);
+    if (!facts) {
+      // nessun fatto estraibile: il floor basta, niente loader
+      return () => { cancelled = true; };
+    }
+
+    // Facts presenti: mostra loader (copre anche l'attesa del motore)
+    setLessonLoading(true);
+
+    enrichPunishment(input, facts)
+      .then((enriched) => {
+        if (cancelled) return null; // smontato o posizione cambiata — stage 1
+        return fetchLesson(buildTeachArgs(enriched, facts));
+      })
+      .then((lesson) => {
+        if (cancelled) return; // smontato o posizione cambiata — stage 2
+        setLessonLoading(false);
+        if (lesson) setMaestroLesson(lesson);
+        // se null, lessonLoading=false -> render mostra il floor
+      });
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx, getLang()]);
+
   if (!pos) return null;
 
   const oppArrow   = uciToArrow(pos.last_opp_from && pos.last_opp_to
@@ -166,6 +250,8 @@ function PhaseGuarda({
   const orientation = pos.color === "black" ? "black" : "white";
   const bestSan = uciToSan(pos.fen_before, pos.best_uci ?? null);
   const nonnoLine = buildGuardaLine(pos);
+  // displayLine usato solo quando non siamo in loading
+  const displayLine = maestroLesson ?? nonnoLine;
 
   return (
     <div>
@@ -229,16 +315,18 @@ function PhaseGuarda({
             </span>
           </div>
 
-          {/* Nonno line */}
+          {/* Nonno line: loader mentre l'LLM risponde, poi maestro o floor. */}
           <div style={{
             padding: "0.75rem 1rem", borderRadius: "8px",
             background: "rgba(255,255,255,0.02)", border: "1px solid var(--color-line)",
-            fontSize: "0.88rem", color: "var(--color-text-soft)", lineHeight: 1.65,
+            fontSize: maestroLesson ? "0.875rem" : "0.88rem",
+            color: "var(--color-text-soft)", lineHeight: 1.65,
+            opacity: maestroLesson ? 1 : 0.85,
           }}>
             <span style={{ fontWeight: 600, color: "var(--color-brand-soft)", fontSize: "0.75rem", display: "block", marginBottom: "0.25rem" }}>
               Nonno
             </span>
-            {nonnoLine}
+            {lessonLoading ? <MaestroLoader /> : displayLine}
           </div>
 
           {/* Nav */}
@@ -308,6 +396,11 @@ function InteractivePuzzle({
   const [playedSan, setPlayedSan] = useState<string | null>(null);
   const [attempts, setAttempts] = useState(0);
 
+  // Lezione maestro (progressive enhancement): parte null (floor deterministico),
+  // si sostituisce quando fetchLesson risponde. Se null, resta il floor. Mai vuoto.
+  const [maestroLesson, setMaestroLesson] = useState<string | null>(null);
+  const [lessonLoading, setLessonLoading] = useState(false);
+
   const baseFen = pos.fen_before;
   const orientation = pos.color === "black" ? "black" : "white";
   const bestSan = uciToSan(pos.fen_before, pos.best_uci ?? null);
@@ -322,7 +415,72 @@ function InteractivePuzzle({
     setCpLoss(null);
     setPlayedSan(null);
     setAttempts(0);
+    setMaestroLesson(null);
+    setLessonLoading(false);
   }, [puzzleKey]);
+
+  // Effect: lezione maestro (progressive enhancement).
+  // Scatta quando il verdict e' 'good' o 'wrong' (errore reale).
+  // 'perfect' non ha bisogno di spiegazione.
+  // Fallback al floor buildMoveReason se fetchLesson torna null.
+  useEffect(() => {
+    let cancelled = false;
+    // 'perfect' non carica il maestro: niente loader, niente fetch
+    if (verdict !== "good" && verdict !== "wrong") {
+      setLessonLoading(false);
+      return () => { cancelled = true; };
+    }
+    if (!pos.best_uci) {
+      // nessuna best move: niente lezione, niente loader
+      setLessonLoading(false);
+      return () => { cancelled = true; };
+    }
+
+    // Reset lezione precedente
+    setMaestroLesson(null);
+
+    const input = {
+      fenBefore: baseFen,
+      myColor: pos.color,
+      playedSan: playedSan,
+      playedUci: pos.played_uci ?? null,
+      bestUci: pos.best_uci ?? null,
+      bestSan: bestSan || null, // bestSan calcolato via uciToSan
+      motif: pos.motif ?? null,
+      phase: pos.phase ?? null,
+      lastOppSan: pos.last_opp_san ?? null,
+      p_maia_mine_top: pos.p_maia_mine_top ?? null,
+      p_maia_target_top: pos.p_maia_target_top ?? null,
+      pv_san_sf: null, // non disponibile su PositionExample
+      state_before: pos.state_before ?? null,
+      error_type: pos.error_type ?? null,
+    };
+
+    const facts = extractMoveFacts(input);
+    if (!facts) {
+      // nessun fatto estraibile: il floor basta, niente loader
+      setLessonLoading(false);
+      return () => { cancelled = true; };
+    }
+
+    // Facts presenti: mostra loader (copre anche l'attesa del motore)
+    setLessonLoading(true);
+
+    enrichPunishment(input, facts)
+      .then((enriched) => {
+        if (cancelled) return null; // smontato o puzzle cambiato — stage 1
+        return fetchLesson(buildTeachArgs(enriched, facts));
+      })
+      .then((lesson) => {
+        if (cancelled) return; // smontato o puzzle cambiato — stage 2
+        setLessonLoading(false);
+        if (lesson) setMaestroLesson(lesson);
+        // se null, lessonLoading=false -> render mostra il floor
+      });
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verdict, puzzleKey, getLang()]);
 
   const onDrop = useCallback(async (from: string, to: string): Promise<boolean> => {
     if (verdict !== null && verdict !== "wrong") return false;
@@ -560,6 +718,41 @@ function InteractivePuzzle({
               }}>
                 {verdictMsg}
               </div>
+
+              {/* Riga-perche': loader mentre l'LLM risponde, poi maestro o floor.
+                  'perfect' non mostra nulla qui.
+                  'good'/'wrong': loader -> maestroLesson se arrivata, floor altrimenti. */}
+              {verdict !== "perfect" && (() => {
+                if (lessonLoading) return <MaestroLoader />;
+
+                const floorReason = buildMoveReason({
+                  fenBefore: baseFen,
+                  myColor: pos.color,
+                  playedSan: playedSan,
+                  playedUci: pos.played_uci,
+                  bestUci: pos.best_uci ?? null,
+                  motif: pos.motif,
+                  phase: pos.phase,
+                  lastOppSan: pos.last_opp_san,
+                });
+                const displayText = maestroLesson ?? floorReason;
+                if (!displayText) return null;
+                const isMaestro = !!maestroLesson;
+                return (
+                  <p style={{
+                    fontSize: isMaestro ? "0.875rem" : "0.82rem",
+                    color: "var(--color-text-soft)",
+                    fontFamily: "var(--font-sans)",
+                    fontWeight: 400,
+                    lineHeight: 1.5,
+                    margin: 0,
+                    opacity: isMaestro ? 1 : 0.85,
+                  }}>
+                    {displayText}
+                  </p>
+                );
+              })()}
+
               {/* Move details */}
               <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", paddingBottom: "0.875rem", borderBottom: "1px solid var(--color-line)" }}>
                 {playedSan && (

@@ -17,6 +17,7 @@ import { MaiaTest } from "./pages/MaiaTest";
 import { AppShell } from "./components/AppShell";
 import { PRODUCT_NAME } from "./coaching";
 import { IncontroPreview } from "./pages/dev/IncontroPreview";
+import { TeachTest } from "./pages/dev/TeachTest";
 import { SecondaBattutaPopup } from "./components/SecondaBattutaPopup";
 // Lazy: the Stanza pulls in three.js — code-split so the main bundle never pays it.
 const StanzaHome = lazy(() =>
@@ -153,6 +154,11 @@ export function App() {
           {/* Anteprima dev scena onboarding — solo in sviluppo, nessun auth */}
           {import.meta.env.DEV && (
             <Route path="/dev/incontro" element={<IncontroPreview />} />
+          )}
+
+          {/* Diagnosi voce maestro — solo in sviluppo, richiede login */}
+          {import.meta.env.DEV && (
+            <Route path="/dev/teach" element={<TeachTest />} />
           )}
 
           {/* Fallback */}

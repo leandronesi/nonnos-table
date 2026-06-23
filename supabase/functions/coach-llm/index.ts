@@ -32,6 +32,57 @@ declare const Deno: {
   env: { get(name: string): string | undefined };
 };
 
+// ── Teach mode types ──────────────────────────────────────────────────────────
+
+interface TeachPosition {
+  fen_before: string;
+  played_san: string;
+  best_san: string;
+  my_color: "white" | "black";
+}
+
+interface TeachMoveFacts {
+  hung_piece: { type: string; square: string } | null;
+  punishment: { capture_san: string; capturer_type: string; victim_square: string } | null;
+  best: {
+    san: string;
+    effect: string;
+    captured_type?: string;
+    moved_type?: string;
+  } | null;
+  motif: string | null;
+  phase: string | null;
+  played_san: string | null;
+}
+
+interface TeachPrinciple {
+  id: string;
+  name_it: string;
+  idea_it: string;
+  fix_it: string;
+}
+
+interface TeachAltPrinciple {
+  id: string;
+  name_it: string;
+}
+
+interface TeachMaia {
+  mine_top?: number;
+  target_top?: number;
+}
+
+interface TeachRequest {
+  mode: "teach";
+  lang: Lang;
+  position: TeachPosition;
+  facts: TeachMoveFacts;
+  principle: TeachPrinciple;
+  alt_principles?: TeachAltPrinciple[];
+  maia?: TeachMaia;
+  punishment_line?: string | null;
+}
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
@@ -182,12 +233,13 @@ serve(async (req: Request) => {
     return jsonError("missing bearer", 401, origin);
   }
 
-  // Read lang from body before consuming the stream. Graceful: if body is
-  // missing or malformed, default to "it" without breaking the request.
+  // Read the full body once before consuming the stream. Both modes (brief +
+  // teach) need it; lang is extracted here for both paths.
   let lang: Lang = "it";
+  let fullBody: Record<string, unknown> = {};
   try {
-    const body = await req.json() as Record<string, unknown>;
-    lang = parseLang(body?.lang);
+    fullBody = await req.json() as Record<string, unknown>;
+    lang = parseLang(fullBody?.lang);
   } catch (_e) {
     // no body or non-JSON body → keep default "it"
   }
@@ -196,7 +248,7 @@ serve(async (req: Request) => {
     global: { headers: { Authorization: authHeader } },
   });
 
-  // 1. Identifica utente.
+  // 1. Identifica utente (shared for both modes).
   const { data: u, error: uErr } = await sb.auth.getUser();
   if (uErr || !u?.user) return jsonError("auth failed", 401, origin);
   const userId = u.user.id;
@@ -214,6 +266,36 @@ serve(async (req: Request) => {
     }
   } catch (_e) {
     // tabella coach_invocations non ancora migrata → nessun cap, ma non rompere.
+  }
+
+  // ── BRANCH: mode="teach" ────────────────────────────────────────────────────
+  // i fatti scacchistici arrivano dal client (calcolati da chess.js/Stockfish nel
+  // browser): sono dati non sensibili, la fonte corretta per questo endpoint.
+  // Niente lettura aggregati, niente scrittura Storage.
+  if (fullBody?.mode === "teach") {
+    // Conta l'invocazione prima della call OpenAI (stesso meccanismo del brief).
+    try {
+      await sb.from("coach_invocations").insert({ user_id: userId });
+    } catch (_e) {
+      // tabella non migrata → ignora.
+    }
+
+    let lesson: string | null = null;
+    try {
+      lesson = await callOpenAiTeach(fullBody as unknown as TeachRequest);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn("[coach-llm/teach] OpenAI fallita:", e);
+      return jsonError(`teach failed: ${String(e instanceof Error ? e.message : e)}`, 500, origin);
+    }
+
+    return new Response(
+      JSON.stringify({ lesson }),
+      {
+        status: 200,
+        headers: { ...corsHeaders(origin), "content-type": "application/json" },
+      },
+    );
   }
 
   // 3. Profile dal DB (NON dal body — il body è untrusted).
@@ -642,6 +724,247 @@ WHAT NONNO NEVER SAYS in English (additions to the universal bans):
 
 Write native English in this voice. Do not translate Italian mechanically.`;
 
+// ── Low-level OpenAI helper ───────────────────────────────────────────────────
+//
+// Robustezza temperatura: alcuni modelli GPT-5.x accettano solo temperature
+// di default e rifiutano il campo con 400. Se la prima call fallisce con 400
+// e l'errore riguarda "temperature", riprova senza quel campo.
+// Cosi' alzare OPENAI_MODEL a un modello futuro non rompe la call.
+
+interface OpenAiMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+interface OpenAiCallOptions {
+  messages: OpenAiMessage[];
+  response_format?: { type: string };
+  temperature?: number;
+}
+
+async function fetchOpenAiRaw(opts: OpenAiCallOptions): Promise<string> {
+  const body: Record<string, unknown> = {
+    model: OPENAI_MODEL,
+    messages: opts.messages,
+  };
+  if (opts.response_format) body.response_format = opts.response_format;
+  if (opts.temperature != null) body.temperature = opts.temperature;
+
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    // Robustezza temperatura: se 400 e l'errore parla di "temperature",
+    // riprova senza il campo (modelli nuovi che non lo accettano).
+    if (resp.status === 400 && opts.temperature != null && errText.toLowerCase().includes("temperature")) {
+      const retryBody: Record<string, unknown> = {
+        model: OPENAI_MODEL,
+        messages: opts.messages,
+      };
+      if (opts.response_format) retryBody.response_format = opts.response_format;
+      const retry = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify(retryBody),
+      });
+      if (!retry.ok) {
+        throw new Error(`openai ${retry.status}: ${await retry.text()}`);
+      }
+      const retryData = (await retry.json()) as { choices: Array<{ message: { content: string } }> };
+      return retryData.choices[0]?.message?.content ?? "{}";
+    }
+    throw new Error(`openai ${resp.status}: ${errText}`);
+  }
+
+  const data = (await resp.json()) as { choices: Array<{ message: { content: string } }> };
+  return data.choices[0]?.message?.content ?? "{}";
+}
+
+// ── callOpenAiTeach ───────────────────────────────────────────────────────────
+//
+// Modalita' insegnamento: Nonno spiega il perche' di UNA mossa specifica.
+// I fatti scacchistici vengono dal client (chess.js + Stockfish nel browser).
+// L'LLM NON inventa scacchi: narra solo cio' che gli viene dato.
+// Risposta: { lesson: string }
+
+const TEACH_EXAMPLES = `ESEMPI DI VOCE (bersaglio di stile — queste sono le frasi che cerchi):
+
+Esempio 1 (pezzo in presa):
+"Volevi attivare la donna con Dd3, ci sta. Ma guarda il cavallo in e5: era senza difensori, e il pedone in d6 lo teneva d'occhio. Dopo Dd3 arrivava dxe5 e te lo portavi a casa gratis. La regola che ti salva: prima di muovere, fai il giro dei tuoi pezzi e chiediti chi non e' difeso. Con Cf3 il cavallo tornava al sicuro."
+
+Esempio 2 (conversione):
+"Eri avanti di una torre, la partita era tua: bastava giocare semplice. Invece sei andato a prendere ancora con Cxb6, e cosi' hai lasciato la donna in d4 scoperta: dopo Cxb6 arrivava Axd4. Quando sei in vantaggio netto la regola cambia: non cerchi il colpo, cerchi la mossa sicura. Bastava Td1."`;
+
+function buildTeachSystemIT(): string {
+  return `Sei Nonno, maestro di scacchi. Insegni il PERCHE' di una mossa. NON analizzi la scacchiera da solo: ti do io i fatti VERI verificati dal motore. Usa SOLO quei fatti: non inventare mosse, pezzi, case o valutazioni che non ti ho dato. Se un fatto non c'e', non dirlo.
+
+STRUTTURA (4 passi fusi in 3-4 frasi naturali, NON un elenco):
+1. Tentazione: nomina la mossa giocata e perche' era allettante.
+2. Punizione: se c'e' (campo punishment o punishment_line), una mezza riga: "dopo X, arrivava Y". Se mancano entrambi, NON inventare una punizione: passa direttamente al passo 3.
+3. Principio trasferibile: ti do il campo principle con nome e idea. Rendilo tuo in una frase, non citarlo meccanicamente.
+4. Confronto: la mossa giusta (best_san) e cosa cambia. Se manca la punizione, usa questo passo per spiegare cosa ottiene la mossa giusta.
+
+CALIBRAZIONE DIFFICOLTA': se maia.mine_top e' bassa (< 0.20) e maia.target_top e' alta (> 0.55), aggiungi prima della punizione che "era difficile da vedere al tuo livello". Non colpevolizzare.
+
+VOCE:
+- Seconda persona, "tu". Mai "il giocatore".
+- Frasi corte. Niente em-dash. Niente esclamazioni. Niente paternalismo.
+- Lessico scacchistico italiano: "pezzo in presa", "mediogioco", "ottava traversa", "scacco di scoperta". "blunder" e' ammesso.
+- Niente "accuracy", niente percentuali, niente valutazioni in centipedoni.
+- Max 4 frasi totali.
+
+OUTPUT: SOLO JSON { "lesson": "..." }
+
+${TEACH_EXAMPLES}`;
+}
+
+const TEACH_EXAMPLES_EN = `VOICE EXAMPLES (style target — these are the sentences you are after):
+
+Example 1 (hanging piece):
+"You wanted to bring the queen out with Qd3, fair enough. But look at the knight on e5: no defender, and the d6 pawn had its eye on it. After Qd3 comes dxe5 and you hand it over for free. The rule that saves you: before you move, run through your pieces and ask which one is undefended. Nf3 brings the knight back to safety."
+
+Example 2 (conversion):
+"You were up a rook, the game was yours: simple play was enough. Instead you grabbed more with Nxb6, and left the queen on d4 exposed: after Nxb6 comes Bxd4. When you are clearly ahead the rule changes: you are not hunting the knockout, you are looking for the safe move. Rd1 was all it took."`;
+
+function buildTeachSystemEN(): string {
+  return `You are Nonno, a chess coach. You teach WHY a move was wrong. You do NOT analyse the position yourself: I give you the TRUE facts verified by the engine. Use ONLY those facts: do not invent moves, pieces, squares, or evaluations I have not given you. If a fact is missing, do not mention it.
+
+STRUCTURE (4 steps blended into 3-4 natural sentences, NOT a list):
+1. Temptation: name the move played and why it looked attractive.
+2. Punishment: if present (field punishment or punishment_line), half a sentence: "after X, comes Y". If both are missing, do NOT invent a punishment: move directly to step 3.
+3. Transferable principle: I give you the field principle with name and idea. Make it yours in one sentence, do not quote it mechanically.
+4. Comparison: the right move (best_san) and what changes. If no punishment, use this step to explain what the right move achieves.
+
+DIFFICULTY CALIBRATION: if maia.mine_top is low (< 0.20) and maia.target_top is high (> 0.55), add before the punishment that "this was hard to see at your level." Do not make the player feel guilty.
+
+VOICE:
+- Second person, "you." Never "the player."
+- Short sentences. No em-dash. No exclamations. No paternalism.
+- Real chess language: "hanging piece," "middlegame," "back rank," "discovered check." "blunder" is allowed.
+- No "accuracy," no percentages, no centipawn evaluations.
+- Max 4 sentences total.
+
+OUTPUT: ONLY JSON { "lesson": "..." }
+
+${TEACH_EXAMPLES_EN}`;
+}
+
+function buildTeachUserPrompt(req: TeachRequest): string {
+  const f = req.facts;
+  const p = req.position;
+  const pr = req.principle;
+  const isEn = req.lang === "en";
+
+  const lines: string[] = [];
+
+  if (isEn) {
+    lines.push(`Move played: ${p.played_san}`);
+    lines.push(`Right move: ${p.best_san}`);
+    if (f.hung_piece) {
+      lines.push(`Hanging piece after the move: ${f.hung_piece.type} on ${f.hung_piece.square}`);
+    }
+    if (f.punishment) {
+      lines.push(`Punishment available: ${f.punishment.capture_san} (${f.punishment.capturer_type} takes on ${f.punishment.victim_square})`);
+    }
+    if (req.punishment_line) {
+      lines.push(`Engine punishment line: ${req.punishment_line}`);
+    }
+    if (f.best) {
+      const eff = f.best.effect;
+      let effDesc = eff;
+      if (eff === "save") effDesc = "saves the hanging piece";
+      else if (eff === "mate") effDesc = "delivers checkmate";
+      else if (eff === "fork") effDesc = "creates a fork";
+      else if (eff === "capture" && f.best.captured_type) effDesc = `captures the ${f.best.captured_type}`;
+      else if (eff === "check") effDesc = "gives check";
+      lines.push(`What the right move does: ${f.best.san} (${effDesc})`);
+    }
+    if (f.phase) lines.push(`Phase: ${f.phase}`);
+    if (f.motif) lines.push(`Tactical motif: ${f.motif}`);
+    lines.push(`Principle: ${pr.name_it}. ${pr.idea_it}. Fix: ${pr.fix_it}`);
+    if (req.alt_principles && req.alt_principles.length > 0) {
+      lines.push(`Alternative principles (context only): ${req.alt_principles.map(a => a.name_it).join(", ")}`);
+    }
+    if (req.maia) {
+      if (req.maia.mine_top != null) lines.push(`Maia mine_top: ${req.maia.mine_top.toFixed(2)} (probability the right move is found at the player's level)`);
+      if (req.maia.target_top != null) lines.push(`Maia target_top: ${req.maia.target_top.toFixed(2)} (probability at the target level)`);
+    }
+    lines.push(`\nTeach the lesson in English.`);
+  } else {
+    lines.push(`Mossa giocata: ${p.played_san}`);
+    lines.push(`Mossa giusta: ${p.best_san}`);
+    if (f.hung_piece) {
+      lines.push(`Pezzo lasciato in presa dopo la mossa: ${f.hung_piece.type} in ${f.hung_piece.square}`);
+    }
+    if (f.punishment) {
+      lines.push(`Punizione disponibile: ${f.punishment.capture_san} (${f.punishment.capturer_type} prende in ${f.punishment.victim_square})`);
+    }
+    if (req.punishment_line) {
+      lines.push(`Variante di punizione del motore: ${req.punishment_line}`);
+    }
+    if (f.best) {
+      const eff = f.best.effect;
+      let effDesc = eff;
+      if (eff === "save") effDesc = "mette al sicuro il pezzo in presa";
+      else if (eff === "mate") effDesc = "scacco matto";
+      else if (eff === "fork") effDesc = "crea una forchetta";
+      else if (eff === "capture" && f.best.captured_type) effDesc = `cattura il ${f.best.captured_type}`;
+      else if (eff === "check") effDesc = "scacco";
+      lines.push(`Cosa fa la mossa giusta: ${f.best.san} (${effDesc})`);
+    }
+    if (f.phase) lines.push(`Fase: ${f.phase}`);
+    if (f.motif) lines.push(`Motivo tattico: ${f.motif}`);
+    lines.push(`Principio: ${pr.name_it}. ${pr.idea_it}. Fix: ${pr.fix_it}`);
+    if (req.alt_principles && req.alt_principles.length > 0) {
+      lines.push(`Principi alternativi (solo contesto): ${req.alt_principles.map(a => a.name_it).join(", ")}`);
+    }
+    if (req.maia) {
+      if (req.maia.mine_top != null) lines.push(`Maia mine_top: ${req.maia.mine_top.toFixed(2)} (probabilita' che al livello del giocatore si trovi la mossa giusta)`);
+      if (req.maia.target_top != null) lines.push(`Maia target_top: ${req.maia.target_top.toFixed(2)} (probabilita' al livello target)`);
+    }
+    lines.push(`\nInsegna la lezione in italiano.`);
+  }
+
+  return lines.join("\n");
+}
+
+async function callOpenAiTeach(req: TeachRequest): Promise<string> {
+  const systemPrompt = req.lang === "en" ? buildTeachSystemEN() : buildTeachSystemIT();
+  const userPrompt = buildTeachUserPrompt(req);
+
+  const raw = await fetchOpenAiRaw({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    response_format: { type: "json_object" },
+    temperature: 0.4,
+  });
+
+  // Valida che la risposta abbia { lesson: string }
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(raw) as Record<string, unknown>;
+  } catch (_e) {
+    // 200 OK ma corpo non-JSON (es. pagina di rate-limit del CDN): errore esplicito.
+    throw new Error("teach: risposta non-JSON dall'LLM");
+  }
+  if (typeof parsed?.lesson !== "string" || parsed.lesson.trim() === "") {
+    throw new Error("teach: risposta malformata dall'LLM (campo lesson mancante)");
+  }
+  return parsed.lesson as string;
+}
+
 async function callOpenAi(
   ctx: CoachContext,
   agg: Aggregates,
@@ -756,31 +1079,14 @@ Per categoria di tempo: ${JSON.stringify(agg.by_time_class)}${renderMaiaWeighted
 
 Produci il Coach Brief JSON.`;
 
-  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.4,
-    }),
+  const text = await fetchOpenAiRaw({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    response_format: { type: "json_object" },
+    temperature: 0.4,
   });
-
-  if (!resp.ok) {
-    throw new Error(`openai ${resp.status}: ${await resp.text()}`);
-  }
-
-  const data = (await resp.json()) as {
-    choices: Array<{ message: { content: string } }>;
-  };
-  const text = data.choices[0]?.message?.content ?? "{}";
   return JSON.parse(text) as unknown;
 }
 

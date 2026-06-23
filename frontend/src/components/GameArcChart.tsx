@@ -15,6 +15,8 @@
  */
 
 import type { MaiaWeighted } from "../pipeline/aggregate";
+import { NonnoExplain } from "./NonnoExplain";
+import { tr } from "../i18n/lang";
 
 // ── Tipi ─────────────────────────────────────────────────────────────────────
 
@@ -75,8 +77,21 @@ export function GameArcChart({ maiaWeighted, targetRating }: GameArcChartProps) 
 
       {/* Intestazione */}
       <div className="mb-5">
-        <div className="label-eyebrow mb-1" style={{ color: "var(--color-muted)" }}>
+        <div className="label-eyebrow mb-1" style={{ color: "var(--color-muted)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
           ARCO DELLA PARTITA
+          <NonnoExplain
+            title={tr("Le tre fasi", "The three phases")}
+            lines={[
+              tr(
+                "Qui vedi in quale fase perdi di piu': apertura, mediogioco o finale.",
+                "Here you see where you lose the most: opening, middlegame, or endgame.",
+              ),
+              tr(
+                "La barra colorata sono gli errori che al tuo livello potevi evitare. Dove e' piu' alta, li' conviene lavorare.",
+                "The coloured bar shows the errors you could have avoided at your level. Where it is tallest, that is where to focus.",
+              ),
+            ]}
+          />
         </div>
         <div
           style={{

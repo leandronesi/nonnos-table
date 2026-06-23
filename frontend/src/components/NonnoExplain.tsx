@@ -67,7 +67,8 @@ export function NonnoExplain({ title, lines, className = "" }: NonnoExplainProps
       {/* Inline expanded panel */}
       {open && (
         <span
-          role="tooltip"
+          role="group"
+          aria-label="Nonno"
           style={{
             display: "block",
             position: "absolute",
