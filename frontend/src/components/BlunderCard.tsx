@@ -19,8 +19,8 @@ export interface BlunderRow {
   move_number: number;
   san: string;
   phase: Phase;
-  cp_before: number;
-  cp_after: number;
+  cp_before: number | null;
+  cp_after: number | null;
   cp_loss: number;
   best_san: string | null;
   pv_san: string[];
@@ -84,9 +84,11 @@ export function BlunderCard({ blunder, size = 240 }: { blunder: BlunderRow; size
         <div className="flex items-baseline gap-2">
           <span className="label-eyebrow text-[10px]">m.{blunder.move_number}</span>
           <span className="text-rose-300 font-mono font-semibold">{blunder.san}</span>
-          <span className="text-xs text-[color:var(--color-muted)] font-mono">
-            {cpToPawns(blunder.cp_before)} -&gt; {cpToPawns(blunder.cp_after)}
-          </span>
+          {blunder.cp_before != null && blunder.cp_after != null && (
+            <span className="text-xs text-[color:var(--color-muted)] font-mono">
+              {cpToPawns(blunder.cp_before)} -&gt; {cpToPawns(blunder.cp_after)}
+            </span>
+          )}
         </div>
         <div className="text-xs text-[color:var(--color-text-soft)]">
           Rigiocala per vedere la mossa corretta.

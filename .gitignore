@@ -15,22 +15,32 @@ supabase/.env
 # Credenziali Supabase generate localmente — MAI committare.
 supabase-creds.txt
 
-# Data (PGN/analisi grezzi possono pesare; metrics.json lo lasciamo tracciabile)
+# Dati legacy/locali: in produzione vivono solo nello Storage privato Supabase.
 data/raw/
 data/analysis/
 data/index.json
 data/analyze.log
-# data/metrics.json   → lo committiamo: serve per il primo deploy
+data/*.json
+data/*.md
+data/*.db
+data/*.sqlite*
 
-# Le analisi singole per il drill-down su gh-pages le rigenera la GH Action.
-# 8 MB di JSON: meglio non averli nel repo principale.
+# Nessun dataset personale deve entrare nel public/ copiato da Vite.
 frontend/public/analysis/
+frontend/public/raw/
+frontend/public/quaderno/
+frontend/public/metrics.json
+frontend/public/player_model.json
+frontend/public/coach_brief.json
+frontend/public/coach_journal.md
+frontend/public/aggregates.json
+frontend/public/*.pgn
+frontend/public/*.db
 
 # Stockfish + lc0 binari locali (root engine/, NON frontend/src/engine o frontend/public/engine)
 /engine/
 
 # COACH PRIVATO: i prompt + wiki del coach LLM stanno in repo privato separato.
-# In CI vengono clonati con un PAT secret (vedi workflow refresh-and-deploy.yml).
 # Per dev locale: il coach_brain vive qui ma è gitignored.
 backend/coach_brain/
 
@@ -73,3 +83,10 @@ data/_live_coach_cache/
 
 # Impeccable design sidecar (cache locale skill design)
 .impeccable/
+
+# Bozze e asset di prodotto locali: non pubblicare nel repository.
+/Gemini_Generated_Image_wp8pzxwp8pzxwp8p.png
+/docs/curriculum-bozza.json
+/docs/il-tavolo-che-sogno.html
+/docs/lezione-2.html
+/docs/ooux-nonno-table-lesson.html

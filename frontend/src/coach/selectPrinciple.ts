@@ -56,10 +56,10 @@ function levelRank(level: string): number {
 
 export interface SelectContext {
   phase?: string | null;
-  maiaMineTop?: number | null;
-  maiaTargetTop?: number | null;
   stateBefore?: string | null;
   errorType?: string | null;
+  /** Signal fattuali canonici prodotti da errorSemantics.ts. */
+  errorSignals?: string[] | null;
 }
 
 function deriveSignals(facts: MoveFacts, ctx: SelectContext): Set<string> {
@@ -80,13 +80,11 @@ function deriveSignals(facts: MoveFacts, ctx: SelectContext): Set<string> {
         // Missed checkmate — could be back_rank or missed_tactic
         signals.add("back_rank");
         signals.add("missed_tactic");
-        signals.add("p_maia_target_top");
         break;
       case "fork":
         // Missed fork — do NOT bleed hung_piece signals unless there is one
         signals.add("fork");
         signals.add("missed_tactic");
-        signals.add("p_maia_target_top");
         break;
       case "save":
         // Best move saves a hanging piece
@@ -115,22 +113,26 @@ function deriveSignals(facts: MoveFacts, ctx: SelectContext): Set<string> {
     }
   }
 
-  // ── From stateBefore ────────────────────────────────────────────────────
-  const isConversion = ctx.stateBefore === "winning" || ctx.errorType === "conversion";
-  if (isConversion) {
+  for (const signal of ctx.errorSignals ?? []) signals.add(signal);
+
+  // Uscita dalla fascia winning solo dal canonical error type (o snapshot
+  // legacy conversion), mai dal solo stateBefore=winning.
+  const leftWinningBand =
+    ctx.errorType === "left_winning_band" ||
+    ctx.errorType === "conversion" ||
+    (ctx.errorSignals ?? []).includes("left_winning_band");
+  if (leftWinningBand) {
+    signals.add("left_winning_band");
+    // Token curriculum legacy: mapping didattico, non chiave analitica canonica.
     signals.add("conversion");
     signals.add("state_before");
-    // P13 (conversion) maps_to includes careless + p_maia_mine_top.
-    // Surface them so P13 scores higher than phase-specific principles.
-    signals.add("careless");
-    signals.add("p_maia_mine_top");
     signals.add("cp_loss");
   }
 
   // ── From phase ───────────────────────────────────────────────────────────
   // Skip phase signals when error is conversion: the lesson applies regardless
   // of phase, and phase signals pollute results towards phase-specific principles.
-  if (facts.phase && !isConversion) {
+  if (facts.phase && !leftWinningBand) {
     switch (facts.phase) {
       case "apertura":   signals.add("apertura"); break;
       case "mediogioco": signals.add("mediogioco"); break;
@@ -151,13 +153,11 @@ function deriveSignals(facts: MoveFacts, ctx: SelectContext): Set<string> {
         break;
       case "missed_tactic":
         signals.add("missed_tactic");
-        signals.add("p_maia_target_top");
         break;
       case "conversion":
         signals.add("conversion");
         signals.add("state_before");
         signals.add("cp_loss");
-        signals.add("p_maia_mine_top");
         break;
       case "rushed":
         signals.add("rushed");
@@ -174,26 +174,28 @@ function deriveSignals(facts: MoveFacts, ctx: SelectContext): Set<string> {
         break;
       case "hard_calc":
         signals.add("hard_calc");
-        signals.add("missed_tactic");
         break;
-    }
-  }
-
-  // ── From Maia probabilities ──────────────────────────────────────────────
-  const mine = ctx.maiaMineTop;
-  const target = ctx.maiaTargetTop;
-
-  if (mine != null) signals.add("p_maia_mine_top");
-  if (target != null) signals.add("p_maia_target_top");
-
-  if (mine != null && target != null) {
-    // Low mine + high target = missed tactic the player should study
-    if (mine < 0.35 && target > 0.55) {
-      signals.add("missed_tactic");
-    }
-    // High mine = obvious position, player was careless (saw it, skipped it)
-    if (mine > 0.55) {
-      signals.add("careless");
+      case "left_winning_band":
+        signals.add("conversion");
+        signals.add("state_before");
+        signals.add("cp_loss");
+        break;
+      case "fast_decision":
+        signals.add("rushed"); // curriculum compatibility token
+        signals.add("spent_seconds");
+        signals.add("time_state");
+        break;
+      case "clock_pressure":
+        signals.add("zeitnot"); // curriculum compatibility token
+        signals.add("time_state");
+        break;
+      case "narrow_choice_after_long_think":
+        signals.add("hard_calc"); // curriculum compatibility token
+        signals.add("spent_seconds");
+        break;
+      case "unclassified_error":
+        signals.add("cp_loss");
+        break;
     }
   }
 

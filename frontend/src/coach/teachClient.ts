@@ -10,6 +10,7 @@
  */
 
 import { supabase } from "../auth/supabaseClient";
+import { scopedStorage } from "../auth/userStorage";
 import { getLang } from "../i18n/lang";
 import { selectPrinciples } from "./selectPrinciple";
 import type { MoveFacts, MoveReasonInput } from "../session/moveReason";
@@ -31,8 +32,18 @@ export interface TeachArgs {
   ctx: SelectContext;
   /** Variante di punizione del motore (pv_san_sf dalla pipeline). Opzionale. */
   punishment_line?: string | null;
-  /** Dati Maia dalla pipeline (opzionali). */
-  maia?: { mine_top?: number | null; target_top?: number | null } | null;
+  /** Solo score Maia reale; masse policy raw, non frequenze umane. */
+  maia?: {
+    status: "scored";
+    policy_semantics: "raw_policy_mass_not_calibrated_frequency";
+    current_acceptable_observed_policy?: number | null;
+    target_acceptable_observed_policy?: number | null;
+    reason_code?: string | null;
+    domain_status?: "cross_domain" | "out_of_training_domain" | null;
+    domain_reason?: string | null;
+    avoidable_at_current?: boolean | null;
+    target_relevant?: boolean | null;
+  } | null;
 }
 
 // ── Cache helpers ─────────────────────────────────────────────────────────────
@@ -55,7 +66,7 @@ function cacheKey(fenBefore: string, playedSan: string, bestSan: string, lang: s
 
 function cacheGet(key: string): string | null {
   try {
-    return localStorage.getItem(key);
+    return scopedStorage.getItem(key);
   } catch {
     return null;
   }
@@ -64,14 +75,14 @@ function cacheGet(key: string): string | null {
 function cacheSet(key: string, value: string): void {
   try {
     // Pulizia FIFO se si supera il limite: rimuove le voci piu' vecchie
-    const keys = Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX));
+    const keys = scopedStorage.keys(CACHE_PREFIX);
     if (keys.length >= CACHE_MAX_ENTRIES) {
       // Rimuove le prime N per mantenere il limite
       keys.slice(0, keys.length - CACHE_MAX_ENTRIES + 1).forEach(k => {
-        try { localStorage.removeItem(k); } catch { /* ignore */ }
+        try { scopedStorage.removeItem(k); } catch { /* ignore */ }
       });
     }
-    localStorage.setItem(key, value);
+    scopedStorage.setItem(key, value);
   } catch {
     // localStorage pieno o non disponibile: ignora silenziosamente
   }
@@ -129,12 +140,7 @@ export async function fetchLesson(args: TeachArgs): Promise<string | null> {
     facts,
     principle,
     alt_principles: alt_principles.length > 0 ? alt_principles : undefined,
-    maia: maia
-      ? {
-          mine_top: maia.mine_top ?? undefined,
-          target_top: maia.target_top ?? undefined,
-        }
-      : undefined,
+    maia: maia ?? undefined,
     punishment_line: punishment_line ?? null,
   };
 
@@ -175,20 +181,27 @@ export async function fetchLesson(args: TeachArgs): Promise<string | null> {
  */
 export function buildTeachArgs(
   input: MoveReasonInput & {
-    p_maia_mine_top?: number | null;
-    p_maia_target_top?: number | null;
+    maia_status?: "scored" | "not_requested" | "not_scored" | "skipped" | "unavailable" | null;
+    maia_policy_semantics?: "raw_policy_mass_not_calibrated_frequency";
+    maia_reason_code?: string | null;
+    maia_domain_status?: "cross_domain" | "out_of_training_domain" | null;
+    maia_domain_reason?: string | null;
+    maia_mine_acceptable_observed_policy?: number | null;
+    maia_target_acceptable_observed_policy?: number | null;
+    avoidable_at_current?: boolean | null;
+    target_relevant?: boolean | null;
     pv_san_sf?: string | null;
     state_before?: string | null;
     error_type?: string | null;
+    error_signals?: string[] | null;
   },
   facts: MoveFacts,
 ): TeachArgs {
   const ctx: SelectContext = {
     phase: input.phase ?? null,
-    maiaMineTop: input.p_maia_mine_top ?? null,
-    maiaTargetTop: input.p_maia_target_top ?? null,
     stateBefore: input.state_before ?? null,
     errorType: input.error_type ?? null,
+    errorSignals: input.error_signals ?? null,
   };
 
   return {
@@ -205,8 +218,24 @@ export function buildTeachArgs(
     ctx,
     punishment_line: input.pv_san_sf ?? null,
     maia:
-      input.p_maia_mine_top != null || input.p_maia_target_top != null
-        ? { mine_top: input.p_maia_mine_top, target_top: input.p_maia_target_top }
+      input.maia_status === "scored" &&
+      input.maia_policy_semantics === "raw_policy_mass_not_calibrated_frequency" &&
+      (input.maia_mine_acceptable_observed_policy != null ||
+        input.maia_target_acceptable_observed_policy != null)
+        ? {
+            status: "scored",
+            policy_semantics: "raw_policy_mass_not_calibrated_frequency",
+            current_acceptable_observed_policy: input.maia_mine_acceptable_observed_policy,
+            target_acceptable_observed_policy: input.maia_target_acceptable_observed_policy,
+            reason_code: input.maia_reason_code,
+            domain_status: input.maia_domain_status,
+            domain_reason: input.maia_domain_reason,
+            avoidable_at_current:
+              input.maia_domain_status === "out_of_training_domain"
+                ? null
+                : input.avoidable_at_current,
+            target_relevant: input.target_relevant,
+          }
         : null,
   };
 }

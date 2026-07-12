@@ -29,17 +29,41 @@ import { tr } from "../i18n/lang";
 export function TimeManagementChart({
   time_management,
   tilt,
-  target,
 }: {
   time_management: TimeManagement;
   tilt: Tilt;
-  target?: number;
 }) {
   // Deriva blunder_rate per ogni bucket (count / positions).
   const data = time_management.clock_vs_accuracy.map((d) => ({
     ...d,
     blunder_pct: d.positions > 0 ? Math.round((d.blunders / d.positions) * 1000) / 10 : 0,
   }));
+  const totalClockMoves = data.reduce((sum, bucket) => sum + bucket.positions, 0);
+  const plenty = data.find((bucket) => bucket.key === "gt_50pct");
+  const zeitnot = data.find((bucket) => bucket.key === "lt_10pct");
+  const comparable = plenty != null && zeitnot != null
+    && plenty.positions >= 5 && zeitnot.positions >= 5;
+  const clockExplanation = comparable
+    ? [
+        tr(
+          `Nel campione, con meno del 10% di tempo la perdita media e' ${zeitnot.avg_cp_loss}; sopra il 50% e' ${plenty.avg_cp_loss} (n=${zeitnot.positions} e n=${plenty.positions}).`,
+          `In this sample, average loss with under 10% of the clock is ${zeitnot.avg_cp_loss}; above 50% it is ${plenty.avg_cp_loss} (n=${zeitnot.positions} and n=${plenty.positions}).`,
+        ),
+        tr(
+          "Il confronto descrive queste mosse: non prova che il tempo rimasto abbia causato la differenza. Posizione, fase e difficolta' possono variare fra le fasce.",
+          "This comparison describes these moves; it does not show that remaining time caused the difference. Position, phase, and difficulty may vary across bands.",
+        ),
+      ]
+    : [
+        tr(
+          `Il grafico contiene ${totalClockMoves} mosse con dati di orologio, ma non almeno 5 mosse sia sopra il 50% sia sotto il 10%: non stimiamo un andamento generale.`,
+          `The chart contains ${totalClockMoves} moves with clock data, but not at least 5 moves both above 50% and below 10%, so no general trend is estimated.`,
+        ),
+        tr(
+          "Leggi ogni fascia come un riepilogo osservato. Il tooltip mostra il numero di mosse usato per percentuale e perdita media.",
+          "Read each band as an observed summary. The tooltip shows the move count used for the percentage and average loss.",
+        ),
+      ];
 
   // Colore in base ad ACPL (alto = rosso = male, basso = verde = bene)
   function colorForAcpl(acpl: number): string {
@@ -57,18 +81,16 @@ export function TimeManagementChart({
         <div className="label-eyebrow">{tr("Gestione del tempo", "Time management")}</div>
         <NonnoExplain
           title={tr("L'orologio", "The clock")}
-          lines={[
-            tr(
-              "Questo e' l'orologio. Piu' scendi col tempo, piu' sbagli: la linea sale verso destra dove restano pochi secondi.",
-              "This is the clock. The less time you have left, the more you err: the line climbs on the right where the seconds run out.",
-            ),
-            tr(
-              "Se la parte pesante e' quando resti senza secondi, gestisci meglio il tempo all'inizio: non arrivare in zeitnot sulle posizioni che contano.",
-              "If the worst zone is when you have almost no time left, manage the clock better early on: do not reach time trouble on the positions that matter.",
-            ),
-          ]}
+          lines={clockExplanation}
         />
       </div>
+      <p className="section-sub mb-3">
+        {tr(
+          `${totalClockMoves} mosse con orologio. Denominatori per fascia: `,
+          `${totalClockMoves} moves with clock data. Denominators by band: `,
+        )}
+        {data.map((bucket) => `${bucket.bucket} n=${bucket.positions}`).join(" · ")}
+      </p>
       <div className="h-[320px]" role="img" aria-label="Grafico tempo rimasto vs errori">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 30, right: 24, left: 0, bottom: 4 }}>
@@ -206,7 +228,7 @@ export function TimeManagementChart({
         </ResponsiveContainer>
       </div>
 
-      <ClockAvoidabilityStrip data={time_management.clock_vs_accuracy} target={target} />
+      <ClockAvoidabilityStrip data={time_management.clock_vs_accuracy} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6">
         <StatCard
@@ -226,12 +248,20 @@ export function TimeManagementChart({
           extra={`${time_management.zeitnot.blunders} errori gravi`}
         />
         <StatCard
-          label="Dopo un errore"
-          sub="come cambiano le mosse che seguono"
-          value={`${tilt.tilt_factor.toFixed(1)}×`}
-          danger={tilt.tilt_factor > 1.3}
+          label={tr("Mossa successiva all'errore", "Move after an error")}
+          sub={tr(
+            "rapporto di perdita media rispetto alla baseline; associazione, non stato emotivo",
+            "average-loss ratio versus baseline; association, not emotional state",
+          )}
+          value={tilt.after_blunder_n >= 5 && tilt.baseline_n >= 5
+            ? `${tilt.tilt_factor.toFixed(1)}×`
+            : tr("Dati insufficienti", "Not enough data")}
+          danger={tilt.after_blunder_n >= 5 && tilt.baseline_n >= 5 && tilt.tilt_factor > 1.3}
           metric=""
-          extra=""
+          extra={tr(
+            `${tilt.after_blunder_n} casi dopo errore · baseline ${tilt.baseline_n} mosse`,
+            `${tilt.after_blunder_n} post-error cases · ${tilt.baseline_n}-move baseline`,
+          )}
         />
       </div>
     </div>
@@ -239,21 +269,27 @@ export function TimeManagementChart({
 }
 
 /**
- * Strip "evitabili dal target" per fascia di clock. Stesso pattern di
- * SpeedVsErrors: di tutti gli errori in questa fascia, quanti il 1600
- * li avrebbe trovati con >40% di probabilita`?
+ * Strip delle posizioni-errore con supporto Maia al livello attuale.
+ * La quota e' descrittiva sul campione osservato, non una probabilita'.
  */
-function ClockAvoidabilityStrip({ data, target }: { data: TimeManagement["clock_vs_accuracy"]; target?: number }) {
+function ClockAvoidabilityStrip({ data }: { data: TimeManagement["clock_vs_accuracy"] }) {
   const anyAvoidable = data.some((d) => (d.avoidable_errors ?? 0) > 0);
   if (!anyAvoidable) return null;
   return (
     <div className="mt-5 pt-4 border-t border-[color:var(--color-line)]">
       <div className="label-eyebrow text-[10px] mb-2">
-        {target != null && target > 0
-          ? `Errori per fascia di orologio: quanti potevi evitare al tuo livello (${target})`
-          : "Errori per fascia di orologio: quanti potevi evitare al tuo livello"}
+        {tr(
+          "Posizioni-errore con supporto Maia al livello attuale, per fascia di orologio",
+          "Error positions with current-level Maia support, by clock band",
+        )}
       </div>
-      <div className="grid grid-cols-5 gap-2">
+      <p className="text-[11px] mt-2 text-[color:var(--color-muted)]">
+        {tr(
+          "Quota sulle posizioni-errore Maia-scored della fascia (conteggio supportate/totale visibile sotto). E' supporto relativo della policy, non probabilita' o facilita'.",
+          "Share of Maia-scored error positions in each band (supported/total count shown below). This is relative policy support, not probability or ease.",
+        )}
+      </p>
+      <div className="grid grid-flow-col auto-cols-[minmax(5rem,1fr)] gap-2 overflow-x-auto pb-1">
         {data.map((d) => {
           const share = d.avoidable_share ?? 0;
           const pct = Math.round(share * 100);

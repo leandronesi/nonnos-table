@@ -10,7 +10,7 @@
 import type { CSSProperties } from "react";
 import { useLang, type Lang } from "./lang";
 
-function itemStyle(active: boolean): CSSProperties {
+function itemStyle(active: boolean, touch: boolean): CSSProperties {
   return {
     fontFamily: "var(--font-mono)",
     fontSize: "0.66rem",
@@ -21,12 +21,15 @@ function itemStyle(active: boolean): CSSProperties {
     fontWeight: active ? 700 : 400,
     background: "none",
     border: "none",
-    padding: 0,
+    padding: touch ? "0 0.5rem" : 0,
+    minWidth: touch ? "2.75rem" : undefined,
+    minHeight: touch ? "2.75rem" : undefined,
+    borderRadius: touch ? "0.5rem" : undefined,
     transition: "color 140ms",
   };
 }
 
-export function LangToggle({ style }: { style?: CSSProperties }) {
+export function LangToggle({ style, touch = false }: { style?: CSSProperties; touch?: boolean }) {
   const { lang, setLang } = useLang();
 
   const pick = (l: Lang) => () => {
@@ -46,7 +49,7 @@ export function LangToggle({ style }: { style?: CSSProperties }) {
         type="button"
         aria-label="Italiano"
         aria-pressed={lang === "it"}
-        style={itemStyle(lang === "it")}
+        style={itemStyle(lang === "it", touch)}
         onClick={pick("it")}
       >
         IT
@@ -58,7 +61,7 @@ export function LangToggle({ style }: { style?: CSSProperties }) {
         type="button"
         aria-label="English"
         aria-pressed={lang === "en"}
-        style={itemStyle(lang === "en")}
+        style={itemStyle(lang === "en", touch)}
         onClick={pick("en")}
       >
         EN

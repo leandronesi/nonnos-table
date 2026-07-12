@@ -12,6 +12,7 @@
  */
 
 import type { PlayerModel } from "./types";
+import { scopedStorage } from "./auth/userStorage";
 
 const STORAGE_KEY = "mygotham_goal_override";
 
@@ -26,7 +27,7 @@ export interface GoalOverride {
 
 export function loadGoalOverride(): GoalOverride | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = scopedStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     return JSON.parse(raw) as GoalOverride;
   } catch {
@@ -37,13 +38,13 @@ export function loadGoalOverride(): GoalOverride | null {
 export function saveGoalOverride(o: Omit<GoalOverride, "updated_at">) {
   const full: GoalOverride = { ...o, updated_at: Date.now() };
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(full));
+    scopedStorage.setItem(STORAGE_KEY, JSON.stringify(full));
   } catch { /* ignore */ }
 }
 
 export function clearGoalOverride() {
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    scopedStorage.removeItem(STORAGE_KEY);
   } catch { /* ignore */ }
 }
 

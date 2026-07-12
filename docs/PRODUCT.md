@@ -1,4 +1,4 @@
-# Mygotham · Road to GranPa — Product Manifesto
+# Nonno's Table — Product Manifesto
 
 **Versione 1.0 — 2026-05-25**
 Documento canonico. Quando una decisione di prodotto è incerta, si torna qui.
@@ -11,7 +11,7 @@ Due decisioni del PO che EVOLVONO questo manifesto. Dove confliggono con §5, §
 
 ### 0.1 "Ancore", non "freni"
 
-Il cuore non è una lista di debolezze (colpa), ma le tue **ancore**: ciò che ti tiene fermo al tuo livello. Il framing guarda in avanti: ogni ancora si esprime con l'UPSIDE, "lasciala e sali verso X", non "qui sbagli". L'unità resta quella della Vision (pattern, posizioni, comportamenti, pesati per difficoltà Maia e relativi al target), ma nome ed espressione sono motivazionali: quanto guadagni se la molli.
+Il cuore non è una lista di debolezze (colpa), ma le tue **ancore**: ciò che ti tiene fermo al tuo livello. Il framing guarda in avanti: ogni ancora indica una priorità allenabile, non un guadagno Elo promesso. L'unità resta quella della Vision (pattern, posizioni, comportamenti, pesati per i segnali Maia e relativi al target), ma nome ed espressione sono motivazionali: cosa vale la pena allenare adesso e come verificarne il cambiamento.
 
 ### 0.2 Dati esposti, Nonno è l'interprete (non il narratore)
 
@@ -20,10 +20,12 @@ Si abbandona il "Nonno + 1 bottone, tutti i dati dietro 📓" (§5-6, regola §1
 ### 0.3 Flusso della Sessione: guardo → Nonno aiuta → gioco da solo → partita
 
 La Sessione e' una progressione pedagogica (io guardo, facciamo insieme, faccio da solo, gioco), NON solo review passivo. I drill attivi TORNANO. Quattro fasi:
-1. **Guardo + Nonno parla**: rivedo la posizione, Nonno la commenta (tempo, "1 su 10 al tuo livello", mossa d'attesa). Passivo.
+1. **Guardo + Nonno parla**: rivedo la posizione, Nonno la commenta (tempo, confronto Maia relativo tra livello attuale e target, mossa d'attesa). Passivo.
 2. **Nonno mi aiuta**: trovo la mossa con l'aiuto di Nonno (hint visivo, casa di partenza). Guidato.
 3. **Gioco da solo**: trovo la mossa senza aiuto. Drill.
-4. **Partita**: gioco contro Maia al target, da una mia posizione vissuta.
+4. **Partita**: gioco dalla posizione di una mia partita; la UI dichiara se la
+   mossa avversaria arriva dalla policy Maia o dal fallback Stockfish, senza
+   presentare il conditioning sul target come equivalenza di rating umano.
 
 ### 0.4 Note di prodotto
 
@@ -74,8 +76,8 @@ richiesta** (un «entriamo nel dettaglio?» che chiama la voce), non come base.
 
 Ogni Ancora porta con sé la sua **frase-azione** (cosa fare di concreto, già
 scritta in `i18n/anchors.ts`), sempre visibile accanto all'etichetta e al
-guadagno. «Pezzi in presa · +18 punti» non basta: «Controlla sempre le catture
-dell'avversario prima di muovere.»
+segnale di priorità. «Pezzi in presa · 22% degli errori osservati» porta a:
+«Controlla sempre le catture dell'avversario prima di muovere.»
 
 ### La voce
 
@@ -83,6 +85,43 @@ Le frasi-perché sono **voce di Nonno autoriale** (frammenti scritti, non LLM):
 valgono come voce a tutti gli effetti se rispettano la skill `nonno-voice`
 (frasi corte, lessico scacchistico italiano, niente em-dash, 2a persona, mai
 paternalismo). Bilingui IT/EN.
+
+## 0.6 Aggiornamento 2026-07-11 — semantica Maia e promesse misurabili
+
+Gli output della policy Maia sono **indici relativi sullo stesso FEN**, non
+frequenze calibrate sui giocatori Chess.com. È quindi vietato tradurre `0.20`
+in «2 giocatori su 10», «20% dei giocatori» o formule equivalenti.
+
+- Stockfish verifica la posizione e l'insieme osservato di mosse accettabili.
+- Maia confronta quanto quelle scelte sono compatibili con il livello attuale e
+  quello obiettivo: «più naturale al target», «nessun divario netto», oppure un
+  indice/lift esplicitamente relativo.
+- `avoidable_at_current` significa soltanto che la policy corrente supera una
+  soglia euristica di supporto sull'insieme accettabile osservato; non autorizza
+  da solo il copy «potevi trovarla». `target_relevant` significa allenabile nel
+  percorso verso l'obiettivo, non inevitabile o facile per una persona.
+- Nessuna ancora promette `+N Elo`: si mostrano ricorrenza, quota degli errori
+  osservati e priorità relativa. Il miglioramento va provato sulle opportunità
+  future nelle partite reali.
+
+## 0.7 Aggiornamento 2026-07-11 — free beta e metrica operativa
+
+Questo aggiornamento supera la riga pricing del §3, la metrica del §14 e il
+pricing del §16 dove confliggono.
+
+- La beta è gratuita. Non viene promesso né progettato ora un piano Pro o un
+  prezzo: la priorità è dimostrare utilità, fiducia e uso ricorrente.
+- L'obiettivo di scala è 10-15K **recurring learners**, non account creati:
+  almeno due giorni distinti con `session_completed` negli ultimi 28 giorni e
+  almeno un giorno negli ultimi 7. La definizione e le query canoniche sono in
+  [PRODUCT_METRICS.md](PRODUCT_METRICS.md).
+- Le prove principali sono activation, D7/W4 retention e transfer su
+  opportunità successive a un intervento, sempre con denominatore e soglie di
+  evidenza. «Cita Nonno» resta una qualità desiderabile del brand, non la metrica
+  operativa unica.
+- Un'eventuale acquisizione da parte di Chess.com è un esito strategico sperato,
+  non una promessa all'utente né un motivo per indebolire privacy o verità dei
+  claim.
 
 ---
 
@@ -103,9 +142,9 @@ Per **migliorare**.
 
 Giocare è la fine della sessione, non il centro. L'80% del valore sta nel
 review insieme a Nonno: vedere come sei arrivato a un errore, capire
-quanto tempo hai speso sulla mossa, sapere quanti giocatori al tuo
-livello avrebbero trovato la mossa giusta, e quando invece **conveniva
-giocare di attesa** perché la mossa esatta era troppo difficile per te.
+quanto tempo hai speso sulla mossa, confrontare gli indici relativi Maia fra
+livello attuale e obiettivo, e vedere quando Stockfish valida una **mossa di
+attesa** robusta senza dichiarare che la linea esatta fosse impossibile per te.
 
 ## 3. Categoria competitiva e moat
 
@@ -153,7 +192,7 @@ Il prodotto **NON è una multi-page app** con `/cruscotto`, `/storia`,
 │   Oooh, eccolo. Oggi rivediamo tre momenti   │
 │   delle tue ultime partite. Uno con tempo    │
 │   speso, due in cui hai forzato dove non si  │
-│   poteva. Poi giochiamo una contro un 1500.  │
+│   poteva. Poi proviamo contro Stockfish.      │
 │                                              │
 │         ┌──────────────────────┐             │
 │         │  Sediamoci       →   │             │
@@ -194,8 +233,8 @@ Ogni momento di review mostra:
 │  Hai mosso Cxd5 in 8 secondi.                  │
 │  La mossa giusta era Tf1.                      │
 │                                                │
-│  Solo 1 su 8 al tuo livello l'avrebbe trovata. │
-│  Per un 1500 era già più chiara.               │
+│  Maia associa questa scelta più al livello     │
+│  1500 che al tuo livello attuale.              │
 │                                                │
 │  Lì era meglio una mossa di attesa — Re1, h3.  │
 │  Aspettare, non forzare quando non vedi.       │
@@ -209,7 +248,7 @@ Ogni momento di review mostra:
 Note tecniche:
 - Le 3-4 mosse PRECEDENTI sono navigabili (slider/arrows sotto la
   scacchiera). L'utente vede il film, non la fotografia.
-- Tempo, probabilità MAIA mine vs target, alternative "di attesa" sono
+- Tempo, indici relativi MAIA mine vs target, alternative "di attesa" sono
   parte del **discorso di Nonno**, non statistiche affiancate.
 - Una sola CTA: "Avanti". Niente "Salta", niente "Tutorial", niente
   "Spiegami di più". **[Superato da §0.5]** Il perché della mossa è ora
@@ -259,16 +298,19 @@ Già nel db come `spent_seconds`/`time_spent_on_move`. Mai usato finora.
 
 ### B. Il confronto MAIA mine vs target
 
-> *"Solo 1 su 8 al tuo livello l'avrebbe trovata. Per un 1500 era già più
-> chiara."*
+> *"Maia associa questa scelta più al livello 1500 che al tuo livello attuale.
+> È un confronto relativo, non una frequenza."*
 
-`p_maia_mine_top` e `p_maia_target_top` già in PositionRow. Mai mostrati.
+Le masse di policy mine/target sono segnali comparativi sulla stessa posizione.
+Non vanno esposte come probabilità umane calibrate; il prodotto mostra il verso
+del gap o un indice relativo con una spiegazione esplicita.
 
 ### C. Il consiglio della "mossa di attesa"
 
-Quando la mossa giusta è oggettivamente **troppo difficile** per il livello
-(p_maia_mine_top < 0.20) E la posizione **non è forzante** (non c'è una
-tattica obbligata), Nonno insegna una strategia:
+Quando l'insieme osservato delle mosse accettabili riceve **massa di policy
+bassa al livello attuale** (segnale euristico, non probabilità umana) E la
+posizione **non è forzante** (non c'è una tattica obbligata), Nonno può
+insegnare una strategia pratica:
 
 > *"Lì era meglio una mossa di attesa — Re1, h3. Aspettare, non forzare
 > quando non vedi."*
@@ -289,7 +331,8 @@ una lista `waiting_moves` per le posizioni dove ha senso.
    i dati dietro UNA icona 📓". Ora vale l'opposto: **i dati e i grafici
    sono esposti** (esponi il valore) e **Nonno è l'interprete a richiesta**
    che te li spiega quando ci clicchi. Resta vero che la voce di Nonno cita
-   numeri concreti (tempo, "1 su 8 al tuo livello") come argomento del coach.
+   numeri concreti osservati (tempo, partite coinvolte, quota degli errori) e
+   descrive Maia soltanto come confronto relativo tra livello attuale e target.
 5. **Lui ti convoca, tu non cerchi.** Niente menu di scelta tipo
    "Pattern / Profilo / Trainer". Il prodotto ti porta dove ti deve
    portare.

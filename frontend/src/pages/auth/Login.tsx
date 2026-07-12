@@ -46,6 +46,13 @@ export function Login() {
           >
             {tr("Crea un account", "Create an account")}
           </Link>
+          {" · "}
+          <Link
+            to="/privacy"
+            style={{ color: "var(--color-brand-soft)", textDecoration: "underline" }}
+          >
+            {tr("Privacy", "Privacy")}
+          </Link>
         </>
       }
     >
@@ -73,6 +80,14 @@ export function Login() {
             onChange={(e) => setPassword(e.target.value)}
           />
         </Field>
+        <div style={{ textAlign: "right", marginTop: "-0.5rem", marginBottom: "0.875rem" }}>
+          <Link
+            to="/forgot-password"
+            style={{ color: "var(--color-brand-soft)", fontSize: "0.75rem" }}
+          >
+            {tr("Password dimenticata?", "Forgot password?")}
+          </Link>
+        </div>
         {error ? (
           <div
             style={{

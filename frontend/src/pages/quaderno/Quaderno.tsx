@@ -8,7 +8,7 @@
  *                         compatta dei traguardi (computeMilestones), diagnosi collassabile.
  *   Tab 2 — CADUTE     : "dove cado?" — galleria posizioni allenabili, raggruppabile
  *                         "per ancora" (default) o "per giorno" (rassegna del Diario).
- *   Tab 3 — PROFILO    : "chi sono?" — decisioni, tempo, tilt, fase, colore.
+ *   Tab 3 — PROFILO    : "chi sono?" — decisioni, tempo, segnale post-errore, fase, colore.
  *   Tab 4 — REPERTORIO : aperture e dove si concentrano gli errori evitabili.
  *
  * Cross-link OOUX:
@@ -21,7 +21,7 @@
  * Invarianti DESIGN.md:
  *   - FLAT: tonal layers, niente ombre decorative
  *   - twilight <=15%, una CTA per schermo
- *   - ORO solo Obiettivo e rating_upside
+ *   - ORO solo Obiettivo; nessuna stima di punti Elo per le ancore
  *   - niente gradient-text, em-dash, card-dentro-card
  *   - classi tt-* + .segment/.segment-item
  */
@@ -166,12 +166,12 @@ function Section({ children, eyebrow, delay = 0 }: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB: EVOLUZIONE ("sto migliorando?") — anchor trails + transfer micro-line,
+// TAB: EVOLUZIONE ("sto migliorando?") — anchor trails + heuristic micro-line,
 // "dal primo giorno" (rating curve + day1 vs now), traguardi strip, diagnosi.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TRANSFER -> ANCORA mapping (for the per-anchor "transfer" micro-line)
+// HEURISTIC DETECTION -> ANCORA mapping (not post-training transfer)
 // Only tactical anchors get a micro-line. The transfer motifs (heuristic, chess.js)
 // map to anchor types as follows:
 //   hanging_piece -> hung_piece    ("Pezzi in presa")
@@ -214,11 +214,22 @@ function transferForAnchor(
   return { recent, prior };
 }
 
-/** Faint Nonno micro-line: "di recente gestito 7 su 10 (prima 4 su 8)". */
+/** Detection-only summary. It does not measure post-training transfer yet. */
 function transferMicroLine(t: { recent: TransferWindow; prior: TransferWindow | null }): string {
-  const r = `di recente gestito ${t.recent.handled} su ${t.recent.faced}`;
-  if (t.prior) return `${r} (prima ${t.prior.handled} su ${t.prior.faced})`;
-  return r;
+  const r = tr(
+    `${t.recent.handled}/${t.recent.faced} posizioni rilevate nel campione recente`,
+    `${t.recent.handled}/${t.recent.faced} positions detected in the recent sample`,
+  );
+  const prior = t.prior
+    ? tr(
+        `; campione precedente ${t.prior.handled}/${t.prior.faced}`,
+        `; previous sample ${t.prior.handled}/${t.prior.faced}`,
+      )
+    : "";
+  return `${r}${prior}. ${tr(
+    "Euristica: perdita < 50 cp; non misura ancora il transfer dopo l'allenamento.",
+    "Heuristic: loss < 50 cp; this does not yet measure post-training transfer.",
+  )}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -249,17 +260,17 @@ function anchorTrailVerdictLine(trail: AnchorTrail): string {
   const firstP = freqPhrase(first.freq);
   const lastP  = freqPhrase(last.freq);
 
+  if (trail.confidence === "low") {
+    return `Campione insufficiente per dire se cambia: prima ${firstP} (${first.count} errori / ${first.games} partite), ora ${lastP} (${last.count} / ${last.games}).`;
+  }
+
   if (trail.direction === "improving") {
-    return `Prima ${firstP}, ora ${lastP}. Sta calando: continua.`;
+    return `Prima ${firstP} (${first.count}/${first.games}), ora ${lastP} (${last.count}/${last.games}). Nel campione la frequenza e' in calo.`;
   }
   if (trail.direction === "worsening") {
-    return `Prima ${firstP}, ora ${lastP}. E' risalita: tienila d'occhio.`;
+    return `Prima ${firstP} (${first.count}/${first.games}), ora ${lastP} (${last.count}/${last.games}). Nel campione la frequenza e' in aumento.`;
   }
-  // stable
-  if (last.freq <= 0.5) {
-    return `Stabile, ${lastP}. Bassa, va bene.`;
-  }
-  return `Stabile, ${lastP}. Non peggiora, ma non cala ancora.`;
+  return `Prima ${firstP} (${first.count}/${first.games}), ora ${lastP} (${last.count}/${last.games}). Il criterio di trend la classifica stabile nel campione.`;
 }
 
 function AnchorTrailsSection({
@@ -282,13 +293,14 @@ function AnchorTrailsSection({
       ) : (
         <div>
           {trails.map((trail, i) => {
-            const improving = trail.direction === "improving";
-            const worsening = trail.direction === "worsening";
+            const directionReady = trail.confidence === "medium" || trail.confidence === "high";
+            const improving = directionReady && trail.direction === "improving";
+            const worsening = directionReady && trail.direction === "worsening";
             const freqPoints = trail.points
               .map((p) => p.freq)
               .filter((f): f is number => f != null);
             const verdict = anchorTrailVerdictLine(trail);
-            // Transfer micro-line: only for tactical anchors with recent faced data.
+            // Heuristic detection line: only for tactical anchors with recent data.
             const transferData = transferForAnchor(trail.key, transfer);
 
             return (
@@ -327,7 +339,7 @@ function AnchorTrailsSection({
                         <span className="tt-chip warn" style={{ fontSize: "0.65rem" }}>{tr("in salita", "rising")}</span>
                       )}
                       {trail.confidence === "low" && (
-                        <span className="tt-chip" style={{ fontSize: "0.6rem", color: "var(--color-faint)", background: "rgba(255,255,255,0.03)" }}>{tr("dati parziali", "partial data")}</span>
+                        <span className="tt-chip" style={{ fontSize: "0.6rem", color: "var(--color-faint)", background: "rgba(255,255,255,0.03)" }}>{tr("campione insufficiente", "insufficient sample")}</span>
                       )}
                     </div>
                     {(() => {
@@ -352,14 +364,14 @@ function AnchorTrailsSection({
                     <div style={{ fontSize: "0.82rem", color: "var(--color-text-soft)", lineHeight: 1.55 }}>
                       {verdict}
                     </div>
-                    {/* Transfer micro-line (tactical anchors only): "di recente gestito 7 su 10 (prima 4 su 8)" */}
+                    {/* Detection caveat (tactical anchors only), not transfer evidence. */}
                     {transferData && (
                       <div style={{ marginTop: "0.25rem", fontSize: "0.72rem", color: "var(--color-faint)", lineHeight: 1.5, fontVariantNumeric: "tabular-nums" }}>
                         {transferMicroLine(transferData)}
                       </div>
                     )}
                     <div style={{ marginTop: "0.25rem", fontSize: "0.72rem", color: "var(--color-faint)", fontVariantNumeric: "tabular-nums" }}>
-                      {trail.points.length} {tr("analisi", "analyses")}
+                      {trail.points.length} {tr("rilevazioni settimanali", "weekly observations")}
                     </div>
                   </div>
 
@@ -737,18 +749,37 @@ function TabEvoluzione({
   // Journal entries (deduplicated, for the collapsible diagnosis at bottom)
   const journalEntries = journalRaw ? parseJournal(journalRaw) : [];
 
-  // Maia avoidability verdict for Evoluzione tab (C.5)
+  // Maia relative-policy verdict for Evoluzione tab (never a human frequency).
   const maiaverdictLine = (() => {
     const mw = aggregates?.maia_weighted;
-    if (mw == null || mw.mine_pct == null || mw.target_pct == null) return null;
-    const mine = Math.round(mw.mine_pct);
-    const tgt = Math.round(mw.target_pct);
-    // The sentence frames a positive gap toward the target; with no gap it reads wrong.
-    if (tgt <= mine) return null;
-    const ratingLabel = evoluzioneTargetRating != null && evoluzioneTargetRating > 0
-      ? `Uno da ${evoluzioneTargetRating}`
-      : "Uno al tuo obiettivo";
-    return `Degli errori che hai fatto, il ${mine}% erano mosse alla tua portata. ${ratingLabel} ne avrebbe evitati il ${tgt}%. La distanza sta tutta li': non nella fortuna, nella visione.`;
+    const coverage = aggregates?.maia_coverage;
+    if (mw == null) return null;
+    if (coverage?.status === "disabled" || coverage?.status === "unavailable") {
+      return tr(
+        "Maia non ha copertura sufficiente per confrontare livello attuale e obiettivo in questa analisi.",
+        "Maia does not have enough coverage to compare your current and target levels in this analysis.",
+      );
+    }
+    const mine = Math.round(mw.mine_acceptable_observed_policy_pct);
+    const target = Math.round(mw.target_acceptable_observed_policy_pct);
+    const targetLabel = evoluzioneTargetRating != null && evoluzioneTargetRating > 0
+      ? String(evoluzioneTargetRating)
+      : tr("obiettivo", "target");
+    const scored = coverage?.scored_positions ?? mw.errors_scored;
+    const eligible = coverage?.eligible_positions ?? scored;
+    const coverageNote = eligible > scored
+      ? tr(` Copertura: ${scored} posizioni su ${eligible}.`, ` Coverage: ${scored} of ${eligible} positions.`)
+      : tr(` Posizioni valutate: ${scored}.`, ` Positions scored: ${scored}.`);
+    if (target > mine) {
+      return tr(
+        `Sulle mosse accettabili osservate, l'indice Maia e' piu' alto al livello ${targetLabel} (${target}) che oggi (${mine}). Sono indici relativi del modello, non percentuali di giocatori.${coverageNote}`,
+        `For the observed acceptable moves, Maia's index is higher at the ${targetLabel} level (${target}) than today (${mine}). These are relative model indices, not player percentages.${coverageNote}`,
+      );
+    }
+    return tr(
+      `Maia non mostra un divario aggregato netto fra oggi e il livello ${targetLabel} sulle mosse accettabili osservate.${coverageNote}`,
+      `Maia shows no clear aggregate gap between today and the ${targetLabel} level for the observed acceptable moves.${coverageNote}`,
+    );
   })();
 
   // Nonno's intro for Evoluzione: identity-framed, "sto migliorando?"
@@ -1105,25 +1136,26 @@ function HBar({ pct, danger, label, sub }: { pct: number; danger: boolean; label
 function TabProfilo({
   aggregates,
   pmLite,
-  targetRating,
 }: {
   aggregates: Aggregates | null;
   pmLite: PlayerModelLite | null;
-  targetRating: number;
 }) {
   const decisions = pmLite?.decisions ?? null;
   const weeklyTrend = pmLite?.weekly_trend ?? null;
   const showWeekly = weeklyTrend != null && weeklyTrend.last_7d.n_games >= 1;
   const tilt = pmLite?.tilt ?? null;
-  const showTilt = tilt != null && tilt.tilt_factor > 1.1 && tilt.after_blunder_n >= 5;
+  const postErrorSampleSufficient =
+    tilt != null && tilt.after_blunder_n >= 5 && tilt.baseline_n >= 5;
+  const showPostErrorSignal =
+    postErrorSampleSufficient && tilt != null && tilt.tilt_factor > 1.1;
 
   // Nonno voice for Profilo
   const profiloNonno = (() => {
-    if (showTilt && tilt) {
+    if (showPostErrorSignal && tilt) {
       const factor = tilt.tilt_factor.toFixed(1);
       return getLang() === "en"
-        ? `After a mistake, in the moves that follow you err almost ${factor} times more than usual. You already know the most delicate moment: that is where you can gain the most.`
-        : `Dopo un errore, nelle mosse che seguono sbagli quasi ${factor} volte piu' del solito. Conosci gia' il punto piu' delicato: e' li' che puoi guadagnare di piu'.`;
+        ? `Across ${tilt.after_blunder_n} observed cases, the very next move after an error had ${factor} times the average centipawn loss of the ${tilt.baseline_n}-move baseline. This is an association, not evidence of an emotional state.`
+        : `Nei ${tilt.after_blunder_n} casi osservati, la prima mossa dopo un errore ha avuto una perdita media ${factor} volte la baseline di ${tilt.baseline_n} mosse. E' un'associazione, non la prova di uno stato emotivo.`;
     }
     if (decisions != null && decisions.blow_rate != null && decisions.blow_rate > 0.35) {
       return `Trasformi meno del 65% delle posizioni vinte. La tua fase critica e' la conversione: guarda le Decisioni.`;
@@ -1162,18 +1194,18 @@ function TabProfilo({
     const secondMax = Math.max(...others.map((p) => p.pct));
     if (worstPhase.pct < secondMax * 1.5) return null; // gap non abbastanza netto
     const labelMap: Record<string, string> = { opening: "apertura", middlegame: "mediogioco", endgame: "finale" };
-    return `Dove lasci piu' valore e' il ${labelMap[worstPhase.key] ?? worstPhase.label.toLowerCase()}.`;
+    return `Nel campione, il ${labelMap[worstPhase.key] ?? worstPhase.label.toLowerCase()} ha la quota piu' alta di errori gravi: ${worstPhase.pct.toFixed(1)}% su ${worstPhase.moves} mosse.`;
   })();
 
   // Colore verdict: solo se il divario e' reale (>= 1.5 punti %)
   const colorVerdictLine = (() => {
     if (weakerColor == null || colorDelta < 1.5) return null;
-    return `Col ${weakerColor.label === "Nero" ? "Nero" : "Bianco"} fai piu' fatica: il divario e' reale, vale la pena guardare.`;
+    return `Nel campione, la quota di errori gravi e' piu' alta col ${weakerColor.label === "Nero" ? "Nero" : "Bianco"} di ${colorDelta.toFixed(1)} punti percentuali (${weakerColor.games} partite).`;
   })();
 
-  // Tilt verdict: gia' nel profiloNonno globale, non lo ripetiamo qui
+  // Post-error association is already summarized in profiloNonno when strong.
 
-  // SpeedVsErrors verdict (3C-b): dal dato spent_vs_avoidable
+  // SpeedVsErrors verdict (3C-b): associazione osservata, non causalita'.
   const speedVerdictLine = (() => {
     const sva = aggregates?.maia_weighted?.spent_vs_avoidable;
     if (!sva || sva.length === 0) return null;
@@ -1183,7 +1215,10 @@ function TabProfilo({
     if (totalErrors === 0) return null;
     const avoidPct = Math.round((lt5.avoidable / Math.max(lt5.errors, 1)) * 100);
     if (avoidPct < 30 || lt5.avoidable < 2) return null; // segnale troppo debole
-    return `Il ${avoidPct}% degli errori evitabili sulle mosse sotto i 5 secondi: stai forzando posizioni che sapresti risolvere.`;
+    return tr(
+      `Sotto i 5 secondi, ${lt5.avoidable}/${lt5.errors} posizioni-errore Maia-scored (${avoidPct}%) hanno supporto della policy al livello attuale. E' una classificazione relativa, non probabilita' o facilita', e non prova che la velocita' abbia causato l'errore.`,
+      `Under 5 seconds, ${lt5.avoidable}/${lt5.errors} Maia-scored error positions (${avoidPct}%) have current-level policy support. This is a relative classification, not probability or ease, and does not show that speed caused the error.`,
+    );
   })();
 
   // ClockVsAccuracy verdict (3C-a): il bucket <10% ha errori piu' alti?
@@ -1192,10 +1227,14 @@ function TabProfilo({
     if (!cva || cva.length === 0) return null;
     const low = cva.find((b) => b.key === "lt_10pct");
     if (!low || low.positions < 3) return null;
+    const totalClockPositions = cva.reduce((s, b) => s + b.positions, 0);
     const avgAll = cva.reduce((s, b) => s + b.avg_cp_loss * b.positions, 0) /
-                   Math.max(cva.reduce((s, b) => s + b.positions, 0), 1);
+                   Math.max(totalClockPositions, 1);
     if (low.avg_cp_loss < avgAll * 1.3) return null; // non abbastanza peggio
-    return `Quando l'orologio scende sotto il 10%, gli errori gravi salgono.`;
+    return tr(
+      `Nel campione, le ${low.positions} mosse sotto il 10% di tempo hanno perdita media ${low.avg_cp_loss}, contro ${Math.round(avgAll)} sulle ${totalClockPositions} mosse con orologio. E' un'associazione; difficolta' e fase possono variare fra le fasce.`,
+      `In this sample, the ${low.positions} moves below 10% time have average loss ${low.avg_cp_loss}, versus ${Math.round(avgAll)} across ${totalClockPositions} moves with clock data. This is an association; difficulty and phase may differ across bands.`,
+    );
   })();
 
   return (
@@ -1237,7 +1276,6 @@ function TabProfilo({
             <TimeManagementChart
               time_management={pmLite.time_management as TimeManagement}
               tilt={pmLite.tilt as Tilt}
-              target={targetRating > 0 ? targetRating : undefined}
             />
           </div>
         </Reveal>
@@ -1248,30 +1286,34 @@ function TabProfilo({
         <Reveal delay={120} className="mb-8">
           <GameArcChart
             maiaWeighted={aggregates.maia_weighted}
-            targetRating={targetRating > 0 ? targetRating : null}
           />
         </Reveal>
       )}
 
-      {/* Tilt */}
-      {showTilt && tilt != null && (
-        <Section eyebrow={tr("Tilt", "Tilt")} delay={140}>
+      {/* Qualita' della prima mossa successiva a un errore: osservazionale. */}
+      {tilt != null && (
+        <Section eyebrow={tr("Qualita' dopo un errore", "Quality after an error")} delay={140}>
           <p style={{ fontSize: "0.88rem", color: "var(--color-text-soft)", lineHeight: 1.65, margin: 0 }}>
-            {getLang() === "en" ? (
+            {!postErrorSampleSufficient ? (
+              tr(
+                `Dati insufficienti: ${tilt.after_blunder_n} casi dopo un errore e ${tilt.baseline_n} mosse di baseline. Ne servono almeno 5 per gruppo.`,
+                `Not enough data: ${tilt.after_blunder_n} post-error cases and ${tilt.baseline_n} baseline moves. At least 5 per group are required.`,
+              )
+            ) : getLang() === "en" ? (
               <>
-                After a mistake, in the moves that follow you err almost{" "}
+                Across {tilt.after_blunder_n} observed cases, the first move after an error had{" "}
                 <span className="font-mono font-bold" style={{ color: "var(--color-warn)", fontVariantNumeric: "tabular-nums" }}>
                   {tilt.tilt_factor.toFixed(1)}
                 </span>
-                {" "}times more than usual. You carry it for a few moves, then it passes. When you feel you have erred, that is the moment to slow down, not to recover.
+                {" "}times the average centipawn loss of the {tilt.baseline_n}-move baseline. This does not establish tilt or causation.
               </>
             ) : (
               <>
-                Dopo un errore, nelle mosse che seguono sbagli quasi{" "}
+                Nei {tilt.after_blunder_n} casi osservati, la prima mossa dopo un errore ha avuto una perdita media{" "}
                 <span className="font-mono font-bold" style={{ color: "var(--color-warn)", fontVariantNumeric: "tabular-nums" }}>
                   {tilt.tilt_factor.toFixed(1)}
                 </span>
-                {" "}volte piu' del solito. Te lo porti dietro per qualche mossa, poi passa. Quando senti che hai sbagliato, e' il momento di rallentare, non di recuperare.
+                {" "}volte la baseline di {tilt.baseline_n} mosse. Questo non dimostra tilt ne' causalita'.
               </>
             )}
           </p>
@@ -1375,11 +1417,9 @@ function buildCaduteGroups(raw: PositionExample[]): CaduteGroup[] {
   return varie ? [...named, varie] : named;
 }
 
-function avoidabilityLabel(c: PositionExample): "evitabile" | "difficile" | null {
-  if (c.avoidable === true || (c.priority_score != null && c.priority_score >= 2)) return "evitabile";
-  if (c.move_difficulty != null) {
-    return c.move_difficulty >= 0.6 ? "difficile" : c.move_difficulty < 0.5 ? "evitabile" : null;
-  }
+function avoidabilityLabel(c: PositionExample): "current" | "target" | null {
+  if (c.avoidable_at_current === true || c.avoidable === true) return "current";
+  if (c.target_relevant === true) return "target";
   return null;
 }
 
@@ -1406,7 +1446,8 @@ function GroupGallery({ positions, onOpeningLink }: { positions: PositionExample
               ) : (
                 <span className="tt-chip warn" style={{ fontSize: "0.65rem" }}>{tr("Errore", "Error")}</span>
               )}
-              {avoid === "evitabile" && <span className="tt-chip warn" style={{ fontSize: "0.65rem" }}>{tr("Evitabile", "Avoidable")}</span>}
+              {avoid === "current" && <span className="tt-chip warn" style={{ fontSize: "0.65rem" }}>{tr("Supporto policy current", "Current-policy support")}</span>}
+              {avoid === "target" && <span className="tt-chip" style={{ fontSize: "0.65rem" }}>{tr("Nel percorso verso il target", "On the path to target")}</span>}
             </div>
             {(() => {
               const reason = buildMoveReason({
@@ -1639,7 +1680,8 @@ function TabCadute({
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           {groups.map((grp, idx) => {
             const isExpanded = expandedGroup === grp.key;
-            const avoidable = grp.positions.filter((p) => avoidabilityLabel(p) === "evitabile").length;
+            const avoidable = grp.positions.filter((p) => avoidabilityLabel(p) === "current").length;
+            const targetRelevant = grp.positions.filter((p) => avoidabilityLabel(p) === "target").length;
             return (
               <Reveal key={grp.key} delay={idx * 40}>
                 <div style={{
@@ -1672,7 +1714,17 @@ function TabCadute({
                             <span className="font-mono" style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--color-warn)", fontVariantNumeric: "tabular-nums" }}>
                               {avoidable}
                             </span>
-                            <span style={{ fontSize: "0.75rem", color: "var(--color-muted)" }}>{tr("alla tua portata", "within reach")}</span>
+                            <span style={{ fontSize: "0.75rem", color: "var(--color-muted)" }}>{tr("con supporto policy current", "with current-policy support")}</span>
+                            <span className="font-mono" style={{ fontSize: "0.72rem", color: "var(--color-faint)", fontVariantNumeric: "tabular-nums" }}>
+                              {tr("su", "of")} {grp.positions.length}
+                            </span>
+                          </>
+                        ) : targetRelevant > 0 ? (
+                          <>
+                            <span className="font-mono" style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--color-brand-soft)", fontVariantNumeric: "tabular-nums" }}>
+                              {targetRelevant}
+                            </span>
+                            <span style={{ fontSize: "0.75rem", color: "var(--color-muted)" }}>{tr("nel percorso verso il target", "on the path to target")}</span>
                             <span className="font-mono" style={{ fontSize: "0.72rem", color: "var(--color-faint)", fontVariantNumeric: "tabular-nums" }}>
                               {tr("su", "of")} {grp.positions.length}
                             </span>
@@ -1823,8 +1875,8 @@ function TabRepertorio({ aggregates }: { aggregates: Aggregates | null }) {
   const total = aggregates!.repertoire!.length;
   const lang = getLang();
   const repertorioNonno = lang === "en"
-    ? `${total} ${total === 1 ? "opening" : "openings"} in the repertoire. Click an opening to see where the avoidable errors are.`
-    : `${total} aperture nel repertorio. Clicca su un'apertura per vedere dove si concentrano gli errori evitabili.`;
+    ? `${total} ${total === 1 ? "opening" : "openings"} in the repertoire. Click an opening to see where errors with current-policy support cluster.`
+    : `${total} aperture nel repertorio. Clicca su un'apertura per vedere dove si concentrano gli errori con supporto policy current.`;
 
   return (
     <div>
@@ -1843,7 +1895,7 @@ function TabRepertorio({ aggregates }: { aggregates: Aggregates | null }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function Quaderno() {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const [pmLite,     setPmLite]     = useState<PlayerModelLite | null>(null);
   const [aggregates, setAggregates] = useState<Aggregates | null>(null);
   const [history,    setHistory]    = useState<HistoryFile>({ schema_version: 1, snapshots: [] });
@@ -1877,10 +1929,18 @@ export function Quaderno() {
 
         // Compute milestones if we have enough data
         if (pm?.identity?.goal && agg) {
+          const planStartedMs = pm.identity.plan_started_at
+            ? Date.parse(pm.identity.plan_started_at)
+            : Number.NaN;
+          const gamesAfterOnboarding = Number.isFinite(planStartedMs)
+            ? (pm.rating_curve[pm.identity.goal.time_class] ?? [])
+                .filter((point) => point.epoch >= planStartedMs + 86_400_000).length
+            : 0;
           const ms = computeMilestones({
             history: hist,
             goal: pm.identity.goal,
             aggregates: agg,
+            gamesAfterOnboarding,
           });
           setMilestones(ms);
         }
@@ -1955,7 +2015,10 @@ export function Quaderno() {
             {tr("Il Quaderno e' ancora vuoto", "The Notebook is still empty")}
           </h1>
           <p style={{ color: "var(--color-text-soft)", fontSize: "0.88rem", marginBottom: "1.5rem", lineHeight: 1.6 }}>
-            {tr("Dopo la prima analisi troverai la tua evoluzione, le cadute da allenare e il tuo profilo.", "Nothing here yet. We'll fill this in together.")}
+            {tr(
+              "Dopo la prima lettura troverai andamento, posizioni da rivedere e profilo osservato.",
+              "After the first reading, you will find trends, positions to review, and your observed profile.",
+            )}
           </p>
           <Link to="/" className="btn btn-primary">{tr("Torna al Tavolo", "Go to the Table")}</Link>
         </div>
@@ -2051,7 +2114,6 @@ export function Quaderno() {
               <TabProfilo
                 aggregates={aggregates}
                 pmLite={pmLite}
-                targetRating={profile?.goal_rating ?? pmLite?.identity?.goal?.target ?? 0}
               />
             )}
             {activeTab === "repertorio" && (

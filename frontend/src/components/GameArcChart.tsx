@@ -2,8 +2,8 @@
  * GameArcChart — "Qualita' lungo la partita"
  *
  * Mostra, per ogni fase (apertura / mediogioco / finale), quanta parte degli
- * errori era EVITABILE al tuo livello Maia. La lettura: dove nell'arco della
- * partita perdi valore che avresBi potuto tenere.
+ * errori e' marcata `avoidable_at_current`: alla portata oggi secondo il
+ * criterio esplicito Maia. Non e' una frequenza umana calibrata.
  *
  * Dati: MaiaWeighted.by_phase_avoidable (chiavi in italiano).
  * Graceful: se il dato manca o e' vuoto, il componente non si renderizza.
@@ -45,11 +45,9 @@ function toneForShare(share: number): { bar: string; label: string } {
 
 interface GameArcChartProps {
   maiaWeighted: MaiaWeighted;
-  /** Rating obiettivo — per la Regola del Miele (colore oro). */
-  targetRating?: number | null;
 }
 
-export function GameArcChart({ maiaWeighted, targetRating }: GameArcChartProps) {
+export function GameArcChart({ maiaWeighted }: GameArcChartProps) {
   const { by_phase_avoidable } = maiaWeighted;
 
   // Filtra solo le fasi con almeno un errore
@@ -87,8 +85,8 @@ export function GameArcChart({ maiaWeighted, targetRating }: GameArcChartProps) 
                 "Here you see where you lose the most: opening, middlegame, or endgame.",
               ),
               tr(
-                "La barra colorata sono gli errori che al tuo livello potevi evitare. Dove e' piu' alta, li' conviene lavorare.",
-                "The coloured bar shows the errors you could have avoided at your level. Where it is tallest, that is where to focus.",
+                "La barra colorata mostra gli errori con supporto Maia al livello attuale sulle alternative accettabili osservate. E' un segnale relativo, non una probabilita' calibrata.",
+                "The coloured bar shows errors with current-level Maia support on the observed acceptable alternatives. It is a relative signal, not a calibrated probability.",
               ),
             ]}
           />
@@ -102,15 +100,16 @@ export function GameArcChart({ maiaWeighted, targetRating }: GameArcChartProps) 
             letterSpacing: "-0.01em",
           }}
         >
-          Dove perdi valore evitabile
+          {tr("Supporto Maia attuale per fase", "Current-level Maia support by phase")}
         </div>
         <div
           className="mt-1"
           style={{ fontSize: "0.82rem", color: "var(--color-text-soft)", lineHeight: 1.5 }}
         >
-          Per ogni fase: quanti errori hai fatto e quanti erano alla tua portata{targetRating ? (
-            <> rispetto a un giocatore <span style={{ color: "var(--color-gold-soft)", fontWeight: 700 }}>{targetRating}</span></>
-          ) : ""}.
+          {tr(
+            "Per ogni fase: quanti errori sono stati osservati e quanti hanno il segnale di supporto Maia al livello attuale.",
+            "For each phase: observed errors and how many carry the current-level Maia support signal.",
+          )}
         </div>
       </div>
 
@@ -150,7 +149,7 @@ export function GameArcChart({ maiaWeighted, targetRating }: GameArcChartProps) 
                     fontVariantNumeric: "tabular-nums",
                   }}
                 >
-                  {row.avoidable}/{row.errors} errori evitabili
+                  {row.avoidable}/{row.errors} {tr("con supporto policy current", "with current-policy support")}
                 </span>
               </div>
 
@@ -202,7 +201,7 @@ export function GameArcChart({ maiaWeighted, targetRating }: GameArcChartProps) 
                   fontVariantNumeric: "tabular-nums",
                 }}
               >
-                {avoidPct}% evitabili
+                {avoidPct}% {tr("con supporto Maia attuale", "with current-level Maia support")}
               </div>
             </div>
           );
@@ -219,7 +218,10 @@ export function GameArcChart({ maiaWeighted, targetRating }: GameArcChartProps) 
           lineHeight: 1.6,
         }}
       >
-        Barra chiara = errori totali della fase. Barra colorata = errori che un giocatore al tuo livello poteva evitare. Piu' alta la quota, piu' c'e' da guadagnare in quella fase.
+        {tr(
+          "Barra chiara = errori osservati nella fase. Barra colorata = errori con `avoidable_at_current`. La quota ordina il materiale da rivedere; non promette punti Elo.",
+          "Light bar = observed errors in the phase. Coloured bar = errors with `avoidable_at_current`. The share orders review material; it does not promise Elo points.",
+        )}
       </div>
 
     </div>

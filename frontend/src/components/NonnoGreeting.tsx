@@ -3,12 +3,12 @@
  *
  * Struttura:
  *   1. Saluto + traiettoria (dove sei → dove vuoi arrivare)
- *   2. LA FRUSTATA (una cosa sola, la piu' netta, dai dati veri)
- *   3. Chiusura con speranza
- *   4. CTA primaria "Sediamoci al Tavolo" — DENTRO questo componente
+ *   2. CTA primaria della sessione, sempre prima della voce variabile
+ *   3. LA FRUSTATA (una cosa sola, la piu' netta, dai dati veri)
+ *   4. Chiusura con speranza
  *
  * pickPunch — logica di selezione (in ordine di forza):
- *   a) anchors[0] se count >= 3: cite label + count + rating_upside
+ *   a) anchors[0] se count >= 3: cite label + count + quota osservata
  *   b) blow_rate > 0.30: partite vinte lasciate andare
  *   c) fase con blunder_pct piu' alta: fase critica
  *   d) fallback (no dati Maia/ancore): saluto + traiettoria + "ci rivedremo presto"
@@ -17,7 +17,7 @@
  * Graceful degradation: mai crash su dati assenti.
  */
 
-import type { Anchor, MaiaWeighted } from "../pipeline/aggregate";
+import type { Anchor } from "../pipeline/aggregate";
 import type { Goal } from "../types";
 import { tr } from "../i18n/lang";
 
@@ -48,36 +48,37 @@ function pickPunch(
   goal: Goal | null | undefined,
   topAnchor: Anchor | null | undefined,
   decisions: DecisionsSlim | null | undefined,
-  maiaWeighted: MaiaWeighted | null | undefined,
   byPhase: ByPhaseSlim | null | undefined,
 ): PunchResult {
   const target = goal?.target ?? null;
 
   // ── (a) Ancora #1 con count >= 3 ──────────────────────────────────────────
   if (topAnchor != null && topAnchor.count >= 3) {
-    const { label_it, count, games_with, rating_upside, category, type, exemplars } = topAnchor;
+    const { label_it, count, games_with, share_of_errors, category, type, exemplars } = topAnchor;
     // games_with = partite distinte con almeno un errore di questo tipo
     // (sempre <= partite giocate): numero per-partita, mai assurdo.
     // count = occorrenze per-mossa: usabile solo se diciamo "momenti".
     const inPartite = tr(`in ${games_with} delle tue partite`, `in ${games_with} of your games`);
-    const upsidePart =
-      rating_upside != null && rating_upside > 0
+    const sharePct = Math.round(Math.max(0, share_of_errors ?? 0) * 100);
+    const priorityPart =
+      sharePct > 0
         ? tr(
-            ` Il piu' facile da recuperare: vali gia' ~${rating_upside} punti in piu'.`,
-            ` Close this and you add ~${rating_upside} points. Nothing else needs to change.`,
+            ` Rappresenta il ${sharePct}% degli errori osservati.`,
+            ` It represents ${sharePct}% of the observed errors.`,
           )
         : "";
 
-    // Framing comparativo Maia quando disponibile
-    const maiaPart =
-      maiaWeighted != null && maiaWeighted.mine_pct != null && maiaWeighted.target_pct != null
-        ? tr(
-            ` Sulle stesse posizioni, uno al tuo livello ci finisce ${Math.round(maiaWeighted.mine_pct)}% delle volte. Un ${target ?? "giocatore come vuoi diventare"} il ${Math.round(maiaWeighted.target_pct)}%.`,
-            ` On the same positions, a player at your level gets it right ${Math.round(maiaWeighted.mine_pct)}% of the time. A ${target ?? "player at your goal level"} gets it right ${Math.round(maiaWeighted.target_pct)}%.`,
-          )
-        : "";
+    // Anchor-specific Maia context. Never attribute the global average to one pattern.
+    const anchorMine = topAnchor.mine_acceptable_observed_policy_pct ?? topAnchor.mine_pct;
+    const anchorTarget = topAnchor.target_acceptable_observed_policy_pct ?? topAnchor.target_pct;
+    const maiaPart = anchorMine != null && anchorTarget != null
+      ? tr(
+          ` Su questo gruppo, gli indici Maia sulle mosse accettabili osservate sono ${Math.round(anchorMine)} al livello attuale e ${Math.round(anchorTarget)} al target${target != null ? ` ${target}` : ""}: masse di policy relative, non frequenze umane.`,
+          ` For this group, Maia indices on the observed acceptable moves are ${Math.round(anchorMine)} at the current level and ${Math.round(anchorTarget)} at the${target != null ? ` ${target}` : ""} target: relative policy masses, not human frequencies.`,
+        )
+      : "";
 
-    // [2E] Time-causal: for zeitnot/rushed anchors, inject real seconds from an exemplar.
+    // Timing context: cite observed seconds without turning association into cause.
     // Only when a real exemplar with spent_seconds is available — never invented.
     const isTimingAnchor = category === "timing" || type === "zeitnot" || type === "rushed";
     const timingExemplar = isTimingAnchor && exemplars && exemplars.length > 0
@@ -86,88 +87,89 @@ function pickPunch(
 
     let body: string;
     if (isTimingAnchor && timingExemplar != null && timingExemplar.spent_seconds != null) {
-      // Build a time-causal sentence using real seconds from the exemplar.
+      // Build an observational sentence using real seconds from the exemplar.
       const secs = Math.round(timingExemplar.spent_seconds);
       const timeStateLabel =
         timingExemplar.time_state === "zeitnot"
-          ? tr("con l'orologio in crisi", "with the clock in crisis")
+          ? tr("nella fascia con poco tempo rimasto", "in the low-time-remaining band")
           : timingExemplar.time_state === "rushed"
-            ? tr("di fretta", "in a hurry")
-            : tr("in poco tempo", "too quickly");
+            ? tr("nella fascia di mosse rapide", "in the fast-move band")
+            : tr("nella fascia di tempo breve", "in the short-time band");
       const avoidablePart = games_with >= 3
         ? tr(
-            ` In ${games_with} partite e' successo su posizioni che potevi risolvere.`,
-            ` Across ${games_with} games it happened on positions you could have solved.`,
+            ` Il pattern compare in ${games_with} partite.`,
+            ` The pattern appears across ${games_with} games.`,
           )
         : "";
       body = pick(0, [
         tr(
-          `Ho guardato le tue partite. ${label_it}: in ${secs} secondi, ${timeStateLabel}, su mosse che valevano la pena di uno stop.${avoidablePart}${upsidePart}`,
-          `I looked at your games. ${label_it}: you played in ${secs} seconds, ${timeStateLabel}, on moves that were worth stopping for.${avoidablePart}${upsidePart}`,
+          `Ho guardato le tue partite. ${label_it}: in un episodio hai mosso in ${secs} secondi, ${timeStateLabel}.${avoidablePart} Il tempo è un segnale, non una causa provata.${priorityPart}`,
+          `I looked at your games. ${label_it}: in one episode you moved in ${secs} seconds, ${timeStateLabel}.${avoidablePart} Time is a signal, not a proven cause.${priorityPart}`,
         ),
         tr(
-          `Ti dico una cosa sola. ${label_it}: hai mosso in ${secs} secondi, ${timeStateLabel}. Non era una posizione semplice.${avoidablePart}${upsidePart}`,
-          `One thing. ${label_it}: you moved in ${secs} seconds, ${timeStateLabel}. It was not a simple position.${avoidablePart}${upsidePart}`,
+          `Ti dico una cosa sola. ${label_it}: in un episodio hai mosso in ${secs} secondi, ${timeStateLabel}.${avoidablePart} Rivediamo insieme posizione e orologio.${priorityPart}`,
+          `One thing. ${label_it}: in one episode you moved in ${secs} seconds, ${timeStateLabel}.${avoidablePart} We will review the position and clock together.${priorityPart}`,
         ),
         tr(
-          `La cosa piu' netta che ho visto: ${count} momenti mossi ${timeStateLabel} (${secs}s in uno di quelli). Quelle posizioni chiedevano piu' tempo.${avoidablePart}${upsidePart}`,
-          `The clearest thing I saw: ${count} moments played ${timeStateLabel} (${secs}s in one of them). Those positions asked for more time.${avoidablePart}${upsidePart}`,
+          `La cosa più netta che ho visto: ${count} momenti ${timeStateLabel}; in uno hai speso ${secs}s.${avoidablePart} Rivediamo insieme quegli episodi.${priorityPart}`,
+          `The clearest thing I saw: ${count} moments ${timeStateLabel}; in one you spent ${secs}s.${avoidablePart} Let us review those episodes together.${priorityPart}`,
         ),
       ]);
     } else {
       body = pick(0, [
         tr(
-          `Ho guardato le tue partite. ${label_it}, ${inPartite}, su mosse che uno al tuo livello trovava.${maiaPart}${upsidePart}`,
-          `I looked at your games. ${label_it}, ${inPartite}, on moves that a player at your level finds.${maiaPart}${upsidePart}`,
+          `Ho guardato le tue partite. ${label_it}: il gruppo compare ${inPartite}.${maiaPart}${priorityPart}`,
+          `I looked at your games. ${label_it}: this group appears ${inPartite}.${maiaPart}${priorityPart}`,
         ),
         tr(
-          `Ti dico una cosa sola. ${label_it}: ti e' successo ${inPartite}. Non in posizioni impossibili, in quelle che potevi chiudere.${maiaPart}${upsidePart}`,
-          `One thing. ${label_it}: it happened ${inPartite}. Not in impossible positions. In the ones you could have closed.${maiaPart}${upsidePart}`,
+          `Ti dico una cosa sola. ${label_it}: compare ${inPartite} ed è il gruppo con priorità relativa più alta fra quelli osservati disponibili.${maiaPart}${priorityPart}`,
+          `One thing. ${label_it}: it appears ${inPartite} and has the highest relative priority among the observed groups available.${maiaPart}${priorityPart}`,
         ),
         tr(
-          `La cosa piu' netta che ho visto: ${label_it}, ${count} momenti in cui la mossa giusta era li' davanti. Mosse che uno come te trova, non di quelle che non si possono trovare.${maiaPart}${upsidePart}`,
-          `The clearest thing I saw: ${label_it}, ${count} moments where the right move was right there. Moves a player like you finds. Not the ones no one finds.${maiaPart}${upsidePart}`,
+          `La cosa più netta che ho visto: ${label_it}, ${count} momenti osservati nelle tue partite. Partiamo da quelli.${maiaPart}${priorityPart}`,
+          `The clearest thing I saw: ${label_it}, ${count} moments observed in your games. We start there.${maiaPart}${priorityPart}`,
         ),
       ]);
     }
 
     const close = pick(1, [
-      tr("Una settimana su questo e i punti arrivano.", "One week on this and the points come."),
-      tr("Questo e' il tuo margine. Quello su cui vale la pena lavorare adesso.", "This is your margin. The one worth working on right now."),
-      tr("Non e' fortuna: e' attenzione. Alleniamo quello.", "It is not luck. It is attention. Let's train that."),
+      tr("Una settimana su questo e vediamo se il pattern ricompare meno.", "One week on this, then we check whether the pattern appears less often."),
+      tr("Questo è il gruppo osservato su cui vale la pena lavorare adesso.", "This is the observed group worth working on now."),
+      tr("Il pattern ricorre nelle partite osservate. Alleniamo la risposta sulla scacchiera.", "The pattern recurs in the observed games. Let us train the response on the board."),
     ]);
 
     return { body, close };
   }
 
   // ── (b) blow_rate > 0.30 ─────────────────────────────────────────────────
-  if (decisions != null && decisions.blow_rate != null && decisions.blow_rate > 0.30) {
+  if (decisions != null && decisions.blow_rate != null && decisions.blow_rate > 0.30 && decisions.reached_winning > 0) {
     const blowPct = Math.round(decisions.blow_rate * 100);
-    const blew = decisions.blew_winning ?? null;
-    // blew_winning = numero di PARTITE vinte e poi lasciate andare (per-partita).
-    const blewPartite = blew != null && blew > 0
-      ? tr(`${blew} partite`, `${blew} games`)
-      : null;
+    const blew = decisions.blew_winning;
+    const reached = decisions.reached_winning;
+    const conversionSample = tr(
+      `${blew} delle ${reached} partite in cui hai raggiunto un vantaggio decisivo`,
+      `${blew} of the ${reached} games in which you reached a decisive advantage`,
+    );
 
     const body = pick(2, [
       tr(
-        `Eri in vantaggio e l'hai lasciata andare nel ${blowPct}% delle partite in cui avevi il vantaggio. Non e' un problema di forza, e' di chiusura. Le partite vinte si portano a casa.`,
-        `You had the advantage and let it go in ${blowPct}% of the games where you were winning. It is not a problem of strength. It is a problem of closing. Won games need to be brought home.`,
+        `Nelle partite osservate, ${conversionSample} non sono diventate una vittoria (${blowPct}%). Rivediamo la conversione.`,
+        `In the observed games, ${conversionSample} did not become a win (${blowPct}%). Let us review conversion.`,
       ),
       tr(
-        `Il numero che mi disturba di piu': ${blewPartite ?? `il ${blowPct}% delle partite`} in cui eri avanti, e poi le hai perse. Quello non e' sfortuna.`,
-        `The number that concerns me most: ${blewPartite ?? `${blowPct}% of the games`} where you were ahead, and then you lost them. That is not bad luck.`,
+        `Un dato osservato: ${conversionSample} sono partite non vinte (${blowPct}%). Rivediamo quelle posizioni di vantaggio.`,
+        `One observed figure: ${conversionSample} were not won (${blowPct}%). Let us review those advantageous positions.`,
       ),
       tr(
-        `Sai cosa vedo spesso? Stai vincendo. Poi dai via la partita. ${blewPartite ?? `Il ${blowPct}% di quelle in cui eri avanti`}. Le partite vinte si chiudono, non si tengono aperte.`,
-        `You know what I see often? You are winning. Then you give the game away. ${blewPartite ?? `${blowPct}% of the ones where you were ahead`}. Won games get closed, not kept open.`,
+        `Quando eri arrivato a un vantaggio decisivo, ${blew} partite su ${reached} non sono diventate una vittoria (${blowPct}%). Guardiamo le decisioni osservate.`,
+        `After reaching a decisive advantage, ${blew} games out of ${reached} did not become a win (${blowPct}%). Let us inspect the observed decisions.`,
       ),
     ]);
 
     const close = pick(3, [
-      tr("Quello e' il gap che chiudiamo prima.", "That is the gap we close first."),
-      tr("Lavoraci e il rating sale da solo.", "Work on this and the rating takes care of itself."),
-      tr("Ogni partita chiusa e' un passo verso il target.", "Every game closed is a step toward your goal."),
+      tr("Partiamo dalla tecnica di conversione.", "We start with conversion technique."),
+      tr("Lavoriamo sulle decisioni osservate quando eri avanti.", "We work on the observed decisions when you were ahead."),
+      tr("Rivediamo come hai gestito il vantaggio sulla scacchiera.", "Let us review how you handled the advantage on the board."),
     ]);
 
     return { body, close };
@@ -187,42 +189,42 @@ function pickPunch(
 
       const body = pick(4, [
         tr(
-          `E' nel ${worst.label} che lasci piu' punti: ${pctStr}% delle mosse sono un errore grave. Piu' che nelle altre fasi.`,
-          `It is in the ${worst.label} where you lose the most points: ${pctStr}% of moves are a serious error. More than in any other phase.`,
+          `Nelle partite osservate, il ${worst.label} ha la quota più alta di errori gravi: ${pctStr}% delle mosse in quella fase.`,
+          `In the observed games, the ${worst.label} has the highest serious-error share: ${pctStr}% of moves in that phase.`,
         ),
         tr(
-          `Un numero su tutti: ${pctStr}% di errori gravi nel ${worst.label}. Quella e' la fase dove ti costa di piu'.`,
-          `One number: ${pctStr}% of serious errors in the ${worst.label}. That is the phase where it costs you most.`,
+          `Un numero osservato: ${pctStr}% di errori gravi nel ${worst.label}, la quota più alta fra le fasi.`,
+          `One observed number: ${pctStr}% serious errors in the ${worst.label}, the highest share across phases.`,
         ),
         tr(
-          `Il ${worst.label} e' dove il rating si perde. ${pctStr}% di errori gravi, la percentuale piu' alta che hai.`,
-          `The ${worst.label} is where the rating gets lost. ${pctStr}% serious errors, your highest.`,
+          `Nel ${worst.label}, il ${pctStr}% delle mosse osservate è un errore grave: è la percentuale più alta fra le fasi.`,
+          `In the ${worst.label}, ${pctStr}% of observed moves are serious errors: the highest percentage across phases.`,
         ),
       ]);
 
       const close = pick(5, [
         tr("Partiamo da li'.", "We start there."),
-        tr("E' da li' che si recupera.", "That is where we get it back."),
-        tr("Quello e' il posto giusto su cui lavorare.", "That is the right place to work."),
+        tr("Alleniamo quella fase per prima.", "We train that phase first."),
+        tr("Quella fase merita la prima revisione.", "That phase deserves the first review."),
       ]);
 
       return { body, close };
     }
   }
 
-  // ── (d) Fallback — no dati Maia/ancore ───────────────────────────────────
+  // ── (d) Fallback — riepilogo neutro sui dati disponibili ─────────────────
   const body = pick(6, [
     tr(
-      "Ho scelto le posizioni delle tue ultime partite. Appena finisci di riananalizzare ti dico esattamente dov'e' il tuo gap.",
-      "I have picked positions from your last games. Once the analysis is done I will tell you exactly where your gap is.",
+      "Con i dati disponibili ho scelto un momento concreto delle tue partite da rivedere.",
+      "From the data available, I selected one concrete moment from your games to review.",
     ),
     tr(
-      "Le tue partite ci sono. Manca ancora l'analisi a fondo: appena finisce, ti dico una cosa sola su cui concentrarti.",
-      "Your games are here. The deep analysis is still running. Once it is done, I will give you one thing to focus on.",
+      "Partiamo da una posizione osservata nelle partite disponibili, senza aggiungere conclusioni che il campione non sostiene.",
+      "We start from a position observed in the available games, without adding conclusions the sample does not support.",
     ),
     tr(
-      "Ci siamo quasi. Analizza le partite e poi ti racconto cosa ho visto.",
-      "Almost there. Once the games are analyzed I will tell you what I saw.",
+      "Oggi lavoriamo su un episodio concreto fra quelli disponibili.",
+      "Today we work on one concrete episode among those available.",
     ),
   ]);
 
@@ -246,20 +248,11 @@ function buildSaluto(goal: Goal | null | undefined): string {
     ]);
   }
 
-  const { current_rating, target, on_track } = goal;
-
-  if (on_track) {
-    return pick(8, [
-      tr(`Eccoti. ${current_rating} oggi, ${target} nel mirino. Sei in linea.`, `There you are. ${current_rating} today, ${target} in sight. You are on track.`),
-      tr(`Ci sei. ${current_rating} adesso, ${target} l'obiettivo. Stai andando.`, `You're here. Good. ${current_rating} now, ${target} the goal. You are moving.`),
-      tr(`Eccoti. ${current_rating} di rating, punta a ${target}. Sei in rotta.`, `There you are. ${current_rating} rating, aiming for ${target}. You are on course.`),
-    ]);
-  }
-
+  const { current_rating, target } = goal;
   return pick(8, [
-    tr(`Eccoti. ${current_rating} oggi, ${target} nel mirino. Siamo un po' indietro, ma si recupera.`, `There you are. ${current_rating} today, ${target} in sight. We are a little behind, but we get it back.`),
-    tr(`Ci sei. ${current_rating} adesso, ${target} l'obiettivo. C'e' del lavoro da fare, iniziamo.`, `You're here. Good. ${current_rating} now, ${target} the goal. There is work to do. Let's start.`),
-    tr(`Eccoti. ${current_rating} di rating, ${target} nel mirino. Indietro, si'. Ma partita per partita si risale.`, `There you are. ${current_rating} rating, ${target} in sight. Behind, yes. But game by game we climb.`),
+    tr(`Eccoti. Rating attuale ${current_rating}, obiettivo scelto ${target}. Oggi guardiamo una cosa concreta.`, `There you are. Current rating ${current_rating}, chosen goal ${target}. Today we look at one concrete thing.`),
+    tr(`Ci sei. ${current_rating} adesso, ${target} come obiettivo. Iniziamo dalle partite osservate.`, `You're here. ${current_rating} now, ${target} as your goal. We start from the observed games.`),
+    tr(`Eccoti. ${current_rating} di rating, target ${target}. Vediamo il pattern scelto per oggi.`, `There you are. ${current_rating} rating, ${target} target. Let us see today's selected pattern.`),
   ]);
 }
 
@@ -268,6 +261,7 @@ function buildSaluto(goal: Goal | null | undefined): string {
 interface DecisionsSlim {
   blow_rate: number | null;
   blew_winning: number;
+  reached_winning: number;
 }
 
 interface ByPhaseSlim {
@@ -282,9 +276,9 @@ export interface NonnoGreetingProps {
   goal: Goal | null | undefined;
   topAnchor: Anchor | null | undefined;
   decisions: DecisionsSlim | null | undefined;
-  maiaWeighted: MaiaWeighted | null | undefined;
   byPhase: ByPhaseSlim | null | undefined;
   onSediamoci: () => void;
+  sessionStatus?: "new" | "in_progress" | "completed";
   /**
    * LLM-generated voice from coach_brief.json#voice_message.
    * When present and non-empty, replaces pickPunch (the template fallback).
@@ -297,15 +291,10 @@ export interface NonnoGreetingProps {
    * above the saluto: one voice, not two stacked boxes. Omitted when null.
    */
   memoria?: string | null;
-  /**
-   * When true, the component is rendered inside a NonnoLetter.
-   * Removes the outer mb-8 wrapper margin (the letter provides its own padding).
-   */
-  inLetter?: boolean;
 }
 
 // ── Stagger delay slots (for CSS animation-delay) ─────────────────────────────
-// Three stagger layers: saluto (100ms) | body (300ms) | CTA (500ms).
+// Three stagger layers: saluto (100ms) | CTA (300ms) | voce (500ms).
 // CSS classes defined in index.css: .ng-stagger-1, .ng-stagger-2, .ng-stagger-3.
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -314,12 +303,11 @@ export function NonnoGreeting({
   goal,
   topAnchor,
   decisions,
-  maiaWeighted,
   byPhase,
   onSediamoci,
+  sessionStatus = "new",
   voiceMessage,
   memoria,
-  inLetter = false,
 }: NonnoGreetingProps) {
   const saluto = buildSaluto(goal);
 
@@ -327,20 +315,16 @@ export function NonnoGreeting({
   const useLlmVoice = voiceMessage != null && voiceMessage.trim().length > 0;
   const { body, close } = useLlmVoice
     ? { body: voiceMessage!.trim(), close: "" }
-    : pickPunch(goal, topAnchor, decisions, maiaWeighted, byPhase);
+    : pickPunch(goal, topAnchor, decisions, byPhase);
 
   // Voice written on the wall — no box, no card. Content rests directly on the room.
-  // When inside a letter, remove the outer margin (the letter padding takes over).
   return (
-    <div className={inLetter ? undefined : "mb-8"}>
+    <div className="ng-root mb-8">
       {/* Memoria visibile — quiet line above the greeting, no box */}
       {memoria && memoria.trim().length > 0 && (
         <p
+          className="ng-memory"
           style={{
-            margin: 0,
-            marginBottom: "0.75rem",
-            fontSize: "0.78rem",
-            lineHeight: 1.5,
             color: "var(--color-faint)",
             letterSpacing: "0.01em",
           }}
@@ -351,31 +335,67 @@ export function NonnoGreeting({
 
       {/* Eyebrow */}
       <div
-        className="tt-eyebrow"
-        style={{ color: "var(--color-brand-soft)", marginBottom: "1rem" }}
+        className="tt-eyebrow ng-eyebrow"
+        style={{ color: "var(--color-brand-soft)" }}
       >
         Nonno
       </div>
 
       {/* Saluto — large serif voice on the wall, stagger layer 1 (100ms) */}
       <p
-        className="ng-stagger-1"
+        className="ng-stagger-1 ng-saluto"
         style={{
-          margin: 0,
-          marginBottom: "1.25rem",
           fontFamily: "var(--font-voice)",
-          fontSize: "clamp(1.8rem, 5vw, 2.6rem)",
           fontWeight: 600,
-          lineHeight: 1.2,
           color: "var(--color-text)",
         }}
       >
         {saluto}
       </p>
 
-      {/* LA FRUSTATA — corpo (or LLM voice) — stagger layer 2 (300ms) */}
+      {/* The primary decision comes before any variable-length voice copy. */}
+      <div className="ng-primary-action ng-stagger-2">
+        <button
+          type="button"
+          onClick={onSediamoci}
+          className="btn btn-primary btn-lg w-full sm:w-auto"
+          data-session-trigger="true"
+          style={{
+            fontSize: "1rem",
+            fontWeight: 700,
+            padding: "0.875rem 2rem",
+            letterSpacing: "0.01em",
+            transition:
+              "transform 160ms cubic-bezier(0.23,1,0.32,1), background 160ms cubic-bezier(0.23,1,0.32,1)",
+          }}
+        >
+          {sessionStatus === "in_progress"
+            ? tr("Riprendi la sessione di oggi", "Resume today's session")
+            : sessionStatus === "completed"
+              ? tr("Rivedi la sessione di oggi", "Review today's session")
+              : tr("Inizia la sessione di oggi", "Start today's session")}
+        </button>
+        <p className="ng-primary-microcopy">
+          {sessionStatus === "in_progress"
+            ? tr(
+                "Riparte dalla fase salvata; non perdi i passaggi già completati.",
+                "Resumes from the saved phase; completed steps are preserved.",
+              )
+            : sessionStatus === "completed"
+              ? tr(
+                  "Riapre il riepilogo salvato. Se avevi scelto Rivedi, torna direttamente a quella fase.",
+                  "Reopens the saved recap. If you chose Review, it returns directly to that phase.",
+                )
+              : tr(
+                  "Guardi una posizione, provi con aiuto, poi da solo e infine giochi.",
+                  "Review a position, try with help, then on your own, and finally play.",
+                )}
+        </p>
+      </div>
+
+      {/* LA FRUSTATA — corpo (or LLM voice), after the primary decision. */}
       <p
-        className="ng-stagger-2"
+        className="ng-stagger-3"
         style={{
           margin: 0,
           marginBottom: useLlmVoice ? "1.75rem" : "0.75rem",
@@ -391,7 +411,7 @@ export function NonnoGreeting({
       {/* Chiusura con speranza — Fraunces italic, wave B. Omitted when LLM voice is used. */}
       {close && (
         <p
-          className="ng-stagger-2"
+          className="ng-stagger-3"
           style={{
             margin: 0,
             marginBottom: "1.75rem",
@@ -408,23 +428,6 @@ export function NonnoGreeting({
         </p>
       )}
 
-      {/* CTA primaria — width auto: a button resting on the floor, not a full band */}
-      <button
-        onClick={onSediamoci}
-        className="btn btn-primary btn-lg ng-stagger-3"
-        style={{
-          width: "auto",
-          fontSize: "1rem",
-          fontWeight: 700,
-          padding: "0.875rem 2rem",
-          letterSpacing: "0.01em",
-          transition:
-            "transform 160ms cubic-bezier(0.23,1,0.32,1), background 160ms cubic-bezier(0.23,1,0.32,1)",
-        }}
-      >
-        {tr("Sediamoci al Tavolo", "Come to the Table.")}
-      </button>
-
       {/* Fallback disclosure — shown only when using the template (no LLM brief) */}
       {!useLlmVoice && (
         <p
@@ -436,7 +439,10 @@ export function NonnoGreeting({
             color: "var(--color-faint)",
           }}
         >
-          {tr("Non ho ancora letto le ultime partite.", "I have not read your latest games yet.")}
+          {tr(
+            "Questa lettura usa i dati già disponibili sul Tavolo.",
+            "This reading uses the data already available on the Table.",
+          )}
         </p>
       )}
     </div>

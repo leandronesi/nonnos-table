@@ -6,7 +6,10 @@ Questo è il riferimento canonico per il porting di Maia nel pipeline multi-uten
 ## Modello
 
 - **`maia3_simplified.onnx`** — 43.57 MB. Modello UNICO Maia-3 condizionato sull'ELO (NON uno per rating).
-- Download libero: `https://raw.githubusercontent.com/CSSLab/maia-platform-frontend/main/public/maia3/maia3_simplified.onnx`.
+- Percorso upstream di riferimento:
+  `public/maia3/maia3_simplified.onnx` in `CSSLab/maia-platform-frontend`.
+  Per un upload operativo usa un URL fissato a un commit, mai il branch
+  `main`, e verifica lo SHA-256 atteso prima di modificare lo Storage.
 - Pesi full PyTorch (316 MB, `UofTCSSLab/Maia3-79M` su HF) NON servono: l'ONNX simplified è autosufficiente. `maia2`/`maia3` repo sono solo PyTorch, niente browser.
 
 ### Input / output della sessione ONNX
@@ -23,7 +26,7 @@ Questo è il riferimento canonico per il porting di Maia nel pipeline multi-uten
 
 ## Decoding (porta verbatim da `processOutputsMaia3` in `src/lib/engine/maia.ts`)
 - Vocab mosse: `src/lib/engine/data/all_moves_maia3.json` (4352, `{uci:index}`) + `_reversed`.
-- Softmax sui SOLI indici legali, poi `mirrorMove` indietro se nero → `{uci: prob}` ordinato desc.
+- Softmax sui SOLI indici legali, poi `mirrorMove` indietro se nero → `{uci: massa_policy_raw}` ordinato desc. E' una distribuzione del modello, non una frequenza umana calibrata.
 - Value: WDL → `winProb = (expW + 0.5*expD)/sum`, flip se nero.
 
 ## ORT / Worker (porta da `public/maia-worker.js`)
@@ -33,31 +36,42 @@ Questo è il riferimento canonico per il porting di Maia nel pipeline multi-uten
 
 ## Hosting
 - ORT wasm → `frontend/public/ort/` (same-origin, committato).
-- Modello → default `frontend/public/maia3/maia3_simplified.onnx` (same-origin = niente CORS/CORP, più robusto su GH Pages). Alternativa: Supabase Storage via `VITE_MAIA_MODEL_URL` (cross-origin OK in single-thread). URL configurabile via env.
+- Il main bundle non importa `onnxruntime-web`: elabora direttamente i `Float32Array` restituiti dal worker. ORT vive solo in `public/ort/`, evitando il duplicato JSEP da ~24 MB.
+- Modello → URL di runtime `VITE_MAIA_MODEL_URL`, oppure default same-origin `${BASE_URL}maia3/maia3_simplified.onnx` (niente progetto/storage personale hardcoded).
+- **Il repository non include oggi il file ONNX**: il deploy deve pubblicarlo a quel path oppure impostare l'env. Se manca o non risponde, Maia e' `unavailable` e i consumer interattivi passano esplicitamente a Stockfish.
+
+Il deploy GitHub Pages richiede la repo variable `VITE_MAIA_MODEL_URL` e la
+sottopone a preflight. `MAIA_MODEL_SHA256` e `PUBLIC_SITE_ORIGIN` sono
+obbligatorie: il gate scarica l'artefatto, verifica hash, redirect HTTPS e
+`Access-Control-Allow-Origin` (salvo URL same-origin). Vedi il runbook nel README.
 
 ## Logica consumer (la parte "relativa al tuo livello" — da types.ts + PRODUCT_VISION)
 
-Per ogni posizione critica, con `bestMoveUci` da Stockfish e due policy Maia:
+Per ogni posizione critica, con un insieme di mosse Stockfish accettabili **osservato nelle linee MultiPV** e due policy Maia:
 - `policy_mine = maia(fen, current_rating, current_rating).policy`
 - `policy_target = maia(fen, target_rating, target_rating).policy`
 
 Campi (popolano `PositionRow` / `AnalyzedMove`):
-- `p_mine_plays_best_sf = policy_mine[bestMoveUci] ?? 0`
-- `p_target_plays_best_sf = policy_target[bestMoveUci] ?? 0`
-- `p_maia_mine_top = max(policy_mine)` · `p_maia_target_top = max(policy_target)`
-- `move_difficulty = 1 - p_maia_target_top` (ambigua anche per il target)
-- `drill_value = p_target_plays_best_sf - p_mine_plays_best_sf` (il "money": il target la trova, tu no)
-- `priority_score`:
-  - `0` SKIP se `move_difficulty < 0.15` (ovvia → disciplina, conta a parte) OPPURE mossa di libro OPPURE `p_target_plays_best_sf < 0.5` (nemmeno il target la trova → non è un tuo freno, è il prossimo gradino)
-  - `3` MONEY se `drill_value >= 0.25`
-  - `2` EVITABILE se `p_mine_plays_best_sf >= 0.5` (al tuo livello la trovavi → disattenzione)
-  - `1` altrimenti (errore critico raw)
-- `waiting_moves`: quando `p_maia_mine_top < 0.20` (nessuna mossa ovvia PER TE) e la posizione non è forzante → alternative Stockfish multipv con `cp_loss < 50`, non catture/scacchi.
+- massa della mossa giocata, separata dalla massa delle mosse buone;
+- `maia_*_acceptable_observed_policy` = somma sul set MultiPV osservato (non un'enumerazione completa);
+- `drill_value` = massa target osservata meno massa current osservata;
+- `avoidable_at_current` = soglia euristica di supporto della policy current, mai tradotta in "potevi evitarlo";
+- `target_relevant` / `trainable` = segnali separati per il percorso;
+- `maia_policy_semantics = raw_policy_mass_not_calibrated_frequency`;
+- sotto i 30 secondi residui, dove il training Maia-3 escludeva le mosse, `avoidable_at_current = null`.
 
-Le **ancore** (M2) = cluster di posizioni con `priority_score >= 2`, raggruppate per natura (pattern tattico / schema posizionale / comportamento), ordinate per `Σ(drill_value × impatto)`, espresse con l'UPSIDE ("lasciala e sali di ~X").
+Le ancore sono ordinate da uno score relativo di training (`training_priority_weight × impatto`). Non viene stimato alcun upside Elo.
+
+## Avversario interattivo
+
+- Per ogni turno avversario, Maia riceve `elo_self = elo_oppo = target_rating`.
+- Il client rifiltra la policy con le mosse legali `chess.js`, rinormalizza la massa e campiona: non usa argmax fisso.
+- Il rating e' passato come conditioning continuo: non imponiamo un range hardcoded senza una soglia primaria validata. Valori non numerici/non positivi e cadenze diverse da rapid/blitz attivano il fallback.
+- Rapid Chess.com e' dichiarato cross-domain; blitz Chess.com e' cross-platform rispetto al training Lichess.
+- Timeout, modello assente, policy invalida o massa legale zero attivano Stockfish con `opponent_source` e reason code visibili/telemetrici.
 
 ## Performance
-- Single-thread WASM: batch le posizioni in pochi `session.run` (concatenazione già supportata). Far girare Maia SOLO sulle posizioni critiche (errori + near-critical), non su ogni mossa. Mostrare loader onesto (è il giro di analisi profonda, non interattivo).
+- Single-thread WASM: batch le posizioni in pochi `session.run` (concatenazione già supportata). Nell'analisi profonda far girare Maia solo sul campione esplicitamente coperto. Nella partita interattiva usare timeout, cancellazione logica e fallback senza bloccare il thread UI.
 
 ## File da portare (raw.githubusercontent, branch main)
 - `src/lib/engine/tensor.ts` · `src/lib/engine/maia.ts` · `public/maia-worker.js`

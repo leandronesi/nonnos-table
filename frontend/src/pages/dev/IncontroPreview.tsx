@@ -37,6 +37,7 @@ function buildProgress(phase: Phase, tick: number): OrchestratorProgress {
         monthsDone: Math.min(18, Math.round((tick / PHASE_DURATIONS.ingesting) * 18)),
         gamesTotal: 0,
         gamesDone: 0,
+        gamesAnalyzed: 0,
       };
     case "analyzing":
       return {
@@ -45,6 +46,7 @@ function buildProgress(phase: Phase, tick: number): OrchestratorProgress {
         monthsDone: 0,
         gamesTotal: 20,
         gamesDone: Math.min(20, Math.round((tick / PHASE_DURATIONS.analyzing) * 20)),
+        gamesAnalyzed: Math.min(20, Math.round((tick / PHASE_DURATIONS.analyzing) * 20)),
       };
     case "coaching":
       return {
@@ -53,10 +55,18 @@ function buildProgress(phase: Phase, tick: number): OrchestratorProgress {
         monthsDone: 0,
         gamesTotal: 0,
         gamesDone: 0,
+        gamesAnalyzed: 20,
         message: "Metto insieme la prima cosa",
       };
     default:
-      return { phase, monthsTotal: 0, monthsDone: 0, gamesTotal: 0, gamesDone: 0 };
+      return {
+        phase,
+        monthsTotal: 0,
+        monthsDone: 0,
+        gamesTotal: 0,
+        gamesDone: 0,
+        gamesAnalyzed: 0,
+      };
   }
 }
 
@@ -121,6 +131,7 @@ export function IncontroPreview() {
     monthsDone: 0,
     gamesTotal: 0,
     gamesDone: 0,
+    gamesAnalyzed: 20,
   };
 
   return (

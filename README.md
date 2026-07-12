@@ -1,235 +1,307 @@
-# Mygotham — il mio Chess Coach personale
+# Nonno's Table / Mygotham
 
-Strumento quotidiano per analizzare le mie partite di Chess.com con Stockfish e
-mostrarmi **dove sbaglio in modo sistematico** — fase di gioco, motivo tattico,
-aperture, time class — con l'obiettivo dichiarato di:
+Un coach di scacchi che studia le partite reali di ogni giocatore, trova errori
+ricorrenti e costruisce sessioni sulle posizioni in cui quel giocatore deve
+migliorare.
 
-> **Arrivare a 1600 ELO blitz entro il 31/12/2026** (`breaking_plays2`)
+L'idea non è chiedere soltanto «che cosa avrebbe giocato Stockfish?». Stockfish
+verifica la qualità scacchistica delle alternative; Maia descrive quanto certe
+scelte siano naturali per giocatori a livelli diversi. Le probabilità di policy
+Maia sono segnali comparativi grezzi, non percentuali calibrate di persone né
+promesse di guadagno Elo.
 
+> **License review required before public launch.** Il browser include/deriva
+> componenti GPL-3.0 e carica pesi Maia indicati come AGPLv3. Vedi
+> [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). La licenza MIT alla radice
+> non risolve automaticamente questi obblighi.
+
+## Prodotto attuale
+
+Il percorso multiutente è una SPA React:
+
+1. l'utente crea un account Supabase e sceglie un profilo pubblico Chess.com;
+2. il browser importa fino a 100 partite della cadenza scelta (rapid o blitz)
+   e analizza un primo lotto subito;
+3. Stockfish WASM, chess.js e Maia-3 ONNX lavorano nel browser;
+4. PGN, analisi e quaderno sono salvati nel bucket Supabase privato dell'utente;
+5. aggregati e posizioni alimentano Tavolo, sessione e spiegazioni di Nonno;
+6. lo schema salva tentativi e mastery; il collegamento automatico delle future
+   partite alle opportunità di transfer è predisposto ma non ancora completo.
+
+Lo username Chess.com è una fonte dati pubblica, non una credenziale: non ne
+verifichiamo la proprietà e più utenti possono analizzare lo stesso profilo.
+
+## Architettura
+
+```text
+Chess.com API
+    │
+    ▼
+React SPA ── chess.js + Stockfish WASM + Maia-3 ONNX
+    │
+    ├── Supabase Auth
+    ├── Postgres + RLS (profilo, indice partite, eventi, feedback, apprendimento)
+    ├── Storage privato <user_id>/raw|analysis|quaderno
+    └── Edge Functions
+          ├── coach-llm     proxy autenticato verso OpenAI
+          ├── account-data export/cancellazione account
+          └── telemetry     soli eventi pre-login allowlisted e rate-limited
 ```
-┌─────────────────┐   ┌──────────────────┐   ┌─────────────────────┐
-│  1. INGESTION   │──▶│  2. ANALYSIS     │──▶│  3. DASHBOARD       │
-│  Chess.com API  │   │  Stockfish +     │   │  React + Recharts   │
-│  → PGN grezzi   │   │  python-chess    │   │  + react-chessboard │
-│                 │   │  → metrics.json  │   │  + drill-down       │
-└─────────────────┘   └──────────────────┘   └─────────────────────┘
-```
 
-Tre strati disaccoppiati. Rilancia uno qualsiasi senza rifare gli altri.
+La cartella `backend/` contiene la precedente pipeline Python single-user. È
+utile per ricerca e confronto, ma non è il runtime della web app multiutente e
+non viene eseguita dal deploy di produzione.
 
----
+## Privacy e trust
 
-## Cosa fa la dashboard
+- Tutte le tabelle utente hanno RLS `auth.uid() = user_id`.
+- Il client non può indicare quale account esportare o cancellare: la Edge
+  Function usa esclusivamente il JWT verificato.
+- La cancellazione inserisce prima una fence server-owned che blocca nuove
+  operazioni Storage anche ai JWT già emessi, svuota e verifica il prefisso
+  privato, poi elimina `auth.users`; i dati DB e la fence vanno via in cascata.
+  Se un passaggio fallisce prima della fine, la fence resta e la richiesta è
+  ritentabile senza riaprire la finestra di upload.
+- Diario, SRS, sessione e cache personali nel browser sono namespaced per UUID.
+  Il logout non li distrugge; un account diverso non può leggerli. Le
+  impostazioni permettono di pulire esplicitamente il dispositivo.
+- La telemetria first-party è consent-first: resta spenta e non crea UUID o
+  code anonime finché l'utente non la abilita esplicitamente. Esclude email,
+  username, token, password, PGN e FEN e rispetta Global Privacy Control e Do
+  Not Track. Di conseguenza ogni metrica va pubblicata con la propria copertura
+  di consenso, non come censimento di tutti gli utenti.
+- Gli eventi anonimi ammessi sono `landing_view`, `signup_started`,
+  `signup_submitted`, `signup_succeeded` e `signup_failed`; per i fallimenti
+  passa soltanto un reason code, mai il testo libero.
+- La funzione filtra proprietà e dimensione del body e applica un rate limit
+  atomico. Usa HMAC dell'IP solo quando il deploy fornisce un header proxy
+  affidabile; altrimenti ripiega sull'UUID anonimo del browser, che è ruotabile
+  e quindi meno resistente agli abusi. CORS/origin non sostituisce un proxy o
+  un WAF.
+- Gli eventi autenticati passano da una RPC con allowlist e tetto giornaliero;
+  il client non ha INSERT diretto sulla tabella analytics.
+- Per generare spiegazioni, fatti scacchistici della posizione e aggregati del
+  coach possono essere inviati a OpenAI soltanto dalla Edge Function: la chiave
+  del servizio non entra mai nel bundle.
 
-| Sezione | A cosa serve |
-|---|---|
-| **🎯 Goal tracker 1600** | Barra di progresso rating attuale → target, ritmo finora vs richiesto, proiezione, gap performance |
-| **KPI** | ACPL ultime 30, win rate, % blunder, Elo atteso last-20 |
-| **Review di oggi** | 5 blunder scelti deterministicamente per la data di oggi · scacchiera con mossa giocata (rosso) vs mossa migliore (verde) · motivo tattico · link Chess.com |
-| **Cosa dicono i tuoi dati** | 3–7 frasi di coaching deterministiche basate sui tuoi pattern |
-| **📈 Elo atteso** | Linea rating ufficiale vs performance rating mobile (window 20) per cadenza, con linea target |
-| **Trend ACPL · per mese** | Sto migliorando? ACPL area + blunder barre |
-| **Dove sbaglio · per fase** | Il grafico chiave: imprecisioni/errori/blunder per apertura/mediogioco/finale |
-| **Bianco vs Nero · Per cadenza · Motivi tattici** | Tre dimensioni di confronto |
-| **Heatmap del momento del blunder** | Mossa × fase, intensità = blunder count |
-| **🩸 Le tue peggiori partite** | Top per "ugliness" (ACPL + blunder × 50). Clicca riga → drill-down con scacchiera navigabile + grafico eval per ply |
-| **🧠 Blunder review · banca posizioni** | Tutti i blunder filtrabili per fase e motivo, paginati, con scacchiera |
-| **Aperture · performance** | Sortable per partite/win-rate/ACPL/blunder, separabile per colore |
+L'export JSON comprende account, righe DB e manifest dei file privati. I file
+restano scaricabili dal bucket autenticato; non vengono resi pubblici.
 
-**Drill-down partita**: clicca una riga di "Le tue peggiori partite". Si apre un
-modal con scacchiera (← → per navigare i ply, freccia rossa = tua mossa, verde =
-migliore), grafico della valutazione clickabile, lista mosse con codice colore.
+## Setup frontend
 
----
+Prerequisiti: Node 20.19+ (oppure 22.12+) e un progetto Supabase.
 
-## Prerequisiti
-
-- Python 3.11+
-- Node 18+ (Vite + React 19)
-- **Stockfish** (vedi sotto)
-
-Username Chess.com già impostato in [config.yaml](config.yaml).
-
----
-
-## Installazione Stockfish
-
-L'analisi gira tutta in locale: serve il binario UCI.
-
-### Windows · binario portable (consigliato)
 ```powershell
-# Scarica e mette in engine/
-Invoke-WebRequest "https://github.com/official-stockfish/Stockfish/releases/download/sf_17/stockfish-windows-x86-64-avx2.zip" -OutFile engine\stockfish.zip
-Expand-Archive engine\stockfish.zip engine\
-Copy-Item engine\stockfish\stockfish-windows-x86-64-avx2.exe engine\stockfish.exe -Force
+cd frontend
+npm ci
+Copy-Item .env.example .env.local
+npm run dev
 ```
 
-### Linux/macOS
-```bash
-sudo apt-get install -y stockfish   # Debian/Ubuntu
-brew install stockfish              # macOS
+Variabili Vite:
+
+```dotenv
+VITE_SUPABASE_URL=https://PROJECT.supabase.co
+VITE_SUPABASE_ANON_KEY=sb_publishable_...
+VITE_PRIVACY_CONTACT_EMAIL=privacy@example.org
+VITE_MAIA_MODEL_URL=https://cdn.example.org/maia/maia3_simplified.onnx
 ```
 
-### Path esplicito (override)
-Copia `.env.example` in `.env` e imposta `STOCKFISH_PATH=...`.
+`npm run build` esegue prima un controllo che rifiuta PGN, database e output
+legacy (`metrics.json`, `player_model.json`, analisi, quaderno) dentro
+`frontend/public/`.
 
----
+## Setup Supabase
 
-## Setup locale
+Applica le migration e pubblica le funzioni:
 
 ```powershell
-.\run.ps1 setup       # crea venv, installa python deps + npm install
+supabase link --project-ref PROJECT_REF
+supabase db push
+supabase functions deploy coach-llm
+supabase functions deploy account-data
+supabase functions deploy telemetry --no-verify-jwt
 ```
 
-Linux/macOS/WSL: `make setup`.
+Configura i secret server-side:
 
----
+```text
+OPENAI_API_KEY
+APP_ALLOWED_ORIGINS=https://example.github.io
+TELEMETRY_ALLOWED_ORIGINS=https://example.github.io
+TELEMETRY_IP_HASH_SECRET=<almeno 32 caratteri casuali>
+TELEMETRY_TRUST_X_FORWARDED_FOR=true
+```
 
-## Pipeline
+`TELEMETRY_TRUST_X_FORWARDED_FOR=true` va usato soltanto se l'infrastruttura
+elimina gli header forniti dal chiamante e scrive un valore fidato. Senza un
+header IP fidato il limiter anonimo usa l'UUID installazione e va considerato
+una protezione debole, non una barriera anti-bot.
+
+`SUPABASE_URL`, `SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY` sono esposti
+automaticamente alle Edge Functions ospitate. La service-role key non deve mai
+essere aggiunta a `.env` del frontend, a GitHub Pages o ai log.
+
+Nelle impostazioni Auth di Supabase aggiungi agli URL consentiti:
+
+- `/onboarding` per la conferma email;
+- `/update-password` per il recupero password;
+- gli equivalenti localhost per sviluppo.
+
+La migration crea `public.hook_validate_invite_code`, ma **non basta il DB
+push**: nel progetto hosted apri Authentication > Hooks, abilita il hook
+"Before User Created" e seleziona quella funzione. Prima di aprire gli inviti,
+esegui uno smoke test chiamando direttamente `auth.signUp`: senza
+`options.data.invite_code` e con codice errato deve rispondere 403; con un
+codice attivo deve arrivare al normale flusso di conferma. Il controllo UI è
+solo ergonomia e non è il confine di sicurezza.
+Procedura di riferimento: [Supabase Before User Created hook](https://supabase.com/docs/guides/auth/auth-hooks/before-user-created-hook).
+
+La migration `0008_goal_time_class_contract.sql` introduce in modo staged il
+vincolo `rapid|blitz`: `NOT VALID` blocca subito nuovi valori non supportati ma
+lascia leggibili eventuali profili legacy. Quegli utenti vedono una scelta
+esplicita e l'RPC autenticata aggiorna profilo + nuovo job in una transazione;
+non viene inventata alcuna conversione da bullet/daily/classical. Dopo aver
+verificato che non restano righe legacy:
+
+```sql
+select user_id, goal_time_class
+from public.profiles
+where goal_time_class not in ('rapid', 'blitz');
+
+alter table public.profiles
+  validate constraint profiles_goal_time_class_supported_check;
+```
+
+La quota LLM è atomica e fail-closed: per giorno UTC massimo 2 brief e 3 lezioni
+per utente, con tetto globale di 15.000 invocazioni. A 15K utenti attivi il
+worst case resta quindi 15.000 call pagate al giorno, non 75.000; oltre il tetto
+la funzione non chiama OpenAI. Il budget reale va comunque monitorato su token,
+latenza e mix brief/teach prima di aumentare i limiti.
+
+## Deploy
+
+Il workflow [build-and-deploy.yml](.github/workflows/build-and-deploy.yml):
+
+- installa soltanto il frontend;
+- compila con i secret pubblicabili `VITE_SUPABASE_*` e il contatto privacy;
+- non esegue la pipeline Python e non genera dati di un giocatore;
+- su push compila e testa senza pubblicare;
+- pubblica esclusivamente `frontend/dist` su GitHub Pages solo con avvio manuale
+  `workflow_dispatch`, finché i blocker di lancio qui sotto non sono chiusi.
+
+Il deploy manuale è fail-closed. Richiede i secret `VITE_SUPABASE_URL`,
+`VITE_SUPABASE_ANON_KEY`, `VITE_PRIVACY_CONTACT_EMAIL` e le repo variables
+`PUBLIC_SITE_ORIGIN`, `VITE_MAIA_MODEL_URL`, `MAIA_MODEL_SHA256`; il preflight
+non ne stampa i valori e interrompe il workflow se uno manca o non è valido.
+`VITE_SUPABASE_ANON_KEY` accetta una publishable key `sb_publishable_...` o il
+legacy JWT con ruolo `anon`; rifiuta chiavi `sb_secret_...`, `service_role`,
+`supabase_admin` e valori malformati prima che possano entrare nel bundle.
+
+### Runbook modello Maia per GitHub Pages
+
+Il file ONNX non e' nel repository e il fallback Stockfish non sostituisce la
+promessa di prodotto Maia. Prima di un deploy manuale:
+
+1. ospita `maia3_simplified.onnx` a un URL HTTPS versionato, pubblicamente
+   leggibile e con CORS compatibile con l'origine GitHub Pages;
+2. configura in **Settings > Secrets and variables > Actions > Variables** la
+   repo variable `VITE_MAIA_MODEL_URL` con quell'URL assoluto;
+3. configura obbligatoriamente `MAIA_MODEL_SHA256` con lo SHA-256 del file e
+   `PUBLIC_SITE_ORIGIN` con l'origine HTTPS pubblica (senza path). CI scarica il
+   contenuto, verifica hash, redirect solo HTTPS e CORS come farebbe il browser;
+4. avvia `Build & Manual Deploy` con `workflow_dispatch`. Un URL vuoto,
+   irraggiungibile, senza CORS o con hash errato ferma il deploy prima del build;
+5. dopo il deploy, apri una sessione e verifica che la fonte mostrata sia Maia,
+   non `Stockfish di riserva`. Controlla anche cache e CORS dal browser.
+
+Preflight locale equivalente:
 
 ```powershell
-.\run.ps1 fetch                # scarica nuove partite (idempotente)
-.\run.ps1 analyze              # analizza con Stockfish (profilo 'fast', ~3s/partita)
-.\run.ps1 analyze -Deep        # profilo 'deep' (depth 22, ~5× più lento)
-.\run.ps1 analyze -Limit 30    # solo ultime 30 partite (utile per provare)
-.\run.ps1 metrics              # ricostruisce data/metrics.json + copia in frontend/public
-.\run.ps1 dashboard            # avvia il frontend su http://localhost:5173
-
-.\run.ps1 all                  # pipeline completa
+$env:VITE_MAIA_MODEL_URL='https://cdn.example.org/maia/maia3_simplified.onnx'
+$env:MAIA_MODEL_SHA256='<sha256-obbligatorio>'
+$env:PUBLIC_SITE_ORIGIN='https://example.github.io'
+npm --prefix frontend run preflight:maia
 ```
 
-Equivalente Unix: `make fetch | analyze [DEEP=1] [LIMIT=N] | metrics | dashboard | all`.
+Se usi lo script amministrativo `upload-maia.mjs`, passa sempre destinazione,
+service key, sorgente HTTPS e hash via ambiente: `SUPABASE_REF`,
+`SUPABASE_SERVICE_KEY`, `MAIA_MODEL_SOURCE_URL` e `MAIA_MODEL_SHA256` sono tutti
+obbligatori. Per `raw.githubusercontent.com` la sorgente deve contenere un commit
+Git completo, mai `main` o un altro branch mutabile. Lo script scarica e verifica
+dimensione e SHA-256 prima della prima richiesta autenticata o modifica al
+bucket; un mismatch lascia Supabase intatto.
 
-**Stima**: depth=15 → ~3s/partita su 4 core → ~6 minuti per 500 partite. Cache
-hash-based: cambiare profilo o soglie invalida solo le partite toccate.
-
----
-
-## Uso quotidiano (cosa faccio ogni mattina)
-
-1. **Apro la dashboard** (locale o gh-pages — vedi sotto).
-2. **Guardo il goal tracker**: sono on-track? Se no, di quanto sto sotto?
-3. **Faccio "Review di oggi"**: 5 posizioni, provo a trovare la mossa giusta a mente, poi confronto con quella suggerita. Cambia ogni giorno.
-4. **Guardo i motivi tattici**: dove sbaglio di più? Se "Pezzo lasciato" è dominante → tactics trainer su Lichess. Se "Errore posizionale" → studio strategico.
-5. **Drill-down su 1-2 peggiori partite recenti**: vado posizione per posizione sui blunder, capisco perché ho giocato così.
-6. **Decido cosa allenare oggi** e lo faccio (Lichess puzzles, partita lunga, opening review).
-
-Il senso è: **non perdere mai più di 10 minuti al giorno qui, ma essere sempre allineato**. La dashboard è il dashboard di un product manager con se stesso.
-
----
-
-## Deploy su GitHub Pages (refresh giornaliero automatico)
-
-Il repo include una **GitHub Action** [.github/workflows/refresh-and-deploy.yml](.github/workflows/refresh-and-deploy.yml) che:
-
-1. Gira **tutti i giorni alle 04:00 UTC** (`cron: "0 4 * * *"`) + a ogni push su `main` + manualmente da Actions UI
-2. Installa Stockfish via `apt-get`
-3. Riusa la cache delle partite/analisi (così analizza solo le nuove)
-4. Lancia `ingest.py → analyze.py → metrics.py → export_analysis.py`
-5. Builda il frontend con `VITE_BASE=/mygotham/` (per gli asset)
-6. Deploya su `gh-pages`
-
-### Prima volta — setup (3 minuti)
-
-1. **Crea il repo nuovo** su <https://github.com/new>:
-   - Owner: `leandronesi`
-   - Name: `mygotham` (o quello che preferisci — se cambi, aggiorna `VITE_BASE` nel workflow)
-   - Empty (no README, no .gitignore)
-
-2. **Push del repo locale** (da PowerShell, nella cartella `Mygotham/`):
-   ```powershell
-   git remote add origin https://github.com/leandronesi/chess_coach.git
-   git branch -M main
-   git push -u origin main
-   ```
-
-3. **Abilita GitHub Pages**: in repo → Settings → Pages → Source = "GitHub Actions".
-
-4. Il workflow parte da solo al primo push. URL finale:
-   <https://leandronesi.github.io/chess_coach/>
-
-### Manutenzione
-
-- **Refresh manuale**: tab Actions → "Refresh & Deploy" → "Run workflow"
-- **Analisi deep on-demand**: stesso pulsante con input `deep=true` (ci mette 5× più tempo)
-- I dati di analisi (PGN + cache) vivono nella **GitHub Actions cache**, non nel repo — il repo resta leggero (~1 MB di metrics.json committato).
-
----
-
-## Configurazione
-
-In [config.yaml](config.yaml), commentato:
-
-```yaml
-chess_com:
-  username: breaking_plays2
-  last_n_months: null         # null = tutto lo storico
-
-stockfish:
-  threads: 1                  # per istanza (×N worker)
-  hash_mb: 64                 # per istanza (RAM = workers × hash_mb)
-
-analysis:
-  fast: { depth: 15 }
-  deep: { depth: 22 }
-  parallel_workers: 0         # 0 = auto (cap a 4)
-
-  thresholds:                 # ↓ ritocca queste se vuoi essere più/meno severo
-    inaccuracy: 50
-    mistake:    100
-    blunder:    250
-
-  phases:                     # definizione "apertura" / "finale"
-    opening_until_move: 12
-    endgame_material_threshold: 24
+```powershell
+$env:SUPABASE_REF='PROJECT_REF'
+$env:SUPABASE_SERVICE_KEY='<service-role-key>'
+$env:MAIA_MODEL_SOURCE_URL='https://raw.githubusercontent.com/CSSLab/maia-platform-frontend/<commit-git-40-char>/public/maia3/maia3_simplified.onnx'
+$env:MAIA_MODEL_SHA256='<sha256-64-hex>'
+node upload-maia.mjs
 ```
 
----
+L'URL e l'hash sono pubblici e vanno in repo variables, mai nella service-role
+key. Prima di distribuire i pesi resta obbligatoria la verifica licenze in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-## Architettura file
+## Blocker prima di operare una beta multiutente o lanciare pubblicamente
 
+- **Licenze:** risolvere GPL/AGPL e licenza dei pesi Maia come descritto in
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md); la MIT root non basta.
+- **Chess.com:** ottenere autorizzazione scritta oppure passare a PGN forniti
+  direttamente dall'utente. Lo User Agreement corrente include restrizioni AI
+  per tool educativi/prodotti concorrenti; la disponibilità della PubAPI non
+  risolve da sola il conflitto. Riferimenti non legali:
+  [User Agreement](https://www.chess.com/legal/user-agreement) e
+  [Legal FAQ](https://www.chess.com/legal/faqs).
+- **Privacy:** definire titolare e contatto reale, retention per ogni categoria,
+  processor/trasferimenti (Supabase e OpenAI), policy minori/età e base/decisione
+  per l'analisi di profili Chess.com di terzi. Configurare la cancellazione
+  programmata degli eventi anonimi e verificare export/cancellazione end-to-end.
+- **Controlli hosted:** attivare e provare il Before User Created hook, impostare
+  origin esatti e header IP fidati, ruotare eventuali credenziali storiche e
+  completare la rimozione dei dati personali dalla storia Git.
+
+Questa è una checklist tecnica, non un parere legale.
+Il gate invite-only è un controllo operativo e non rende lecito l'accesso API:
+il punto Chess.com va risolto prima di coinvolgere utenti reali nella beta.
+
+Prima di rendere pubblico un repository nato come progetto single-user, rimuovi
+anche gli artefatti personali già presenti nella storia Git e verifica che
+nessuna credenziale storica sia ancora valida. Il working tree corrente non
+contiene più i dataset legacy sotto `data/` o `frontend/public/`; non è stata
+invece riscritta la cronologia Git, operazione distruttiva da fare soltanto con
+consenso esplicito. `.gitignore` impedisce nuovi artefatti, ma non cancella i
+blob già committati dalla cronologia.
+
+## Struttura utile
+
+```text
+frontend/src/
+  auth/                 sessione, RLS types, Storage, account lifecycle
+  pipeline/             import, analisi e aggregazione browser-side
+  session/              sessione quotidiana, drill e memoria locale
+  pages/                Landing, Stanza, Tavolo, Quaderno, Settings
+  lib/telemetry.ts      analytics first-party, feedback ed error reporting
+  trainingProgress.ts   append tentativi e transfer osservato
+supabase/
+  migrations/           schema e policy RLS
+  functions/            coach-llm, account-data, telemetry
+backend/                toolchain Python legacy/ricerca
 ```
-mygotham/
-├── SPEC.md                  # spec originale
-├── README.md                # questo file
-├── config.yaml              # username, soglie, parametri
-├── .env.example
-├── Makefile · run.ps1
-├── .github/workflows/refresh-and-deploy.yml
-├── backend/
-│   ├── config_loader.py     # carica config + risolve Stockfish
-│   ├── ingest.py            # §1 Chess.com → PGN + index.json
-│   ├── analyze.py           # §2 Stockfish (best move, PV, motif, FEN, multiprocess)
-│   ├── metrics.py           # §2 aggregati → metrics.json (KPI, goal, perf rating, motifs, top blunders…)
-│   ├── export_analysis.py   # copia data/analysis in frontend/public/analysis (per drill-down statico)
-│   ├── server.py            # FastAPI opzionale
-│   └── requirements.txt
-├── data/
-│   ├── raw/                 # PGN grezzi (gitignored, riempito da ingest)
-│   ├── analysis/            # cache analisi per-partita (gitignored, rigenerato da analyze)
-│   ├── index.json           # gitignored
-│   └── metrics.json         # committed (per primo deploy)
-└── frontend/
-    ├── public/metrics.json  # copia per consumo statico
-    ├── public/analysis/     # gitignored, rigenerato in CI
-    └── src/
-        ├── App.tsx          # root: assembla tutto
-        ├── data.ts · filters.ts · types.ts · chess-utils.ts
-        ├── index.css        # palette + Tailwind v4
-        └── components/      # GoalTracker, EloAttesoChart, DailyReview, BlunderReview,
-                             # BlunderCard, BoardView, GameDetail, TacticsMotifs,
-                             # WorstGames, TrendChart, PhaseChart, ColorChart,
-                             # TimeClassChart, HeatmapChart, OpeningsTable, Kpi, Header,
-                             # InsightsCard, FiltersBar
-```
 
----
+## Metriche di prodotto
 
-## Roadmap (cose che farei dopo)
+Definizioni, soglie e SQL canonici sono in
+[docs/PRODUCT_METRICS.md](docs/PRODUCT_METRICS.md).
 
-- **DB SQLite** sotto `data/coach.db` per query ad-hoc (puzzle generator, ricerca per FEN/posizione)
-- **Auto-detection del tilt**: sequenze di partite con ACPL crescente / perdite consecutive
-- **Opening Explorer**: per ogni mia apertura, varianti più comuni nei top-1000 + dove ne esco
-- **LLM coach** sopra i pattern aggregati (1 call al giorno, no per-mossa) per coaching narrativo
-- **Mobile app** con notifica push del "blunder del giorno"
-- **Confronto rating-class**: come sbagliano i 1600 vs come sbaglio io
+Le metriche principali non sono il numero di analisi prodotte, ma:
+
+- tempo al primo insight personale;
+- prima sessione completata;
+- retention D7/W4;
+- successo su nuove posizioni dello stesso pattern;
+- riduzione degli errori nelle opportunità osservate in partite successive.
+
+Queste misure chiudono il ciclo `diagnosi → esercizio → transfer`, che è il
+cuore del prodotto.

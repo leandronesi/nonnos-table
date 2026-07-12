@@ -11,9 +11,9 @@
  *   7. Tagga la fase (opening/midgame/endgame) con regole semplici.
  *   8. Salva analysis JSON su Storage + aggiorna `games.analysis_status='done'`.
  *
- * NON facciamo (per scelta): Maia, pattern tattici detection, multipv,
- * critical position score complessi. Quelli arrivano nei refresh successivi
- * quando porteremo i moduli backend.
+ * Questa fase usa MultiPV osservato (attualmente 2 linee) per un set
+ * accettabile esplicitamente incompleto e registra segnali fattuali su clock,
+ * criticita' ed errori. Maia gira successivamente in aggregate.ts.
  */
 
 import { Chess } from "chess.js";
@@ -23,7 +23,24 @@ import { analysisPath } from "../auth/storage";
 import type { GameRow } from "../auth/db.types";
 import { createStockfishPool, StockfishEngine } from "./stockfishWorker";
 import { FREE_GAME_CAP } from "./config";
+import type { AnalyzedTimeClass } from "./config";
+import {
+  advanceAnalysisProgress,
+  analysisWorkItems,
+  isPersistedAnalysisSuccess,
+  requireAnalysisRows,
+  type AnalysisProgressCounts,
+} from "./analysisRunSemantics";
 import type { MotifOccurrence, TransferMotifType } from "../types";
+import {
+  acceptableObservedMovesFromEvaluation,
+  computeSpentSeconds,
+  isCriticalPosition,
+} from "./analysisSemantics";
+import { extractMoves } from "./pgnExtract";
+import { classifyErrorSemantics } from "./errorSemantics";
+import type { ErrorEvidence, ErrorSignal } from "./errorSemantics";
+import { LeaseOwnershipLostError } from "./jobLease";
 
 const DEPTH = 12;
 const TH_INACC = 50;
@@ -31,6 +48,41 @@ const TH_MIST = 100;
 const TH_BLUN = 250;
 const OPENING_UNTIL_MOVE = 12;
 const ENDGAME_MATERIAL_THRESHOLD = 24; // come backend/config.yaml
+
+async function updateGameRequired(
+  gameId: string,
+  patch: Partial<GameRow>,
+  code: string,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from("games")
+    .update(patch)
+    .eq("id", gameId)
+    .select("id")
+    .maybeSingle();
+  if (error || !data) throw new Error(`${code}:${error?.message ?? "missing_row"}`);
+}
+
+async function persistAnalyzeProgress(
+  jobId: string,
+  leaseToken: string,
+  processed: number,
+  required: boolean,
+): Promise<void> {
+  const { data, error } = await supabase.rpc("patch_ingest_job_lease", {
+    p_job_id: jobId,
+    p_lease_token: leaseToken,
+    p_patch: { games_done: processed },
+  });
+  if (error) {
+    const message = error.message;
+    if (required) throw new Error(`analysis_progress_checkpoint_failed:${message}`);
+    // eslint-disable-next-line no-console
+    console.warn("[analyze] intermediate progress checkpoint skipped");
+    return;
+  }
+  if (data !== true) throw new LeaseOwnershipLostError();
+}
 
 type MoveCategory = "ok" | "inaccuracy" | "mistake" | "blunder";
 type Phase = "opening" | "middlegame" | "endgame";
@@ -50,6 +102,20 @@ export interface AnalyzedMove {
   category: MoveCategory;
   phase: Phase;
   bestMoveUci: string | null;
+  /**
+   * Mosse candidate Stockfish entro ACCEPTABLE_MOVE_CP_LOSS dalla linea migliore.
+   * Campo opzionale per compatibilita' con i JSON di analisi precedenti.
+   */
+  acceptableObservedMoveUcis?: string[];
+  /** Numero di linee MultiPV effettivamente osservate per costruire il set. */
+  acceptableSetMultiPv?: number;
+  /** false: il set e' limitato alle linee MultiPV osservate (attualmente 2). */
+  acceptableMovesComplete?: boolean;
+  /**
+   * Posizione contendibile (|eval| <= 150cp) e fuori dai primi 16 ply.
+   * Non significa semplicemente "il giocatore e' in vantaggio".
+   */
+  isCritical?: boolean;
   /** Secondi spesi dal player su questa mossa (da [%clk] nel PGN). null se non disponibile. */
   spentSeconds: number | null;
   /** Clock rimasto (secondi) DOPO questa mossa del player, da [%clk] PGN. null se assente. */
@@ -62,7 +128,10 @@ export interface AnalyzedMove {
    * 0.0 = molte mosse equivalenti (gap ~ 0).
    * null = non calcolabile (mate nelle lines o meno di 2 linee disponibili).
    */
+  /** @deprecated Alias di stockfishChoiceGap per JSON/lettori precedenti. */
   moveDifficulty: number | null;
+  /** Gap normalizzato fra le prime due linee Stockfish osservate. */
+  stockfishChoiceGap?: number | null;
   /** Ultima mossa dell'avversario immediatamente prima di questa mossa del player. */
   last_opp_from: string | null;
   last_opp_to: string | null;
@@ -74,6 +143,14 @@ export interface AnalyzedMove {
   timeState: TimeState | null;
   /** Categoria di errore (albero decisionale). null per mosse non-errore (cpLoss < 100). */
   errorType: string | null;
+  /** Signal fattuali multi-label; assenti nei JSON storici. */
+  errorSignals?: ErrorSignal[];
+  /** Evidenza grezza usata per la classificazione conservativa. */
+  errorEvidence?: ErrorEvidence | null;
+  /** Mapping del primary category alla tassonomia precedente. */
+  legacyErrorType?: string | null;
+  /** Euristica di ordinamento; non attribuisce la causa dell'errore. */
+  trainabilityWeight?: number | null;
   /** Peso di allenabilità 0..1. null per mosse non-errore. */
   blameWeight: number | null;
   /** cpLoss pesato per l'impatto reale (ridotto se eri già perso). null per non-errore. */
@@ -458,118 +535,6 @@ function computeTimeState(
   return "normal";
 }
 
-/** Mappa tipo -> peso di allenabilita'. */
-const BLAME_WEIGHTS: Record<string, number> = {
-  careless: 1.0,
-  hung_piece: 1.0,
-  rushed: 0.9,
-  conversion: 0.9,
-  zeitnot: 0.8,
-  missed_tactic: 0.7,
-  hard_calc: 0.4,
-  in_lost_position: 0.1,
-};
-
-interface ErrorClassification {
-  errorType: string;
-  blameWeight: number;
-  impact: number;
-}
-
-/**
- * Classifica un errore (cpLoss >= 100) nei campi errorType/blameWeight/impact.
- * Restituisce null per mosse non-errore.
- */
-function classifyError(
-  cpLoss: number,
-  stateBefore: StateBefore,
-  timeState: TimeState | null,
-  motif: string | null,
-  moveDifficulty: number | null
-): ErrorClassification | null {
-  if (cpLoss < 100) return null;
-  let errorType: string;
-  // Albero decisionale: primo match vince.
-  if (stateBefore === "losing") {
-    errorType = "in_lost_position";
-  } else if (timeState === "zeitnot") {
-    errorType = "zeitnot";
-  } else if (stateBefore === "winning") {
-    errorType = "conversion";
-  } else if (motif === "pezzo_in_presa") {
-    errorType = "hung_piece";
-  } else if (timeState === "rushed") {
-    errorType = "rushed";
-  } else if (moveDifficulty !== null && moveDifficulty >= 0.5 && timeState === "long_think") {
-    errorType = "hard_calc";
-  } else if (moveDifficulty !== null && moveDifficulty >= 0.5) {
-    errorType = "missed_tactic";
-  } else {
-    errorType = "careless";
-  }
-  const blameWeight = BLAME_WEIGHTS[errorType] ?? 1.0;
-  const rawImpact = stateBefore === "losing" ? cpLoss * 0.3 : cpLoss;
-  const impact = Math.round(rawImpact);
-  return { errorType, blameWeight, impact };
-}
-
-/**
- * Parsa un valore clock Chess.com nel formato [%clk h:mm:ss] o [%clk h:mm:ss.d].
- * Restituisce i secondi totali, o null se non parsabile.
- */
-function parseClkSeconds(clk: string): number | null {
-  // Supporta: "0:02:31", "0:02:31.5", "1:00:00", "0:00:03.2"
-  const m = clk.trim().match(/^(\d+):(\d{2}):(\d{2})(?:\.\d+)?$/);
-  if (!m) return null;
-  const h = parseInt(m[1], 10);
-  const min = parseInt(m[2], 10);
-  const sec = parseInt(m[3], 10);
-  return h * 3600 + min * 60 + sec;
-}
-
-/**
- * Estrae l'array di clock rimanenti (in secondi) dal PGN raw, nell'ordine delle
- * mosse (ply 1, 2, 3…). I clock [%clk …] in Chess.com sono dentro commenti
- * `{[%clk h:mm:ss]}` dopo ogni mossa, nell'ordine bianco/nero alternati.
- * Ritorna null per ogni mossa in cui il clock mancasse o non fosse parsabile.
- */
-function extractClocks(pgn: string): Array<number | null> {
-  // Cerca tutti i commenti { … } nel testo del PGN (dopo gli header).
-  // Strategia: scorrere tutto il PGN e raccogliere i match di [%clk …] in ordine.
-  const clkRegex = /\[%clk\s+([^\]]+)\]/g;
-  const clocks: Array<number | null> = [];
-  let match: RegExpExecArray | null;
-  while ((match = clkRegex.exec(pgn)) !== null) {
-    clocks.push(parseClkSeconds(match[1]));
-  }
-  return clocks;
-}
-
-/**
- * Estrae i SAN dal PGN raw di Chess.com — semplice ma robusto sul subset che
- * Chess.com produce. (chess.js loadPgn ha un parser preciso.)
- * Ora include anche clocks[] (secondi rimanenti per ogni ply, ordine mosse) e
- * header ECO/Opening.
- */
-function extractMoves(pgn: string): {
-  sanList: string[];
-  headers: Record<string, string>;
-  clocks: Array<number | null>;
-} {
-  const chess = new Chess();
-  // chess.js v1 espone loadPgn; in caso di tag non standard, sticky:true.
-  try {
-    chess.loadPgn(pgn, { strict: false });
-  } catch {
-    return { sanList: [], headers: {}, clocks: [] };
-  }
-  const headers = chess.header() as Record<string, string>;
-  const sanList = chess.history();
-  // Estrai i clock dal PGN grezzo (chess.js li scarta in history()).
-  const clocks = extractClocks(pgn);
-  return { sanList, headers, clocks };
-}
-
 /**
  * Scala l'eval di Stockfish (sempre dal punto di vista del side-to-move post
  * `position fen`) al punto di vista del PLAYER specifico.
@@ -597,9 +562,12 @@ function scoreFromPlayerPov(
 export async function analyzeGame(
   game: GameRow,
   engine: StockfishEngine,
-  onMoveProgress?: (movesDone: number, movesTotal: number) => void
+  onMoveProgress?: (movesDone: number, movesTotal: number) => void,
+  pulseLease?: () => Promise<void>,
 ): Promise<GameAnalysis | null> {
+  await pulseLease?.();
   const pgn = await downloadText(game.pgn_path);
+  await pulseLease?.();
   if (!pgn) {
     // eslint-disable-next-line no-console
     console.warn("[analyze] PGN mancante per", game.chess_com_uuid);
@@ -680,8 +648,13 @@ export async function analyzeGame(
     const fullMoveNumber = parseInt(fenBefore.split(" ")[5] ?? "1", 10);
     const phase = determinePhase(fenBefore, fullMoveNumber);
 
+    // A game can take minutes on a slow device. Fence every Stockfish eval so
+    // lease loss terminates this lane instead of overlapping a takeover worker.
+    await pulseLease?.();
     const evalBefore = await engine.evaluate(fenBefore, DEPTH);
+    await pulseLease?.();
     const evalAfter = await engine.evaluate(fenAfter, DEPTH);
+    await pulseLease?.();
 
     const sideToMoveAfter = (fenAfter.split(" ")[1] as "w" | "b");
 
@@ -701,6 +674,8 @@ export async function analyzeGame(
     // Cap a 1000cp: uno swing da/verso matto (±10000) altrimenti domina le medie.
     const cpLoss = Math.min(1000, Math.max(0, scoreBefore - scoreAfter));
     const category = classify(cpLoss);
+    const acceptableObservedMoveUcis = acceptableObservedMovesFromEvaluation(evalBefore);
+    const isCritical = isCriticalPosition(i + 1, scoreBefore);
 
     // Motif v1 conservativo: etichetta solo mistake/blunder con hang pulito.
     const motif: string | null =
@@ -708,9 +683,9 @@ export async function analyzeGame(
         ? "pezzo_in_presa"
         : null;
 
-    // moveDifficulty: gap fra linea 1 e linea 2 dal pov del player (evalBefore).
+    // stockfishChoiceGap: gap fra linea 1 e linea 2 dal pov del player.
     // evalBefore è sul FEN dove tocca al player → Stockfish score = POV player.
-    let moveDifficulty: number | null = null;
+    let stockfishChoiceGap: number | null = null;
     {
       const lines = evalBefore.lines;
       if (
@@ -721,7 +696,7 @@ export async function analyzeGame(
         lines[1].scoreCp !== null
       ) {
         const gap = lines[0].scoreCp - lines[1].scoreCp;
-        moveDifficulty = Math.min(1, Math.max(0, gap / 200));
+        stockfishChoiceGap = Math.min(1, Math.max(0, gap / 200));
       }
       // else: null (mate present or < 2 lines)
     }
@@ -733,32 +708,39 @@ export async function analyzeGame(
     //              the player earned for making that move.
     //
     // So for move i (index 0-based), the player's clock at the START of their turn
-    // was clock[i-2] (their clock after their previous move, same colour).
+    // was clock[i-2] (their clock after their previous move, same colour), oppure
+    // il tempo base per la prima mossa di quel colore.
     // When they move, they get `timeControlIncrement` added, then their elapsed
     // time is subtracted, leaving clock[i].
     //
     // Therefore:
     //   spentSeconds = clockPrev + increment - clockAfter
-    //   = (clock[i-2]) + timeControlIncrement - clock[i]
+    //   = (clock[i-2] oppure base) + timeControlIncrement - clock[i]
     //
-    // This is clamped to >= 0 (guard against rounding / flag moves).
+    // This is clamped to >= 0 within a small rounding tolerance.
     // null when either clock is missing (no [%clk] annotations, or daily).
-    let spentSeconds: number | null = null;
     const clockRemaining: number | null = clocks.length > 0 ? (clocks[i] ?? null) : null;
-    if (clocks.length > 0) {
-      const clockAfter = clockRemaining;
-      const clockPrev  = i >= 2 ? (clocks[i - 2] ?? null) : null; // clock after own previous move
-      if (clockAfter !== null && clockPrev !== null) {
-        const delta = clockPrev + timeControlIncrement - clockAfter;
-        // Clamp to >= 0: a negative value can occur in overtime / flag scenarios.
-        spentSeconds = delta >= 0 ? delta : null;
-      }
-    }
+    const spentSeconds = computeSpentSeconds(
+      i,
+      clocks,
+      timeControlBaseSeconds,
+      timeControlIncrement,
+    );
 
     // Campi derivati A3.
     const stateBefore = computeStateBefore(scoreBefore);
     const timeState = computeTimeState(clockRemaining, spentSeconds, timeControlBaseSeconds);
-    const errClass = classifyError(cpLoss, stateBefore, timeState, motif, moveDifficulty);
+    const errClass = classifyErrorSemantics({
+      cpLoss,
+      scoreBeforeCp: scoreBefore,
+      scoreAfterCp: scoreAfter,
+      timeState,
+      motif,
+      stockfishChoiceGap,
+      spentSeconds,
+      clockRemaining,
+      timeControlBaseSeconds,
+    });
 
     analyzed.push({
       ply: i + 1,
@@ -772,17 +754,26 @@ export async function analyzeGame(
       category,
       phase,
       bestMoveUci: evalBefore.bestMoveUci,
+      acceptableObservedMoveUcis,
+      acceptableSetMultiPv: evalBefore.lines.length,
+      acceptableMovesComplete: false,
+      isCritical,
       spentSeconds,
       clockRemaining,
       motif,
-      moveDifficulty,
+      moveDifficulty: stockfishChoiceGap,
+      stockfishChoiceGap,
       last_opp_from: oppBeforeThis?.from ?? null,
       last_opp_to: oppBeforeThis?.to ?? null,
       last_opp_san: oppBeforeThis?.san ?? null,
       stateBefore,
       timeState,
-      errorType: errClass?.errorType ?? null,
-      blameWeight: errClass?.blameWeight ?? null,
+      errorType: errClass?.primary_category ?? null,
+      errorSignals: errClass?.signals ?? [],
+      errorEvidence: errClass?.evidence ?? null,
+      legacyErrorType: errClass?.legacy_error_type ?? null,
+      trainabilityWeight: errClass?.trainability_weight ?? null,
+      blameWeight: errClass?.trainability_weight ?? null,
       impact: errClass?.impact ?? null,
     });
 
@@ -867,37 +858,58 @@ export async function analyzeGame(
   return summary;
 }
 
+export interface AnalyzeRunResult extends AnalysisProgressCounts {
+  /** Successi appartenenti alla fetta richiesta, non all'intera quota. */
+  sliceSucceeded: number;
+}
+
 export async function runAnalyze(opts: {
   userId: string;
   jobId: string;
-  onProgress?: (done: number, total: number) => void;
+  leaseToken: string;
+  guardLease: () => Promise<void>;
+  pulseLease: () => Promise<void>;
+  /** La quota e le due fette appartengono alla stessa cadenza scelta. */
+  goalTimeClass: AnalyzedTimeClass;
+  onProgress?: (progress: AnalysisProgressCounts) => void;
   /**
    * Se presente, lavora solo su una fetta della quota ordinata per recenza.
    * `offset` e `limit` si applicano DOPO aver costruito la quota completa
-   * (FREE_GAME_CAP partite più recenti, ordinate DESC), così le fette sono
-   * sempre stabili e non si sovrappongono tra le due chiamate.
+   * (FREE_GAME_CAP partite più recenti, ordinate DESC). Il passaggio di fondo
+   * può includere di nuovo 0..100: salta i successi e ritenta gli errori.
    *
    * Il progress emesso è ASSOLUTO (0..total dell'intera quota), non relativo
    * alla fetta: così rimane monotono attraverso le due chiamate successive.
-   * `done` = done_pre_fetta + completate_in_questa_fetta.
+   * `processed` include i tentativi; `succeeded` solo i JSON persistiti come done.
    * `total` = dimensione dell'intera quota (non della fetta).
    */
   range?: { offset: number; limit: number };
-}): Promise<void> {
-  const { userId, jobId, onProgress, range } = opts;
+}): Promise<AnalyzeRunResult> {
+  const {
+    userId,
+    jobId,
+    leaseToken,
+    guardLease,
+    pulseLease,
+    goalTimeClass,
+    onProgress,
+    range,
+  } = opts;
 
-  // Quota free = le FREE_GAME_CAP partite PIÙ RECENTI, a prescindere dallo
-  // stato. È stabile: ri-eseguendo (resume/retry) ri-puntiamo SEMPRE alle
-  // stesse partite e saltiamo quelle già 'done', senza mai sforare il cap né
-  // "scivolare" sulle partite più vecchie.
-  const { data: recentGames } = await supabase
+  // Quota free = le FREE_GAME_CAP partite PIÙ RECENTI della goal_time_class.
+  // È stabile: resume/retry ri-puntano alla stessa cadenza e non mescolano
+  // rapid e blitz nello stesso profilo analitico.
+  await guardLease();
+  const { data: recentGames, error: recentGamesError } = await supabase
     .from("games")
     .select("*")
     .eq("user_id", userId)
+    .eq("time_class", goalTimeClass)
     .order("played_at", { ascending: false })
     .limit(FREE_GAME_CAP);
+  await guardLease();
 
-  const quota = recentGames ?? [];
+  const quota = requireAnalysisRows(recentGames, recentGamesError);
   // total è sempre la dimensione TOTALE della quota (non della fetta), così
   // il progress è monotono 0→total attraverso le due chiamate.
   const total = quota.length;
@@ -908,21 +920,33 @@ export async function runAnalyze(opts: {
   // done_base: partite già 'done' FUORI dalla fetta corrente (per monotonia).
   // Se non c'è range (run completo), done_base = 0 e contiamo tutto in slice.
   const doneOutsideSlice = range
-    ? quota.filter((g, idx) => idx < range.offset && g.analysis_status === "done").length +
+    ? quota.filter((g, idx) => idx < range.offset && isPersistedAnalysisSuccess(g)).length +
       quota.filter(
         (g, idx) =>
-          idx >= range.offset + range.limit && g.analysis_status === "done"
+          idx >= range.offset + range.limit && isPersistedAnalysisSuccess(g)
       ).length
     : 0;
 
-  const toDo = slice.filter((g) => g.analysis_status !== "done");
-  let done = doneOutsideSlice + (slice.length - toDo.length);
-  onProgress?.(done, total);
+  const toDo = analysisWorkItems(quota, range);
+  let progress: AnalysisProgressCounts = {
+    processed: doneOutsideSlice + (slice.length - toDo.length),
+    total,
+    succeeded: quota.filter(isPersistedAnalysisSuccess).length,
+  };
+  let sliceSucceeded = slice.filter(isPersistedAnalysisSuccess).length;
+  onProgress?.(progress);
+
+  if (toDo.length === 0) {
+    await persistAnalyzeProgress(jobId, leaseToken, progress.processed, true);
+    return { ...progress, sliceSucceeded };
+  }
 
   // Spin up a pool of N workers (at most 4, leaving 1 core for the main thread).
   const N = Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 4) - 1));
+  await guardLease();
   const pool = createStockfishPool(N);
-  await Promise.all(pool.map((e) => e.waitReady()));
+  try {
+    await Promise.all(pool.map((e) => e.waitReady()));
 
   // Round-robin across N lanes: lane laneIdx processes games at indices laneIdx, laneIdx+N, …
   await Promise.all(
@@ -930,52 +954,65 @@ export async function runAnalyze(opts: {
       (async () => {
         for (let i = laneIdx; i < toDo.length; i += N) {
           const g = toDo[i];
-          await supabase
-            .from("games")
-            .update({ analysis_status: "analyzing" })
-            .eq("id", g.id);
-
+          let analyzedSuccessfully = false;
           try {
-            const summary = await analyzeGame(g, engine);
-            if (summary) {
-              const path = analysisPath(userId, g.chess_com_uuid);
-              await uploadJson(path, summary);
-              await supabase
-                .from("games")
-                .update({ analysis_status: "done", analysis_path: path })
-                .eq("id", g.id);
-            } else {
-              await supabase
-                .from("games")
-                .update({ analysis_status: "error", error: "no_pgn_or_empty" })
-                .eq("id", g.id);
-            }
+            await guardLease();
+            await updateGameRequired(
+              g.id,
+              { analysis_status: "analyzing", error: null },
+              "analysis_status_start_failed",
+            );
+
+            const summary = await analyzeGame(g, engine, undefined, pulseLease);
+            if (!summary) throw new Error("no_pgn_or_empty");
+            await guardLease();
+
+            const path = analysisPath(userId, g.chess_com_uuid);
+            await uploadJson(path, summary);
+            await guardLease();
+            await updateGameRequired(
+              g.id,
+              { analysis_status: "done", analysis_path: path, error: null },
+              "analysis_status_done_failed",
+            );
+            await guardLease();
+            analyzedSuccessfully = true;
           } catch (e) {
-            await supabase
+            if (e instanceof LeaseOwnershipLostError) throw e;
+            // Fence the error write too: an expired worker must not overwrite a
+            // successful result persisted by the tab that took the lease over.
+            await guardLease();
+            const { data: errorRow, error: errorPersistError } = await supabase
               .from("games")
               .update({
                 analysis_status: "error",
                 error: String(e instanceof Error ? e.message : e),
               })
-              .eq("id", g.id);
+              .eq("id", g.id)
+              .select("id")
+              .maybeSingle();
+            if (errorPersistError || !errorRow) {
+              // eslint-disable-next-line no-console
+              console.warn("[analyze] failed to persist game error state");
+            }
+            await guardLease();
           }
-          // JS is single-threaded: no real race on `done`.
-          done++;
-          onProgress?.(done, total);
-          if (done % 3 === 0) {
-            await supabase
-              .from("ingest_jobs")
-              .update({ games_done: done })
-              .eq("id", jobId);
+          // JS is single-threaded: no real race on these counters.
+          progress = advanceAnalysisProgress(progress, analyzedSuccessfully);
+          if (analyzedSuccessfully) sliceSucceeded++;
+          onProgress?.(progress);
+          if (progress.processed % 3 === 0) {
+            await persistAnalyzeProgress(jobId, leaseToken, progress.processed, false);
           }
         }
       })()
     )
   );
 
-  await supabase
-    .from("ingest_jobs")
-    .update({ games_done: done })
-    .eq("id", jobId);
-  pool.forEach((e) => e.destroy());
+  await persistAnalyzeProgress(jobId, leaseToken, progress.processed, true);
+  await guardLease();
+    return { ...progress, sliceSucceeded };
+  } finally {
+    pool.forEach((engine) => engine.destroy());
+  }
 }

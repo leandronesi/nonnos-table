@@ -15,12 +15,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTavoloData } from "./tavolo/useTavoloData";
 import { useOnboardingRun } from "../pipeline/OnboardingRunContext";
 import { selectMomento } from "../components/MomentoDelGiorno";
-import { materialForGap } from "../pipeline/history";
 import { prefersReducedMotion } from "../lib/motion";
-import type { HistorySnapshot } from "../types";
 import { getLang, tr } from "../i18n/lang";
 import { getAnchorLabel } from "../i18n/anchors";
 import { LangToggle } from "../i18n/LangToggle";
+import { scopedStorage } from "../auth/userStorage";
+import { trackEvent } from "../lib/telemetry";
+import { markStanzaIntroSeen } from "./stanza/visit";
 // Type-only import: erased at build time, three.js stays in the lazy chunk.
 import type { Focus } from "./stanza/StanzaScene";
 
@@ -58,30 +59,6 @@ function getFocusHints(): Record<Exclude<Focus, "tavolo">, string> {
   };
 }
 
-// ── Handicap derivation (same guards as buildHandicapLine) ────────────────────
-
-function buildHandicapDisplay(snapshots: HistorySnapshot[]): {
-  initialStep: number;
-  currentStep: number;
-} | null {
-  if (snapshots.length < 2) return null;
-  const sorted = [...snapshots].sort((a, b) => a.captured_at.localeCompare(b.captured_at));
-  const first = sorted[0];
-  const last = sorted[sorted.length - 1];
-
-  const firstMw = first.maia_weighted;
-  const lastMw = last.maia_weighted;
-  if (firstMw.mine_pct == null || firstMw.target_pct == null) return null;
-  if (lastMw.mine_pct == null || lastMw.target_pct == null) return null;
-
-  const initialMaterial = materialForGap(firstMw.target_pct - firstMw.mine_pct);
-  if (!initialMaterial) return null;
-  const currentStep = materialForGap(lastMw.target_pct - lastMw.mine_pct)?.step ?? 0;
-
-  if (initialMaterial.step <= currentStep) return null;
-  return { initialStep: initialMaterial.step, currentStep };
-}
-
 /** "e2e4" → ["e2","e4"]; null-safe. */
 function uciToPair(uci: string | null | undefined): [string, string] | null {
   if (!uci || uci.length < 4) return null;
@@ -115,7 +92,6 @@ class SceneBoundary extends Component<{ children: ReactNode }, { broken: boolean
 export function StanzaHome() {
   const {
     aggregates,
-    historySnapshots,
     memoriaVisibile,
     targetRating,
     letterIdentity,
@@ -129,6 +105,11 @@ export function StanzaHome() {
   // games, Nonno says so in the room too (the foyer is the first screen after
   // entry) — so the wait feels like him working, not the app hanging.
   const { backgroundRunning } = useOnboardingRun();
+
+  useEffect(() => {
+    markStanzaIntroSeen();
+    trackEvent("room_viewed");
+  }, []);
 
   const reduced = prefersReducedMotion();
 
@@ -151,23 +132,15 @@ export function StanzaHome() {
   }, [loading, error, reduced]);
 
   // Board affordance: breathing + invite label disappear after the first visit.
-  // localStorage key so returning visitors never see it again (gate-once).
+  // User-scoped browser storage keeps accounts on the same device isolated.
   const BOARD_VISITED_KEY = "nonno_board_visited_v1";
   const [boardVisited, setBoardVisited] = useState(() => {
-    try {
-      return localStorage.getItem(BOARD_VISITED_KEY) === "1";
-    } catch {
-      return false;
-    }
+    return scopedStorage.getItem(BOARD_VISITED_KEY) === "1";
   });
   function markBoardVisited() {
     if (boardVisited) return;
     setBoardVisited(true);
-    try {
-      localStorage.setItem(BOARD_VISITED_KEY, "1");
-    } catch {
-      // storage not available — degrade gracefully
-    }
+    scopedStorage.setItem(BOARD_VISITED_KEY, "1");
   }
 
   // Gli sguardi: which object the camera leans over. StanzaHome owns it so
@@ -193,7 +166,6 @@ export function StanzaHome() {
   // ── Scene props from real data ───────────────────────────────────────────────
   const pool = aggregates?.cadute ?? aggregates?.examples ?? [];
   const momento = selectMomento(pool);
-  const handicap = historySnapshots ? buildHandicapDisplay(historySnapshots) : null;
 
   const improving = anchorTrails.filter((t) => t.direction === "improving").slice(0, 3);
   const lang = getLang();
@@ -258,7 +230,6 @@ export function StanzaHome() {
           playedMove={uciToPair(momento?.played_uci)}
           bestMove={uciToPair(momento?.best_uci)}
           orientation={momento?.color === "black" ? "black" : "white"}
-          handicap={handicap}
           notebookLines={notebookLines}
           notebookGold={notebookGold}
           showNotebook={targetRating > 0}

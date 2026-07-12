@@ -34,102 +34,148 @@ type AnchorMeta = Record<string, { it: AnchorCopy; en: AnchorCopy }>;
  *   - Action = one sentence, plain directive.
  */
 const ANCHOR_META: AnchorMeta = {
-  careless: {
+  left_winning_band: {
     it: {
-      label: "Disattenzione",
-      meaning:
-        "Errori in posizioni non difficili dove avevi tempo e la mossa non era complicata. Se molli questa ancora guadagni punti sulle partite facili.",
-      action: "Prima di muovere, un controllo veloce: cosa minaccia l'avversario.",
+      label: "Uscita dalla fascia winning",
+      meaning: "La valutazione era sopra la soglia winning ed e' scesa sotto quella soglia; puo' restare positiva.",
+      action: "Rivedi quali semplificazioni o controlli mantenevano il vantaggio.",
     },
     en: {
-      label: "Inattention",
-      meaning:
-        "Errors in positions that were not hard — you had the time and the move was not complicated. Close this and you pick up points in the easy games.",
-      action: "Before you move, one quick check: what is your opponent threatening.",
+      label: "Left the winning band",
+      meaning: "The evaluation was above the winning threshold and fell below it; it may still remain positive.",
+      action: "Review which simplification or safety check preserved the advantage.",
+    },
+  },
+  clock_pressure: {
+    it: {
+      label: "Errore con poco tempo",
+      meaning: "L'errore e' avvenuto sotto la soglia del clock; questo descrive il contesto, non la causa.",
+      action: "Ricostruisci dove hai usato il tempo prima di questa posizione.",
+    },
+    en: {
+      label: "Error under clock pressure",
+      meaning: "The error happened below the clock threshold; that describes context, not cause.",
+      action: "Trace where you used your time before reaching this position.",
+    },
+  },
+  fast_decision: {
+    it: {
+      label: "Decisione rapida",
+      meaning: "La mossa-errore e' stata giocata in tre secondi o meno; il clock da solo non ne prova la causa.",
+      action: "Ripeti la posizione senza fretta e confronta il processo.",
+    },
+    en: {
+      label: "Fast decision",
+      meaning: "The error move was played in three seconds or less; the clock alone does not prove why.",
+      action: "Replay the position without time pressure and compare your process.",
+    },
+  },
+  narrow_choice_after_long_think: {
+    it: {
+      label: "Scelta stretta dopo riflessione",
+      meaning: "Hai pensato a lungo e le linee MultiPV osservate avevano un divario netto; non prova una tattica mancata.",
+      action: "Ricostruisci le candidate e le varianti che avevi considerato.",
+    },
+    en: {
+      label: "Narrow choice after a long think",
+      meaning: "You thought for a while and the observed MultiPV lines had a clear gap; this does not prove a missed tactic.",
+      action: "Rebuild the candidate moves and lines you considered.",
+    },
+  },
+  unclassified_error: {
+    it: {
+      label: "Errore da classificare",
+      meaning: "La perdita e' reale, ma i segnali disponibili non sostengono una spiegazione piu' specifica.",
+      action: "Rivedi la posizione e annota cosa avevi calcolato.",
+    },
+    en: {
+      label: "Unclassified error",
+      meaning: "The loss is real, but the available signals do not support a more specific explanation.",
+      action: "Review the position and write down what you had calculated.",
+    },
+  },
+  careless: {
+    it: {
+      label: "Errore non classificato (storico)",
+      meaning: "Categoria legacy usata quando mancava una spiegazione supportata; non prova una disattenzione.",
+      action: "Rianalizza la posizione con la nuova tassonomia fattuale.",
+    },
+    en: {
+      label: "Unclassified error (legacy)",
+      meaning: "A legacy fallback used when no supported explanation was available; it does not prove inattention.",
+      action: "Reanalyse the position with the factual taxonomy.",
     },
   },
   hung_piece: {
     it: {
       label: "Pezzi in presa",
-      meaning:
-        "Lasci pezzi catturabili gratis. Se smetti di regalare materiale sali di rating direttamente.",
+      meaning: "Dopo la mossa il rilevatore geometrico trova un pezzo catturabile senza ricattura immediata.",
       action: "Controlla sempre le catture dell'avversario prima di muovere.",
     },
     en: {
       label: "Pieces given away",
-      meaning:
-        "You leave pieces that can be taken for free. Stop giving material away and the rating comes on its own.",
+      meaning: "After the move, the geometric detector finds a piece that can be captured without an immediate recapture.",
       action: "Before you move, check what your opponent can capture.",
     },
   },
   rushed: {
     it: {
-      label: "Mosse impulsive",
-      meaning:
-        "Muovi troppo in fretta in momenti che chiedono calcolo. Rallentare nei critici vale punti concreti.",
-      action: "Datti qualche secondo in piu' sui momenti critici.",
+      label: "Decisione rapida (storico)",
+      meaning: "Categoria legacy basata sul tempo speso; la velocita' da sola non dimostra la causa dell'errore.",
+      action: "Confronta la stessa posizione con e senza limite di tempo.",
     },
     en: {
-      label: "Rushed moves",
-      meaning:
-        "You move too fast in positions that ask for calculation. Slowing down at the critical moment is worth real points.",
-      action: "Give yourself a few more seconds on the positions that matter.",
+      label: "Fast decision (legacy)",
+      meaning: "A legacy category based on time spent; speed alone does not establish the cause of an error.",
+      action: "Compare the same position with and without a time limit.",
     },
   },
   conversion: {
     it: {
-      label: "Vittorie buttate",
-      meaning:
-        "Eri in vantaggio e hai lasciato sfuggire la partita. Imparare a chiudere e' il salto di qualita' piu' diretto.",
-      action: "Quando sei avanti semplifica e gioca solido.",
+      label: "Vantaggio prima dell'errore (storico)",
+      meaning: "Categoria legacy: indicava solo una valutazione sopra soglia prima della mossa, non la perdita della partita.",
+      action: "Verifica se la valutazione e' davvero uscita dalla fascia winning.",
     },
     en: {
-      label: "Games thrown away",
-      meaning:
-        "You were winning and let the game slip. Learning to close is the most direct step up you can take.",
-      action: "When you are ahead, simplify. Play solid.",
+      label: "Advantage before the error (legacy)",
+      meaning: "A legacy category that only meant the pre-move evaluation was above a threshold, not that the game was thrown away.",
+      action: "Check whether the evaluation actually left the winning band.",
     },
   },
   zeitnot: {
     it: {
-      label: "Crolli in zeitnot",
-      meaning:
-        "Sbagli quando il tempo sta per finire. Gestire meglio l'orologio ti porta a convertire queste partite.",
-      action: "Gestisci meglio l'orologio nelle fasi iniziali.",
+      label: "Errore con poco tempo (storico)",
+      meaning: "Categoria legacy per errori sotto la soglia clock; descrive il contesto, non una causa.",
+      action: "Ricostruisci dove hai speso il tempo nella partita.",
     },
     en: {
-      label: "Time trouble collapses",
-      meaning:
-        "You go wrong when the clock is running out. Better clock management earlier means you convert these games.",
-      action: "Manage the clock in the opening and middlegame, not just at the end.",
+      label: "Error with little time (legacy)",
+      meaning: "A legacy category for errors below the clock threshold; it describes context, not cause.",
+      action: "Trace where you spent your time earlier in the game.",
     },
   },
   missed_tactic: {
     it: {
-      label: "Tattiche mancate",
-      meaning:
-        "Posizioni acute con una mossa precisa che hai mancato. Riconoscere i pattern tattici e' il tuo prossimo gradino.",
-      action: "Allena i pattern tattici ricorrenti.",
+      label: "Divario MultiPV (storico)",
+      meaning: "Categoria legacy inferita dal divario tra linee; quel dato da solo non prova una tattica mancata.",
+      action: "Cerca un motivo tattico verificabile prima di assegnare un tema.",
     },
     en: {
-      label: "Missed tactics",
-      meaning:
-        "Sharp positions with one precise move that you did not find. Recognising the recurring patterns is your next step.",
-      action: "Train the tactical patterns that keep coming up.",
+      label: "MultiPV gap (legacy)",
+      meaning: "A legacy category inferred from the gap between lines; that alone does not prove a missed tactic.",
+      action: "Look for a verifiable tactical motif before assigning a theme.",
     },
   },
   hard_calc: {
     it: {
-      label: "Calcolo al limite",
-      meaning:
-        "Posizioni difficili dove ci hai pensato ma non l'hai trovata: e' il tuo prossimo gradino di crescita.",
-      action: "Esercizi di calcolo piu' profondo.",
+      label: "Scelta stretta dopo riflessione (storico)",
+      meaning: "Categoria legacy basata su tempo lungo e divario MultiPV; non identifica da sola la causa.",
+      action: "Annota candidate e linee realmente calcolate.",
     },
     en: {
-      label: "Deep calculation",
-      meaning:
-        "Hard positions where you thought it through but did not find it. This is your next level of growth.",
-      action: "Work on calculation exercises that go a few moves deeper.",
+      label: "Narrow choice after a long think (legacy)",
+      meaning: "A legacy category based on a long think and a MultiPV gap; it does not identify the cause by itself.",
+      action: "Write down the candidate moves and lines you actually calculated.",
     },
   },
   // Note: in_lost_position is excluded from anchors (filtered in aggregate.ts),

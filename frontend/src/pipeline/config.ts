@@ -1,3 +1,5 @@
+import type { GoalTimeClass } from "../auth/db.types";
+
 /**
  * Config della pipeline browser-side.
  *
@@ -5,14 +7,13 @@
  * tier free. Alzato a 100 (2026-05-29) ora che l'analisi è parallela (pool di
  * worker Stockfish + MultiPV 2): dataset più ricco, statistiche più solide,
  * e la curva-rating combacia quasi con le partite analizzate. Resta sotto il
- * "scarica tutto" (un utente attivo ha ~1500 partite in 6 mesi). Il tier paid
- * (storico completo / refresh ricorrente) alzerà ancora questo cap.
+ * "scarica tutto": l'ingest scorre gli archivi in ordine inverso e si ferma
+ * appena trova 100 partite della cadenza scelta.
  */
 export const FREE_GAME_CAP = 100;
 
 /** Prima fetta di analisi: le N partite più recenti → aggregate+coach parziale rapido.
- * Set to 10 (was 20) so the user enters the Tavolo after fewer games analyzed upfront;
- * the remaining 90 continue in the background while they are already inside. */
+ * Il resto del corpus effettivamente trovato continua in background. */
 export const FIRST_BATCH_SIZE = 10;
 
 /** Quante posizioni-esempio (mosse peggiori) passiamo al coach LLM. */
@@ -33,15 +34,70 @@ export const CADUTE_LIMIT = 40;
 export const CADUTE_MAIA_CAP = 400;
 
 /**
- * Time classes included in error analysis, anchor computation and drill scoring.
+ * Time classes supported as a goal analysis scope.
  *
- * Rationale: the product targets rapid/blitz players. Daily games have no
- * usable clock data; bullet games are reflex-driven and produce noisy cp_loss
- * data that pollutes the weakness profile. Both are excluded.
- *
- * If a game's time_class field is missing/undefined it is NOT excluded
- * (conservative: we keep the data rather than silently drop it).
- *
- * Change this array to add/remove time classes from the analysis scope.
+ * Ogni run sceglie ESATTAMENTE una voce (rapid O blitz): l'array non autorizza
+ * a sommarle nello stesso corpus. Daily/bullet/classical restano esclusi.
  */
+export type AnalyzedTimeClass = GoalTimeClass;
+
 export const ANALYZED_TIME_CLASSES: string[] = ["rapid", "blitz"];
+
+export interface GoalAnalysisScope {
+  timeClass: AnalyzedTimeClass;
+  gameCap: number;
+}
+
+export function isAnalyzedTimeClass(value: string): value is AnalyzedTimeClass {
+  return value === "rapid" || value === "blitz";
+}
+
+/** Fail closed: una cadenza non supportata non deve mai ricadere su un mix. */
+export function goalAnalysisScope(value: string): GoalAnalysisScope {
+  if (!isAnalyzedTimeClass(value)) {
+    throw new Error(`unsupported_goal_time_class:${value}`);
+  }
+  return { timeClass: value, gameCap: FREE_GAME_CAP };
+}
+
+export function isInGoalAnalysisScope(
+  game: { time_class: string },
+  scope: GoalAnalysisScope,
+): boolean {
+  return game.time_class === scope.timeClass;
+}
+
+/** Pure reference implementation used by tests and in-memory defensive guards. */
+export function selectRecentGoalGames<T extends { time_class: string; played_at: string }>(
+  games: readonly T[],
+  scope: GoalAnalysisScope,
+): T[] {
+  return games
+    .filter((game) => isInGoalAnalysisScope(game, scope))
+    .sort((a, b) => b.played_at.localeCompare(a.played_at))
+    .slice(0, scope.gameCap);
+}
+
+/** A fine scansione il totale UI deve coincidere col corpus realmente trovato. */
+export function completedGameProgress(
+  gamesDone: number,
+  gameCap: number = FREE_GAME_CAP,
+): {
+  gamesTotal: number;
+  gamesDone: number;
+} {
+  const normalizedCap = Math.max(0, Math.min(FREE_GAME_CAP, Math.floor(gameCap)));
+  const completed = Math.max(0, Math.min(normalizedCap, Math.floor(gamesDone)));
+  return { gamesTotal: completed, gamesDone: completed };
+}
+
+/**
+ * Dopo la prima lettura, continua se esistono analisi da ritentare oppure se il
+ * passaggio da 10 ha saturato il cap e quindi potrebbero esistere partite 11-100.
+ */
+export function shouldBuildRestCorpus(
+  firstPassIndexed: number,
+  retryableGames: number,
+): boolean {
+  return retryableGames > 0 || firstPassIndexed >= FIRST_BATCH_SIZE;
+}

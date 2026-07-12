@@ -62,7 +62,14 @@ type PositionExampleExtended = PositionExample & {
   opp_rating?: number | null;
 };
 
-export function toPositionRow(pe: PositionExample, index: number): PositionRow {
+function legacySourceId(pe: PositionExample): string {
+  const raw = `${pe.played_at ?? ""}|${pe.color}|${pe.fen_before}`;
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
+  return `legacy_${(hash >>> 0).toString(36)}`;
+}
+
+export function toPositionRow(pe: PositionExample, _index: number): PositionRow {
   const pex = pe as PositionExampleExtended;
   // uciToSan returns the SAN string on success, the raw UCI on parse failure,
   // or "—" when uci is null/empty. We want:
@@ -74,6 +81,8 @@ export function toPositionRow(pe: PositionExample, index: number): PositionRow {
   // rawSan === "—" means best_uci was null/empty.
   const isTrueSan = rawSan && rawSan !== rawUci && rawSan !== "—";
   const bestSanSf = isTrueSan ? rawSan : (rawUci || null);
+  const sourceGameId = pe.source_game_id ?? legacySourceId(pe);
+  const positionId = pe.position_id ?? `${sourceGameId}:${pe.ply}`;
 
   return {
     // Campi da PositionExample
@@ -83,23 +92,28 @@ export function toPositionRow(pe: PositionExample, index: number): PositionRow {
     ply: pe.ply,
     san: pe.san,
     cp_loss: pe.cp_loss,
+    state_before: pe.state_before ?? null,
+    error_type: pe.error_type ?? null,
+    error_signals: pe.error_signals ?? null,
+    legacy_error_type: pe.legacy_error_type ?? null,
     motif: pe.motif ?? null,
     motif_label_it: motifLabelIt(pe.motif),
     move_difficulty: pe.move_difficulty ?? null,
 
     // Derivati
     best_san_sf: bestSanSf,
-    cp_before: pe.cp_loss,   // non abbiamo cp_before preciso; usiamo cp_loss come proxy
-    cp_after: 0,
+    cp_before: pe.score_before_cp ?? null,
+    cp_after: pe.score_after_cp ?? null,
 
-    // game_id sintetico: stabile per posizione (fen hash leggero)
-    game_id: `caduta_${index}`,
+    game_id: sourceGameId,
+    source_game_id: sourceGameId,
+    position_id: positionId,
     move_number: Math.floor(pe.ply / 2) + 1,
 
     // Campi opzionali — null/default
     best_san_maia_mine: null,
     best_san_maia_target: null,
-    url: null,
+    url: pe.game_url ?? null,
     date: pe.played_at ?? null,
     opp_rating: pex.opp_rating ?? null,
     result: null,
@@ -113,9 +127,25 @@ export function toPositionRow(pe: PositionExample, index: number): PositionRow {
     p_maia_mine_top: pe.p_maia_mine_top ?? null,
     p_maia_target_top: pe.p_maia_target_top ?? null,
     drill_value: pe.drill_value ?? null,
-    avoidable_at_my_level: pe.avoidable === true ? 1 : undefined,
+    maia_mine_played_policy: pe.maia_mine_played_policy ?? null,
+    maia_target_played_policy: pe.maia_target_played_policy ?? null,
+    maia_mine_acceptable_observed_policy:
+      pe.maia_mine_acceptable_observed_policy ?? null,
+    maia_target_acceptable_observed_policy:
+      pe.maia_target_acceptable_observed_policy ?? null,
+    avoidable_at_current: pe.avoidable_at_current ?? pe.avoidable ?? null,
+    target_relevant: pe.target_relevant ?? null,
+    trainable: pe.trainable ?? null,
+    training_priority_weight: pe.training_priority_weight ?? null,
+    maia_status: pe.maia_status ?? null,
+    maia_reason_code: pe.maia_reason_code ?? null,
+    maia_policy_semantics: pe.maia_policy_semantics,
+    maia_domain_status: pe.maia_domain_status ?? null,
+    maia_domain_reason: pe.maia_domain_reason ?? null,
+    avoidable_at_my_level:
+      (pe.avoidable_at_current ?? pe.avoidable) === true ? 1 : undefined,
     unavoidable_at_target: undefined,
-    priority_score: undefined,
+    priority_score: pe.priority_score ?? undefined,
 
     // Frecce avversario — propagate da PositionExample quando disponibili
     last_opp_from: pe.last_opp_from ?? null,
@@ -124,6 +154,12 @@ export function toPositionRow(pe: PositionExample, index: number): PositionRow {
 
     // UCI raw: fallback per calcolare hintFrom quando best_san_sf non è SAN valido
     best_uci: pe.best_uci ?? null,
+    acceptable_observed_uci: pe.acceptable_observed_uci ?? null,
+    acceptable_set_multipv: pe.acceptable_set_multipv ?? null,
+    acceptable_moves_complete: pe.acceptable_moves_complete ?? false,
+    stockfish_choice_gap: pe.stockfish_choice_gap ?? pe.move_difficulty ?? null,
+    maia_target_acceptable_observed_difficulty:
+      pe.maia_target_acceptable_observed_difficulty ?? null,
 
     // Contesto pre-blunder — non disponibile
     spent_seconds: pe.spent_seconds ?? null,

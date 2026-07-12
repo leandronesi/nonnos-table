@@ -193,6 +193,8 @@ export function computeMilestones(opts: {
   history: HistoryFile;
   goal: Goal;
   aggregates: Aggregates;
+  /** Partite della cadenza goal giocate dopo l'onboarding. */
+  gamesAfterOnboarding?: number;
   drillLog?: unknown;
 }): Milestone[] {
   const { history, goal, aggregates: _aggregates } = opts;
@@ -310,14 +312,18 @@ export function computeMilestones(opts: {
   }
 
   // ── on_track milestone ─────────────────────────────────────────────────────
-  const onTrack = goal.on_track;
+  const hasPaceEvidence = goal.days_since_start >= 14
+    && (opts.gamesAfterOnboarding ?? 0) >= 10;
+  const onTrack = hasPaceEvidence && goal.on_track;
   milestones.push(makeMilestone({
     type: "on_track",
     threshold: 1,
     achieved: onTrack,
-    evidence: goal.projection_at_deadline ?? null,
+    evidence: hasPaceEvidence ? goal.projection_at_deadline ?? null : null,
     achieved_at: onTrack && lastSnap ? lastSnap.captured_at : null,
-    label_it: "In carreggiata per raggiungere il target",
+    label_it: hasPaceEvidence
+      ? "Stima del ritmo compatibile con il target"
+      : "Ritmo non ancora stimabile: servono 14 giorni e 10 partite",
   }));
 
   // ── sessions — placeholder (drill log not yet tracked) ─────────────────────
@@ -393,23 +399,6 @@ export function goalProgress(goal: Goal): GoalProgress {
   };
 }
 
-// ── materialForGap — shared piece-metaphor helper ─────────────────────────────
-
-/**
- * Maps a gap in percentage points (target_pct - mine_pct from maia_weighted)
- * to a chess-piece metaphor. Returns null when the player is nearly at par.
- *
- * Exported so both TavoloHome and Viaggio can share the same scale.
- */
-export function materialForGap(gapPp: number): { step: number; label: string } | null {
-  if (gapPp >= 25) return { step: 5, label: "la regina" };
-  if (gapPp >= 18) return { step: 4, label: "una torre" };
-  if (gapPp >= 12) return { step: 3, label: "un alfiere" };
-  if (gapPp >= 8)  return { step: 2, label: "due pedoni" };
-  if (gapPp >= 4)  return { step: 1, label: "un pedone" };
-  return null; // quasi alla pari
-}
-
 // ── Snapshot builder helper (used by orchestrator.ts) ────────────────────────
 
 /**
@@ -447,7 +436,12 @@ export function buildSnapshot(
       count: a.count,
       mine_pct: a.mine_pct ?? null,
       target_pct: a.target_pct ?? null,
-      rating_upside: a.rating_upside ?? 0,
+      mine_acceptable_observed_policy_pct:
+        a.mine_acceptable_observed_policy_pct ?? a.mine_pct ?? null,
+      target_acceptable_observed_policy_pct:
+        a.target_acceptable_observed_policy_pct ?? a.target_pct ?? null,
+      rating_upside: null,
+      relative_priority: a.relative_priority ?? a.share_of_errors ?? null,
     };
   });
 
@@ -478,10 +472,20 @@ export function buildSnapshot(
     maia_weighted: {
       errors_scored: mw?.errors_scored ?? 0,
       avoidable: mw?.avoidable ?? 0,
+      target_relevant: mw?.target_relevant ?? 0,
+      trainable: mw?.trainable ?? 0,
       mine_pct: mw?.mine_pct ?? null,
       target_pct: mw?.target_pct ?? null,
       gap_pct: mw?.gap_pct ?? null,
       avoidable_share: mw?.avoidable_share ?? null,
+      avoidable_at_current_share: mw?.avoidable_at_current_share ?? null,
+      mine_acceptable_observed_policy_pct:
+        mw?.mine_acceptable_observed_policy_pct ?? null,
+      target_acceptable_observed_policy_pct:
+        mw?.target_acceptable_observed_policy_pct ?? null,
+      target_relevant_share: mw?.target_relevant_share ?? null,
+      trainable_share: mw?.trainable_share ?? null,
+      policy_semantics: mw?.policy_semantics,
     },
     anchors: anchorSlices,
     transfer: transferSnap,

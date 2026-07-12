@@ -1,36 +1,25 @@
 /**
- * TeachMaia — illustrazione didattica "Quello che trova uno come te".
- * Otto segnalini (i giocatori al tuo livello): UNO solo si accende.
- * Messaggio: "1 su 8 a 1500". SVG + CSS, nessuna libreria esterna.
+ * TeachMaia — illustrates a comparison between the player's current level and
+ * target level. It intentionally avoids frequencies: Maia's policy output is
+ * used as a relative signal, not as a calibrated "players out of N" claim.
  */
 
 import { useEffect, useRef, useState } from "react";
+import { prefersReducedMotion } from "../../lib/motion";
 import { tr } from "../../i18n/lang";
 
-const CX = 50;
-const CY = 50;
-const R = 30;
-const START = 200; // gradi
-const SPAN = 140;
-const N = 8;
-const LIT = 3; // quale degli otto si accende
-
-function pip(i: number) {
-  const deg = START + (SPAN * i) / (N - 1);
-  const rad = (deg * Math.PI) / 180;
-  return { x: CX + R * Math.cos(rad), y: CY + R * Math.sin(rad) };
-}
-
 export function TeachMaia({ targetRating }: { targetRating?: number }) {
-  const [t, setT] = useState(0); // 0..1 nel ciclo
+  const [progress, setProgress] = useState(prefersReducedMotion() ? 1 : 0);
   const rafRef = useRef<number | null>(null);
   const startRef = useRef<number | null>(null);
-  const DURATION = 4200;
 
   useEffect(() => {
+    if (prefersReducedMotion()) return;
+    const duration = 2600;
     const loop = (ts: number) => {
       if (startRef.current == null) startRef.current = ts;
-      setT(((ts - startRef.current) % DURATION) / DURATION);
+      const elapsed = (ts - startRef.current) % duration;
+      setProgress(Math.min(1, elapsed / (duration * 0.72)));
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
@@ -39,85 +28,88 @@ export function TeachMaia({ targetRating }: { targetRating?: number }) {
     };
   }, []);
 
-  // Fasi: 0-0.40 i pip appaiono; 0.40-0.65 si accende l'uno; resto hold + pulse lento.
-  const appear = Math.min(1, t / 0.4);
-  const litT = Math.max(0, Math.min(1, (t - 0.4) / 0.25));
-  const lit = litT > 0;
-  const pulse = lit ? 1 + 0.12 * Math.sin((t - 0.4) * Math.PI * 3) : 1;
+  const markerX = 25 + progress * 50;
+  const targetLabel =
+    targetRating != null && targetRating > 0
+      ? String(targetRating)
+      : tr("OBIETTIVO", "GOAL");
 
   return (
     <svg
-      viewBox="0 0 100 80"
-      aria-hidden="true"
-      style={{ width: "100%", maxWidth: "220px", display: "block" }}
-    >
-      {/* Gli otto giocatori al tuo livello */}
-      {Array.from({ length: N }, (_, i) => {
-        const p = pip(i);
-        const isLit = i === LIT && lit;
-        return (
-          <circle
-            key={i}
-            cx={p.x}
-            cy={p.y}
-            r={isLit ? 3 * pulse : 2}
-            fill={isLit ? "#7c5cff" : "#2a3158"}
-            opacity={isLit ? 1 : 0.3 + appear * 0.4}
-            style={{ transition: "fill 300ms cubic-bezier(0.23,1,0.32,1)" }}
-          />
-        );
-      })}
-
-      {/* Alone sul pip acceso */}
-      {lit && (
-        <circle
-          cx={pip(LIT).x}
-          cy={pip(LIT).y}
-          r={6 * pulse}
-          fill="none"
-          stroke="#7c5cff"
-          strokeWidth="0.8"
-          opacity="0.3"
-        />
+      viewBox="0 0 120 76"
+      role="img"
+      aria-label={tr(
+        "Maia confronta quanto una scelta e' naturale al livello attuale e al livello obiettivo",
+        "Maia compares how natural a choice is at the current and target levels",
       )}
-
-      {/* Centro: 1 su 8 */}
+      style={{ width: "100%", maxWidth: "240px", display: "block" }}
+    >
       <text
-        x={CX}
-        y={CY + 2}
-        textAnchor="middle"
-        fill="#eef0fa"
-        fontSize="14"
-        fontFamily="JetBrains Mono, monospace"
-        fontWeight="700"
-        opacity={lit ? 1 : 0.25}
-      >
-        1
-      </text>
-      <text
-        x={CX}
-        y={CY + 12}
+        x="20"
+        y="15"
         textAnchor="middle"
         fill="#717892"
         fontSize="6"
-        fontFamily="JetBrains Mono, monospace"
+        fontFamily="Inter, sans-serif"
+        letterSpacing="0.08em"
       >
-        {tr("su 8", "in 8")}
+        {tr("OGGI", "TODAY")}
       </text>
-
-      {/* Livello */}
       <text
-        x={CX}
-        y={73}
+        x="100"
+        y="15"
         textAnchor="middle"
         fill="#a18bff"
-        fontSize="5.5"
+        fontSize="6"
         fontFamily="Inter, sans-serif"
-        letterSpacing="0.1em"
+        letterSpacing="0.08em"
       >
-        {targetRating != null && targetRating > 0
-          ? tr(`a ${targetRating}`, `at ${targetRating}`)
-          : tr("al tuo livello", "at your level")}
+        {targetLabel}
+      </text>
+
+      <line
+        x1="20"
+        y1="37"
+        x2="100"
+        y2="37"
+        stroke="#2a3158"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <line
+        x1="20"
+        y1="37"
+        x2={markerX}
+        y2="37"
+        stroke="#7c5cff"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <circle cx="20" cy="37" r="5" fill="#0f1325" stroke="#717892" strokeWidth="1.2" />
+      <circle cx="100" cy="37" r="5" fill="#0f1325" stroke="#a18bff" strokeWidth="1.2" />
+      <circle cx={markerX} cy="37" r="3.2" fill="#7c5cff" />
+      <circle cx={markerX} cy="37" r="6" fill="none" stroke="#7c5cff" strokeWidth="0.8" opacity="0.28" />
+
+      <text
+        x="60"
+        y="61"
+        textAnchor="middle"
+        fill="#b6bcd6"
+        fontSize="6"
+        fontFamily="Inter, sans-serif"
+        letterSpacing="0.04em"
+      >
+        {tr("NATURALEZZA DELLA SCELTA", "MOVE NATURALNESS")}
+      </text>
+      <text
+        x="60"
+        y="70"
+        textAnchor="middle"
+        fill="#717892"
+        fontSize="4.8"
+        fontFamily="Inter, sans-serif"
+      >
+        {tr("confronto relativo, non frequenza", "relative comparison, not frequency")}
       </text>
     </svg>
   );

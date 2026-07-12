@@ -2,11 +2,12 @@ import { Suspense, lazy, Fragment } from "react";
 import { tr, LangProvider, useLang } from "./i18n/lang";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
-import { OnboardingRunProvider } from "./pipeline/OnboardingRunContext";
-import { TavoloActionsProvider } from "./context/TavoloActionsContext";
+import { OnboardingRunProvider, useOnboardingRun } from "./pipeline/OnboardingRunContext";
 import { Signup } from "./pages/auth/Signup";
 import { Login } from "./pages/auth/Login";
 import { VerifyEmail } from "./pages/auth/VerifyEmail";
+import { ForgotPassword } from "./pages/auth/ForgotPassword";
+import { UpdatePassword } from "./pages/auth/UpdatePassword";
 import { Onboarding } from "./pages/auth/Onboarding";
 import { OnboardingWaiting } from "./pages/auth/OnboardingWaiting";
 import { TavoloHome } from "./pages/TavoloHome";
@@ -19,6 +20,10 @@ import { PRODUCT_NAME } from "./coaching";
 import { IncontroPreview } from "./pages/dev/IncontroPreview";
 import { TeachTest } from "./pages/dev/TeachTest";
 import { SecondaBattutaPopup } from "./components/SecondaBattutaPopup";
+import { hasSeenStanzaIntro } from "./pages/stanza/visit";
+import { Settings } from "./pages/settings/Settings";
+import { Privacy } from "./pages/Privacy";
+import { isAnalyzedTimeClass } from "./pipeline/config";
 // Lazy: the Stanza pulls in three.js — code-split so the main bundle never pays it.
 const StanzaHome = lazy(() =>
   import("./pages/StanzaHome").then((m) => ({ default: m.StanzaHome })),
@@ -57,14 +62,25 @@ function FullScreenLoader({ label }: { label: string }) {
 }
 
 /** Smista in base a sessione + stato profile.
- *  Home = LA STANZA (il foyer): arrivi nella stanza, e da li' vai al Tavolo. */
+ *  La Stanza e' un'introduzione una-tantum; chi ritorna atterra sul Tavolo. */
 function HomeGate() {
-  const { loading, user, profile } = useAuth();
+  const { loading, user, profile, profileError } = useAuth();
+  const { firstBatchReady } = useOnboardingRun();
   if (loading) return <FullScreenLoader label={tr("Carico la sessione…", "One moment.")} />;
   if (!user) return <Landing />;
+  if (!profile && profileError) return <Navigate to="/onboarding/waiting" replace />;
   if (!profile) return <Navigate to="/onboarding" replace />;
+  if (!isAnalyzedTimeClass(profile.goal_time_class)) {
+    return <Navigate to="/onboarding/waiting" replace />;
+  }
   if (profile.onboarding_state !== "ready") {
     return <Navigate to="/onboarding/waiting" replace />;
+  }
+  // `firstBatchReady` is true only for the just-completed onboarding in this
+  // app session. Existing users (including those predating this key) bypass
+  // the cinematic room; it always remains available at /stanza.
+  if (hasSeenStanzaIntro() || !firstBatchReady) {
+    return <Navigate to="/tavolo" replace />;
   }
   return (
     <Suspense fallback={<div className="stanza-shell"><div className="stanza-attesa">{tr("La Stanza", "The Room")}</div></div>}>
@@ -78,6 +94,19 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   const { loading, user } = useAuth();
   if (loading) return <FullScreenLoader label={tr("Carico la sessione…", "One moment.")} />;
   if (!user) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+/** Core product routes require a supported, completed analytical profile. */
+function RequireReadyProfile({ children }: { children: React.ReactNode }) {
+  const { loading, user, profile, profileError } = useAuth();
+  if (loading) return <FullScreenLoader label={tr("Carico la sessione…", "One moment.")} />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!profile && profileError) return <Navigate to="/onboarding/waiting" replace />;
+  if (!profile) return <Navigate to="/onboarding" replace />;
+  if (!isAnalyzedTimeClass(profile.goal_time_class) || profile.onboarding_state !== "ready") {
+    return <Navigate to="/onboarding/waiting" replace />;
+  }
   return <>{children}</>;
 }
 
@@ -96,7 +125,6 @@ export function App() {
     <AuthProvider>
       {/* OnboardingRunProvider vede useAuth e sopravvive alle route changes */}
       <OnboardingRunProvider>
-      <TavoloActionsProvider>
       <BrowserRouter basename={basename}>
         {/* Room grain — static SVG noise layer, covers every page, pointer-events none */}
         <div className="room-grain" aria-hidden="true" />
@@ -109,6 +137,9 @@ export function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/update-password" element={<UpdatePassword />} />
+          <Route path="/privacy" element={<Privacy />} />
 
           {/* Onboarding (richiede auth, gestisce stato profile dentro) */}
           <Route
@@ -128,23 +159,35 @@ export function App() {
             }
           />
 
-          {/* Home — smista in base a stato: il foyer (la Stanza) */}
+          {/* Home — primo ingresso in Stanza, ritorni direttamente al Tavolo */}
           <Route path="/" element={<HomeGate />} />
 
           {/* Il Tavolo — la superficie operativa, raggiunta dalla Stanza */}
-          <Route path="/tavolo" element={<RequireAuth><AppShell><TavoloHome /></AppShell></RequireAuth>} />
+          <Route path="/tavolo" element={<RequireReadyProfile><AppShell><TavoloHome /></AppShell></RequireReadyProfile>} />
+
+          {/* Account, privacy, export/delete and first-party feedback. */}
+          <Route path="/settings" element={<RequireAuth><AppShell><Settings /></AppShell></RequireAuth>} />
 
           {/* Quaderno — hub a tab + deep-link via hash */}
-          <Route path="/quaderno" element={<RequireAuth><AppShell><Quaderno /></AppShell></RequireAuth>} />
+          <Route path="/quaderno" element={<RequireReadyProfile><AppShell><Quaderno /></AppShell></RequireReadyProfile>} />
           {/* Legacy routes redirect into Quaderno tabs */}
           <Route path="/freni"  element={<Navigate to="/quaderno#percorso" replace />} />
           <Route path="/cadute" element={<Navigate to="/quaderno#cadute"     replace />} />
 
           {/* Sessione di coaching */}
-          <Route path="/sessione" element={<RequireAuth><AppShell><Sessione /></AppShell></RequireAuth>} />
+          <Route path="/sessione" element={<RequireReadyProfile><AppShell><Sessione /></AppShell></RequireReadyProfile>} />
 
-          {/* La Stanza e' diventata la home: l'anteprima redirige */}
-          <Route path="/stanza" element={<Navigate to="/" replace />} />
+          {/* La Stanza resta riapribile esplicitamente dopo l'introduzione. */}
+          <Route
+            path="/stanza"
+            element={
+              <RequireReadyProfile>
+                <Suspense fallback={<div className="stanza-shell"><div className="stanza-attesa">{tr("La Stanza", "The Room")}</div></div>}>
+                  <StanzaHome />
+                </Suspense>
+              </RequireReadyProfile>
+            }
+          />
 
           {/* Maia smoke test — dev only (hidden from production build) */}
           {import.meta.env.DEV && (
@@ -166,7 +209,6 @@ export function App() {
         </Routes>
         </VisualRemountBoundary>
       </BrowserRouter>
-      </TavoloActionsProvider>
       </OnboardingRunProvider>
     </AuthProvider>
     </LangProvider>

@@ -2,10 +2,10 @@
  * MomentReview.tsx — Fase 1 "Guardo, e Nonno parla".
  *
  * Voce di Nonno board-centrica, calma, in seconda persona.
- * Mostra drill_value esplicito (percentuali Maia mine vs target) se disponibili.
+ * Mostra indici Maia relativi sull'insieme osservato di mosse accettabili.
  * Mostra mossa di attesa se waiting_moves popolato; prova a calcolarla
- * on-demand via Stockfish (MultiPV) se p_maia_mine_top < 0.20 e waiting_moves
- * e' null. Timeout/skip graceful: mai inventare una mossa.
+ * on-demand via Stockfish (MultiPV) per posizioni target_relevant non marcate
+ * alla portata oggi. Timeout/skip graceful: mai inventare una mossa.
  *
  * DESIGN.md: flat, niente card-dentro-card, tt-nonno / sess-* tokens,
  * ORO solo per target (obiettivo), niente em-dash.
@@ -19,15 +19,11 @@ import { BoardScene } from "../components/BoardScene";
 import { useBoardFit } from "../components/useBoardFit";
 import { useStockfish } from "../engine/useStockfish";
 import { tr, getLang } from "../i18n/lang";
-import { buildMoveReason, extractMoveFacts } from "./moveReason";
-import { fetchLesson, buildTeachArgs } from "../coach/teachClient";
-import { enrichPunishment } from "../coach/engineLine";
-import { MaestroLoader } from "../coach/MaestroLoader";
+import { buildMoveReason } from "./moveReason";
 
 // ---------------------------------------------------------------------------
-// Threshold: below this p_maia_mine_top we try to find a waiting move
+// Waiting-move validation stays Stockfish-based; Maia only selects context.
 // ---------------------------------------------------------------------------
-const HARD_MOSSA_THRESHOLD = 0.2; // posizione difficile per il giocatore
 const WAITING_CP_LOSS_MAX = 50; // mossa di attesa: perdita max in cp
 const WAITING_TIMEOUT_MS = 4000; // se Stockfish tarda, skip graceful
 
@@ -207,26 +203,32 @@ function getRiga2Variants(): ((best: string) => string)[] {
   ];
 }
 
-// Difficulty line WITHOUT explicit drill_value (fallback when Maia fields are missing)
-function getRiga3HardVariants(): ((mine: number) => string)[] {
-  if (getLang() === "en") {
-    return [
-      (mine) =>
-        `For your level this was almost invisible: ${mine} in 10 would find it.`,
-      (mine) =>
-        `Only ${mine} in 10 players at your level finds that. It was not easy.`,
-      (mine) =>
-        `A hard move for anyone at your level: ${mine} in 10.`,
-    ];
+function buildMaiaContextLine(p: PositionRow): string | null {
+  if (p.maia_status && p.maia_status !== "scored") {
+    return tr(
+      "Maia non ha valutato questa posizione: qui restiamo ai fatti della scacchiera.",
+      "Maia did not score this position, so we stay with the board facts here.",
+    );
   }
-  return [
-    (mine) =>
-      `Per il tuo livello era quasi invisibile: la trovava ${mine} su 10.`,
-    (mine) =>
-      `Solo ${mine} su 10 al tuo livello l'avrebbe trovata. Non era facile.`,
-    (mine) =>
-      `Una mossa difficile per chiunque al tuo livello: ${mine} su 10.`,
-  ];
+  if (p.avoidable_at_current === true) {
+    return tr(
+      "La policy Maia al livello attuale assegna supporto alle alternative accettabili osservate: e' un segnale relativo, non una probabilita' calibrata.",
+      "The current-level Maia policy supports the observed acceptable alternatives: this is a relative signal, not a calibrated probability.",
+    );
+  }
+  if (p.target_relevant === true) {
+    return tr(
+      "Maia associa le alternative accettabili piu' al livello obiettivo che a quello attuale: e' materiale per il tuo percorso, non una frequenza umana.",
+      "Maia associates the acceptable alternatives more with your target level than your current one: training material for your path, not a human frequency.",
+    );
+  }
+  if (p.trainable === true) {
+    return tr(
+      "I segnali Maia selezionano questa posizione come allenabile nel tuo percorso.",
+      "Maia's signals select this position as trainable along your path.",
+    );
+  }
+  return null;
 }
 
 function getRiga4WaitingVariants(): ((list: string) => string)[] {
@@ -247,25 +249,6 @@ function getRiga4WaitingVariants(): ((list: string) => string)[] {
       `Una mossa di attesa era la scelta onesta: ${list}. Aspettare, non forzare.`,
     (list) =>
       `${list}: mosse d'attesa valide. Meglio di spingere a vuoto.`,
-  ];
-}
-
-function getRiga4FallbackVariants(): (() => string)[] {
-  if (getLang() === "en") {
-    return [
-      () => `That was genuinely hard. Look at the right move and keep it in mind.`,
-      () => `Few would find it. Next time, when you see nothing, slow down.`,
-      () =>
-        `In positions like this, if you do not see a plan, play the safest move.`,
-    ];
-  }
-  return [
-    () =>
-      `Era difficile davvero. Guarda com'era la mossa giusta e tienila in mente.`,
-    () =>
-      `Pochi la trovavano. La prossima volta, quando non vedi niente, rallenta.`,
-    () =>
-      `In posizioni cosi', se non vedi un piano, gioca la mossa piu' sicura.`,
   ];
 }
 
@@ -299,22 +282,13 @@ function buildCoachContent(
     lines.push(pick(getRiga2Variants())(p.best_san_sf));
   }
 
-  const pMine = p.p_maia_mine_top ?? null;
-  const pTarget = p.p_maia_target_top ?? null;
+  const pMine = p.maia_mine_acceptable_observed_policy ?? null;
+  const pTarget = p.maia_target_acceptable_observed_policy ?? null;
 
-  // Riga 3: difficolta' per il giocatore
-  // Se abbiamo ENTRAMBI i valori Maia, mostriamo le barre graficamente
-  // e la riga di testo e' solo un aggancio narrativo breve.
+  // Riga 3: semantica esplicita current/target, mai frequenza umana.
   const showDrillBars = pMine != null && pTarget != null;
-
-  if (pMine != null && pMine < HARD_MOSSA_THRESHOLD) {
-    if (!showDrillBars) {
-      // Nessuna barra: frase compatta
-      const nOf10 = Math.max(1, Math.round(pMine * 10));
-      lines.push(pick(getRiga3HardVariants())(nOf10));
-    }
-    // Se showDrillBars==true, il testo narrativo e' rimpiazzato dal blocco visivo
-  }
+  const maiaContext = buildMaiaContextLine(p);
+  if (maiaContext) lines.push(maiaContext);
 
   // Riga 4: mossa di attesa (usa waiting_moves dalla pipeline; poi quelle calcolate)
   const waiting =
@@ -330,15 +304,13 @@ function buildCoachContent(
       .map((w) => w.san)
       .join(", ");
     lines.push(pick(getRiga4WaitingVariants())(wm));
-  } else if (pMine != null && pMine < HARD_MOSSA_THRESHOLD) {
-    lines.push(pick(getRiga4FallbackVariants())());
   }
 
   return { lines, showDrillBars, pMine, pTarget };
 }
 
 // ---------------------------------------------------------------------------
-// DrillBars — barre grafiche % Maia
+// DrillBars — indici relativi Maia sulle mosse accettabili osservate
 // ---------------------------------------------------------------------------
 
 function DrillBars({
@@ -357,8 +329,8 @@ function DrillBars({
     <div
       className="sess-drill-bar"
       aria-label={tr(
-        `Percentuali: al tuo livello ${mine}%, ${maiaLevel != null ? `a ${maiaLevel}` : "all'obiettivo"} ${target}%`,
-        `Rates: your level ${mine}%, ${maiaLevel != null ? `a ${maiaLevel}` : "at target"} ${target}%`,
+        `Indici Maia relativi: oggi ${mine}, ${maiaLevel != null ? `a ${maiaLevel}` : "all'obiettivo"} ${target}`,
+        `Relative Maia indices: today ${mine}, ${maiaLevel != null ? `at ${maiaLevel}` : "at target"} ${target}`,
       )}
     >
       {/* today row */}
@@ -377,7 +349,7 @@ function DrillBars({
           className="sess-drill-bar-pct"
           style={{ color: "var(--color-brand-soft)" }}
         >
-          {mine}%
+          {mine}
         </span>
       </div>
       {/* target row */}
@@ -398,7 +370,7 @@ function DrillBars({
           className="sess-drill-bar-pct"
           style={{ color: "var(--color-gold-soft)" }}
         >
-          {target}%
+          {target}
         </span>
       </div>
     </div>
@@ -428,28 +400,24 @@ export function MomentReview({
   >(null);
   const waitingAttemptedRef = useRef(false);
 
-  // Lezione maestro: parte null (floor deterministico), si sostituisce quando
-  // fetchLesson risponde. Se null, resta la frase del floor. Mai vuoto.
-  const [maestroLesson, setMaestroLesson] = useState<string | null>(null);
-  const [lessonLoading, setLessonLoading] = useState(false);
-
-  const pMine = position.p_maia_mine_top ?? null;
+  const shouldComputeWaitingMove =
+    position.target_relevant === true && position.avoidable_at_current !== true;
 
   useEffect(() => {
     // Calcolo waiting moves solo se:
-    // 1. la posizione e' difficile per il giocatore (p_maia_mine_top < soglia)
+    // 1. la posizione e' pertinente al target ma non marcata current-avoidable
     // 2. waiting_moves NON e' gia' nella position row
     // 3. non abbiamo gia' tentato il calcolo
     if (waitingAttemptedRef.current) return;
     if (position.waiting_moves && position.waiting_moves.length > 0) return;
-    if (pMine == null || pMine >= HARD_MOSSA_THRESHOLD) return;
+    if (!shouldComputeWaitingMove) return;
     if (!sf.isReady) return;
 
     waitingAttemptedRef.current = true;
 
     // Timeout guard: if Stockfish is too slow, ignore a late result so a stale
     // waiting move never appears after the user has moved on. Skip gracefully:
-    // Nonno says "era difficile davvero, guarda com'era la mossa giusta".
+    // Nessun risultato tardivo viene presentato come verita' sulla posizione.
     let timedOut = false;
     const timeoutId = setTimeout(() => {
       timedOut = true;
@@ -467,77 +435,13 @@ export function MomentReview({
       });
 
     return () => clearTimeout(timeoutId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sf.isReady]);
+  }, [sf.isReady, shouldComputeWaitingMove, position.fen_before, position.best_san_sf]);
 
   // Reset se cambia posizione
   useEffect(() => {
     waitingAttemptedRef.current = false;
     setWaitingComputed(null);
   }, [position.fen_before, position.ply]);
-
-  // Effect: lezione maestro (progressive enhancement).
-  // 1. Calcola i fatti deterministici (chess.js, zero LLM).
-  // 2. Se ci sono fatti e c'e' un errore reale, chiama fetchLesson in async.
-  // 3. Quando arriva la lezione, sostituisce il loader. Se null, mostra il floor.
-  // 4. Cancella la call se il componente smonta o cambia posizione.
-  useEffect(() => {
-    let cancelled = false;
-    // Reset immediato al cambio posizione
-    setLessonLoading(false);
-    setMaestroLesson(null);
-
-    // Guard: solo quando c'e' un errore reale (best != played)
-    const normSan = (s: string | null | undefined) =>
-      (s ?? "").replace(/[+#!?]+$/, "").trim();
-    if (
-      !position.best_san_sf ||
-      normSan(position.best_san_sf) === normSan(position.san)
-    ) {
-      // Nessun errore: niente loader, mostra floor direttamente
-      return () => { cancelled = true; };
-    }
-
-    const input = {
-      fenBefore: position.fen_before,
-      myColor: position.my_color,
-      playedSan: position.san,
-      bestUci: position.best_uci ?? null,
-      bestSan: position.best_san_sf,
-      motif: position.motif ?? null,
-      phase: position.phase ?? null,
-      lastOppSan: position.last_opp_san ?? null,
-      p_maia_mine_top: position.p_maia_mine_top ?? null,
-      p_maia_target_top: position.p_maia_target_top ?? null,
-      pv_san_sf: position.pv_san_sf ?? null,
-      state_before: null, // PositionRow non espone state_before; SelectContext degradera' gracefully
-      error_type: position.motif ?? null,
-    };
-
-    const facts = extractMoveFacts(input);
-    if (!facts) {
-      // Nessun fatto estraibile: il floor basta, niente loader
-      return () => { cancelled = true; };
-    }
-
-    // Facts presenti e c'e' un errore reale: mostra loader (copre anche l'attesa del motore)
-    setLessonLoading(true);
-
-    enrichPunishment(input, facts)
-      .then((enriched) => {
-        if (cancelled) return null; // smontato o posizione cambiata — stage 1
-        return fetchLesson(buildTeachArgs(enriched, facts));
-      })
-      .then((lesson) => {
-        if (cancelled) return; // smontato o posizione cambiata — stage 2
-        setLessonLoading(false);
-        if (lesson) setMaestroLesson(lesson);
-        // se null, lessonLoading=false -> render mostra il floor
-      });
-
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [position.fen_before, position.ply, getLang()]);
 
   // Freccia ultima mossa avversario
   const arrows =
@@ -692,11 +596,7 @@ export function MomentReview({
               <p key={i}>{line}</p>
             ))}
 
-            {/* Riga 2b: voce del maestro.
-                - Mentre fetchLesson e' in volo: <MaestroLoader/> (loader sobrio).
-                - Arrivata la lezione: testo maestro (font pieno).
-                - Se LLM torna null o nessun fatto: floor buildMoveReason.
-                - Se nessun errore reale (best === played): niente. */}
+            {/* Spiegazione verificabile costruita solo dai dati della posizione. */}
             {(() => {
               // Only show when there is a genuine error (best !== played)
               const normSan = (s: string | null | undefined) =>
@@ -707,11 +607,7 @@ export function MomentReview({
               )
                 return null;
 
-              // Loader mentre l'LLM risponde
-              if (lessonLoading) return <MaestroLoader />;
-
-              // Testo: lezione maestro se arrivata, floor altrimenti
-              const displayText: string | null = maestroLesson ?? buildMoveReason({
+              const displayText: string | null = buildMoveReason({
                 fenBefore: position.fen_before,
                 myColor: position.my_color,
                 playedSan: position.san,
@@ -724,17 +620,16 @@ export function MomentReview({
 
               if (!displayText) return null;
 
-              const isMaestro = !!maestroLesson;
               return (
                 <p
                   style={{
-                    fontSize: isMaestro ? "0.875rem" : "0.82rem",
+                    fontSize: "0.82rem",
                     color: "var(--color-text-soft)",
                     fontFamily: "var(--font-sans)",
                     fontWeight: 400,
                     lineHeight: 1.55,
                     marginTop: "4px",
-                    opacity: isMaestro ? 1 : 0.85,
+                    opacity: 0.85,
                   }}
                 >
                   {displayText}
@@ -742,7 +637,7 @@ export function MomentReview({
               );
             })()}
 
-            {/* Barre drill_value esplicite (solo se entrambi i campi Maia presenti) */}
+            {/* Indici raw Maia (solo se entrambi i campi espliciti sono presenti). */}
             {showDrillBars && pMineCoach != null && pTarget != null && (
               <div style={{ marginTop: "14px" }}>
                 <p
@@ -755,9 +650,8 @@ export function MomentReview({
                     lineHeight: 1.45,
                   }}
                 >
-                  {tr("Questa la trova un", "A")}{" "}
-                  <b>{maiaLevel}</b>{" "}
-                  {tr("il", "finds this")}{" "}
+                  {tr("Indice relativo delle mosse accettabili osservate:", "Relative index for the observed acceptable moves:")}{" "}
+                  <b>{tr("target", "target")} {maiaLevel}:</b>{" "}
                   <span
                     style={{
                       color: "var(--color-gold-soft)",
@@ -765,9 +659,9 @@ export function MomentReview({
                       fontFamily: "var(--font-mono)",
                     }}
                   >
-                    {Math.round(pTarget * 100)}%
+                    {Math.round(pTarget * 100)}
                   </span>{" "}
-                  {tr("delle volte, tu il", "of the time, you")}{" "}
+                  {tr(", oggi", ", today")}{" "}
                   <span
                     style={{
                       color: "var(--color-brand-soft)",
@@ -775,9 +669,9 @@ export function MomentReview({
                       fontFamily: "var(--font-mono)",
                     }}
                   >
-                    {Math.round(pMineCoach * 100)}%
+                    {Math.round(pMineCoach * 100)}
                   </span>
-                  {tr(".", ".")}
+                  {tr(". Sono masse di policy del modello, non frequenze umane.", ". These are model policy masses, not human frequencies.")}
                 </p>
                 <DrillBars
                   pMine={pMineCoach}

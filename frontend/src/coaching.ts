@@ -26,21 +26,20 @@ export function stockfishSkillForMaiaLevel(level: number): number {
 }
 
 /**
- * Label semantica dell'avversario calibrato sul target dichiarato dell'utente.
- * Internamente usiamo MAIA (rete neurale addestrata su partite umane per rating)
- * o Stockfish con skill capato, ma all'utente parliamo del SUO target.
+ * Label onesta dell'avversario: oggi la partita usa Stockfish con Skill Level
+ * scelto euristicamente dal target. Non equivale a un rating umano o Maia.
  */
-export function maiaLabel(level: number): string {
+export function maiaLabel(_level: number): string {
   return getLang() === "en"
-    ? `opponent ${level}`
-    : `avversario ${level}`;
+    ? "Stockfish practice opponent"
+    : "Stockfish da allenamento";
 }
 
 /** Variante lunga per copy di benvenuto / contesto sessione. */
 export function targetOpponentLabel(level: number, timeClass: string = "rapid"): string {
   return getLang() === "en"
-    ? `opponent calibrated to your goal: ${level} ${timeClass}`
-    : `avversario calibrato sul tuo obiettivo: ${level} ${timeClass}`;
+    ? `Stockfish practice difficulty derived from your ${level} ${timeClass} goal (not a rating equivalence)`
+    : `difficolta' pratica Stockfish derivata dall'obiettivo ${level} ${timeClass} (non equivale a un rating)`;
 }
 
 /** Time class label umanizzato (dal goal). */
@@ -94,8 +93,8 @@ export function sessionFallbackLine(key: string, maiaLevel = 1600): string {
   if (getLang() === "en") {
     const linesEn: Record<string, string> = {
       open_tavolo: tr(
-        "Eccolo. Oggi rivediamo i tuoi momenti chiave dalle ultime partite. Poi giochiamo contro un giocatore al tuo target. Sediamoci.",
-        "There you are. Today we go through your key moments from the last games. Then we play against someone at your level. Sit down.",
+        `Eccolo. Oggi rivediamo i tuoi momenti chiave dalle ultime partite. Poi giochiamo contro ${maiaLabel(maiaLevel)}. Sediamoci.`,
+        `There you are. Today we go through your key moments from the last games. Then we play against ${maiaLabel(maiaLevel)}. Sit down.`,
       ),
       open_warmup: tr(
         "Eccolo. Oggi guardiamo il pezzo non difeso. Cinque posizioni, prima conti i difensori.",
@@ -138,7 +137,7 @@ export function sessionFallbackLine(key: string, maiaLevel = 1600): string {
   }
 
   const lines: Record<string, string> = {
-    open_tavolo: "Eccolo. Oggi rivediamo i tuoi momenti chiave dalle ultime partite. Poi giochiamo contro un giocatore al tuo target. Sediamoci.",
+    open_tavolo: `Eccolo. Oggi rivediamo i tuoi momenti chiave dalle ultime partite. Poi giochiamo contro ${maiaLabel(maiaLevel)}. Sediamoci.`,
     open_warmup: "Eccolo. Oggi guardiamo il pezzo non difeso. Cinque posizioni, prima conti i difensori.",
     between_warmup_bivio: "Bene. Adesso bivi veri, di tue partite. Pensa alla minaccia avversaria prima di scegliere.",
     open_bivio: "Ecco la posizione. Prima attaccanti, poi difensori. Poi muovi.",

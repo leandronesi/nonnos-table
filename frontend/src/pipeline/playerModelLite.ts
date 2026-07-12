@@ -38,9 +38,14 @@ import type {
   TimeManagement,
   BlindSpot,
 } from "../types";
-import { ANALYZED_TIME_CLASSES } from "./config";
+import {
+  ANALYZED_TIME_CLASSES,
+  goalAnalysisScope,
+  selectRecentGoalGames,
+} from "./config";
 import type { GameRow, ProfileRow } from "../auth/db.types";
 import type { GameAnalysis } from "./analyze";
+import { isCriticalPosition } from "./analysisSemantics";
 
 // ── Tipo principale ──────────────────────────────────────────────────────────
 
@@ -113,9 +118,8 @@ function daysBetween(a: Date, b: Date): number {
 
 /**
  * FIX C helper: derives the immutable start_rating baseline.
- * Returns the player_rating of the oldest rapid/blitz game in games[], or
- * the oldest overall game as fallback (same logic as orchestrator.deriveStartRating
- * but operating on GameRow[] directly, without requiring history to be read again).
+ * Returns the player_rating of the oldest game nella goal_time_class.
+ * Non usa fallback cross-cadenza.
  *
  * @param games    All GameRow[] passed to buildPlayerModelLite.
  * @param goalTc   The player's goal time class.
@@ -133,11 +137,6 @@ function resolveStartRating(
   const tcGames = games.filter((g) => g.player_rating != null && g.time_class === goalTc);
   if (tcGames.length > 0) {
     const oldest = tcGames.reduce((a, b) => (a.played_at < b.played_at ? a : b));
-    return oldest.player_rating!;
-  }
-  const allRated = games.filter((g) => g.player_rating != null);
-  if (allRated.length > 0) {
-    const oldest = allRated.reduce((a, b) => (a.played_at < b.played_at ? a : b));
     return oldest.player_rating!;
   }
   return null;
@@ -188,10 +187,10 @@ function buildIdentity(
   // from the oldest game on every run, which zeroed/negated points_gained_since_start
   // in the GoalHero displayed to the user.
   const startRating = resolveStartRating(games, goalTc, startRatingOverride);
-  // Clamp to 0: if the player's rating temporarily dipped below start we do not
-  // show negative progress. The milestone logic handles the actual trend separately.
+  // Mantieni il delta firmato: un calo rispetto al baseline e' informazione reale,
+  // non progresso nullo. Le viste possono scegliere il tono, non alterare il dato.
   const pointsGained = currentRatingForGoal != null && startRating != null
-    ? Math.max(0, currentRatingForGoal - startRating)
+    ? currentRatingForGoal - startRating
     : 0;
   const pointsNeeded = currentRatingForGoal != null
     ? Math.max(0, profile.goal_rating - currentRatingForGoal)
@@ -244,11 +243,8 @@ function buildCurrentRating(games: GameRow[], profile: ProfileRow): number | nul
     .filter((g) => g.time_class === goalTc && g.player_rating != null)
     .sort((a, b) => (a.played_at < b.played_at ? 1 : -1));
   if (tcGames.length > 0) return tcGames[0].player_rating!;
-  // Fallback globale
-  const allRated = games
-    .filter((g) => g.player_rating != null)
-    .sort((a, b) => (a.played_at < b.played_at ? 1 : -1));
-  return allRated.length > 0 ? allRated[0].player_rating! : null;
+  // Non usare un rating di un'altra cadenza per il goal corrente.
+  return null;
 }
 
 // ── rating_curve ──────────────────────────────────────────────────────────────
@@ -428,31 +424,31 @@ function buildDecisions(games: GameRow[], analyses: GameAnalysis[]): Decisions {
 
 // ── tilt ──────────────────────────────────────────────────────────────────────
 
-function buildTilt(analyses: GameAnalysis[]): Tilt {
+export function buildTilt(analyses: GameAnalysis[]): Tilt {
   let postBlunderCpSum = 0;
   let postBlunderN = 0;
   let baselineCpSum = 0;
   let baselineN = 0;
 
   for (const ga of analyses) {
-    let inPostBlunder = false;
+    let nextMoveIsPostBlunder = false;
     for (const mv of ga.moves) {
-      if (mv.category === "blunder") {
-        inPostBlunder = true;
-        // La mossa blunder stessa va nel baseline
-        baselineCpSum += mv.cpLoss;
-        baselineN++;
-        continue;
-      }
-      if (inPostBlunder) {
+      const isPostBlunder = nextMoveIsPostBlunder;
+      nextMoveIsPostBlunder = false;
+
+      if (isPostBlunder) {
         postBlunderCpSum += mv.cpLoss;
         postBlunderN++;
-      } else {
+      } else if (mv.category !== "blunder") {
+        // La baseline descrive decisioni ordinarie: esclude sia il blunder sia
+        // la singola decisione immediatamente successiva.
         baselineCpSum += mv.cpLoss;
         baselineN++;
       }
-      // Reset dopo la prima mossa post-blunder (vogliamo solo 1 mossa dopo)
-      // Oppure lasciamo aperto fino al prossimo blunder — lascio aperto.
+
+      // Un blunder post-blunder resta nel campione post e apre una nuova
+      // finestra di una mossa, senza contaminare la baseline.
+      if (mv.category === "blunder") nextMoveIsPostBlunder = true;
     }
   }
 
@@ -472,6 +468,10 @@ function buildTilt(analyses: GameAnalysis[]): Tilt {
 }
 
 // ── weekly_trend ─────────────────────────────────────────────────────────────
+
+function isCriticalAnalyzedMove(move: GameAnalysis["moves"][number]): boolean {
+  return move.isCritical ?? isCriticalPosition(move.ply, move.scoreBeforeCp);
+}
 
 function buildWeeklyTrend(games: GameRow[], analyses: GameAnalysis[]): WeeklyTrend {
   const analysisMap = new Map<string, GameAnalysis>();
@@ -506,8 +506,7 @@ function buildWeeklyTrend(games: GameRow[], analyses: GameAnalysis[]): WeeklyTre
       bucket.n_blunders += ga.blunders;
       bucket.cpLossSum  += ga.avg_cp_loss * ga.total_player_moves;
       bucket.totalMoves += ga.total_player_moves;
-      // critical = mossa con scoreBeforeCp >= 100
-      bucket.n_critical += ga.moves.filter((m) => m.scoreBeforeCp >= 100).length;
+      bucket.n_critical += ga.moves.filter(isCriticalAnalyzedMove).length;
     }
   }
 
@@ -557,7 +556,7 @@ function buildKpi(games: GameRow[], analyses: GameAnalysis[]): Partial<Kpi> {
   for (const a of analyses) analysisMap.set(a.chess_com_uuid, a);
 
   let totalBlunders = 0;
-  let totalCritical = 0; // posizioni con scoreBeforeCp >= 100
+  let totalCritical = 0;
   let totalMoves = 0;
   let totalCpLossSum = 0;
 
@@ -574,7 +573,7 @@ function buildKpi(games: GameRow[], analyses: GameAnalysis[]): Partial<Kpi> {
     totalCpLossSum += ga.avg_cp_loss * ga.total_player_moves;
 
     for (const mv of ga.moves) {
-      if (mv.scoreBeforeCp >= 100) totalCritical++;
+      if (isCriticalAnalyzedMove(mv)) totalCritical++;
     }
 
     if (d) {
@@ -598,12 +597,12 @@ function buildKpi(games: GameRow[], analyses: GameAnalysis[]): Partial<Kpi> {
   let critCpSum = 0; let critN = 0;
   for (const ga of analyses) {
     for (const mv of ga.moves) {
-      if (mv.scoreBeforeCp >= 100) { critCpSum += mv.cpLoss; critN++; }
+      if (isCriticalAnalyzedMove(mv)) { critCpSum += mv.cpLoss; critN++; }
     }
   }
   const avg_cp_loss_on_critical = critN > 0 ? critCpSum / critN : 0;
   const blunders_critical = analyses.reduce((sum, ga) =>
-    sum + ga.moves.filter((m) => m.scoreBeforeCp >= 100 && m.category === "blunder").length, 0);
+    sum + ga.moves.filter((m) => isCriticalAnalyzedMove(m) && m.category === "blunder").length, 0);
 
   // totalBlunders viene usato solo come aggregato interno; Kpi espone blunders_critical (solo su pos critiche).
   void totalBlunders;
@@ -802,11 +801,11 @@ const SPENT_BUCKETS: { key: string; bucket: string; min: number; max: number }[]
  *
  * Campi calcolati:
  *   spent_vs_accuracy       — da spentSeconds (disponibile).
- *   instant_moves_in_critical — mosse < 5 s con scoreBeforeCp >= 100.
+ *   instant_moves_in_critical — mosse < 5 s in posizioni contendibili fuori libro.
  *   clock_vs_accuracy       — da clockRemaining / time_control_base_seconds.
  *   zeitnot                 — posizioni con clock < 10% del tempo base.
  */
-function buildTimeManagement(analyses: GameAnalysis[]): Partial<TimeManagement> {
+export function buildTimeManagement(analyses: GameAnalysis[]): Partial<TimeManagement> {
   // ── spent_vs_accuracy ────────────────────────────────────────────────────
 
   type BucketAcc = {
@@ -821,7 +820,7 @@ function buildTimeManagement(analyses: GameAnalysis[]): Partial<TimeManagement> 
     acc[b.key] = { positions: 0, cpLossSum: 0, errors: 0, blunders: 0 };
   }
 
-  // instant_moves_in_critical (spentSeconds < 5 AND scoreBeforeCp >= 100)
+  // instant_moves_in_critical: spentSeconds < 5 in posizione critica.
   let instantCritN = 0;
   let instantCritCpSum = 0;
   let instantCritBlunders = 0;
@@ -840,8 +839,9 @@ function buildTimeManagement(analyses: GameAnalysis[]): Partial<TimeManagement> 
       if (mv.category === "mistake" || mv.category === "blunder") a.errors++;
       if (mv.category === "blunder") a.blunders++;
 
-      // instant_moves_in_critical: mossa rapida in posizione critica
-      if (s < 5 && mv.scoreBeforeCp >= 100) {
+      // Compatibilita': i file vecchi non hanno isCritical, quindi lo deriviamo.
+      const isCritical = mv.isCritical ?? isCriticalPosition(mv.ply, mv.scoreBeforeCp);
+      if (s < 5 && isCritical) {
         instantCritN++;
         instantCritCpSum += mv.cpLoss;
         if (mv.category === "blunder") instantCritBlunders++;
@@ -941,19 +941,33 @@ export function buildPlayerModelLite(
   profile: ProfileRow,
   startRatingOverride?: number | null,
 ): PlayerModelLite {
+  const scope = goalAnalysisScope(profile.goal_time_class);
+  const goalTimeClass = scope.timeClass;
+  const goalGames = selectRecentGoalGames(games, scope);
+  const goalGameIds = new Set(goalGames.map((game) => game.chess_com_uuid));
+  const goalAnalyses = analyses.filter(
+    (analysis) =>
+      // I JSON legacy non avevano time_class: il join alla partita selezionata
+      // e' sufficiente. Rifiuta solo un valore esplicito confliggente.
+      (!analysis.time_class || analysis.time_class === goalTimeClass) &&
+      goalGameIds.has(analysis.chess_com_uuid),
+  );
+
   return {
+    // Identita' e curve mantengono le cadenze separate; tutte le metriche di
+    // coaching sotto usano esclusivamente la goal_time_class.
     identity:         buildIdentity(profile, games, startRatingOverride),
     current_rating:   buildCurrentRating(games, profile),
     rating_curve:     buildRatingCurve(games),
-    by_color:         buildByColor(games, analyses),
-    by_phase:         buildByPhase(analyses),
-    decisions:        buildDecisions(games, analyses),
-    tilt:             buildTilt(analyses),
-    weekly_trend:     buildWeeklyTrend(games, analyses),
-    kpi:              buildKpi(games, analyses),
-    openings:         buildOpenings(games, analyses),
-    time_management:  buildTimeManagement(analyses),
-    blind_spots:      buildBlindSpots(analyses),
+    by_color:         buildByColor(goalGames, goalAnalyses),
+    by_phase:         buildByPhase(goalAnalyses),
+    decisions:        buildDecisions(goalGames, goalAnalyses),
+    tilt:             buildTilt(goalAnalyses),
+    weekly_trend:     buildWeeklyTrend(goalGames, goalAnalyses),
+    kpi:              buildKpi(goalGames, goalAnalyses),
+    openings:         buildOpenings(goalGames, goalAnalyses),
+    time_management:  buildTimeManagement(goalAnalyses),
+    blind_spots:      buildBlindSpots(goalAnalyses),
     generated_at:     new Date().toISOString(),
   };
 }

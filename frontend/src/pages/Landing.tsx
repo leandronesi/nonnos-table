@@ -6,13 +6,19 @@ import { BoardView } from "../components/BoardView";
 import { prefersReducedMotion, useInkDraw } from "../lib/motion";
 import { LangToggle } from "../i18n/LangToggle";
 import { tr } from "../i18n/lang";
+import {
+  setTelemetryEnabled,
+  telemetryConsentStatus,
+  trackEvent,
+  trackLandingView,
+  type TelemetryConsentStatus,
+} from "../lib/telemetry";
 
-// ── Demo board: the moment the payoff describes ───────────────────────────────
+// ── Demo board: a concrete coaching example ──────────────────────────────────
 //
 // Position: the Greek Gift. White plays Bxh7+ — a true sacrifice, the kind
-// of move the payoff claims ("solo 1 su 8 al tuo livello l'avrebbe trovata").
-// A trivial free-piece capture here would undercut the copy for any chess
-// player reading the page. Verified legal with chess.js at module load time.
+// of move that makes a useful review. Verified legal with chess.js at module
+// load time.
 //
 // If the move derivation fails at runtime, DemoBoard never starts the loop
 // and shows the static before-position without arrows (safe fallback).
@@ -60,6 +66,19 @@ function useFitSize(min: number, max: number) {
 
 export function Landing() {
   const board = useFitSize(208, 304);
+  const [telemetryChoice, setTelemetryChoice] = useState<TelemetryConsentStatus>(
+    () => telemetryConsentStatus(),
+  );
+
+  useEffect(() => {
+    trackLandingView();
+  }, []);
+
+  function chooseTelemetry(enabled: boolean): void {
+    setTelemetryEnabled(enabled);
+    setTelemetryChoice(enabled ? "granted" : "denied");
+    if (enabled) trackLandingView();
+  }
 
   return (
     <div className="public-home">
@@ -74,6 +93,9 @@ export function Landing() {
 
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
           <LangToggle />
+          <Link to="/privacy" className="public-login">
+            {tr("Privacy", "Privacy")}
+          </Link>
           <Link to="/login" className="public-login">
             <LogIn size={16} strokeWidth={2.2} aria-hidden />
             {tr("Accedi", "Sign in")}
@@ -82,11 +104,49 @@ export function Landing() {
       </header>
 
       <main className="public-main">
+        {telemetryChoice === "unknown" && (
+          <aside
+            aria-label={tr("Scelta telemetria", "Telemetry choice")}
+            style={{
+              width: "min(100%, 72rem)",
+              margin: "0 auto 1.25rem",
+              padding: "0.875rem 1rem",
+              border: "1px solid var(--color-line)",
+              borderRadius: "10px",
+              background: "var(--color-surface)",
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "0.75rem 1rem",
+            }}
+          >
+            <p style={{ margin: 0, maxWidth: "46rem", color: "var(--color-text-soft)", fontSize: "0.875rem", lineHeight: 1.5 }}>
+              {tr(
+                "Ci aiuti a capire se il Tavolo e' utile? Solo con il tuo consenso misuriamo visite e passaggi essenziali con telemetria first-party; username, PGN e FEN restano esclusi.",
+                "Will you help us understand whether the Table is useful? Only with your consent do we measure visits and essential product steps using first-party telemetry; usernames, PGNs and FENs stay excluded.",
+              )}{" "}
+              <Link to="/privacy" style={{ color: "var(--color-brand-soft)", textDecoration: "underline" }}>
+                {tr("Privacy", "Privacy")}
+              </Link>
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => chooseTelemetry(true)}>
+                {tr("Consenti", "Allow")}
+              </button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => chooseTelemetry(false)}>
+                {tr("Continua senza telemetria", "Continue without telemetry")}
+              </button>
+            </div>
+          </aside>
+        )}
         <section className="public-hero" aria-labelledby="home-title">
           {/* ── Copy column — stagger settle-in on each child ── */}
           <div className="public-copy">
             {/* §1c — stagger delays via explicit classes */}
-            <div className="public-kicker public-copy-c0">{tr("Beta su invito", "Invite-only beta")}</div>
+            <div className="public-kicker public-copy-c0">
+              {tr("Coach personale per le tue partite Chess.com", "A personal coach for your Chess.com games")}
+            </div>
 
             {/* §2a — h1: font-voice 700, "Nonno" stays gold */}
             <h1 id="home-title" className="public-copy-c1">
@@ -96,16 +156,16 @@ export function Landing() {
             {/* §2b — payoff: font-voice 600 — la voce */}
             <p className="public-payoff public-copy-c2">
               {tr(
-                "Solo 1 su 8 al tuo livello l’avrebbe trovata. Ce la rivediamo insieme.",
-                "One in eight players at your level finds that. We look at it together."
+                "Studia fino a 100 partite della cadenza che scegli, rapid o blitz. Trova i pattern ricorrenti, come viene usato il tempo e cosa cambia al livello che vuoi raggiungere.",
+                "It studies up to 100 games from the time control you choose, rapid or blitz. It finds recurring patterns, how time is used, and what changes at the level you want to reach."
               )}
             </p>
 
             {/* §2c — lede: sans weight 500, claim editoriale */}
             <p className="public-lede public-copy-c3">
               {tr(
-                "Non analizzi le tue partite. Ti siedi col Nonno a rivederle.",
-                "You do not analyze your games. You sit down with Nonno and look at them."
+                "Una prima lettura arriva sulle prime 10 partite della cadenza scelta, o su tutte quelle disponibili; il profilo completo cresce fino a 100 della stessa cadenza. L'analisi scacchistica gira sul tuo dispositivo; account e spiegazioni passano dai nostri servizi protetti.",
+                "Your first reading uses the first 10 games from the selected time control, or every game available; the full profile grows to as many as 100 from that same control. Chess analysis runs on your device; accounts and explanations use our protected services."
               )}
             </p>
 
@@ -126,11 +186,15 @@ export function Landing() {
             </figure>
 
             <div className="public-actions public-copy-c6">
-              <Link to="/signup" className="btn btn-primary btn-lg public-cta">
+              <Link
+                to="/signup"
+                className="btn btn-primary btn-lg public-cta"
+                onClick={() => trackEvent("landing_signup_clicked", { source: "hero" })}
+              >
                 {tr("Crea il tuo Tavolo", "Set up your Table")}
                 <ArrowRight size={18} strokeWidth={2.3} aria-hidden />
               </Link>
-              <p>{tr("Serve un codice invito per entrare.", "You need an invite code to join.")}</p>
+              <p>{tr("Beta gratuita su invito.", "Free invite-only beta.")}</p>
             </div>
           </div>
 
@@ -160,9 +224,9 @@ export function Landing() {
             </div>
 
             <div className="public-session-card settle-in" style={{ animationDelay: "500ms" }}>
-              <span className="public-panel-label">{tr("Oggi al tavolo", "Today at the Table")}</span>
+              <span className="public-panel-label">{tr("Esempio da una partita", "Example from a game")}</span>
               <strong>{tr("Pezzo in presa", "Piece left hanging")}</strong>
-              <p>{tr("Perdi un pezzo muovendo in meno di 8 secondi. Guarda prima di muovere.", "You give the piece away moving in under 8 seconds. Look before you move.")}</p>
+              <p>{tr("La scelta e' arrivata in 8 secondi con poco tempo rimasto. Rivediamo posizione e orologio insieme.", "The move came in 8 seconds with little time left. We review the position and the clock together.")}</p>
             </div>
 
             <div className="public-board-card settle-in" style={{ animationDelay: "650ms" }}>
@@ -171,9 +235,13 @@ export function Landing() {
               </div>
 
               <div className="public-gap">
-                <span className="public-panel-label muted">{tr("Pezzo in presa", "Piece left hanging")}</span>
-                <GapBar label={tr("tu", "you")} value={37} color="brand" />
-                <GapBar label="1500" value={67} color="gold" />
+                <span className="public-panel-label muted">{tr("Illustrazione Maia · confronto relativo", "Maia illustration · relative comparison")}</span>
+                <div className="public-gap-row">
+                  <strong style={{ gridColumn: "1 / -1" }}>{tr("oggi · meno naturale", "today · less natural")}</strong>
+                </div>
+                <div className="public-gap-row">
+                  <strong className="honey" style={{ gridColumn: "1 / -1" }}>{tr("obiettivo 1500 · piu' naturale", "1500 target · more natural")}</strong>
+                </div>
               </div>
             </div>
 
@@ -184,11 +252,10 @@ export function Landing() {
                 <span />
                 <span />
               </div>
-              <p>
-                {tr("Ce lo segniamo. Hai chiuso ", "We note it down. You closed ")}
-                <b>21%</b>
-                {tr(" della distanza, e la prossima sera ripartiamo da li'.", " of the gap, and next time we pick it up from there.")}
-              </p>
+              <p>{tr(
+                "Ce lo segniamo: la prossima sessione riparte da questo pattern.",
+                "We write it down: your next session starts again from this pattern."
+              )}</p>
             </div>
           </div>
         </section>
@@ -201,8 +268,8 @@ export function Landing() {
             revealDelay={0}
             title={tr("Il posto da raggiungere", "Where you are going")}
             body={tr(
-              "Dici 1500 rapid, e il tavolo cambia misura. Nonno non ti confronta con il motore: ti confronta con la sedia accanto.",
-              "You say 1500 rapid, and the Table takes measure. Nonno does not compare you to an engine. He compares you to the chair next to yours."
+              "Dici 1500 rapid. Stockfish controlla la posizione; Maia confronta quanto una scelta e' naturale oggi e al livello-obiettivo.",
+              "You say 1500 rapid. Stockfish checks the position; Maia compares how natural a choice is today and at your target level."
             )}
           />
           <StoryCard
@@ -211,8 +278,8 @@ export function Landing() {
             revealDelay={80}
             title={tr("La mossa che ritorna", "The move that comes back")}
             body={tr(
-              "Non rivedi la stessa posizione a memoria. Rivedi la stessa idea, in un'altra sera, finche' la riconosci da solo.",
-              "You do not memorize the same position. You see the same idea again, on another evening, until you recognize it on your own."
+              "Parti da un tuo errore reale: prima lo osservi, poi lo provi con una guida, infine da solo.",
+              "You start from one of your real mistakes: first you observe it, then try it with guidance, then on your own."
             )}
           />
           <StoryCard
@@ -318,7 +385,7 @@ function DemoBoard({ size }: { size: number }) {
         fen={fen}
         size={size}
         orientation="white"
-        // Green arrow lands with the sacrifice — the move 1-in-8 would find.
+        // Green arrow lands with the sacrifice used in the coaching example.
         arrows={showArrow ? [{ from: DEMO_MOVE.from, to: DEMO_MOVE.to, color: "rgba(34,197,94,0.88)" }] : []}
         highlights={showArrow ? [{ square: DEMO_MOVE.to, color: "rgba(34,197,94,0.25)" }] : []}
         // animate stays true with a stable resetKey: toggling it would swap the
@@ -386,32 +453,6 @@ function TargetRail() {
         <span>{tr("dove vai", "where you're going")}</span>
         <strong>1500</strong>
       </div>
-    </div>
-  );
-}
-
-// ── GapBar ────────────────────────────────────────────────────────────────────
-
-function GapBar({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: number;
-  color: "brand" | "gold";
-}) {
-  return (
-    <div className="public-gap-row">
-      <div className="public-gap-track">
-        <span
-          className={color === "gold" ? "public-gap-fill gold" : "public-gap-fill"}
-          style={{ width: `${value}%` }}
-        />
-      </div>
-      <strong className={color === "gold" ? "honey" : undefined}>
-        {label} {value}%
-      </strong>
     </div>
   );
 }

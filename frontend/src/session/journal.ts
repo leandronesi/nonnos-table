@@ -14,6 +14,7 @@
  */
 
 import { todayUTC } from "./store";
+import { scopedStorage } from "../auth/userStorage";
 
 const STORAGE_KEY = "mygotham_journal";
 const SCHEMA = 1;
@@ -51,11 +52,11 @@ interface JournalStore {
 
 function loadRaw(): JournalStore {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = scopedStorage.getItem(STORAGE_KEY);
     if (!raw) return { schema: SCHEMA, entries: [] };
     const parsed = JSON.parse(raw) as JournalStore;
     if ((parsed.schema ?? 0) < SCHEMA) {
-      localStorage.removeItem(STORAGE_KEY);
+      scopedStorage.removeItem(STORAGE_KEY);
       return { schema: SCHEMA, entries: [] };
     }
     return parsed;
@@ -70,7 +71,7 @@ function saveRaw(store: JournalStore) {
     if (store.entries.length > MAX_ENTRIES) {
       store.entries = store.entries.slice(-MAX_ENTRIES);
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    scopedStorage.setItem(STORAGE_KEY, JSON.stringify(store));
   } catch { /* ignore */ }
 }
 

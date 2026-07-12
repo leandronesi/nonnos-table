@@ -33,6 +33,11 @@ import {
   silentRefreshThrottleKey,
   type OrchestratorProgress,
 } from "./orchestrator";
+import { trackEvent } from "../lib/telemetry";
+import { getLang } from "../i18n/lang";
+import { pipelineErrorMessage } from "./pipelineErrors";
+import { isAnalyzedTimeClass } from "./config";
+import type { AnalysisCoverage } from "./analysisRunSemantics";
 
 const SILENT_REFRESH_TTL_MS = 24 * 60 * 60 * 1000; // 1 day
 
@@ -63,11 +68,17 @@ interface OnboardingRunCtx {
   firstBatchReady: boolean;
   /** True mentre il secondo lotto (analyzing_rest → coaching) è in corso. */
   backgroundRunning: boolean;
-  /** True quando il coaching finale (su 100 partite) è completato. */
+  /** Errore user-facing del secondo lotto; la prima lettura resta utilizzabile. */
+  backgroundError: string | null;
+  /** Copertura terminale reale; failed > 0 indica un profilo parziale. */
+  backgroundCoverage: AnalysisCoverage | null;
+  /** Riprova il checkpoint persistito senza invalidare la prima lettura. */
+  retryBackground: () => void;
+  /** True quando il coaching finale sulle analisi riuscite è completato. */
   backgroundDone: boolean;
   /**
    * Contatore monotono che si incrementa ogni volta che il background finisce
-   * (sia la pipeline 20+80 sia il silent-refresh). TavoloHome e Sessione lo
+   * (sia la pipeline a prima fetta + resto sia il silent-refresh). TavoloHome e Sessione lo
    * mettono nelle deps del loro useEffect per ricaricare i dati senza reload.
    */
   dataVersion: number;
@@ -88,6 +99,9 @@ export function OnboardingRunProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [firstBatchReady, setFirstBatchReady] = useState(false);
   const [backgroundDone, setBackgroundDone] = useState(false);
+  const [backgroundError, setBackgroundError] = useState<string | null>(null);
+  const [backgroundCoverage, setBackgroundCoverage] = useState<AnalysisCoverage | null>(null);
+  const [backgroundRetryVersion, setBackgroundRetryVersion] = useState(0);
   const [dataVersion, setDataVersion] = useState(0);
   const [silentRefreshing, setSilentRefreshing] = useState(false);
 
@@ -98,14 +112,26 @@ export function OnboardingRunProvider({ children }: { children: ReactNode }) {
   // onBackgroundDone (non c'è un resto da annunciare) ed emette phase 'ready'.
   // Senza questo guard backgroundRunning resterebbe true per sempre e il Tavolo
   // mostrerebbe "sto ancora guardando" anche quando non arriveranno altre partite.
+  const backgroundPhase =
+    progress?.phase === "analyzing" || progress?.phase === "coaching";
   const backgroundRunning =
-    firstBatchReady && !backgroundDone && progress?.phase !== "ready";
+    (firstBatchReady || profile?.onboarding_state === "ready") &&
+    !backgroundDone &&
+    backgroundError === null &&
+    backgroundPhase;
 
   // Ref per evitare che il cleanup di StrictMode / re-mount annulli i setter
   // dopo che il provider è già stato rimontato.
   const cancelledRef = useRef(false);
   // Guard anti-reentrancy per il silent-refresh.
   const silentRefreshInFlightRef = useRef(false);
+  const latestProgressRef = useRef<OrchestratorProgress | null>(null);
+  const retryPartialRequestedRef = useRef(false);
+  const firstBatchReadyRef = useRef(false);
+  const analysisStartedTrackedRef = useRef(false);
+  const firstReadingTrackedRef = useRef(false);
+  const fullProfileTrackedRef = useRef(false);
+  const partialProfileTrackedRef = useRef(false);
 
   // Ri-lanciamo l'orchestratore quando il profilo COMPARE (signup) o quando lo
   // stato torna non-ready (Rianalizza/Refresh resettano il lock): in quei casi
@@ -114,47 +140,165 @@ export function OnboardingRunProvider({ children }: { children: ReactNode }) {
   // L'idempotenza la garantisce activeRun: job 'done' = no-op, run in corso riusato.
   const userId = profile?.user_id;
 
-  const handleProgress = useCallback((p: OrchestratorProgress) => {
-    if (!cancelledRef.current) setProgress(p);
+  const retryBackground = useCallback(() => {
+    if (!profile || !isAnalyzedTimeClass(profile.goal_time_class)) return;
+    // Un job parziale e' terminale finche' l'utente non lo riapre da questa CTA.
+    // Per gli errori infrastrutturali resta valida la recovery dal checkpoint.
+    retryPartialRequestedRef.current = true;
+    partialProfileTrackedRef.current = false;
+    setBackgroundError(null);
+    setBackgroundCoverage(null);
+    setBackgroundDone(false);
+    setError(null);
+    setBackgroundRetryVersion((version) => version + 1);
+  }, [profile]);
+
+  const trackPartialCoverage = useCallback((
+    coverage: AnalysisCoverage,
+    analysisRunId: string | undefined,
+  ) => {
+    if (
+      coverage.failed <= 0 ||
+      !analysisRunId ||
+      partialProfileTrackedRef.current
+    ) return;
+    partialProfileTrackedRef.current = true;
+    trackEvent("background_analysis_partial", {
+      event_version: 1,
+      games_selected: coverage.selected,
+      games_analyzed: coverage.succeeded,
+      games_failed: coverage.failed,
+      completion_scope: "partial_available_profile",
+      analysis_completion_id:
+        `${analysisRunId}:${coverage.succeeded}/${coverage.selected}`,
+    });
   }, []);
+
+  const handleProgress = useCallback((p: OrchestratorProgress) => {
+    latestProgressRef.current = p;
+    if (p.coverage) {
+      setBackgroundCoverage(p.coverage);
+      trackPartialCoverage(p.coverage, p.analysisRunId);
+    }
+    if (firstBatchReadyRef.current && p.phase === "analyzing") {
+      setBackgroundError(null);
+    }
+    if (!analysisStartedTrackedRef.current && p.phase === "analyzing") {
+      analysisStartedTrackedRef.current = true;
+      trackEvent("analysis_started", {
+        event_version: 1,
+        games_available: p.gamesTotal,
+      });
+    }
+    if (
+      !fullProfileTrackedRef.current &&
+      p.phase === "ready" &&
+      p.gamesTotal <= 10 &&
+      (!p.coverage || p.coverage.failed === 0)
+    ) {
+      fullProfileTrackedRef.current = true;
+      trackEvent("full_100_or_available_ready", {
+        event_version: 1,
+        games_analyzed: p.gamesAnalyzed,
+        games_available: p.gamesTotal,
+        completion_scope: "all_available_under_initial_batch",
+      });
+    }
+    if (!cancelledRef.current) setProgress(p);
+  }, [trackPartialCoverage]);
 
   const handleFirstBatchReady = useCallback(() => {
     if (cancelledRef.current) return;
+    firstBatchReadyRef.current = true;
     setFirstBatchReady(true);
+    if (!firstReadingTrackedRef.current) {
+      firstReadingTrackedRef.current = true;
+      const current = latestProgressRef.current;
+      trackEvent("first_10_ready", {
+        event_version: 1,
+        games_analyzed: Math.min(10, current?.gamesAnalyzed ?? 0),
+        games_available: current?.gamesTotal ?? null,
+      });
+    }
     // Refresha il profilo così HomeGate legge onboarding_state = 'ready'
-    // e lascia passare l'utente al Tavolo.
+    // e lascia passare l'utente all'introduzione una-tantum della Stanza.
     void refreshProfile();
   }, [refreshProfile]);
 
-  const handleBackgroundDone = useCallback(() => {
+  const handleBackgroundDone = useCallback((
+    coverage: AnalysisCoverage,
+    analysisRunId: string,
+  ) => {
     if (cancelledRef.current) return;
+    setBackgroundError(null);
+    setBackgroundCoverage(coverage);
     setBackgroundDone(true);
     setDataVersion((v) => v + 1);
-  }, []);
+    if (coverage.failed > 0) {
+      trackPartialCoverage(coverage, analysisRunId);
+      return;
+    }
+    if (!fullProfileTrackedRef.current) {
+      fullProfileTrackedRef.current = true;
+      const current = latestProgressRef.current;
+      trackEvent("full_100_or_available_ready", {
+        event_version: 1,
+        games_analyzed: current?.gamesAnalyzed ?? null,
+        games_available: current?.gamesTotal ?? null,
+        completion_scope: "full_available_profile",
+      });
+    }
+  }, [trackPartialCoverage]);
 
   useEffect(() => {
     if (!userId || !profile) return;
 
     cancelledRef.current = false;
 
+    // I profili legacy restano rappresentabili a DB finche' la constraint
+    // staged non e' validata. Non avviare una pipeline con una cadenza inventata:
+    // la waiting page chiede una scelta esplicita rapid/blitz via RPC atomica.
+    if (!isAnalyzedTimeClass(profile.goal_time_class)) {
+      firstBatchReadyRef.current = false;
+      latestProgressRef.current = null;
+      setFirstBatchReady(false);
+      setBackgroundDone(false);
+      setBackgroundError(null);
+      setBackgroundCoverage(null);
+      setError(null);
+      setProgress(null);
+      return;
+    }
+
     // (Ri)partenza da uno stato non-ready = run NUOVO (signup, Rianalizza,
     // Refresh): azzera i flag della sessione precedente, così la scena mostra
     // di nuovo l'attesa e non il vecchio primo colpo. Sullo stato 'ready' (la
-    // transizione di meta'-run dopo le 20) NON azzeriamo.
+    // transizione dopo la prima lettura di 10 partite) NON azzeriamo.
     if (profile.onboarding_state !== "ready") {
+      firstBatchReadyRef.current = false;
+      analysisStartedTrackedRef.current = false;
+      firstReadingTrackedRef.current = false;
+      fullProfileTrackedRef.current = false;
+      partialProfileTrackedRef.current = false;
+      latestProgressRef.current = null;
       setFirstBatchReady(false);
       setBackgroundDone(false);
+      setBackgroundError(null);
+      setBackgroundCoverage(null);
       setError(null);
       setProgress(null);
     }
 
     const currentProfile = profile;
+    const retryPartial = retryPartialRequestedRef.current;
+    retryPartialRequestedRef.current = false;
 
     runOnboardingOrchestrator({
       profile: currentProfile,
       onProgress: handleProgress,
       onFirstBatchReady: handleFirstBatchReady,
       onBackgroundDone: handleBackgroundDone,
+      retryPartial,
     })
       .then(() => {
         // Silent daily refresh — CHAINED on the main run, NOT a separate effect.
@@ -166,6 +310,9 @@ export function OnboardingRunProvider({ children }: { children: ReactNode }) {
         // (lock cleared) before we start, so runSilentRefresh actually proceeds.
         if (cancelledRef.current) return;
         if (currentProfile.onboarding_state !== "ready") return;
+        // Una copertura parziale resta visibile e stabile finche' l'utente non
+        // sceglie di ritentare; non mascherarla con un refresh silenzioso.
+        if ((latestProgressRef.current?.coverage?.failed ?? 0) > 0) return;
         if (!shouldRunSilentRefresh(userId)) return;
         if (silentRefreshInFlightRef.current) return;
 
@@ -185,7 +332,21 @@ export function OnboardingRunProvider({ children }: { children: ReactNode }) {
       })
       .catch((e) => {
         if (!cancelledRef.current) {
-          setError(String(e instanceof Error ? e.message : e));
+          const rawError = String(e instanceof Error ? e.message : e);
+          // Il codice tecnico resta nel job/log per il retry; l'utente vede una
+          // spiegazione concreta, mai uno stack o un profilo vuoto mascherato.
+          console.warn("[onboarding] pipeline failed:", rawError);
+          const userMessage = pipelineErrorMessage(rawError, getLang());
+          if (
+            firstBatchReadyRef.current ||
+            currentProfile.onboarding_state === "ready"
+          ) {
+            // La prima lettura resta valida. Il fallimento del completamento e'
+            // distinto, ferma l'indicatore e resta consumabile dalla UI.
+            setBackgroundError(userMessage);
+          } else {
+            setError(userMessage);
+          }
         }
       });
 
@@ -193,11 +354,22 @@ export function OnboardingRunProvider({ children }: { children: ReactNode }) {
       cancelledRef.current = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, profile?.onboarding_state]);
+  }, [userId, profile?.onboarding_state, profile?.goal_time_class, backgroundRetryVersion]);
 
   return (
     <Ctx.Provider
-      value={{ progress, error, firstBatchReady, backgroundRunning, backgroundDone, dataVersion, silentRefreshing }}
+      value={{
+        progress,
+        error,
+        firstBatchReady,
+        backgroundRunning,
+        backgroundError,
+        backgroundCoverage,
+        retryBackground,
+        backgroundDone,
+        dataVersion,
+        silentRefreshing,
+      }}
     >
       {children}
     </Ctx.Provider>

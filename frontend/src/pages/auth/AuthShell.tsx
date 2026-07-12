@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
+import { tr } from "../../i18n/lang";
 
 /**
  * Layout condiviso per le pagine pre-login (signup, login, verifica email,
@@ -104,6 +106,17 @@ export function AuthShell({
           </div>
         ) : null}
       </div>
+      <Link
+        to="/privacy"
+        style={{
+          marginTop: "1.25rem",
+          fontSize: "0.72rem",
+          color: "var(--color-muted)",
+          textUnderlineOffset: "3px",
+        }}
+      >
+        {tr("Privacy e dati", "Privacy and data")}
+      </Link>
     </div>
   );
 }

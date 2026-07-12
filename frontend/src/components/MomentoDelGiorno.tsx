@@ -33,6 +33,7 @@ import type { PositionExample } from "../pipeline/aggregate";
 import { BoardView } from "./BoardView";
 import { uciToArrow, uciToSan } from "../pages/quaderno/boardArrows";
 import { prefersReducedMotion, navigateWithTransition } from "../lib/motion";
+import { scopedStorage } from "../auth/userStorage";
 import { tr } from "../i18n/lang";
 
 // ── Selection ─────────────────────────────────────────────────────────────────
@@ -91,19 +92,26 @@ function buildAvversarioLine(
   targetRating: number | null,
 ): string | null {
   if (p_target == null || p_mine == null) return null;
-  const targetN = Math.round(p_target * 10);
-  const mineN = Math.round(p_mine * 10);
-  const opener =
-    targetRating != null && targetRating > 0
-      ? tr(`Uno al tuo ${targetRating} la trova ${targetN} volte su 10.`, `A ${targetRating} player finds it ${targetN} times out of 10.`)
-      : tr(`Il giocatore che vuoi diventare la trova ${targetN} volte su 10.`, `The player you want to become finds it ${targetN} times out of 10.`);
-  const mineClause =
-    mineN === 0
-      ? tr("Tu, oggi, nemmeno una.", "You, today, not once.")
-      : mineN === 1
-        ? tr("Tu, oggi, una.", "You, today, once.")
-        : tr(`Tu, oggi, ${mineN}.`, `You, today, ${mineN}.`);
-  return `${opener} ${mineClause}`;
+  const targetLabel = targetRating != null && targetRating > 0
+    ? String(targetRating)
+    : tr("obiettivo", "target");
+  const gap = p_target - p_mine;
+  if (gap > 0.05) {
+    return tr(
+      `Maia associa questa scelta più al livello ${targetLabel} che al tuo livello attuale. È un confronto relativo, non una frequenza.`,
+      `Maia associates this choice more with the ${targetLabel} level than with your current level. It is a relative comparison, not a frequency.`,
+    );
+  }
+  if (gap < -0.05) {
+    return tr(
+      `Maia non considera questa scelta più naturale al livello ${targetLabel} rispetto a oggi.`,
+      `Maia does not consider this choice more natural at the ${targetLabel} level than it is today.`,
+    );
+  }
+  return tr(
+    "Maia non mostra un divario netto tra il livello attuale e quello obiettivo su questa scelta.",
+    "Maia shows no clear gap between the current and target levels for this choice.",
+  );
 }
 
 function buildBestMoveLine(
@@ -113,6 +121,19 @@ function buildBestMoveLine(
   if (!best_uci) return null;
   const san = uciToSan(fenBefore, best_uci);
   return tr(`La mossa era ${san}.`, `The right move was ${san}.`);
+}
+
+function phaseLabel(phase: string): string {
+  switch (phase.toLowerCase()) {
+    case "opening":
+    case "apertura":
+      return tr("Apertura", "Opening");
+    case "endgame":
+    case "finale":
+      return tr("Finale", "Endgame");
+    default:
+      return tr("Mediogioco", "Middlegame");
+  }
 }
 
 // ── Board scene state machine types ──────────────────────────────────────────
@@ -132,7 +153,7 @@ const LOOP_DELAY = 1200 + 3400 + 900;
 // When the rise was already seen before, skip straight to the loop (no long wait).
 const LOOP_DELAY_SKIP_RISE = 600;
 
-// localStorage key: set once after the first full rise, never cleared.
+// User-scoped key: set once after the first full rise for this account.
 const RISE_SEEN_KEY = "mygotham_momento_rise_seen";
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -200,7 +221,7 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
           startedRef.current = true;
           io.disconnect();
 
-          const alreadySeen = localStorage.getItem(RISE_SEEN_KEY) === "1";
+          const alreadySeen = scopedStorage.getItem(RISE_SEEN_KEY) === "1";
 
           if (alreadySeen) {
             // Skip the slow rise: board is already up, start the loop shortly after.
@@ -213,7 +234,7 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
             push(setTimeout(() => {
               if (!disposedRef.current) {
                 setRisen(true);
-                localStorage.setItem(RISE_SEEN_KEY, "1");
+                scopedStorage.setItem(RISE_SEEN_KEY, "1");
               }
             }, RISE_DELAY));
             push(setTimeout(() => {
@@ -337,6 +358,7 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
       ref={containerRef}
       role="button"
       tabIndex={0}
+      aria-label={tr("Apri questa posizione nella sessione di oggi", "Open this position in today's session")}
       onClick={() => {
         navigateWithTransition(() =>
           nav("/sessione", { state: { focusKey: `${momento.fen_before}:${momento.ply}`, viaMorph: true } }),
@@ -344,6 +366,7 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
           navigateWithTransition(() =>
             nav("/sessione", { state: { focusKey: `${momento.fen_before}:${momento.ply}`, viaMorph: true } }),
           );
@@ -399,18 +422,9 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
 
         {/* Voice + meta — free text on the wall, no box */}
         <div style={{ flex: 1, minWidth: "180px", paddingTop: "0.25rem" }}>
-          {/* Phase chip */}
-          <div style={{ marginBottom: "0.75rem" }}>
-            <span
-              className="tt-chip"
-              style={{
-                background: "rgba(96,165,250,0.1)",
-                color: "var(--color-info, #60a5fa)",
-                textTransform: "capitalize",
-              }}
-            >
-              {momento.phase}
-            </span>
+          {/* Phase is context, not a status badge. */}
+          <div className="tt-eyebrow tt-muted" style={{ marginBottom: "0.75rem" }}>
+            {tr("Fase", "Phase")}: {phaseLabel(momento.phase)}
           </div>
 
           {/* Voice triplet */}
@@ -468,7 +482,7 @@ export function MomentoDelGiorno({ pool, targetRating }: MomentoDelGiornoProps) 
               fontWeight: 700,
             }}
           >
-            {tr("Sediamoci su questa", "Let's sit down on this")}
+            {tr("Apri questa posizione nella sessione", "Open this position in the session")}
           </div>
         </div>
       </div>

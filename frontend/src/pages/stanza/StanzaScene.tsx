@@ -16,7 +16,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Billboard, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import { Pezzo, PezziFromFen, type PieceKind } from "./Pezzi";
+import { PezziFromFen } from "./Pezzi";
 import {
   woodTexture,
   boardTexture,
@@ -38,8 +38,6 @@ export interface StanzaSceneProps {
   bestMove: [string, string] | null;
   /** Board orientation: user color. */
   orientation: "white" | "black";
-  /** Handicap ladder steps (5 regina .. 1 pedone); null hides the pieces. */
-  handicap: { initialStep: number; currentStep: number } | null;
   /** Notebook lines (real milestones) + gold target line. */
   notebookLines: string[];
   notebookGold: string | null;
@@ -415,42 +413,6 @@ function Scacchiera({
       {bestMove && (
         <MoveArrow from={bestMove[0]} to={bestMove[1]} color="#22c55e" flipped={flipped} y={0.082} />
       )}
-    </group>
-  );
-}
-
-// ── The handicap: returned pieces LIE on the wood, what remains STANDS ─────────
-
-const STEP_PIECES: Record<number, PieceKind[]> = {
-  5: ["q"],
-  4: ["r"],
-  3: ["b"],
-  2: ["p", "p"],
-  1: ["p"],
-};
-
-function Handicap({ initialStep, currentStep }: { initialStep: number; currentStep: number }) {
-  const items: { kind: PieceKind; lying: boolean; idx: number }[] = [];
-  let idx = 0;
-  for (let step = initialStep; step >= 1; step--) {
-    const lying = step > currentStep;
-    for (const kind of STEP_PIECES[step] ?? []) {
-      items.push({ kind, lying, idx: idx++ });
-    }
-  }
-  return (
-    <group position={[-1.62, 0, 0.78]} rotation={[0, 0.35, 0]}>
-      {items.map((it) => (
-        <Pezzo
-          key={it.idx}
-          kind={it.kind}
-          white
-          position={[it.idx * 0.17, it.lying ? 0.052 : 0, 0]}
-          // Lying on its side: returned to the Nonno, one evening at a time.
-          rotation={it.lying ? [0, 0, Math.PI / 2 + 0.06 * it.idx] : undefined}
-          scale={1.05}
-        />
-      ))}
     </group>
   );
 }
@@ -863,12 +825,6 @@ function Stanza3D(props: StanzaSceneProps & { focus: Focus; onObject: (f: Focus,
             orientation={props.orientation}
           />
         </CliccabileBoard>
-      )}
-      {props.handicap && (
-        <Handicap
-          initialStep={props.handicap.initialStep}
-          currentStep={props.handicap.currentStep}
-        />
       )}
       {props.showNotebook && (
         <Cliccabile onClick={() => onObject("quaderno", props.onNotebookClick)}>

@@ -10,15 +10,23 @@ import { useStockfish } from "../engine/useStockfish";
 import { turnFromFen } from "../chess-utils";
 import type { PlayResult } from "./store";
 import type { CoachSession } from "../types";
-import { stockfishSkillForMaiaLevel, sessionFallbackLine } from "../coaching";
+import { stockfishSkillForMaiaLevel } from "../coaching";
 import { tr, getLang } from "../i18n/lang";
+import { getMaiaEngine } from "../pipeline/maia/maiaEngine";
+import { trackEvent } from "../lib/telemetry";
+import {
+  chooseTargetOpponentMove,
+  opponentMaiaDomain,
+  opponentSourceCopy,
+  OpponentSelectionAbortedError,
+} from "./opponentPolicy";
+import type { OpponentMoveSelection } from "./opponentPolicy";
 
 interface Props {
   startFen: string; // posizione di partenza (di solito da un turning point)
   myColor?: "white" | "black"; // override opzionale; di default derivato da startFen (chi muove)
   maiaLevel?: number; // livello target dichiarato (es. 1600); se assente usa skillLevel legacy
   skillLevel?: number; // 0-20, usato solo se maiaLevel non passato (legacy)
-  currentRating?: number; // rating corrente del giocatore (per sub-text contestuale)
   timeClass?: string; // categoria di tempo dichiarata (rapid / blitz / bullet / classical)
   coachSession?: CoachSession; // frasi pre-generate da Nonno
   onDone: (r: PlayResult) => void;
@@ -219,27 +227,11 @@ function pickRandom(arr: string[]): string {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function maiaSubText(
-  currentRating: number | undefined,
-  maiaLevel: number,
-): string {
-  const cur = currentRating ?? maiaLevel;
-  if (getLang() === "en") {
-    if (cur < maiaLevel - 50)
-      return `You are playing from a position you lived through, against a ${maiaLevel}. Let's see how they handle it.`;
-    if (cur >= maiaLevel) return "You are at their level. No gifts.";
-    return `You are close. Play the position the way they would.`;
-  }
-  if (cur < maiaLevel - 50)
-    return `Giochi da una posizione che hai vissuto, contro un ${maiaLevel}. Vediamo come la gestisce lui.`;
-  if (cur >= maiaLevel) return "Sei al suo livello. Niente regali.";
-  return `Ci sei quasi. Gioca la posizione come la giocherebbe lui.`;
-}
-
 /**
- * Una partita vs MAIA (Stockfish calibrato sul livello target) dalla
- * posizione data. Termina quando finisce la partita (matto/stalemate/draw)
- * o l'utente clicca "Termina sessione".
+ * Una partita contro Maia condizionata al rating target. Ogni mossa avversaria
+ * e' campionata dalla policy raw dopo un secondo filtro di legalita'. Se Maia
+ * non risponde, la singola mossa passa a Stockfish con fonte/reason espliciti.
+ * Termina quando finisce la partita o l'utente clicca "Termina sessione".
  *
  * BLOCK 3 — "sei sicuro?": prima di committare ogni mia mossa, eval
  * Stockfish before/after. Se la perdita stimata supera la soglia E la
@@ -255,9 +247,8 @@ export function PlayStep({
   myColor: myColorProp,
   maiaLevel,
   skillLevel: skillLevelProp,
-  currentRating,
-  timeClass: _timeClass,
-  coachSession,
+  timeClass: timeClassProp,
+  coachSession: _coachSession,
   onDone,
 }: Props) {
   // Deriva skillLevel da maiaLevel se disponibile, altrimenti prop legacy
@@ -268,6 +259,8 @@ export function PlayStep({
   const sf = useStockfish();
   const fit = useBoardFit({ min: 232, max: 500 });
   const myColor: "white" | "black" = myColorProp || turnFromFen(startFen);
+  const targetRating = maiaLevel ?? 1600;
+  const timeClass = timeClassProp ?? "rapid";
   const boardRef = useRef<Chess>(new Chess(startFen));
   const [fen, setFen] = useState<string>(startFen);
   const [history, setHistory] = useState<string[]>([]);
@@ -280,10 +273,15 @@ export function PlayStep({
   } | null>(null);
   const [evaluatingMove, setEvaluatingMove] = useState(false);
   const [pendingSure, setPendingSure] = useState<PendingSureCheck | null>(null);
+  const [opponentDecision, setOpponentDecision] =
+    useState<OpponentMoveSelection | null>(null);
 
   // Messaggio Nonno inline (undo / restart / ripensaci)
   const [coachInline, setCoachInline] = useState<string | null>(null);
   const engineTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const opponentRequestRef = useRef(0);
+  const opponentAbortRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(false);
 
   // Hint system state
   const [hint, setHint] = useState<HintState | null>(null);
@@ -292,10 +290,19 @@ export function PlayStep({
   const hintFenRef = useRef<string>("");
 
   useEffect(() => {
+    mountedRef.current = true;
     const sideToMove = turnFromFen(startFen);
     if (sideToMove !== myColor && !outcome) {
-      engineMove();
+      void engineMove();
     }
+    return () => {
+      mountedRef.current = false;
+      cancelOpponentMove();
+      if (engineTimeoutRef.current !== null) {
+        clearTimeout(engineTimeoutRef.current);
+        engineTimeoutRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -523,12 +530,70 @@ export function PlayStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fen, isMyTurn]);
 
+  function cancelOpponentMove(): void {
+    opponentRequestRef.current += 1;
+    opponentAbortRef.current?.abort();
+    opponentAbortRef.current = null;
+    sf.stop();
+  }
+
   async function engineMove() {
-    setEngineThinking(true);
+    cancelOpponentMove();
+    const requestId = opponentRequestRef.current;
+    const controller = new AbortController();
+    opponentAbortRef.current = controller;
+    if (mountedRef.current) setEngineThinking(true);
     try {
       const fenNow = boardRef.current.fen();
-      const uci = await sf.playMove(fenNow, { depth: 10, skillLevel });
-      if (!uci) return;
+      const selection = await chooseTargetOpponentMove(
+        {
+          fen: fenNow,
+          targetRating,
+          timeClass,
+          signal: controller.signal,
+        },
+        {
+          maiaPolicy: async (positionFen, rating) => {
+            const engine = getMaiaEngine();
+            await engine.waitReady();
+            return engine.evaluate(positionFen, rating, rating);
+          },
+          stockfishMove: (positionFen) =>
+            sf.playMove(positionFen, { movetimeMs: 900, skillLevel }),
+          rng: Math.random,
+          maiaTimeoutMs: 4500,
+          stockfishTimeoutMs: 5000,
+        },
+      );
+
+      const isCurrent =
+        mountedRef.current &&
+        requestId === opponentRequestRef.current &&
+        !controller.signal.aborted &&
+        boardRef.current.fen() === fenNow &&
+        turnFromFen(fenNow) !== myColor;
+      if (!isCurrent) return;
+
+      setOpponentDecision(selection);
+      trackEvent("opponent_move_selected", {
+        opponent_source: selection.opponent_source,
+        fallback_reason: selection.fallback_reason,
+        unavailable_reason: selection.unavailable_reason,
+        maia_domain: selection.maia_domain,
+        target_rating: targetRating,
+        time_class: timeClass,
+      });
+
+      const uci = selection.uci;
+      if (!uci) {
+        setCoachInline(
+          tr(
+            "L'avversario non ha prodotto una mossa legale. Puoi riprovare senza perdere la posizione.",
+            "The opponent did not produce a legal move. You can retry without losing the position.",
+          ),
+        );
+        return;
+      }
       const from = uci.slice(0, 2);
       const to = uci.slice(2, 4);
       const promo = uci.length > 4 ? uci[4] : undefined;
@@ -542,8 +607,35 @@ export function PlayStep({
       setHistory((h) => [...h, mv.san]);
       setLastMove({ from: mv.from, to: mv.to, by: "engine" });
       checkGameOver();
+    } catch (error) {
+      if (error instanceof OpponentSelectionAbortedError) return;
+      if (
+        mountedRef.current &&
+        requestId === opponentRequestRef.current &&
+        !controller.signal.aborted
+      ) {
+        const unavailable: OpponentMoveSelection = {
+          uci: null,
+          opponent_source: "unavailable",
+          fallback_reason: "maia_model_unavailable",
+          unavailable_reason: "stockfish_unavailable",
+          maia_domain: null,
+          sampled_policy_mass: null,
+        };
+        setOpponentDecision(unavailable);
+        trackEvent("opponent_move_selected", {
+          opponent_source: unavailable.opponent_source,
+          fallback_reason: unavailable.fallback_reason,
+          unavailable_reason: unavailable.unavailable_reason,
+          target_rating: targetRating,
+          time_class: timeClass,
+        });
+      }
     } finally {
-      setEngineThinking(false);
+      if (requestId === opponentRequestRef.current) {
+        opponentAbortRef.current = null;
+        if (mountedRef.current) setEngineThinking(false);
+      }
     }
   }
 
@@ -572,6 +664,19 @@ export function PlayStep({
     const mv = probe.move({ from, to, promotion: "q" } as never);
     if (!mv) return false;
     const fenAfterMine = probe.fen();
+
+    // La verifica "sei sicuro?" e' un aiuto, non un gate: se Stockfish locale
+    // non e' pronto la mossa resta giocabile e la partita non si blocca.
+    if (!sf.isReady) {
+      commitMyMove(from, to);
+      setCoachInline(
+        tr(
+          "La verifica Stockfish non e' pronta: continuiamo senza interrompere la partita.",
+          "The Stockfish check is not ready, so the game continues without blocking.",
+        ),
+      );
+      return true;
+    }
 
     setEvaluatingMove(true);
     try {
@@ -646,6 +751,7 @@ export function PlayStep({
     setFen(boardRef.current.fen());
     setHistory((h) => h.slice(0, h.length - plies));
     setLastMove(null);
+    setOpponentDecision(null);
     setOutcome(null);
     setCoachInline(pickRandom(getRipensaciPhrases()));
   }
@@ -661,6 +767,7 @@ export function PlayStep({
     setFen(startFen);
     setHistory([]);
     setLastMove(null);
+    setOpponentDecision(null);
     setOutcome(null);
     setPendingSure(null);
     const msgs =
@@ -671,7 +778,10 @@ export function PlayStep({
     // Se è il turno dell'engine all'apertura, fai muovere lui
     const sideToMove = turnFromFen(startFen);
     if (sideToMove !== myColor) {
-      setTimeout(() => engineMove(), 350);
+      engineTimeoutRef.current = setTimeout(() => {
+        engineTimeoutRef.current = null;
+        void engineMove();
+      }, 350);
     }
   }
 
@@ -688,10 +798,14 @@ export function PlayStep({
   }
 
   function commit(outcomeFinal: PlayResult["outcome"]) {
+    cancelOpponentMove();
     onDone({
       outcome: outcomeFinal,
       moves_played: history.length,
       finished_at: Date.now(),
+      opponent_source: opponentDecision?.opponent_source,
+      opponent_fallback_reason: opponentDecision?.fallback_reason ?? null,
+      opponent_unavailable_reason: opponentDecision?.unavailable_reason ?? null,
     });
   }
 
@@ -738,70 +852,22 @@ export function PlayStep({
         ...hintArrows,
       ];
 
-  const openPlayLine =
-    coachSession?.open_play ||
-    sessionFallbackLine("open_play", maiaLevel ?? 1600);
-
-  // Engine not ready yet: show Nonno's message instead of an unresponsive board.
-  // Stockfish loads synchronously from a local file so this is usually very brief
-  // (< 1s). No fake progress bar — just honest state.
-  if (!sf.isReady) {
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-10 items-start">
-        <div className="flex flex-col items-center gap-2">
-          <BoardScene sceneKey={startFen}>
-            <div ref={fit.ref} style={{ width: "100%", maxWidth: fit.max }}>
-              <BoardView
-                fen={startFen}
-                orientation={myColor}
-                size={fit.size}
-                draggable={false}
-              />
-            </div>
-          </BoardScene>
-        </div>
-        <div className="space-y-4">
-          <div
-            style={{
-              padding: "0.875rem 1rem",
-              borderRadius: "8px",
-              border: "1px solid rgba(161,139,255,0.22)",
-              background: "rgba(161,139,255,0.05)",
-            }}
-          >
-            <span
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "0.6rem",
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: "var(--color-brand-soft)",
-                fontWeight: 700,
-                display: "block",
-                marginBottom: "0.4rem",
-              }}
-            >
-              Nonno
-            </span>
-            <p
-              style={{
-                fontFamily: "var(--font-sans)",
-                fontSize: "0.875rem",
-                lineHeight: 1.55,
-                color: "var(--color-text-soft)",
-                margin: 0,
-              }}
-            >
-              {tr(
-                "Un attimo, preparo l'avversario.",
-                "Getting your opponent ready.",
-              )}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const sourceCopy = opponentSourceCopy(
+    opponentDecision,
+    targetRating,
+    getLang(),
+    timeClass,
+  );
+  const initialMaiaDomain = opponentMaiaDomain(targetRating, timeClass);
+  const openPlayLine = initialMaiaDomain.supported
+    ? tr(
+        `Adesso giochi contro Maia con conditioning obiettivo ${targetRating}: e' un parametro della policy, non significa che Maia abbia forza o rating ${targetRating}. Se Maia non risponde, la singola mossa passa a Stockfish e la fonte resta visibile.`,
+        `Now you play Maia with target conditioning ${targetRating}: it is a policy parameter, not a claim that Maia has ${targetRating} playing strength or rating. If Maia does not answer, that move falls back to Stockfish and the source remains visible.`,
+      )
+    : tr(
+        "Per questa cadenza Maia e' fuori dal dominio pratica supportato: giocherai contro Stockfish e la fonte resta visibile.",
+        "Maia is outside the supported practice domain for this time control, so you will play Stockfish and the source remains visible.",
+      );
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-10 items-start">
@@ -870,12 +936,7 @@ export function PlayStep({
             className="label-eyebrow"
             style={{ color: "var(--color-brand-soft)", marginBottom: "0.5rem" }}
           >
-            {maiaLevel != null
-              ? tr(
-                  `Una posizione tua, contro un ${maiaLevel}`,
-                  `Your position, against a ${maiaLevel}`,
-                )
-              : tr("Partita dalla tua posizione", "Game from your position")}
+            {sourceCopy.label}
           </div>
           <h3
             className="display-small"
@@ -899,12 +960,7 @@ export function PlayStep({
               margin: 0,
             }}
           >
-            {maiaLevel != null
-              ? `${maiaSubText(currentRating, maiaLevel)}`
-              : tr(
-                  `Giochi come ${myColor === "white" ? "bianco" : "nero"} da una tua posizione critica.`,
-                  `You play as ${myColor} from one of your critical positions.`,
-                )}
+            {sourceCopy.detail}
           </p>
         </div>
 
@@ -974,6 +1030,16 @@ export function PlayStep({
         {/* Azioni partita in corso */}
         {!outcome && (
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            {opponentDecision?.opponent_source === "unavailable" &&
+              turnFromFen(fen) !== myColor && (
+                <button
+                  onClick={() => void engineMove()}
+                  disabled={engineThinking}
+                  className="btn btn-primary btn-sm"
+                >
+                  {tr("Riprova avversario", "Retry opponent")}
+                </button>
+              )}
             <button
               onClick={handleUndo}
               disabled={history.length === 0 || engineThinking}

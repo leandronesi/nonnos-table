@@ -15,15 +15,7 @@ import type { RatingPoint, Goal } from "../types";
 import { NonnoExplain } from "./NonnoExplain";
 import { tr } from "../i18n/lang";
 
-/**
- * Curva Elo: rating ufficiale + performance rolling 5 + performance rolling 20.
- *
- * Idea: il rating ufficiale è laggy (assorbe lentamente). Performance rating su
- * finestra è la "verità" delle ultime partite.
- *  - Rolling 5: volatile, riflette la sessione di oggi/ieri
- *  - Rolling 20: trend di medio termine
- *  - Se rolling 20 > rating, il rating sale di suo nelle prossime partite.
- */
+/** Rating ufficiale con medie mobili storiche sulle ultime 5 e 20 partite. */
 interface Props {
   ratingCurve: Record<string, RatingPoint[]>;
   goal: Goal;
@@ -64,24 +56,24 @@ export function RatingCurveChart({ ratingCurve, goal }: Props) {
       <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
         <div>
           <div className="label-eyebrow" style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-            Elo atteso · rolling 5 + 20
+            {tr("Media rating · ultime 5 + 20", "Rating averages · last 5 + 20")}
             <NonnoExplain
               title={tr("La tua salita", "Your climb")}
               lines={[
                 tr(
-                  "Questa e' la tua salita. La linea chiara e' il rating ufficiale, quella piena e' come stai giocando davvero nelle ultime partite.",
-                  "This is your climb. The light line is your official rating, the solid one is how you have actually been playing in recent games.",
+                  "La linea del rating mostra i valori ufficiali registrati partita per partita. Le altre due sono medie degli stessi valori sulle ultime 5 e 20 partite.",
+                  "The rating line shows the official values recorded game by game. The other two are averages of those same values over the last 5 and 20 games.",
                 ),
                 tr(
-                  "Quando la linea piena sta sopra quella chiara, il rating sta per salire. Quando sta sotto, stai cedendo terreno.",
-                  "When the solid line is above the light one, your rating is about to go up. When it is below, you are giving ground.",
+                  "Le medie rendono piu' leggibile lo storico, ma non sono un performance rating e non prevedono il rating futuro.",
+                  "The averages make the history easier to read, but they are not performance ratings and do not predict future rating.",
                 ),
               ]}
             />
           </div>
-          <h3 className="section-title mt-1">Sto migliorando?</h3>
+          <h3 className="section-title mt-1">{tr("Come si e' mosso il rating?", "How has the rating moved?")}</h3>
           <p className="section-sub mt-0.5" style={{ fontSize: "0.72rem", color: "var(--color-muted)" }}>
-            Performance recente vs Elo ufficiale{curveCount > 0 ? ` · su ${curveCount} partite` : ""}
+            {tr("Rating ufficiale e medie mobili", "Official rating and moving averages")}{curveCount > 0 ? ` · ${curveCount} ${tr("partite", "games")}` : ""}
           </p>
         </div>
         {available.length > 1 && (
@@ -98,19 +90,12 @@ export function RatingCurveChart({ ratingCurve, goal }: Props) {
       {last && (
         <div className="flex flex-wrap gap-2 mb-4">
           <Pill label="Rating ora" value={last.rating != null ? Math.round(last.rating) : "—"} color="var(--color-brand-soft)" />
-          <Pill label="Perf rolling 5" value={last.perf_5 != null ? Math.round(last.perf_5) : "—"} color="#facc15" />
-          <Pill label="Perf rolling 20" value={last.perf_20 != null ? Math.round(last.perf_20) : "—"} color="#34d399" />
-          {last.rating != null && last.perf_20 != null && (
-            <Pill
-              label="Gap rating ↔ perf-20"
-              value={`${Math.round(last.perf_20 - last.rating) >= 0 ? "+" : ""}${Math.round(last.perf_20 - last.rating)}`}
-              color={last.perf_20 - last.rating >= 0 ? "#34d399" : "#f43f5e"}
-            />
-          )}
+          <Pill label={tr("Media ultime 5", "Last-5 average")} value={last.perf_5 != null ? Math.round(last.perf_5) : "—"} color="#facc15" />
+          <Pill label={tr("Media ultime 20", "Last-20 average")} value={last.perf_20 != null ? Math.round(last.perf_20) : "—"} color="#34d399" />
         </div>
       )}
 
-      <div className="h-[360px]" role="img" aria-label="Grafico curva di rating">
+      <div className="h-[360px]" role="img" aria-label={tr("Storico rating con medie mobili", "Rating history with moving averages")}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 20, right: 80, left: 0, bottom: 0 }}>
             <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
@@ -127,10 +112,10 @@ export function RatingCurveChart({ ratingCurve, goal }: Props) {
               wrapperStyle={{ paddingTop: 8 }}
               formatter={(v) =>
                 v === "rating"
-                  ? "Rating ufficiale"
+                  ? tr("Rating ufficiale", "Official rating")
                   : v === "perf_5"
-                  ? "Performance rolling 5"
-                  : "Performance rolling 20"
+                  ? tr("Media rating ultime 5", "Last-5 rating average")
+                  : tr("Media rating ultime 20", "Last-20 rating average")
               }
             />
             {showTarget && (
@@ -165,8 +150,8 @@ function RichTooltip({ active, payload }: { active?: boolean; payload?: TooltipP
         {p.date}
       </div>
       <Row label="Rating ufficiale" value={p.rating} color="var(--color-brand-soft)" />
-      <Row label="Perf rolling 5" value={p.perf_5} color="#facc15" />
-      <Row label="Perf rolling 20" value={p.perf_20} color="#34d399" />
+      <Row label={tr("Media rating ultime 5", "Last-5 rating average")} value={p.perf_5} color="#facc15" />
+      <Row label={tr("Media rating ultime 20", "Last-20 rating average")} value={p.perf_20} color="#34d399" />
       <div className="my-1.5 h-px bg-[color:var(--color-line)]" />
       <Row label="Avversario" value={p.opp_rating ?? "—"} />
       {p.result && (

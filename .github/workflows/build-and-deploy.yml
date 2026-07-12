@@ -1,0 +1,109 @@
+name: Build & Manual Deploy · GitHub Pages
+
+# Production is multi-user and browser-first. Personal PGNs/analyses are never
+# generated or copied by CI; each authenticated user writes only to private
+# Supabase Storage.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Push CI must never cancel an in-flight production deployment. New manual
+  # deploys may still supersede older manual deploys.
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && 'deploy' || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Test trust and privacy invariants
+        working-directory: frontend
+        run: npm test
+
+      - name: Preflight required production configuration
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: frontend
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_PRIVACY_CONTACT_EMAIL: ${{ secrets.VITE_PRIVACY_CONTACT_EMAIL }}
+          PUBLIC_SITE_ORIGIN: ${{ vars.PUBLIC_SITE_ORIGIN }}
+        run: npm run preflight:production
+
+      - name: Preflight Maia model for production
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: frontend
+        env:
+          VITE_MAIA_MODEL_URL: ${{ vars.VITE_MAIA_MODEL_URL }}
+          MAIA_MODEL_SHA256: ${{ vars.MAIA_MODEL_SHA256 }}
+          PUBLIC_SITE_ORIGIN: ${{ vars.PUBLIC_SITE_ORIGIN }}
+        run: npm run preflight:maia
+
+      - name: Build static application
+        working-directory: frontend
+        env:
+          VITE_BASE: /${{ github.event.repository.name }}/
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_PRIVACY_CONTACT_EMAIL: ${{ secrets.VITE_PRIVACY_CONTACT_EMAIL }}
+          VITE_MAIA_MODEL_URL: ${{ vars.VITE_MAIA_MODEL_URL }}
+        run: npm run build
+
+      - name: SPA fallback for GitHub Pages
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: frontend
+        run: cp dist/index.html dist/404.html
+
+      - name: Hand off manual deploy artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-dist
+          path: frontend/dist
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download verified site
+        uses: actions/download-artifact@v4
+        with:
+          name: site-dist
+          path: site-dist
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Package Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site-dist
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

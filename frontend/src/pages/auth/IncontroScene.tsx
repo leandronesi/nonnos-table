@@ -12,6 +12,8 @@ import { TeachMaia } from "../../components/onboarding/TeachMaia";
 import { TeachAncora } from "../../components/onboarding/TeachAncora";
 import { prefersReducedMotion } from "../../lib/motion";
 import { tr } from "../../i18n/lang";
+import { FIRST_BATCH_SIZE, FREE_GAME_CAP } from "../../pipeline/config";
+import { trackEvent } from "../../lib/telemetry";
 
 // Shape del coach_brief.json scritto dalla Edge Function coach-llm.
 export interface CoachLlmBrief {
@@ -26,12 +28,12 @@ export interface CoachLlmBrief {
 function getPhaseVoice(): Record<OrchestratorProgress["phase"], string> {
   return {
     pending:   tr("Dammi un attimo. Mi metto a posto.", "One moment. Getting ready."),
-    ingesting: tr("Dammi un minuto. Sto scaricando le tue ultime partite.", "One moment. Downloading your recent games."),
+    ingesting: tr("Sto raccogliendo le partite della cadenza scelta.", "Collecting games from the selected time control."),
     analyzing: tr(
-      "Comincio dalle tue ultime partite e vado indietro, una per una. Quelle dove il tempo ti ha tradito le segno.",
-      "Starting from your most recent games and working back. I mark the ones where the clock caught you.",
+      "Comincio dalle ultime dieci. Incrocio qualita' della scelta, tempo speso e tempo rimasto.",
+      "Starting with the latest ten. I compare move quality, time spent, and time remaining.",
     ),
-    coaching:  tr("Ci sono quasi. Sto mettendo insieme la prima cosa da dirti.", "Almost there. Putting together the first thing to show you."),
+    coaching:  tr("Ci sono quasi. Sto preparando la tua prima lettura provvisoria.", "Almost there. Preparing your provisional first reading."),
     ready:     tr("Fatto. Vieni, siediti.", "Done. Come, sit down."),
     error:     tr("Mi sono inceppato su qualcosa. Riprova, per favore.", "Something went wrong on my end. Please try again."),
   };
@@ -50,24 +52,24 @@ function buildTeachSlides(targetRating?: number): TeachSlide[] {
     {
       id: "time",
       voice: tr(
-        "C'e' chi le partite vinte non le perde sulla scacchiera. Le perde sull'orologio. E' la prima cosa che vado a cercare.",
-        "Some players do not lose won games on the board. They lose them on the clock. That is the first thing I look for.",
+        "Guardo quanto tempo avevi e quanto ne hai speso insieme alla qualita' della scelta. E' un indizio, non una sentenza.",
+        "I look at how much time you had and spent alongside move quality. It is a clue, not a verdict.",
       ),
       component: <TeachTime />,
     },
     {
       id: "maia",
       voice: tr(
-        "Non ti peso contro il computer perfetto. Ti peso contro chi vuoi diventare.",
-        "I do not measure you against the perfect computer. I measure you against the player you are becoming.",
+        "Stockfish controlla la posizione. Maia confronta quali scelte diventano piu' naturali al livello che vuoi raggiungere.",
+        "Stockfish checks the position. Maia compares which choices become more natural at the level you want to reach.",
       ),
       component: <TeachMaia targetRating={targetRating} />,
     },
     {
       id: "ancora",
       voice: tr(
-        "Non ti do una lista di errori. Ti do la cosa che ti tiene fermo. Una.",
-        "I do not give you a list of mistakes. I give you the one thing that is keeping you here.",
+        "Non ti do una lista infinita. Scelgo il pattern con priorita' piu' alta nei dati osservati. Uno.",
+        "I do not give you an endless list. I choose the highest-priority pattern in the observed data. One.",
       ),
       component: <TeachAncora />,
     },
@@ -255,6 +257,51 @@ function ProgressThread({
   );
 }
 
+function useInitialAnalysisEta(
+  phase: OrchestratorProgress["phase"],
+  done: number,
+  total: number,
+): number | null {
+  const baselineRef = useRef<{ done: number; at: number } | null>(null);
+  const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (phase !== "analyzing" || total <= 0) {
+      baselineRef.current = null;
+      setEtaSeconds(null);
+      return;
+    }
+
+    if (done >= total) {
+      setEtaSeconds(0);
+      return;
+    }
+
+    const now = Date.now();
+    const baseline = baselineRef.current;
+    if (baseline == null || done < baseline.done) {
+      baselineRef.current = { done, at: now };
+      setEtaSeconds(null);
+      return;
+    }
+
+    const completed = done - baseline.done;
+    const elapsedSeconds = (now - baseline.at) / 1000;
+    if (completed <= 0 || elapsedSeconds < 1) return;
+
+    const secondsPerGame = elapsedSeconds / completed;
+    setEtaSeconds(Math.max(0, Math.round((total - done) * secondsPerGame)));
+  }, [phase, done, total]);
+
+  return etaSeconds;
+}
+
+function formatEta(seconds: number): string {
+  if (seconds <= 15) return tr("meno di un minuto", "less than a minute");
+  const minutes = Math.max(1, Math.ceil(seconds / 60));
+  return tr(`circa ${minutes} min`, `about ${minutes} min`);
+}
+
 // ── Schermata "primo colpo" (al ready) ───────────────────────────────────────
 
 function PrimoColpo({
@@ -273,6 +320,7 @@ function PrimoColpo({
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 120);
+    trackEvent("first_reading_viewed", { batch_size: FIRST_BATCH_SIZE });
     return () => clearTimeout(t);
   }, []);
 
@@ -280,12 +328,12 @@ function PrimoColpo({
   const fallback =
     username && currentRating && tcLabel
       ? tr(
-          `Ho guardato le tue ${tcLabel}, ${username}. Sei a ${currentRating} e c'e' qualcosa che si ripete. Una cosa sola: te la mostro, poi giochiamo. Siediti. Domani ne apriamo un'altra.`,
-          `I looked at your ${tcLabel} games, ${username}. You are at ${currentRating} and there is something that keeps coming up. One thing. I will show you, then we play. Sit down. Tomorrow we open another one.`,
+          `Ho iniziato dalle ${tcLabel} disponibili, ${username}. Rating attuale ${currentRating}: ho scelto un momento concreto da rivedere, poi giochiamo.`,
+          `I started from the available ${tcLabel} games, ${username}. Current rating ${currentRating}: I selected one concrete moment to review, then we play.`,
         )
       : tr(
-          "Ho guardato. C'e' una cosa che torna, partita dopo partita. Non e' la mossa: e' il momento in cui la cerchi. Siediti, te la mostro. Domani ripartiamo da li'.",
-          "I looked. There is something that comes back, game after game. It is not the move: it is the moment you go looking for it. Sit down, I will show you. Tomorrow we pick it up from there.",
+          "Ho iniziato dalle partite disponibili e ho scelto un momento concreto da rivedere. Siediti: te lo mostro, poi giochiamo.",
+          "I started from the available games and selected one concrete moment to review. Sit down: I will show it to you, then we play.",
         );
 
   const voiceText =
@@ -304,6 +352,22 @@ function PrimoColpo({
         transition: "opacity 800ms cubic-bezier(0.23,1,0.32,1), transform 800ms cubic-bezier(0.23,1,0.32,1)",
       }}
     >
+      <div
+        style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: "0.625rem",
+          fontWeight: 700,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          color: "var(--color-brand-soft)",
+        }}
+      >
+        {tr(
+          `Lettura iniziale · fino a ${FIRST_BATCH_SIZE} partite della cadenza scelta`,
+          `First reading · up to ${FIRST_BATCH_SIZE} games from the selected time control`,
+        )}
+      </div>
+
       {/* La frase — voce serif, peso 600 come da spec Onda D */}
       <p
         style={{
@@ -319,9 +383,27 @@ function PrimoColpo({
         {voiceText}
       </p>
 
+      <p
+        style={{
+          margin: "-0.75rem 0 0",
+          fontSize: "0.8rem",
+          lineHeight: 1.55,
+          color: "var(--color-muted)",
+          maxWidth: "38ch",
+        }}
+      >
+        {tr(
+          `Questa e' una lettura provvisoria. Il profilo completo continua in background fino a ${FREE_GAME_CAP} partite disponibili della cadenza scelta.`,
+          `This is a provisional reading. Your full profile continues in the background, up to ${FREE_GAME_CAP} available games from the selected time control.`,
+        )}
+      </p>
+
       {/* CTA unica */}
       <button
-        onClick={onEnter}
+        onClick={() => {
+          trackEvent("first_reading_opened");
+          onEnter();
+        }}
         className="btn btn-primary"
         style={{
           alignSelf: "flex-start",
@@ -331,8 +413,14 @@ function PrimoColpo({
           letterSpacing: "0.01em",
         }}
       >
-        {tr("Sediamoci", "Let's sit down.")}
+        {tr("Vedi la prima lettura", "See your first reading")}
       </button>
+      <p style={{ margin: "-0.75rem 0 0", fontSize: "0.72rem", lineHeight: 1.45, color: "var(--color-faint)", maxWidth: "38ch" }}>
+        {tr(
+          "Apre il Tavolo: puoi iniziare subito una sessione mentre il profilo si completa.",
+          "Opens the Table: you can start a session while the profile continues in the background.",
+        )}
+      </p>
     </div>
   );
 }
@@ -350,7 +438,7 @@ export interface IncontroSceneProps {
   username?: string;
   /** Player's current rating for the fallback primo-colpo phrase. Not stored in profiles: pass only when available from Chess.com API. */
   currentRating?: number;
-  /** Time class label (rapid/blitz/bullet) for the fallback primo-colpo phrase. */
+  /** Time class label (rapid/blitz) for the fallback primo-colpo phrase. */
   tcLabel?: string;
 }
 
@@ -362,19 +450,22 @@ export interface IncontroSceneProps {
 function getPattoLines(): string[] {
   return [
     tr(
-      "Ogni mattina prendo una tua partita vera e la guardo bene.",
-      "Every morning I take one of your real games and look at it carefully.",
+      `Guardo fino a ${FREE_GAME_CAP} partite della cadenza scelta, partendo dalle piu' recenti.`,
+      `I review up to ${FREE_GAME_CAP} games from the selected time control, starting with the most recent.`,
     ),
     tr(
-      "Non tutta: trovo il momento che conta davvero, e te lo mostro.",
-      "Not the whole thing. I find the moment that matters, and I show you.",
+      `Dopo le prime ${FIRST_BATCH_SIZE} ti do una lettura provvisoria: non devi aspettare tutto il profilo.`,
+      `After the first ${FIRST_BATCH_SIZE}, you get a provisional reading: you do not have to wait for the full profile.`,
     ),
     tr(
-      "Poi giochiamo insieme, contro uno del tuo livello.",
-      "Then we play together, against someone at your level.",
+      "Incrocio posizione, tempo speso e tempo rimasto per trovare i pattern che ritornano.",
+      "I combine position, time spent, and time remaining to find recurring patterns.",
     ),
-    tr("Un quarto d'ora. Poi vai.", "Fifteen minutes. Then you go."),
-    tr("Torna domani, e ricominciamo.", "Come back tomorrow, and we start again."),
+    tr(
+      "Stockfish verifica la posizione. Maia confronta il tuo livello con quello che vuoi raggiungere.",
+      "Stockfish checks the position. Maia compares your level with the one you want to reach.",
+    ),
+    tr("Poi scegliamo una priorita' e la alleniamo.", "Then we choose one priority and train it."),
   ];
 }
 
@@ -439,6 +530,12 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, ta
 
   const phase = progress?.phase ?? "pending";
   const voiceKey = pattoShown ? `${phase}-${slideIndex}` : "patto";
+  const initialTotal =
+    progress && progress.gamesTotal > 0
+      ? Math.min(FIRST_BATCH_SIZE, progress.gamesTotal)
+      : FIRST_BATCH_SIZE;
+  const initialDone = Math.min(progress?.gamesAnalyzed ?? 0, initialTotal);
+  const etaSeconds = useInitialAnalysisEta(phase, initialDone, initialTotal);
 
   // Trigger Patto on first render (one-shot): fade in immediately, then after
   // PATTO_DURATION mark it done so TEACH_SLIDES can start. If readyBrief
@@ -488,10 +585,14 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, ta
 
   // Calcolo progresso per il pendolo
   const ratio =
-    progress && progress.gamesTotal > 0
-      ? Math.min(1, progress.gamesDone / Math.max(1, progress.gamesTotal))
+    phase === "analyzing" && readyBrief === undefined
+      ? Math.min(1, initialDone / Math.max(1, initialTotal))
+      : phase === "coaching" && progress && progress.gamesTotal > 0
+      ? Math.min(1, progress.gamesAnalyzed / Math.max(1, progress.gamesTotal))
       : phase === "ingesting" && progress && progress.monthsTotal > 0
       ? progress.monthsDone / progress.monthsTotal
+      : phase === "ingesting" && progress && progress.gamesTotal > 0
+      ? Math.min(1, progress.gamesDone / Math.max(1, progress.gamesTotal))
       : 0;
   const pct = Math.round(ratio * 100);
 
@@ -638,6 +739,32 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, ta
               <div style={{ marginTop: "0.25rem" }}>
                 <ProgressThread phase={phase} pct={pct} />
 
+                {(phase === "analyzing" || phase === "coaching") && (
+                  <div
+                    style={{
+                      marginTop: "0.65rem",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "0.75rem",
+                      flexWrap: "wrap",
+                      fontFamily: "var(--font-mono, JetBrains Mono, monospace)",
+                      fontSize: "0.7rem",
+                      color: "var(--color-muted)",
+                    }}
+                  >
+                    <span>
+                      {tr("Prima lettura · analisi riuscite", "First reading · successful analyses")}: {initialDone}/{initialTotal}
+                    </span>
+                    {phase === "analyzing" && (
+                      <span>
+                        {tr("Stima", "Estimate")}: {etaSeconds != null
+                          ? formatEta(etaSeconds)
+                          : tr("calcolo in corso", "calculating")}
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {/* Info tecnica minimal */}
                 {phase === "ingesting" && progress && progress.monthsTotal > 0 && (
                   <p
@@ -677,12 +804,12 @@ export function IncontroScene({ progress, readyBrief, error, onEnter, onExit, ta
                 >
                   {phase === "analyzing"
                     ? tr(
-                        "Comincio dalle tue ultime dieci partite e vado indietro nel tempo. Stockfish gira nel tuo browser: non chiudere la pagina, ci vuole qualche minuto.",
-                        "Starting from your last ten games and going back in time. Stockfish runs in your browser: do not close the page, it takes a few minutes.",
+                        `Stockfish gira sul tuo dispositivo. Puoi muoverti dentro l'app; se chiudi la scheda, al prossimo accesso ripartiamo dal punto salvato. Dopo questa lettura iniziale il profilo continua fino a ${FREE_GAME_CAP} partite della cadenza scelta.`,
+                        `Stockfish runs on your device. You can move around the app; if you close the tab, next time we resume from the saved point. After this first reading, your profile continues up to ${FREE_GAME_CAP} games from the selected time control.`,
                       )
                     : tr(
-                        "La prima volta ci vuole un po' piu' di tempo. Dopo va piu' veloce.",
-                        "The first time takes a little longer. After that it is faster.",
+                        `Sto trasformando le prime ${FIRST_BATCH_SIZE} partite in una lettura provvisoria. Il resto continuera' in background.`,
+                        `Turning the first ${FIRST_BATCH_SIZE} games into a provisional reading. The rest will continue in the background.`,
                       )}
                 </p>
               )}

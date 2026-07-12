@@ -1,4 +1,5 @@
 import type { BlindSpot } from "../types";
+import { tr } from "../i18n/lang";
 
 const MOTIF_COLOR: Record<string, string> = {
   allowed_mate: "#f43f5e",
@@ -65,7 +66,7 @@ export function BlindSpotsList({ blind_spots }: { blind_spots: BlindSpot[] }) {
                 />
               </div>
               <div className="text-xs text-[color:var(--color-muted)] mt-2 ml-9 font-mono">
-                {b.n} errori gravi - {b.avoidable_count} evitabili alla tua forza - perdita media {b.avg_cp_loss} cp
+                {b.n} {tr("errori osservati", "observed errors")} · {tr("perdita media", "average loss")} {b.avg_cp_loss} cp
               </div>
             </div>
           );

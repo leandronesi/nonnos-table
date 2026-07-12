@@ -1,7 +1,7 @@
 /**
  * SecondaBattutaPopup — seconda battuta di Nonno al completamento del background.
  *
- * Appare quando backgroundDone === true (coaching su 100 partite completato).
+ * Appare quando backgroundDone === true (coaching sul corpus riuscito completato).
  * Mostra un unico pannello centrato con la voce di Nonno e una CTA che lo chiude.
  * NON naviga, NON reloada. Risiede come sibling di <Routes> in App.tsx.
  *
@@ -21,8 +21,8 @@ interface CoachBrief {
 
 function getFallbackText(): string {
   return tr(
-    "Ho guardato anche il resto. C'e' un'altra cosa che voglio dirti, quando sei pronto a sederti.",
-    "I looked at the rest. There is something else I want to tell you, when you are ready to sit down.",
+    "Il profilo e' aggiornato con le analisi riuscite. Quando vuoi, trovi la nuova lettura al Tavolo.",
+    "Your profile is updated with the successful analyses. The new reading is waiting at the Table whenever you are ready.",
   );
 }
 
@@ -35,17 +35,21 @@ export function SecondaBattutaPopup() {
   const [text, setText] = useState<string>(() => getFallbackText());
   const ctaRef = useRef<HTMLButtonElement>(null);
 
-  // Carica il coach_brief aggiornato (100 partite) per il voice_message.
+  // Carica il coach_brief aggiornato con le analisi riuscite per il voice_message.
   useEffect(() => {
     if (!backgroundDone || !user) return;
     let cancelled = false;
     (async () => {
-      const brief = await downloadJson<CoachBrief>(
-        quadernoPath(user.id, "coach_brief.json")
-      );
-      if (cancelled) return;
-      const msg = brief?.voice_message?.trim();
-      if (msg) setText(msg);
+      try {
+        const brief = await downloadJson<CoachBrief>(
+          quadernoPath(user.id, "coach_brief.json")
+        );
+        if (cancelled) return;
+        const msg = brief?.voice_message?.trim();
+        if (msg) setText(msg);
+      } catch {
+        // The deterministic completion copy remains visible.
+      }
     })();
     return () => {
       cancelled = true;
@@ -65,6 +69,15 @@ export function SecondaBattutaPopup() {
     if (visible && !dismissed) {
       ctaRef.current?.focus();
     }
+  }, [visible, dismissed]);
+
+  useEffect(() => {
+    if (!visible || dismissed) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDismissed(true);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [visible, dismissed]);
 
   if (!backgroundDone || dismissed) return null;
@@ -113,7 +126,7 @@ export function SecondaBattutaPopup() {
             letterSpacing: "0.08em",
           }}
         >
-          {tr("Nonno ha finito di guardare", "Nonno is done.")}
+          {tr("Profilo aggiornato", "Profile updated")}
         </div>
 
         {/* Testo voce di Nonno */}

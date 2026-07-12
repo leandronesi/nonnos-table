@@ -271,9 +271,9 @@ max_frequency = "5s"
 # inactivity_timeout = "8h"
 
 # This hook runs before a new user is created and allows developers to reject the request based on the incoming user object.
-# [auth.hook.before_user_created]
-# enabled = true
-# uri = "pg-functions://postgres/auth/before-user-created-hook"
+[auth.hook.before_user_created]
+enabled = true
+uri = "pg-functions://postgres/public/hook_validate_invite_code"
 
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
 # [auth.hook.custom_access_token]
@@ -406,3 +406,13 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# Pre-auth acquisition events are public by design, then validated, allowlisted
+# and rate-limited inside the function before a service-role RPC.
+[functions.telemetry]
+verify_jwt = false
+
+# Destructive/export actions require a verified user JWT at the gateway and are
+# verified again inside the handler. The body never selects a user id.
+[functions.account-data]
+verify_jwt = true

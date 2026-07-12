@@ -15,7 +15,25 @@ import { supabase } from "../auth/supabaseClient";
 import { downloadJson, uploadJson, analysisPath, quadernoPath } from "../auth/storage";
 import type { GameAnalysis } from "./analyze";
 import { getMaiaEngine } from "./maia/maiaEngine";
-import { FREE_GAME_CAP, MAX_COACH_EXAMPLES, CADUTE_LIMIT, CADUTE_MAIA_CAP, ANALYZED_TIME_CLASSES } from "./config";
+import {
+  MAIA_POLICY_SEMANTICS,
+  assessMaiaDomain,
+  classifyMaiaPriority,
+  scoreMaiaPolicies,
+  summarizeMaiaCoverage,
+} from "./maia/policySemantics";
+import type {
+  MaiaCoverage,
+  MaiaDomainAssessment,
+  MaiaDomainReason,
+  MaiaDomainStatus,
+  MaiaPolicyMetrics,
+  MaiaPositionOutcome,
+  MaiaReasonCode,
+} from "./maia/policySemantics";
+import type { ErrorEvidence, ErrorSignal } from "./errorSemantics";
+import { FREE_GAME_CAP, MAX_COACH_EXAMPLES, CADUTE_LIMIT, CADUTE_MAIA_CAP } from "./config";
+import type { AnalyzedTimeClass } from "./config";
 import type { AnchorTrendNow, TransferAggregates, TransferMotifStat, TransferMotifType, MotifOccurrence } from "../types";
 
 export interface PhaseAgg {
@@ -50,24 +68,37 @@ export interface ColorAgg {
 
 /** Una mossa-esempio concreta (mossa peggiore) per il coach LLM. */
 export interface PositionExample {
+  /** Chess.com UUID reale della partita sorgente. */
+  source_game_id: string;
+  /** Identita' stabile della decisione, indipendente dall'ordinamento UI. */
+  position_id: string;
   played_at?: string;
+  time_class?: string;
   color: "white" | "black";
   phase: string;
   ply: number;
   san: string;
   played_uci: string;
   best_uci: string | null;
+  /** Set accettabile OSSERVATO nelle linee MultiPV (best inclusa). */
+  acceptable_observed_uci?: string[];
+  /** Numero di linee MultiPV disponibili al momento dell'analisi. */
+  acceptable_set_multipv?: number;
+  /** Sempre false finche' non enumeriamo tutte le mosse legali con Stockfish. */
+  acceptable_moves_complete?: boolean;
   cp_loss: number;
+  score_before_cp: number;
+  score_after_cp: number;
   fen_before: string;
   category: "blunder" | "mistake";
   /** Motif tattico v1 (es. "pezzo_in_presa"). null se non rilevato. */
   motif?: string | null;
   /**
-   * Difficolta' della posizione (0..1).
-   * Se Maia disponibile: 1 - p_maia_target_top (vera Maia, sovrascrive proxy Stockfish).
-   * Altrimenti: proxy Stockfish (gap linee). null se non calcolabile.
+   * @deprecated Alias legacy di stockfish_choice_gap. Non viene sovrascritto da Maia.
    */
   move_difficulty?: number | null;
+  /** Gap normalizzato best-second Stockfish (0..1), dalle linee MultiPV osservate. */
+  stockfish_choice_gap?: number | null;
   /** Ultima mossa dell'avversario immediatamente prima di questa mossa del player. */
   last_opp_from?: string | null;
   last_opp_to?: string | null;
@@ -78,6 +109,10 @@ export interface PositionExample {
   eco?: string | null;
   // Campi aggiunti dalla parametrizzazione errori (B3).
   error_type?: string | null;
+  error_signals?: ErrorSignal[];
+  error_evidence?: ErrorEvidence | null;
+  legacy_error_type?: string | null;
+  trainability_weight?: number | null;
   blame_weight?: number | null;
   state_before?: string | null;
   time_state?: string | null;
@@ -87,26 +122,47 @@ export interface PositionExample {
   /** URL Chess.com della partita (es. "https://www.chess.com/game/live/12345"). null se assente. */
   game_url?: string | null;
   // ── Campi Maia (popolati solo se engine disponibile) ──────────────────────
-  /** Prob che Maia@mio livello giochi la mossa Stockfish-best. */
+  /** @deprecated Massa policy raw della sola best Stockfish; non e' una frequenza umana. */
   p_mine_plays_best_sf?: number | null;
-  /** Prob che Maia@target giochi la mossa Stockfish-best. */
+  /** @deprecated Massa policy raw della sola best Stockfish; non e' una frequenza umana. */
   p_target_plays_best_sf?: number | null;
-  /** Top-policy del mio livello (quanto "ovvia" e' la posizione per me). */
+  /** Top-policy raw del mio livello; contesto, non frequenza umana calibrata. */
   p_maia_mine_top?: number | null;
-  /** Top-policy del target (quanto "ovvia" e' per chi voglio diventare). */
+  /** Top-policy raw del target; contesto, non frequenza umana calibrata. */
   p_maia_target_top?: number | null;
+  /** Massa policy raw assegnata alla mossa realmente giocata. */
+  maia_mine_played_policy?: number | null;
+  maia_target_played_policy?: number | null;
+  /** Massa policy raw sommata su tutte le mosse accettabili. */
+  maia_mine_acceptable_observed_policy?: number | null;
+  maia_target_acceptable_observed_policy?: number | null;
+  /** 1 - massa target osservata; separata dal gap Stockfish. */
+  maia_target_acceptable_observed_difficulty?: number | null;
+  /** Stato esplicito: uno 0 reale non viene confuso con Maia non eseguita. */
+  maia_status?: MaiaPositionOutcome["status"];
+  maia_reason_code?: MaiaReasonCode;
+  maia_policy_semantics?: typeof MAIA_POLICY_SEMANTICS;
+  maia_domain_status?: MaiaDomainStatus;
+  maia_domain_reason?: MaiaDomainReason;
+  /** Supporto della policy al livello corrente: unica semantica di avoidable. */
+  avoidable_at_current?: boolean | null;
+  /** La policy target supporta le mosse buone piu' di quella corrente. */
+  target_relevant?: boolean | null;
+  /** Posizione utile al training (current-supported o target-relevant, fuori guard). */
+  trainable?: boolean | null;
+  /** Peso non-negativo: supporto current + lift positivo target, capped a 1. */
+  training_priority_weight?: number | null;
   /**
-   * drill_value = p_target_plays_best_sf - p_mine_plays_best_sf.
-   * Il "money": il target la trova, tu no.
+   * drill_value = target - mine sulla massa delle mosse accettabili.
+   * E' un confronto relativo di policy, non una percentuale di umani.
    */
   drill_value?: number | null;
   /**
-   * 3=money / 2=avoidable / 1=critico raw / 0=skip.
-   * 0 se move_difficulty < 0.15 OPPURE opening (ply <= 16) OPPURE p_target < 0.5.
+   * 3=forte lift target / 2=supporto current o target / 1=segnale debole / 0=skip.
    * null se Maia non disponibile.
    */
   priority_score?: number | null;
-  /** True se priority_score >= 2 (posizione su cui vale la pena esercitarsi). */
+  /** @deprecated Alias di avoidable_at_current, non di priority_score >= 2. */
   avoidable?: boolean | null;
 }
 
@@ -121,27 +177,35 @@ export interface PositionExample {
 export interface MaiaWeighted {
   /** Quante mosse-errore hanno ricevuto lo scoring Maia. */
   errors_scored: number;
-  /**
-   * Mosse con avoidable===true (priority_score>=2): le trovavi al tuo livello,
-   * sono i tuoi veri freni.
-   */
+  /** Mosse con supporto della policy al livello corrente. */
   avoidable: number;
-  /**
-   * Mosse con p_target_plays_best_sf < 0.5: nemmeno il target le avrebbe
-   * trovate. Non e' colpa tua — e' il prossimo gradino.
-   */
+  /** Posizioni scored dove il dominio consente il claim current-avoidable. */
+  avoidable_at_current_known_positions: number;
+  /** Posizioni pertinenti al target, anche se non evitabili al livello corrente. */
+  target_relevant: number;
+  /** Posizioni marcate trainable dal ranking Maia. */
+  trainable: number;
+  /** @deprecated Conteggio reason_code=target_policy_weak; non significa "inevitabile". */
   unavoidable: number;
-  /** Media di p_mine_plays_best_sf * 100 sulle posizioni con Maia (0..100). */
+  /** @deprecated Alias della massa mine osservata; non e' una frequenza umana. */
   mine_pct: number;
-  /** Media di p_target_plays_best_sf * 100 sulle posizioni con Maia (0..100). */
+  /** @deprecated Alias della massa target osservata; non e' una frequenza umana. */
   target_pct: number;
-  /**
-   * target_pct - mine_pct: il divario col target.
-   * Positivo = il target trova la mossa piu' spesso di te.
-   */
+  /** Medie esplicite delle masse policy sulle mosse accettabili (0..100). */
+  mine_acceptable_observed_policy_pct: number;
+  target_acceptable_observed_policy_pct: number;
+  /** Medie delle masse policy assegnate alla mossa giocata (0..100). */
+  mine_played_policy_pct: number;
+  target_played_policy_pct: number;
+  /** Dichiarazione machine-readable: questi valori non sono frequenze calibrate. */
+  policy_semantics: typeof MAIA_POLICY_SEMANTICS;
+  /** @deprecated Delta in punti di massa policy osservata, non frequenza. */
   gap_pct: number;
   /** avoidable / errors_scored (0..1). Frazione di errori su cui vale lavorare. */
   avoidable_share: number;
+  avoidable_at_current_share: number | null;
+  target_relevant_share: number;
+  trainable_share: number;
   /**
    * Per fase ("apertura"/"mediogioco"/"finale") -> { errors, avoidable }.
    * Usa le etichette italiane come in PositionExample.phase.
@@ -151,9 +215,8 @@ export interface MaiaWeighted {
    * Cross "tempo speso x evitabilita'": distribuisce gli errori-con-Maia per
    * bucket di spent_seconds e mostra quanti erano avoidable in ciascun bucket.
    *
-   * Tesi (PRODUCT_VISION §2): errori in fretta su mosse evitabili sono il
-   * problema reale; errori dopo lunga riflessione su mosse difficili non sono
-   * colpa tua.
+   * Descrive la co-occorrenza fra tempo speso e supporto current; non attribuisce
+   * al tempo la causa dell'errore.
    *
    * Solo le mosse con priority_score != null E spent_seconds != null entrano
    * nel calcolo. Bucket vuoti vengono omessi (array puo' essere vuoto).
@@ -178,35 +241,31 @@ export interface Anchor {
   category: "tattica" | "timing" | "tecnica" | "comportamento";
   count: number;
   /**
-   * Number of errors in this anchor where priority_score >= 2 (Maia-avoidable).
+   * Number of errors supported by Maia at the current level (avoidable_at_current).
    * 0 if Maia did not run (all priority_score null).
    * Subset of `count` — does NOT replace it.
    */
   count_avoidable: number;
   share_of_errors: number;
+  /** Quota dello score pesato totale fra le ancore (0..1), non punti Elo. */
+  relative_priority: number;
   games_with: number;
   avg_cp_loss: number;
   /**
-   * Stima grezza dei punti ELO recuperabili = round(share_of_errors * 100),
-   * cappata a [0..60]. null se non stimabile.
+   * @deprecated Campo legacy. Sempre null: non esiste un modello Elo validato.
    */
   rating_upside: number | null;
   /**
-   * Punteggio ordinamento: se Maia disponibile, Σ(drill_value * impact);
+   * Punteggio ordinamento: se Maia disponibile, training_priority_weight * impact;
    * altrimenti Σ(blameWeight * cp_loss). Escluse posizioni priority_score 0.
    */
   weighted_score: number;
-  /**
-   * Media di p_maia_mine_top sugli exemplar di questa ancora dove Maia ha girato.
-   * Proxy di "quanto ovvia" e' questa ancora per il tuo livello.
-   * null se Maia non ha girato per nessun errore di questa ancora.
-   */
+  /** @deprecated Alias della massa observed current, non frequenza. */
   mine_pct: number | null;
-  /**
-   * Media di p_maia_target_top sugli exemplar di questa ancora dove Maia ha girato.
-   * null se Maia non ha girato per nessun errore di questa ancora.
-   */
+  /** @deprecated Alias della massa observed target, non frequenza. */
   target_pct: number | null;
+  mine_acceptable_observed_policy_pct: number | null;
+  target_acceptable_observed_policy_pct: number | null;
   exemplars: PositionExample[];
   /**
    * Trend finestrato immediato (§2.1 BUILD.md).
@@ -222,8 +281,9 @@ export type Weakness = Anchor;
 /**
  * Riga del Repertorio: statistiche di una apertura specifica per colore.
  *
- * Tesi ("difficolta' e' la moneta"): la colonna guida e' `avoidable`, cioe'
- * i punti persi su errori che Maia dice che al tuo livello potevi evitare.
+ * La colonna guida legacy e' `avoidable`: conta gli errori in cui la policy
+ * corrente assegna massa sufficiente alle mosse buone osservate. E' una soglia
+ * euristica su policy raw, non la prova che il giocatore avrebbe evitato l'errore.
  * win_rate e' presente ma NON usato come metrica principale (rumore su Unknown).
  *
  * `recognized` = false raggruppa le aperture senza nome/ECO in un'unica riga
@@ -245,7 +305,8 @@ export interface RepertoireRow {
   /** Totale errori (blunder+mistake) dalle mosse-errore di questo gruppo. */
   errors: number;
   /**
-   * Errori con avoidable===true (Maia: al tuo livello potevi evitarli).
+   * Errori con avoidable_at_current===true secondo la soglia policy esplicita.
+   * Il nome e' legacy: il valore non e' una frequenza umana calibrata.
    * 0 se Maia non ha girato (graceful: lettori non devono null-check).
    */
   avoidable: number;
@@ -258,6 +319,12 @@ export interface RepertoireRow {
 
 export interface Aggregates {
   generated_at: string;
+  /** Scope effettivo della lettura; assente solo nei vecchi snapshot. */
+  analysis_scope?: {
+    time_class: AnalyzedTimeClass;
+    game_cap: number;
+    games_analyzed: number;
+  };
   games_analyzed: number;
   player_moves_total: number;
   blunder_pct: number;
@@ -279,6 +346,8 @@ export interface Aggregates {
    * devono sempre fare il null-check prima di usare questo campo.
    */
   maia_weighted?: MaiaWeighted | null;
+  /** Copertura e motivi dei fallback Maia su tutte le mosse-errore eleggibili. */
+  maia_coverage?: MaiaCoverage;
   /**
    * Repertorio aperture: top ~10 riconosciute ordinate per avoidable desc,
    * poi errors desc, poi games desc. Le non-riconosciute sono separate (in coda,
@@ -329,46 +398,76 @@ function phaseIt(phase: string): string {
 
 /** Metadati italiani per ogni tipo di errore. Testi in chiave AVANTI (upside). */
 export const WEAKNESS_META: Record<string, Pick<Anchor, "label_it" | "meaning_it" | "action_it" | "category">> = {
+  left_winning_band: {
+    label_it: "Uscita dalla fascia winning",
+    meaning_it: "La valutazione era sopra la soglia winning ed e' scesa sotto quella soglia; puo' restare comunque positiva.",
+    action_it: "Rivedi quali semplificazioni o controlli mantenevano il vantaggio.",
+    category: "tecnica",
+  },
+  clock_pressure: {
+    label_it: "Errore con poco tempo",
+    meaning_it: "L'errore e' avvenuto sotto la soglia di pressione del clock; il dato descrive il contesto, non la causa.",
+    action_it: "Osserva dove hai consumato il tempo prima di questa posizione.",
+    category: "timing",
+  },
+  fast_decision: {
+    label_it: "Decisione rapida",
+    meaning_it: "La mossa-errore e' stata giocata in tre secondi o meno; non sappiamo dal solo clock se la velocita' l'abbia causata.",
+    action_it: "Ripeti la posizione senza fretta e confronta il processo decisionale.",
+    category: "timing",
+  },
+  narrow_choice_after_long_think: {
+    label_it: "Scelta stretta dopo riflessione",
+    meaning_it: "Hai riflettuto a lungo e le linee MultiPV osservate avevano un divario netto; non implica da solo una tattica mancata.",
+    action_it: "Ricostruisci candidate e varianti considerate durante la partita.",
+    category: "tattica",
+  },
+  unclassified_error: {
+    label_it: "Errore da classificare",
+    meaning_it: "La perdita e' reale, ma i segnali disponibili non sostengono una causa piu' specifica.",
+    action_it: "Rivedi la posizione e annota cosa avevi calcolato prima di muovere.",
+    category: "comportamento",
+  },
   careless: {
-    label_it: "Disattenzione",
-    meaning_it: "Errori in posizioni non difficili dove avevi tempo e la mossa non era complicata. Se molli questa ancora guadagni punti sulle partite facili.",
-    action_it: "Prima di muovere, un controllo veloce: cosa minaccia l'avversario.",
+    label_it: "Errore non classificato (storico)",
+    meaning_it: "Categoria legacy usata quando mancava una spiegazione supportata; non prova una disattenzione.",
+    action_it: "Rianalizza la posizione con la nuova tassonomia fattuale.",
     category: "tattica",
   },
   hung_piece: {
     label_it: "Pezzi in presa",
-    meaning_it: "Lasci pezzi catturabili gratis. Se smetti di regalare materiale sali di rating direttamente.",
+    meaning_it: "Dopo la mossa il rilevatore geometrico trova un pezzo catturabile senza ricattura immediata.",
     action_it: "Controlla sempre le catture dell'avversario prima di muovere.",
     category: "tattica",
   },
   rushed: {
-    label_it: "Mosse impulsive",
-    meaning_it: "Muovi troppo in fretta in momenti che chiedono calcolo. Rallentare nei critici vale punti concreti.",
-    action_it: "Datti qualche secondo in piu' sui momenti critici.",
+    label_it: "Decisione rapida (storico)",
+    meaning_it: "Categoria legacy basata sul tempo speso; la velocita' da sola non dimostra la causa dell'errore.",
+    action_it: "Confronta la stessa posizione con e senza limite di tempo.",
     category: "timing",
   },
   conversion: {
-    label_it: "Vittorie buttate",
-    meaning_it: "Eri in vantaggio e hai lasciato sfuggire la partita. Imparare a chiudere e' il salto di qualita' piu' diretto.",
-    action_it: "Quando sei avanti semplifica e gioca solido.",
+    label_it: "Vantaggio prima dell'errore (storico)",
+    meaning_it: "Categoria legacy: indicava solo che eri sopra +1.5 prima della mossa, non che il vantaggio fosse davvero perso.",
+    action_it: "Verifica se la valutazione e' uscita dalla fascia di vantaggio.",
     category: "tecnica",
   },
   zeitnot: {
-    label_it: "Crolli in zeitnot",
-    meaning_it: "Sbagli quando il tempo sta per finire. Gestire meglio l'orologio ti porta a convertire queste partite.",
-    action_it: "Gestisci meglio l'orologio nelle fasi iniziali.",
+    label_it: "Errore con poco tempo (storico)",
+    meaning_it: "Categoria legacy per errori sotto la soglia clock; descrive il contesto, non una causa.",
+    action_it: "Ricostruisci dove e' stato speso il tempo nella partita.",
     category: "timing",
   },
   missed_tactic: {
-    label_it: "Tattiche mancate",
-    meaning_it: "Posizioni acute con una mossa precisa che hai mancato. Riconoscere i pattern tattici e' il tuo prossimo gradino.",
-    action_it: "Allena i pattern tattici ricorrenti.",
+    label_it: "Divario MultiPV (storico)",
+    meaning_it: "Categoria legacy inferita dal divario fra due linee; quel dato da solo non prova una tattica mancata.",
+    action_it: "Cerca un motivo tattico verificabile prima di assegnare un tema.",
     category: "tattica",
   },
   hard_calc: {
-    label_it: "Calcolo al limite",
-    meaning_it: "Posizioni difficili dove ci hai pensato ma non l'hai trovata: e' il tuo prossimo gradino di crescita.",
-    action_it: "Esercizi di calcolo piu' profondo.",
+    label_it: "Scelta stretta dopo riflessione (storico)",
+    meaning_it: "Categoria legacy basata su tempo lungo e divario MultiPV; non identifica da sola la causa.",
+    action_it: "Annota candidate e linee realmente calcolate.",
     category: "tattica",
   },
 };
@@ -377,23 +476,36 @@ export const WEAKNESS_META: Record<string, Pick<Anchor, "label_it" | "meaning_it
 
 const MAIA_CHUNK_SIZE = 24;
 
-interface MaiaFields {
-  p_mine_plays_best_sf: number;
-  p_target_plays_best_sf: number;
-  p_maia_mine_top: number;
-  p_maia_target_top: number;
-  move_difficulty: number;
-  drill_value: number;
-  priority_score: number;
-  avoidable: boolean;
-}
+type MaiaFields =
+  | (MaiaPolicyMetrics & {
+      status: "scored";
+      reason_code: MaiaReasonCode;
+      priority_score: number;
+      avoidable_at_current: boolean | null;
+      target_relevant: boolean;
+      trainable: boolean;
+      training_priority_weight: number;
+    })
+  | {
+      status: "skipped" | "unavailable";
+      reason_code: "missing_acceptable_moves" | "model_unavailable";
+    };
 
 /**
  * Runs Maia on a list of error positions and returns MaiaFields per index.
  * Returns null map on any failure — callers must handle gracefully.
  */
 async function enrichWithMaia(
-  positions: Array<{ fen_before: string; best_uci: string | null; phase: string; ply: number }>,
+  positions: Array<{
+    fen_before: string;
+    played_uci: string;
+    best_uci: string | null;
+    acceptable_observed_uci: string[];
+    clock_remaining: number | null;
+    time_class: string;
+    phase: string;
+    ply: number;
+  }>,
   currentRating: number,
   targetRating: number,
 ): Promise<Map<number, MaiaFields>> {
@@ -408,20 +520,16 @@ async function enrichWithMaia(
     const fens: string[] = [];
     const eloSelfs: number[] = [];
     const eloOppos: number[] = [];
-    const indexMap: number[] = []; // maps combined-batch index back to position index
-
     for (let i = 0; i < positions.length; i++) {
       const fen = positions[i].fen_before;
       // mine: eloSelf = eloOppo = currentRating
       fens.push(fen);
       eloSelfs.push(currentRating);
       eloOppos.push(currentRating);
-      indexMap.push(i);
       // target: eloSelf = eloOppo = targetRating
       fens.push(fen);
       eloSelfs.push(targetRating);
       eloOppos.push(targetRating);
-      indexMap.push(i);
     }
 
     // Process in chunks to avoid huge single ONNX batch.
@@ -442,56 +550,46 @@ async function enrichWithMaia(
     for (let i = 0; i < positions.length; i++) {
       const mineResult = allResults[i * 2];
       const targetResult = allResults[i * 2 + 1];
-      if (!mineResult || !targetResult) continue;
-
-      const bestUci = positions[i].best_uci;
-      const policyMine = mineResult.policy;
-      const policyTarget = targetResult.policy;
-
-      const p_mine_plays_best_sf = bestUci != null ? (policyMine[bestUci] ?? 0) : 0;
-      const p_target_plays_best_sf = bestUci != null ? (policyTarget[bestUci] ?? 0) : 0;
-
-      const p_maia_mine_top =
-        Object.keys(policyMine).length > 0
-          ? Math.max(...Object.values(policyMine))
-          : 0;
-      const p_maia_target_top =
-        Object.keys(policyTarget).length > 0
-          ? Math.max(...Object.values(policyTarget))
-          : 0;
-
-      // Canonical Maia formulas from docs/MAIA_BROWSER.md.
-      const move_difficulty = 1 - p_maia_target_top;
-      const drill_value = p_target_plays_best_sf - p_mine_plays_best_sf;
-
-      // priority_score: 0 if trivial, no-book, or target also misses.
-      // Opening guard: ply <= 16 (move_number <= 8 counting both sides).
-      const isOpening = positions[i].ply <= 16;
-      let priority_score: number;
-      if (move_difficulty < 0.15 || isOpening || p_target_plays_best_sf < 0.5) {
-        priority_score = 0;
-      } else if (drill_value >= 0.25) {
-        priority_score = 3;
-      } else if (p_mine_plays_best_sf >= 0.5) {
-        priority_score = 2;
-      } else {
-        priority_score = 1;
+      if (!mineResult || !targetResult) {
+        result.set(i, { status: "unavailable", reason_code: "model_unavailable" });
+        continue;
       }
 
+      const policyMine = mineResult.policy;
+      const policyTarget = targetResult.policy;
+      const metrics = scoreMaiaPolicies({
+        policyMine,
+        policyTarget,
+        playedUci: positions[i].played_uci,
+        bestUci: positions[i].best_uci,
+        acceptableObservedUcis: positions[i].acceptable_observed_uci,
+      });
+      if (!metrics) {
+        result.set(i, { status: "skipped", reason_code: "missing_acceptable_moves" });
+        continue;
+      }
+
+      const domain = assessMaiaDomain({
+        timeClass: positions[i].time_class,
+        clockRemaining: positions[i].clock_remaining,
+      });
+      const priority = classifyMaiaPriority(metrics, positions[i].ply, {
+        allowCurrentAvoidable: domain.current_avoidable_claim_allowed,
+      });
       result.set(i, {
-        p_mine_plays_best_sf,
-        p_target_plays_best_sf,
-        p_maia_mine_top,
-        p_maia_target_top,
-        move_difficulty,
-        drill_value,
-        priority_score,
-        avoidable: priority_score >= 2,
+        status: "scored",
+        ...metrics,
+        ...priority,
       });
     }
   } catch (err) {
-    // Graceful: Maia unavailable, return empty map. Callers fall back to Stockfish proxy.
+    // Graceful ma esplicito: ogni posizione selezionata riceve uno status.
     console.warn("[aggregate] Maia enrichment skipped:", err);
+    for (let i = 0; i < positions.length; i++) {
+      if (!result.has(i)) {
+        result.set(i, { status: "unavailable", reason_code: "model_unavailable" });
+      }
+    }
   }
 
   return result;
@@ -587,27 +685,32 @@ function computeTransferAggregates(
  * Computes player aggregates across the last FREE_GAME_CAP analyzed games.
  *
  * @param userId        Supabase user id.
+ * @param goalTimeClass Unica cadenza inclusa (rapid O blitz).
  * @param currentRating Player's current ELO (used for Maia enrichment). null = skip Maia.
  * @param targetRating  Player's target ELO (used for Maia enrichment). Defaults to
  *                      currentRating + 200 if not provided; ignored if currentRating null.
  */
 export async function computeAggregates(
   userId: string,
+  goalTimeClass: AnalyzedTimeClass,
   currentRating: number | null = null,
   targetRating: number = (currentRating ?? 1200) + 200,
+  guardWrite?: () => Promise<void>,
 ): Promise<Aggregates> {
-  // FIX B: filter rapid/blitz IN SQL so the FREE_GAME_CAP quota contains 100
-  // rapid/blitz games, not 100 mixed games (daily/bullet would silently consume
-  // cap slots and halve the analysed volume for mixed-format players).
-  // The in-memory filter below is kept as a redundant safety net.
-  const { data: games } = await supabase
+  // Una sola cadenza per lettura: rating, Maia e gestione tempo devono riferirsi
+  // allo stesso corpus. Il cap viene applicato DOPO l'eq sulla goal_time_class.
+  const { data: games, error: gamesError } = await supabase
     .from("games")
     .select("id,chess_com_uuid,time_class,color,result,analysis_path,analysis_status")
     .eq("user_id", userId)
     .eq("analysis_status", "done")
-    .in("time_class", ANALYZED_TIME_CLASSES)
+    .eq("time_class", goalTimeClass)
     .order("played_at", { ascending: false })
     .limit(FREE_GAME_CAP);
+
+  if (gamesError) {
+    throw new Error(`aggregate_games_select_failed:${gamesError.message}`);
+  }
 
   let movesTotal = 0;
   let blundersTotal = 0;
@@ -667,10 +770,9 @@ export async function computeAggregates(
     const ga = await downloadJson<GameAnalysis>(g.analysis_path);
     if (!ga) continue;
 
-    // Filter: only rapid/blitz contribute to error analysis and anchor scoring.
-    // If time_class is missing/undefined we keep the game (conservative).
-    // Daily games have unusable clock data; bullet produces noisy cp_loss.
-    if (ga.time_class && !ANALYZED_TIME_CLASSES.includes(ga.time_class)) continue;
+    // Defensive check against a stale/mis-addressed analysis blob.
+    if (g.time_class !== goalTimeClass) continue;
+    if (ga.time_class && ga.time_class !== goalTimeClass) continue;
 
     analyzedCount++;
     // Track played_at of every filtered game — used as denominator in trend_now.
@@ -769,26 +871,45 @@ export async function computeAggregates(
     // posizione concreta. Servono al coach per parlare di partite vere.
     for (const mv of ga.moves) {
       if (mv.category === "blunder" || mv.category === "mistake") {
+        const maiaDomain = assessMaiaDomain({
+          timeClass: ga.time_class,
+          clockRemaining: mv.clockRemaining ?? null,
+        });
         exampleCandidates.push({
           gameKey: ga.chess_com_uuid,
+          source_game_id: ga.chess_com_uuid,
+          position_id: `${ga.chess_com_uuid}:${mv.ply}`,
           played_at: ga.played_at,
+          time_class: ga.time_class,
           color: ga.color,
           phase: phaseIt(mv.phase),
           ply: mv.ply,
           san: mv.san,
           played_uci: mv.uci,
           best_uci: mv.bestMoveUci,
+          acceptable_observed_uci:
+            mv.acceptableObservedMoveUcis ?? (mv.bestMoveUci ? [mv.bestMoveUci] : []),
+          acceptable_set_multipv:
+            mv.acceptableSetMultiPv ?? (mv.bestMoveUci ? 1 : 0),
+          acceptable_moves_complete: mv.acceptableMovesComplete ?? false,
           cp_loss: mv.cpLoss,
+          score_before_cp: mv.scoreBeforeCp,
+          score_after_cp: mv.scoreAfterCp,
           fen_before: mv.fenBefore,
           category: mv.category,
           motif: mv.motif ?? null,
-          move_difficulty: mv.moveDifficulty ?? null, // may be overwritten by Maia below
+          move_difficulty: mv.stockfishChoiceGap ?? mv.moveDifficulty ?? null,
+          stockfish_choice_gap: mv.stockfishChoiceGap ?? mv.moveDifficulty ?? null,
           last_opp_from: mv.last_opp_from ?? null,
           last_opp_to: mv.last_opp_to ?? null,
           last_opp_san: mv.last_opp_san ?? null,
           opening: ga.opening ?? null,
           eco: ga.eco ?? null,
           error_type: mv.errorType ?? null,
+          error_signals: mv.errorSignals ?? [],
+          error_evidence: mv.errorEvidence ?? null,
+          legacy_error_type: mv.legacyErrorType ?? null,
+          trainability_weight: mv.trainabilityWeight ?? mv.blameWeight ?? null,
           blame_weight: mv.blameWeight ?? null,
           state_before: mv.stateBefore ?? null,
           time_state: mv.timeState ?? null,
@@ -800,17 +921,41 @@ export async function computeAggregates(
           p_target_plays_best_sf: null,
           p_maia_mine_top: null,
           p_maia_target_top: null,
+          maia_mine_played_policy: null,
+          maia_target_played_policy: null,
+          maia_mine_acceptable_observed_policy: null,
+          maia_target_acceptable_observed_policy: null,
+          maia_target_acceptable_observed_difficulty: null,
           drill_value: null,
           priority_score: null,
           avoidable: null,
+          avoidable_at_current: null,
+          target_relevant: null,
+          trainable: null,
+          training_priority_weight: null,
+          maia_policy_semantics: MAIA_POLICY_SEMANTICS,
+          maia_domain_status: maiaDomain.status,
+          maia_domain_reason: maiaDomain.reason,
         });
       }
     }
   }
 
+  if (analyzedCount === 0) {
+    throw new Error(
+      (games?.length ?? 0) > 0
+        ? "aggregate_no_valid_analysis_json"
+        : "aggregate_no_analyzed_games",
+    );
+  }
+
   // ── Maia enrichment ─────────────────────────────────────────────────────────
   // Cap to worst CADUTE_MAIA_CAP by cp_loss, then enrich, then write back.
   const maiaEnabled = currentRating != null && currentRating > 0;
+  for (const candidate of exampleCandidates) {
+    candidate.maia_status = maiaEnabled ? "not_scored" : "not_requested";
+    candidate.maia_reason_code = maiaEnabled ? "outside_scoring_cap" : "rating_missing";
+  }
   if (maiaEnabled && exampleCandidates.length > 0) {
     // Sort by cp_loss desc to find the worst positions.
     const sorted = [...exampleCandidates]
@@ -820,7 +965,11 @@ export async function computeAggregates(
 
     const positionsForMaia = sorted.map((s) => ({
       fen_before: exampleCandidates[s.idx].fen_before,
+      played_uci: exampleCandidates[s.idx].played_uci,
       best_uci: exampleCandidates[s.idx].best_uci,
+      acceptable_observed_uci: exampleCandidates[s.idx].acceptable_observed_uci ?? [],
+      clock_remaining: exampleCandidates[s.idx].clock_remaining ?? null,
+      time_class: exampleCandidates[s.idx].time_class ?? "unknown",
       phase: exampleCandidates[s.idx].phase,
       ply: exampleCandidates[s.idx].ply,
     }));
@@ -831,48 +980,87 @@ export async function computeAggregates(
     // Write Maia fields back to the original candidates.
     for (let j = 0; j < sorted.length; j++) {
       const fields = maiaMap.get(j);
-      if (!fields) continue;
       const candidate = exampleCandidates[sorted[j].idx];
+      if (!fields) {
+        candidate.maia_status = "unavailable";
+        candidate.maia_reason_code = "model_unavailable";
+        continue;
+      }
+      candidate.maia_status = fields.status;
+      candidate.maia_reason_code = fields.reason_code;
+      if (fields.status !== "scored") continue;
+
       candidate.p_mine_plays_best_sf = fields.p_mine_plays_best_sf;
       candidate.p_target_plays_best_sf = fields.p_target_plays_best_sf;
       candidate.p_maia_mine_top = fields.p_maia_mine_top;
       candidate.p_maia_target_top = fields.p_maia_target_top;
-      // Overwrite Stockfish proxy with true Maia difficulty.
-      candidate.move_difficulty = fields.move_difficulty;
+      candidate.maia_mine_played_policy = fields.maia_mine_played_policy;
+      candidate.maia_target_played_policy = fields.maia_target_played_policy;
+      candidate.maia_mine_acceptable_observed_policy =
+        fields.maia_mine_acceptable_observed_policy;
+      candidate.maia_target_acceptable_observed_policy =
+        fields.maia_target_acceptable_observed_policy;
+      candidate.maia_target_acceptable_observed_difficulty =
+        fields.maia_target_acceptable_observed_difficulty;
       candidate.drill_value = fields.drill_value;
       candidate.priority_score = fields.priority_score;
-      candidate.avoidable = fields.avoidable;
+      candidate.avoidable_at_current = fields.avoidable_at_current;
+      candidate.target_relevant = fields.target_relevant;
+      candidate.trainable = fields.trainable;
+      candidate.training_priority_weight = fields.training_priority_weight;
+      candidate.avoidable = fields.avoidable_at_current;
     }
   }
 
   // ── MaiaWeighted aggregates ──────────────────────────────────────────────────
   // Computed on all error candidates that have priority_score != null (Maia ran).
+  const maiaDomains: MaiaDomainAssessment[] = exampleCandidates.map((candidate) =>
+    assessMaiaDomain({
+      timeClass: candidate.time_class ?? "unknown",
+      clockRemaining: candidate.clock_remaining ?? null,
+    }),
+  );
+  const maiaCoverage = summarizeMaiaCoverage(
+    exampleCandidates.map((candidate) => ({
+      status: candidate.maia_status ?? "unavailable",
+      reason_code: candidate.maia_reason_code ?? "model_unavailable",
+    })),
+    maiaEnabled,
+    CADUTE_MAIA_CAP,
+    maiaDomains,
+  );
+
   let maiaWeighted: MaiaWeighted | null = null;
   {
-    const scored = exampleCandidates.filter((c) => c.priority_score != null);
+    const scored = exampleCandidates.filter((c) => c.maia_status === "scored");
     if (scored.length > 0) {
       let avoidableCount = 0;
+      let avoidableKnownCount = 0;
+      let targetRelevantCount = 0;
+      let trainableCount = 0;
       let unavoidableCount = 0;
       let minePctSum = 0;
       let targetPctSum = 0;
+      let minePlayedPctSum = 0;
+      let targetPlayedPctSum = 0;
       const byPhaseAv: Record<string, { errors: number; avoidable: number }> = {};
 
       for (const c of scored) {
-        if (c.avoidable === true) avoidableCount++;
-        if (
-          c.p_target_plays_best_sf != null &&
-          c.p_target_plays_best_sf < 0.5
-        ) {
-          unavoidableCount++;
-        }
-        minePctSum += (c.p_mine_plays_best_sf ?? 0) * 100;
-        targetPctSum += (c.p_target_plays_best_sf ?? 0) * 100;
+        if (c.avoidable_at_current != null) avoidableKnownCount++;
+        if (c.avoidable_at_current === true) avoidableCount++;
+        if (c.target_relevant === true) targetRelevantCount++;
+        if (c.trainable === true) trainableCount++;
+        if (c.maia_reason_code === "target_policy_weak") unavoidableCount++;
+        minePctSum += (c.maia_mine_acceptable_observed_policy ?? 0) * 100;
+        targetPctSum += (c.maia_target_acceptable_observed_policy ?? 0) * 100;
+        minePlayedPctSum += (c.maia_mine_played_policy ?? 0) * 100;
+        targetPlayedPctSum += (c.maia_target_played_policy ?? 0) * 100;
 
         // by_phase_avoidable uses the italian phase label already on PositionExample.
         const ph = c.phase ?? "mediogioco";
         if (!byPhaseAv[ph]) byPhaseAv[ph] = { errors: 0, avoidable: 0 };
         byPhaseAv[ph].errors++;
-        if (c.avoidable === true) byPhaseAv[ph].avoidable++;
+        if (c.avoidable_at_current === true) byPhaseAv[ph].avoidable++;
       }
 
       // ── spent_vs_avoidable ────────────────────────────────────────────────
@@ -895,7 +1083,7 @@ export async function computeAggregates(
         if (!bucketAcc.has(b.key)) bucketAcc.set(b.key, { errors: 0, avoidable: 0 });
         const ba = bucketAcc.get(b.key)!;
         ba.errors++;
-        if (c.avoidable === true) ba.avoidable++;
+        if (c.avoidable_at_current === true) ba.avoidable++;
       }
 
       // Emit only non-empty buckets, preserving natural order (lt_5s first).
@@ -909,14 +1097,28 @@ export async function computeAggregates(
       const n = scored.length;
       const mine_pct = minePctSum / n;
       const target_pct = targetPctSum / n;
+      const mine_played_policy_pct = minePlayedPctSum / n;
+      const target_played_policy_pct = targetPlayedPctSum / n;
       maiaWeighted = {
         errors_scored: n,
         avoidable: avoidableCount,
+        avoidable_at_current_known_positions: avoidableKnownCount,
+        target_relevant: targetRelevantCount,
+        trainable: trainableCount,
         unavoidable: unavoidableCount,
         mine_pct,
         target_pct,
+        mine_acceptable_observed_policy_pct: mine_pct,
+        target_acceptable_observed_policy_pct: target_pct,
+        mine_played_policy_pct,
+        target_played_policy_pct,
+        policy_semantics: MAIA_POLICY_SEMANTICS,
         gap_pct: target_pct - mine_pct,
         avoidable_share: n > 0 ? avoidableCount / n : 0,
+        avoidable_at_current_share:
+          avoidableKnownCount > 0 ? avoidableCount / avoidableKnownCount : null,
+        target_relevant_share: n > 0 ? targetRelevantCount / n : 0,
+        trainable_share: n > 0 ? trainableCount / n : 0,
         by_phase_avoidable: byPhaseAv,
         spent_vs_avoidable,
       };
@@ -1034,7 +1236,7 @@ export async function computeAggregates(
   }
 
   // Cadute: galleria piu' ampia, ordinate per trainability desc, max 4 per partita.
-  // Score = drill_value * (blame_weight * cp_loss) when Maia ran (drill_value != null),
+  // Score = training_priority_weight * (trainability_weight * cp_loss) with Maia,
   // else fallback to blame_weight * cp_loss. This surfaces Maia-ranked positions at
   // the top of the gallery, while positions without Maia data still participate.
   // priority_score 0 positions are NOT excluded here — they stay in the gallery
@@ -1042,8 +1244,12 @@ export async function computeAggregates(
   const caduteByTrainability = [...exampleCandidates].sort((a, b) => {
     const impactA = (a.blame_weight ?? 1.0) * a.cp_loss;
     const impactB = (b.blame_weight ?? 1.0) * b.cp_loss;
-    const scoreA = a.drill_value != null ? a.drill_value * impactA : impactA;
-    const scoreB = b.drill_value != null ? b.drill_value * impactB : impactB;
+    const scoreA = a.training_priority_weight != null
+      ? a.training_priority_weight * impactA
+      : impactA;
+    const scoreB = b.training_priority_weight != null
+      ? b.training_priority_weight * impactB
+      : impactB;
     return scoreB - scoreA;
   });
   const perGameCadute: Record<string, number> = {};
@@ -1064,8 +1270,8 @@ export async function computeAggregates(
     games: Set<string>;
     count: number;
     count_avoidable: number;
-    // Per-anchor Maia averages: mine_pct / target_pct from p_maia_mine_top / p_maia_target_top.
-    // Only positions where Maia ran (p_maia_mine_top != null) contribute.
+    // Per-anchor Maia averages sulla massa delle mosse accettabili.
+    // Only positions where Maia ran contribute.
     maia_mine_sum: number;
     maia_target_sum: number;
     maia_n: number;
@@ -1080,10 +1286,11 @@ export async function computeAggregates(
     const priorityOk = c.priority_score == null || c.priority_score > 0;
     const impact = c.cp_loss * (c.blame_weight ?? 1.0);
 
-    // Weighted score: drill_value * impact if Maia available; else blameWeight * cp_loss fallback.
-    const drillWeight =
-      c.drill_value != null && priorityOk
-        ? c.drill_value * impact
+    // Current support and target lift contribute separately; equal mine/target
+    // does not zero a position that is supported at the current level.
+    const trainingWeight =
+      c.training_priority_weight != null && priorityOk
+        ? c.training_priority_weight * impact
         : priorityOk
           ? impact
           : 0;
@@ -1093,24 +1300,29 @@ export async function computeAggregates(
     }
     const acc = anchorAcc.get(et)!;
     acc.count++;
-    // count_avoidable: errors where Maia says the player at their level could avoid this.
-    // priority_score >= 2 means avoidable (2=avoidable, 3=money).
-    if (c.priority_score != null && c.priority_score >= 2) acc.count_avoidable++;
+    // Avoidable significa solo supporto al livello corrente; un forte lift del
+    // target resta target_relevant/trainable ma non diventa evitabile oggi.
+    if (c.avoidable_at_current === true) acc.count_avoidable++;
     acc.cpLossSum += c.cp_loss;
-    acc.weightedScoreSum += drillWeight;
+    acc.weightedScoreSum += trainingWeight;
     acc.games.add(c.gameKey);
-    // Accumulate per-anchor Maia top-policy for mine_pct / target_pct.
-    if (c.p_maia_mine_top != null && c.p_maia_target_top != null) {
-      acc.maia_mine_sum += c.p_maia_mine_top;
-      acc.maia_target_sum += c.p_maia_target_top;
+    // Accumulate raw acceptable-policy mass (not calibrated human frequency).
+    if (
+      c.maia_mine_acceptable_observed_policy != null &&
+      c.maia_target_acceptable_observed_policy != null
+    ) {
+      acc.maia_mine_sum += c.maia_mine_acceptable_observed_policy;
+      acc.maia_target_sum += c.maia_target_acceptable_observed_policy;
       acc.maia_n++;
     }
-    acc.candidates.push({ example: c, score: drillWeight });
+    acc.candidates.push({ example: c, score: trainingWeight });
   }
 
   // Total errors (excluding in_lost_position) for share_of_errors.
   let totalErrors = 0;
   for (const [, v] of anchorAcc) totalErrors += v.count;
+  let totalWeightedScore = 0;
+  for (const [, v] of anchorAcc) totalWeightedScore += Math.max(0, v.weightedScoreSum);
 
   const anchors: Anchor[] = [];
   for (const [type, data] of anchorAcc) {
@@ -1123,20 +1335,13 @@ export async function computeAggregates(
       return ex;
     });
     const share = totalErrors > 0 ? data.count / totalErrors : 0;
-    // rating_upside: round(share * 100) capped to [0..60].
-    const rawUpside = Math.round(share * 100);
-    const rating_upside = rawUpside > 0 ? Math.min(rawUpside, 60) : null;
-    // FIX D: normalize mine_pct / target_pct to 0..100 (same scale as maia_weighted).
-    // These are averages of p_maia_mine_top / p_maia_target_top which are 0..1 fractions
-    // from the ONNX policy head. Without *100, Math.round(mine_pct) would always be 0 or 1
-    // when Onda 3 wires up the anchor-trail.
-    //
-    // IMPORTANT — semantic note: these values represent average top-policy obviousness
-    // (0..100) for a player at mine/target ELO. This is a PROPERTY OF THE POSITIONS in
-    // this anchor type, NOT a progress indicator. The value does NOT decrease as the
-    // user improves (a hung-piece position will always be 90%+ obvious at 1500). The
-    // signal of "anchor shrinking over time" lives in count/games_analyzed (the
-    // milestone/trend code). Use mine_pct/target_pct only as STATIC CONTEXT.
+    const relative_priority = totalWeightedScore > 0
+      ? Math.max(0, data.weightedScoreSum) / totalWeightedScore
+      : share;
+    // Normalize the average raw policy mass over the OBSERVED acceptable set to
+    // 0..100, matching maia_weighted. These aliases compare levels on the same
+    // positions; they are neither calibrated human frequencies nor a progress
+    // indicator. Progress lives in the error-rate trend.
     const mine_pct = data.maia_n > 0 ? (data.maia_mine_sum / data.maia_n) * 100 : null;
     const target_pct = data.maia_n > 0 ? (data.maia_target_sum / data.maia_n) * 100 : null;
     anchors.push({
@@ -1145,12 +1350,15 @@ export async function computeAggregates(
       count: data.count,
       count_avoidable: data.count_avoidable,
       share_of_errors: share,
+      relative_priority,
       games_with: data.games.size,
       avg_cp_loss: data.count > 0 ? data.cpLossSum / data.count : 0,
-      rating_upside,
+      rating_upside: null,
       weighted_score: data.weightedScoreSum,
       mine_pct,
       target_pct,
+      mine_acceptable_observed_policy_pct: mine_pct,
+      target_acceptable_observed_policy_pct: target_pct,
       exemplars,
     });
   }
@@ -1202,8 +1410,8 @@ export async function computeAggregates(
         const ta = trendAcc.get(et)!;
 
         // Accumulate target_pct from Maia (all positions, regardless of window).
-        if (c.p_maia_target_top != null) {
-          ta.target_pct_sum += c.p_maia_target_top;
+        if (c.maia_target_acceptable_observed_policy != null) {
+          ta.target_pct_sum += c.maia_target_acceptable_observed_policy;
           ta.target_pct_n++;
         }
 
@@ -1296,6 +1504,11 @@ export async function computeAggregates(
 
   const out: Aggregates = {
     generated_at: new Date().toISOString(),
+    analysis_scope: {
+      time_class: goalTimeClass,
+      game_cap: FREE_GAME_CAP,
+      games_analyzed: analyzedCount,
+    },
     games_analyzed: analyzedCount,
     player_moves_total: movesTotal,
     blunder_pct: movesTotal > 0 ? (blundersTotal / movesTotal) * 100 : 0,
@@ -1310,11 +1523,14 @@ export async function computeAggregates(
     anchors,
     weaknesses: anchors, // alias, same array reference
     maia_weighted: maiaWeighted,
+    maia_coverage: maiaCoverage,
     repertoire: repertoire.length > 0 ? repertoire : undefined,
     transfer,
   };
 
+  await guardWrite?.();
   await uploadJson(quadernoPath(userId, "aggregates.json"), out);
+  await guardWrite?.();
   return out;
 }
 

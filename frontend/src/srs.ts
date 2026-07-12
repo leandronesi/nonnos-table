@@ -15,6 +15,8 @@
  * Tutto frontend-only. Quando passeremo SaaS, lo migreremo a tabella DB.
  */
 
+import { scopedStorage } from "./auth/userStorage";
+
 export type SrsVerdict = "perfect" | "ok" | "wrong";
 
 export interface SrsCard {
@@ -31,7 +33,7 @@ const MS_PER_DAY = 86_400_000;
 
 function readAll(): Record<string, SrsCard> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = scopedStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
     return JSON.parse(raw) as Record<string, SrsCard>;
   } catch {
@@ -41,7 +43,7 @@ function readAll(): Record<string, SrsCard> {
 
 function writeAll(all: Record<string, SrsCard>): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+    scopedStorage.setItem(STORAGE_KEY, JSON.stringify(all));
   } catch {
     // localStorage pieno → silent
   }
@@ -120,7 +122,7 @@ export function srsLabel(id: string): { text: string; tone: "new" | "due" | "fut
 
 export function resetSrs(): void {
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    scopedStorage.removeItem(STORAGE_KEY);
   } catch { /* ignore */ }
 }
 
@@ -142,7 +144,7 @@ export interface PatternSrs {
 
 function readAllPatterns(): Record<string, PatternSrs> {
   try {
-    const raw = localStorage.getItem(PATTERN_STORAGE);
+    const raw = scopedStorage.getItem(PATTERN_STORAGE);
     if (!raw) return {};
     return JSON.parse(raw) as Record<string, PatternSrs>;
   } catch {
@@ -152,7 +154,7 @@ function readAllPatterns(): Record<string, PatternSrs> {
 
 function writeAllPatterns(all: Record<string, PatternSrs>): void {
   try {
-    localStorage.setItem(PATTERN_STORAGE, JSON.stringify(all));
+    scopedStorage.setItem(PATTERN_STORAGE, JSON.stringify(all));
   } catch { /* localStorage pieno → silent */ }
 }
 

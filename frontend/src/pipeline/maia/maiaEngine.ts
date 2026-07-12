@@ -12,12 +12,10 @@
  *      `${BASE_URL}maia3/maia3_simplified.onnx`.
  *   4. No MaiaStatus/setStatus/setProgress/setError React callbacks — instead
  *      a simple internal 'status' string and promise-based waitReady().
- *   5. evaluateMaia3 / batchEvaluateMaia3 / processOutputsMaia3 are ported verbatim.
- *   6. onnxruntime-web Tensor import kept (used only inside processOutputsMaia3
- *      to wrap raw Float32Arrays for the helper; actual ORT session runs in worker).
+ *   5. evaluateMaia3 / batchEvaluateMaia3 / processOutputsMaia3 keep the source logic.
+ *   6. ORT stays entirely in the classic worker. The main bundle processes the
+ *      returned Float32Arrays directly, avoiding a second 20+ MB ORT/JSEP asset.
  */
-
-import { Tensor } from 'onnxruntime-web'
 
 import {
   mirrorMove,
@@ -36,7 +34,7 @@ export type MaiaStatus =
   | 'error'
 
 export interface MaiaEvalResult {
-  /** Move UCI → probability (softmax over legal moves), sorted desc. */
+  /** Move UCI -> normalized raw policy mass; not calibrated human frequency. */
   policy: Record<string, number>
   /** Win probability for the side to move (0–1), from WDL head. */
   value: number
@@ -58,7 +56,7 @@ interface PendingReady {
 // Ported verbatim from CSSLab maia.ts (free function, not on the class).
 
 /**
- * Post-processes raw maia3 ONNX outputs into a policy map and win probability.
+ * Post-processes raw Maia-3 outputs into normalized policy mass and WDL value.
  *
  * - WDL order: [0]=Loss, [1]=Draw, [2]=Win (side-to-move).
  * - Policy: softmax over legal-move logits only, then mirrorMove back if black.
@@ -67,12 +65,12 @@ interface PendingReady {
  */
 function processOutputsMaia3(
   fen: string,
-  logits_move: Tensor,
-  logits_value: Tensor,
+  logits_move: Float32Array,
+  logits_value: Float32Array,
   legalMoves: Float32Array,
 ): MaiaEvalResult {
-  const logits = logits_move.data as Float32Array
-  const wdl = logits_value.data as Float32Array
+  const logits = logits_move
+  const wdl = logits_value
 
   // Stable softmax over WDL
   const maxWdl = Math.max(wdl[0], wdl[1], wdl[2])
@@ -117,7 +115,7 @@ function processOutputsMaia3(
     moveProbs[legalMovesMirrored[i]] = probs[i]
   }
 
-  // Sort descending by probability
+  // Sort descending by raw policy mass
   const sortedMoveProbs = Object.keys(moveProbs)
     .sort((a, b) => moveProbs[b] - moveProbs[a])
     .reduce(
@@ -154,12 +152,12 @@ class MaiaEngine {
     // Encode base as a query param so the plain-JS worker can read it from
     // self.location.href (no import.meta.env in classic workers).
     const workerUrl = `${base}maia-worker.js?base=${encodeURIComponent(base)}`
-    // Default: Supabase Storage (bucket pubblico 'models'). Override via env.
-    // Cross-origin OK: lo Storage pubblico manda CORS *, e su GH Pages non
-    // settiamo COEP quindi nessun vincolo CORP. Cache in IndexedDB nel worker.
+    // Default same-origin: nessun progetto/storage personale hardcoded.
+    // I deploy che non pubblicano il modello in /maia3 devono impostare
+    // VITE_MAIA_MODEL_URL; il chiamante gestisce l'assenza con fallback esplicito.
     const modelUrl =
       import.meta.env.VITE_MAIA_MODEL_URL ||
-      'https://zydvfgxqryzcxzdeztnu.supabase.co/storage/v1/object/public/models/maia3_simplified.onnx'
+      `${base}maia3/maia3_simplified.onnx`
     const modelVersion = 'maia3-simplified-v1'
 
     this.worker = new Worker(workerUrl)
@@ -224,15 +222,20 @@ class MaiaEngine {
    */
   public waitReady(): Promise<void> {
     if (this.status === 'ready') return Promise.resolve()
+    if (this.status === 'error' || !this.worker) {
+      return Promise.reject(new Error('Maia model unavailable'))
+    }
     if (this.readyPromise) return this.readyPromise
 
     this.readyPromise = new Promise<void>((resolve, reject) => {
       this.pendingReady = { resolve, reject }
     })
-    // Clean up reference once settled
-    this.readyPromise.finally(() => {
-      this.readyPromise = null
-    })
+    // Clean up without creating an unobserved rejecting promise (Promise.finally
+    // would do that when model loading fails and the caller handles the original).
+    void this.readyPromise.then(
+      () => { this.readyPromise = null },
+      () => { this.readyPromise = null },
+    )
     return this.readyPromise
   }
 
@@ -295,10 +298,7 @@ class MaiaEngine {
       1,
     )
 
-    const policyTensor = new Tensor('float32', logitsMove, [logitsMove.length])
-    const valueTensor = new Tensor('float32', logitsValue, [logitsValue.length])
-
-    return processOutputsMaia3(fen, policyTensor, valueTensor, legalMoves)
+    return processOutputsMaia3(fen, logitsMove, logitsValue, legalMoves)
   }
 
   /**
@@ -343,14 +343,11 @@ class MaiaEngine {
     for (let i = 0; i < batchSize; i++) {
       const moveStart = i * moveLogitsPerItem
       const policyLogits = logitsMove.slice(moveStart, moveStart + moveLogitsPerItem)
-      const policyTensor = new Tensor('float32', policyLogits, [moveLogitsPerItem])
-
       const valueStart = i * valueLogitsPerItem
       const valueLogitsSlice = logitsValue.slice(valueStart, valueStart + valueLogitsPerItem)
-      const valueTensor = new Tensor('float32', valueLogitsSlice, [valueLogitsPerItem])
 
       results.push(
-        processOutputsMaia3(fens[i], policyTensor, valueTensor, legalMovesArr[i]),
+        processOutputsMaia3(fens[i], policyLogits, valueLogitsSlice, legalMovesArr[i]),
       )
     }
 

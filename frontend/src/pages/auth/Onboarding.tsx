@@ -3,15 +3,15 @@
  *
  * Step 1 — Chess.com:
  *   - input username, validazione contro api.chess.com/pub/player/{u}
- *   - check unicita' in `profiles` (INSERT con UNIQUE, race-safe)
+ *   - il profilo e' una fonte pubblica scelta; piu' account possono selezionarlo
  *   - mostra avatar + ratings per conferma
  *
  * Step 2 — Goal:
- *   - target rating (slider 1000-2200)
+ *   - target rating (slider 800-2400, coerente col dominio profilo)
  *   - orizzonte (settimane)
  *   - time class principale (auto-suggestita dalla rating dell'utente)
  *   - minuti/settimana (impegno dichiarato)
- *   INSERT profiles + INSERT ingest_jobs(status='queued')
+ *   INSERT profiles; l'orchestratore crea in modo idempotente il job mancante
  *   nav('/onboarding/waiting') che fa partire l'orchestratore client-side
  */
 
@@ -19,9 +19,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { supabase } from "../../auth/supabaseClient";
-import type { TimeClass } from "../../auth/db.types";
+import type { GoalTimeClass } from "../../auth/db.types";
 import { AuthShell, Field, inputClass } from "./AuthShell";
 import { tr } from "../../i18n/lang";
+import { trackEvent } from "../../lib/telemetry";
 
 interface ChessComPlayer {
   username: string;
@@ -35,8 +36,6 @@ interface ChessComPlayer {
 interface ChessComStats {
   chess_rapid?: { last?: { rating?: number } };
   chess_blitz?: { last?: { rating?: number } };
-  chess_bullet?: { last?: { rating?: number } };
-  chess_daily?: { last?: { rating?: number } };
 }
 
 async function fetchChessComPlayer(username: string): Promise<ChessComPlayer | null> {
@@ -48,30 +47,38 @@ async function fetchChessComPlayer(username: string): Promise<ChessComPlayer | n
 
 async function fetchChessComStats(username: string): Promise<ChessComStats> {
   const r = await fetch(`https://api.chess.com/pub/player/${encodeURIComponent(username)}/stats`);
-  if (!r.ok) return {};
+  if (!r.ok) throw new Error(`Chess.com stats API error: ${r.status}`);
   return (await r.json()) as ChessComStats;
 }
 
-function bestTimeClass(stats: ChessComStats): TimeClass {
-  const cands: Array<[TimeClass, number]> = [
-    ["rapid", stats.chess_rapid?.last?.rating ?? 0],
-    ["blitz", stats.chess_blitz?.last?.rating ?? 0],
-    ["bullet", stats.chess_bullet?.last?.rating ?? 0],
-  ];
-  cands.sort((a, b) => b[1] - a[1]);
-  return cands[0][0];
+function bestTimeClass(stats: ChessComStats): GoalTimeClass {
+  const rapid = stats.chess_rapid?.last?.rating ?? 0;
+  const blitz = stats.chess_blitz?.last?.rating ?? 0;
+  return rapid > blitz ? "rapid" : "blitz";
+}
+
+function timeClassRating(stats: ChessComStats | null, timeClass: GoalTimeClass): number | null {
+  if (!stats) return null;
+  const rating = timeClass === "rapid"
+    ? stats.chess_rapid?.last?.rating
+    : stats.chess_blitz?.last?.rating;
+  return typeof rating === "number" && Number.isFinite(rating) ? rating : null;
 }
 
 export function Onboarding() {
   const nav = useNavigate();
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile, profileError, refreshProfile } = useAuth();
 
   useEffect(() => {
+    if (!profile && profileError) {
+      nav("/onboarding/waiting", { replace: true });
+      return;
+    }
     if (profile) {
       if (profile.onboarding_state === "ready") nav("/", { replace: true });
       else nav("/onboarding/waiting", { replace: true });
     }
-  }, [profile, nav]);
+  }, [profile, profileError, nav]);
 
   const [step, setStep] = useState<"chesscom" | "goal">("chesscom");
 
@@ -83,12 +90,12 @@ export function Onboarding() {
   const [chessError, setChessError] = useState<string | null>(null);
 
   // ---- Step 2 state ----
-  const defaultTC: TimeClass = useMemo(
+  const defaultTC: GoalTimeClass = useMemo(
     () => (stats ? bestTimeClass(stats) : "blitz"),
     [stats]
   );
   const [goalRating, setGoalRating] = useState(1600);
-  const [goalTC, setGoalTC] = useState<TimeClass>("blitz");
+  const [goalTC, setGoalTC] = useState<GoalTimeClass>("blitz");
   const [weeklyMinutes, setWeeklyMinutes] = useState(120);
 
   // Deadline: driven by chip selection (13 / 26 / 52 weeks). DEFAULT = 26.
@@ -110,17 +117,10 @@ export function Onboarding() {
     return d.toISOString().slice(0, 10);
   }, [goalHorizonWeeks]);
 
-  const currentRating = useMemo(() => {
-    if (!stats) return 1200;
-    const map: Record<TimeClass, number | undefined> = {
-      rapid: stats.chess_rapid?.last?.rating,
-      blitz: stats.chess_blitz?.last?.rating,
-      bullet: stats.chess_bullet?.last?.rating,
-      classical: undefined,
-      daily: stats.chess_daily?.last?.rating,
-    };
-    return map[goalTC] ?? 1200;
-  }, [stats, goalTC]);
+  const currentRating = useMemo(
+    () => timeClassRating(stats, goalTC),
+    [stats, goalTC],
+  );
 
   useEffect(() => {
     setGoalTC(defaultTC);
@@ -128,15 +128,9 @@ export function Onboarding() {
 
   useEffect(() => {
     if (!stats) return;
-    const map: Record<TimeClass, number | undefined> = {
-      rapid: stats.chess_rapid?.last?.rating,
-      blitz: stats.chess_blitz?.last?.rating,
-      bullet: stats.chess_bullet?.last?.rating,
-      classical: undefined,
-      daily: stats.chess_daily?.last?.rating,
-    };
-    const base = map[defaultTC] ?? 1200;
-    const suggested = Math.min(2200, Math.max(1000, Math.round((base + 200) / 50) * 50));
+    const base = timeClassRating(stats, defaultTC);
+    if (base == null) return;
+    const suggested = Math.min(2400, Math.max(800, Math.round((base + 200) / 50) * 50));
     setGoalRating(suggested);
   }, [stats, defaultTC]);
 
@@ -161,6 +155,7 @@ export function Onboarding() {
       return;
     }
     setChecking(true);
+    trackEvent("chess_profile_lookup_started");
     try {
       const p = await fetchChessComPlayer(usernameInput.trim());
       if (!p) {
@@ -174,10 +169,27 @@ export function Onboarding() {
         return;
       }
       const s = await fetchChessComStats(p.username);
+      const hasSupportedGames = Boolean(
+        s.chess_rapid?.last?.rating || s.chess_blitz?.last?.rating,
+      );
+      if (!hasSupportedGames) {
+        setChessError(tr(
+          "Questo profilo non ha ancora un rating rapid o blitz. Gioca almeno una partita in una delle due categorie e poi torna.",
+          "This profile does not have a rapid or blitz rating yet. Play at least one game in either category, then come back.",
+        ));
+        trackEvent("chess_profile_unsupported", { reason: "no_rapid_or_blitz" });
+        return;
+      }
       setPlayer(p);
       setStats(s);
+      setGoalTC(bestTimeClass(s));
+      trackEvent("chess_profile_lookup_succeeded", {
+        has_rapid: Boolean(s.chess_rapid?.last?.rating),
+        has_blitz: Boolean(s.chess_blitz?.last?.rating),
+      });
     } catch (e) {
       setChessError(String(e instanceof Error ? e.message : e));
+      trackEvent("chess_profile_lookup_failed");
     } finally {
       setChecking(false);
     }
@@ -187,6 +199,13 @@ export function Onboarding() {
   async function onConfirmGoal(): Promise<boolean> {
     if (!user || !player) {
       setSubmitError(tr("Sessione persa. Ricarica la pagina.", "Session lost. Reload the page."));
+      return false;
+    }
+    if (currentRating == null) {
+      setSubmitError(tr(
+        "Scegli una cadenza con rating e partite disponibili sul profilo.",
+        "Choose a time control with a rating and available games on the profile.",
+      ));
       return false;
     }
     setSubmitting(true);
@@ -203,31 +222,17 @@ export function Onboarding() {
     });
     if (pErr) {
       setSubmitting(false);
-      if (/duplicate key|unique/i.test(pErr.message)) {
-        setSubmitError(
-          tr(
-            "Questo username Chess.com e' gia' collegato a un altro account.",
-            "This Chess.com username is already linked to another account."
-          )
-        );
-        return false;
-      }
-      setSubmitError(pErr.message);
+      setSubmitError(tr(
+        "Non sono riuscito a salvare il profilo scelto. Riprova; nessuna analisi e' stata avviata.",
+        "I could not save the selected profile. Try again; no analysis was started.",
+      ));
       return false;
     }
-    const { error: jErr } = await supabase.from("ingest_jobs").insert({
-      user_id: user.id,
-      status: "queued",
-      months_total: 0,
-      months_done: 0,
-      games_total: 0,
-      games_done: 0,
+    trackEvent("onboarding_goal_saved", {
+      time_class: goalTC,
+      horizon_weeks: goalHorizonWeeks,
+      weekly_minutes: weeklyMinutes,
     });
-    if (jErr) {
-      setSubmitting(false);
-      setSubmitError(jErr.message);
-      return false;
-    }
     await refreshProfile();
     nav("/onboarding/waiting", { replace: true });
     return true;
@@ -238,15 +243,18 @@ export function Onboarding() {
     return (
       <AuthShell
         eyebrow={tr("1 di 2", "1 of 2")}
-        title={tr("Come ti chiami al tavolo?", "What do they call you at the table?")}
-        subtitle={tr("Dimmi il tuo username Chess.com. Leggo le tue partite pubbliche.", "Tell me your Chess.com username. I read your public games.")}
+        title={tr("Quale profilo analizziamo?", "Which profile should we analyze?")}
+        subtitle={tr(
+          "Inserisci un profilo pubblico Chess.com. Nel passo successivo scegli rapid o blitz; useremo fino a 100 partite di quella cadenza.",
+          "Enter a public Chess.com profile. In the next step choose rapid or blitz; we will use up to 100 games from that time control."
+        )}
       >
         {!player ? (
           <>
             <Field
               label={tr("Username Chess.com", "Chess.com username")}
               htmlFor="chesscom"
-              hint={tr("Quello che vedi nell'URL del tuo profilo Chess.com.", "The one in the URL of your Chess.com profile.")}
+              hint={tr("Lo username visibile nell'URL del profilo pubblico.", "The username shown in the public profile URL.")}
               error={chessError}
             >
               <input
@@ -272,6 +280,12 @@ export function Onboarding() {
             >
               {checking ? tr("Cerco…", "Looking…") : tr("Trovami su Chess.com", "Find me on Chess.com")}
             </button>
+            <p style={{ margin: "0.625rem 0 0", textAlign: "center", fontSize: "0.75rem", lineHeight: 1.45, color: "var(--color-faint)" }}>
+              {tr(
+                "Controlliamo il profilo pubblico; nel passo successivo scegli cadenza e obiettivo.",
+                "We check the public profile; next you choose a time control and target.",
+              )}
+            </p>
           </>
         ) : (
           <>
@@ -336,11 +350,10 @@ export function Onboarding() {
 
             {/* Nonno phrase for confirmed profile */}
             {(() => {
-              const tcLabel = defaultTC; // rapid/blitz/bullet
+              const tcLabel = defaultTC; // rapid/blitz only
               const ratingMap: Record<string, number | undefined> = {
                 rapid: stats?.chess_rapid?.last?.rating,
                 blitz: stats?.chess_blitz?.last?.rating,
-                bullet: stats?.chess_bullet?.last?.rating,
               };
               const rating = ratingMap[defaultTC];
               const phrase =
@@ -381,16 +394,25 @@ export function Onboarding() {
                 className="btn btn-ghost"
                 style={{ flex: 1 }}
               >
-                {tr("Non sono io", "That's not me")}
+                {tr("Cambia profilo", "Choose another")}
               </button>
               <button
-                onClick={() => setStep("goal")}
+                onClick={() => {
+                  trackEvent("chess_profile_selected", { time_class: defaultTC });
+                  setStep("goal");
+                }}
                 className="btn btn-primary"
                 style={{ flex: 1 }}
               >
-                {tr("Sono io", "That's me")}
+                {tr("Usa questo profilo", "Use this profile")}
               </button>
             </div>
+            <p style={{ margin: "0.625rem 0 0", textAlign: "center", fontSize: "0.75rem", lineHeight: 1.45, color: "var(--color-faint)" }}>
+              {tr(
+                "Poi scegli rapid o blitz e il livello-obiettivo; l'analisi parte solo dopo la conferma finale.",
+                "Next, choose rapid or blitz and your target level; analysis starts only after final confirmation.",
+              )}
+            </p>
           </>
         )}
       </AuthShell>
@@ -402,18 +424,20 @@ export function Onboarding() {
     <AuthShell
       eyebrow={tr("2 di 2", "2 of 2")}
       title={tr("Dove vuoi arrivare?", "Where do you want to go?")}
-      subtitle={tr("Dimmi dove punta la sedia. Poi lavoriamo.", "Tell me where your chair is pointing. Then we work.")}
+      subtitle={tr("Scegli una cadenza disponibile e il livello che vuoi raggiungere.", "Choose an available time control and the level you want to reach.")}
     >
       {/* Categoria di tempo */}
-      <Field label={tr("Categoria di tempo", "Time control")} htmlFor="tc" hint={tr("Su quale cadenza giochi di piu'.", "Which time control do you play most.")}>
+      <Field label={tr("Categoria di tempo", "Time control")} htmlFor="tc" hint={tr("Analizziamo fino a 100 partite della cadenza scelta. Le cadenze senza rating sul profilo sono disabilitate.", "We analyze up to 100 games from the selected time control. Controls without a profile rating are disabled.")}>
         <div style={{ display: "flex", gap: "0.5rem" }}>
-          {(["bullet", "blitz", "rapid"] as TimeClass[]).map((tc) => {
+          {(["blitz", "rapid"] as GoalTimeClass[]).map((tc) => {
             const active = goalTC === tc;
+            const available = timeClassRating(stats, tc) != null;
             return (
               <button
                 key={tc}
                 type="button"
-                onClick={() => setGoalTC(tc)}
+                onClick={() => { if (available) setGoalTC(tc); }}
+                disabled={!available}
                 style={{
                   flex: 1,
                   padding: "0.5rem 0",
@@ -424,7 +448,8 @@ export function Onboarding() {
                   textTransform: "uppercase",
                   fontWeight: 600,
                   border: "1px solid",
-                  cursor: "pointer",
+                  cursor: available ? "pointer" : "not-allowed",
+                  opacity: available ? 1 : 0.45,
                   transition: "background 150ms ease, border-color 150ms ease, color 150ms ease",
                   background: active ? "var(--color-brand)" : "var(--color-surface-2)",
                   borderColor: active ? "var(--color-brand)" : "var(--color-line)",
@@ -442,13 +467,15 @@ export function Onboarding() {
       <Field
         label={tr("Dove punta la sedia", "Where is your chair pointing")}
         htmlFor="goal-rating"
-        hint={tr(`Oggi sei ${currentRating} in ${goalTC}.`, `You are at ${currentRating} in ${goalTC}.`)}
+        hint={currentRating != null
+          ? tr(`Il rating osservato e' ${currentRating} in ${goalTC}.`, `The observed ${goalTC} rating is ${currentRating}.`)
+          : tr("Rating non disponibile per questa cadenza.", "Rating is unavailable for this time control.")}
       >
         <input
           id="goal-rating"
           type="range"
-          min={1000}
-          max={2200}
+          min={800}
+          max={2400}
           step={50}
           value={goalRating}
           onChange={(e) => setGoalRating(parseInt(e.target.value, 10))}
@@ -469,7 +496,7 @@ export function Onboarding() {
               color: "var(--color-faint)",
             }}
           >
-            1000
+            800
           </span>
           <span
             style={{
@@ -488,11 +515,11 @@ export function Onboarding() {
               color: "var(--color-faint)",
             }}
           >
-            2200
+            2400
           </span>
         </div>
         {/* Live delta comment — only when currentRating is known */}
-        {stats && (
+        {stats && currentRating != null && (
           <p
             style={{
               margin: "0.5rem 0 0",
@@ -511,18 +538,18 @@ export function Onboarding() {
                 );
               if (delta < 100)
                 return tr(
-                  `Ci sei quasi. Quei ${delta} punti dipendono da una cosa sola. La troviamo.`,
-                  `You are close. Those ${delta} points come down to one thing. We will find it.`
+                  `Il target e' ${delta} punti sopra il rating osservato. Useremo le partite del profilo per scegliere il primo focus.`,
+                  `The target is ${delta} points above the observed rating. We will use the profile games to choose the first focus.`
                 );
               if (delta <= 250)
                 return tr(
-                  `${delta} punti. Non e' poco, ma e' esattamente dove posso aiutarti. Si comincia.`,
-                  `${delta} points. That is real work, but it is exactly where I can help. Let's start.`
+                  `${delta} punti di distanza. L'analisi cerchera' i pattern ricorrenti su cui lavorare per primi.`,
+                  `${delta} points of distance. The analysis will look for recurring patterns to work on first.`
                 );
               if (delta <= 400)
                 return tr(
-                  `Stai puntando in alto. ${delta} punti vogliono tempo e una cosa per volta. Ce la fai.`,
-                  `You are aiming high. ${delta} points take time, one thing at a time. You can get there.`
+                  `Stai puntando in alto: ${delta} punti di distanza richiedono tempo e verifiche sulle partite future.`,
+                  `You are aiming high: ${delta} points of distance require time and checks on future games.`
                 );
               return tr(
                 "E' una salita lunga. Tienila, ma sappi che non si fa in fretta. Io ci sono per tutto il percorso.",
@@ -561,7 +588,7 @@ export function Onboarding() {
       </Field>
 
       {/* Deadline — 3 chips */}
-      <Field label={tr("In quanto tempo?", "How long do you have?")} htmlFor="goal-deadline" hint={tr("Nonno calibra il passo su questo.", "Nonno sets the pace from this.")}>
+      <Field label={tr("In quanto tempo?", "How long do you have?")} htmlFor="goal-deadline" hint={tr("Serve a confrontare il ritmo osservato con quello richiesto; non cambia il numero di esercizi.", "This compares observed pace with required pace; it does not change the number of exercises.")}>
         <div style={{ display: "flex", gap: "0.5rem" }}>
           {DEADLINE_CHIPS.map((chip) => {
             const active = goalHorizonWeeks === chip.weeks;
@@ -596,7 +623,11 @@ export function Onboarding() {
       </Field>
 
       {/* Minuti a settimana */}
-      <Field label={tr("Quanto puoi sederti a settimana?", "How much time can you sit down each week?")} htmlFor="weekly">
+      <Field
+        label={tr("Quanto puoi sederti a settimana?", "How much time can you sit down each week?")}
+        htmlFor="weekly"
+        hint={tr("Serve a proporre il focus settimanale; oggi non calibra la durata della singola sessione.", "This helps propose the weekly focus; today it does not calibrate individual session length.")}
+      >
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.5rem" }}>
           {(([
             [30, tr("Mezz'ora", "Half an hour")],
@@ -686,6 +717,12 @@ export function Onboarding() {
           {submitting ? tr("Salvo…", "Saving…") : tr("Apparecchia il Tavolo", "Set the Table")}
         </button>
       </div>
+      <p style={{ margin: "0.625rem 0 0", textAlign: "center", fontSize: "0.75rem", lineHeight: 1.45, color: "var(--color-faint)" }}>
+        {tr(
+          "Poi prepariamo una prima lettura con fino a 10 analisi riuscite; il profilo continuera' fino a 100 in background.",
+          "Next, we prepare a first reading with up to 10 successful analyses; the profile then continues to 100 in the background.",
+        )}
+      </p>
     </AuthShell>
   );
 }

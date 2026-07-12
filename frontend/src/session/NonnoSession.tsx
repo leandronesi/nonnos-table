@@ -13,30 +13,43 @@
  * Token: tt-nonno, sess-*, DESIGN.md compliant (flat, no card-dentro-card).
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type { PositionExample } from "../pipeline/aggregate";
 import type { PlayResult } from "./store";
 import type { PositionRow } from "../types";
 import { toPositionRow } from "./fromCadute";
 import { writeEntry, hasEntryToday } from "./journal";
 import { MomentReview } from "./MomentReview";
-import { PositionPuzzle } from "./WarmupGuidato";
+import { PositionPuzzle, type PositionPuzzleVerdictContext } from "./WarmupGuidato";
 import { PlayStep } from "./PlayStep";
 import { navigateWithTransition, prefersReducedMotion } from "../lib/motion";
 import { resetBoardSceneRitual } from "../components/BoardScene";
 import { tr, getLang } from "../i18n/lang";
+import { reportClientError, trackEvent } from "../lib/telemetry";
+import type { AdaptiveSessionSelection, WhyToday } from "./adaptiveSelector";
+import { stablePositionId } from "./adaptiveSelector";
+import { createEvaluatedAttemptRecorder } from "./attemptRecorder";
+import { createPassiveReviewRecorder } from "./passiveReviewHistory";
+import { recordVerdict } from "../srs";
+import { recordTrainingAttempt } from "../trainingProgress";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type Phase = "guardo" | "aiuto" | "da-solo" | "partita" | "saluto";
+export type SessionPhase = "guardo" | "aiuto" | "da-solo" | "partita" | "saluto";
+type Phase = SessionPhase;
 
 interface Props {
-  cadute: PositionExample[];
+  selection: AdaptiveSessionSelection<PositionExample> | null;
   targetRating: number;
-  currentRating: number | null;
+  timeClass: string;
   onClose: () => void;
+  /** Stable identity of this selected session, used to dedupe passive views. */
+  sessionIdentity: string;
+  initialPhase?: SessionPhase;
+  onPhaseChange?: (phase: SessionPhase) => void;
+  onCompleted?: (result: PlayResult) => void;
   /**
    * When true, the first MomentReview's BoardScene starts already risen.
    * Set from Sessione when the user arrives via a View Transition morph from
@@ -45,6 +58,25 @@ interface Props {
    * sit-down, so later phases (aiuto, da-solo, partita) stay already up too.
    */
   viaMorph?: boolean;
+}
+
+const DIALOG_FOCUSABLE = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  '[tabindex]:not([tabindex="-1"])',
+].join(",");
+
+function dialogFocusableElements(dialog: HTMLElement): HTMLElement[] {
+  return [...dialog.querySelectorAll<HTMLElement>(DIALOG_FOCUSABLE)].filter((element) => {
+    if (element.getAttribute("aria-hidden") === "true") return false;
+    const style = window.getComputedStyle(element);
+    return style.display !== "none"
+      && style.visibility !== "hidden"
+      && style.pointerEvents !== "none";
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -81,13 +113,19 @@ function pickIdx<T>(arr: T[], n: number): T {
 // ---------------------------------------------------------------------------
 
 function buildAiutoIntroLines(pos: PositionRow): string[] {
-  const p = pos.p_maia_mine_top;
-  if (p != null && p > 0 && p <= 0.34) {
-    const n = Math.max(3, Math.round(1 / p));
+  if (pos.avoidable_at_current === true) {
     return [
       tr(
-        `La trova solo 1 su ${n} al tuo livello. La casa di partenza e' evidenziata. Muovi da li'.`,
-        `One in ${n} players at your level finds that. The starting square is highlighted. Move from there.`,
+        "La policy Maia al livello attuale assegna supporto alle alternative accettabili osservate. E' un segnale relativo: la casa di partenza e' evidenziata, proviamo.",
+        "The current-level Maia policy supports the observed acceptable alternatives. It is a relative signal: the starting square is highlighted, so let us try.",
+      ),
+    ];
+  }
+  if (pos.target_relevant === true) {
+    return [
+      tr(
+        "Questa posizione e' nel percorso verso il tuo obiettivo. La casa di partenza e' evidenziata: proviamo insieme.",
+        "This position is on the path to your target. The starting square is highlighted: let us try it together.",
       ),
     ];
   }
@@ -121,9 +159,17 @@ function buildDaSoloIntroLines(pos: PositionRow): string[] {
 // Empty state
 // ---------------------------------------------------------------------------
 
-function EmptyState({ onClose }: { onClose: () => void }) {
+function EmptyState({
+  onClose,
+  dialogRef,
+}: {
+  onClose: () => void;
+  dialogRef: RefObject<HTMLDivElement | null>;
+}) {
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       className="fixed inset-0 z-50 flex items-center justify-center p-6"
       style={{ background: "var(--color-bg)" }}
       role="dialog"
@@ -209,136 +255,39 @@ function getPhaseLabels(): Record<Phase, string> {
   };
 }
 
-// ---------------------------------------------------------------------------
-// PhaseThread — ink-line with 4 stations.
-//
-// The filled portion (inchiostro pieno) tracks the CURRENT position: 0%, 33%,
-// 66%, or 100%.  The remainder is dashed (tratteggio).  A CSS overlay div
-// transitions its width with ease-ink (600ms) so the fill "draws itself in".
-// ---------------------------------------------------------------------------
-
 const THREAD_PHASES: Phase[] = ["guardo", "aiuto", "da-solo", "partita"];
 
-// Station positions as % along the track (0=left, 100=right).
-const STATION_PCT: Record<Phase, number> = {
-  guardo: 0,
-  aiuto: 33,
-  "da-solo": 66,
-  partita: 100,
-  saluto: 100,
-};
-
 function PhaseThread({ current }: { current: Phase }) {
-  const fillPct = STATION_PCT[current];
   const phaseLabels = getPhaseLabels();
-  // "saluto" is past the last station: indexOf is -1, treat as beyond the end
-  // so every station reads as done and the SR label says the ritual is over.
   const rawIdx = THREAD_PHASES.indexOf(current);
-  const currentIdx = rawIdx === -1 ? THREAD_PHASES.length : rawIdx;
-  const srLabel =
-    rawIdx === -1
-      ? tr(
-          `Sessione completata: ${phaseLabels[current]}`,
-          `Session done: ${phaseLabels[current]}`,
-        )
-      : tr(
-          `Fase ${rawIdx + 1} di 4: ${phaseLabels[current]}`,
-          `Step ${rawIdx + 1} of 4: ${phaseLabels[current]}`,
-        );
+  const next = rawIdx >= 0 && rawIdx < THREAD_PHASES.length - 1
+    ? THREAD_PHASES[rawIdx + 1]
+    : null;
+  const srLabel = next
+    ? tr(
+        `Ora: ${phaseLabels[current]}. Poi: ${phaseLabels[next]}.`,
+        `Now: ${phaseLabels[current]}. Next: ${phaseLabels[next]}.`,
+      )
+    : tr(
+        `Ora: ${phaseLabels[current]}.`,
+        `Now: ${phaseLabels[current]}.`,
+      );
 
   return (
     <div
       aria-label={srLabel}
-      role="progressbar"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={fillPct}
+      role="status"
       style={{
         display: "flex",
         alignItems: "center",
         flexDirection: "column",
-        gap: "0.35rem",
+        gap: "0.15rem",
         flex: 1,
         maxWidth: "22rem",
-        minWidth: "10rem",
+        minWidth: 0,
+        textAlign: "center",
       }}
     >
-      {/* Track + stations */}
-      <div
-        style={{
-          position: "relative",
-          width: "100%",
-          height: "0.75rem",
-          display: "flex",
-          alignItems: "center",
-        }}
-        aria-hidden="true"
-      >
-        {/* Base dashed track — the "future" part */}
-        <div
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            height: "2px",
-            backgroundImage:
-              "repeating-linear-gradient(90deg, var(--color-line-strong) 0 4px, transparent 4px 10px)",
-            opacity: 0.7,
-          }}
-        />
-        {/* Filled overlay — the "past + current" part, animates on phase change */}
-        <div
-          style={{
-            position: "absolute",
-            left: 0,
-            height: "2px",
-            width: `${fillPct}%`,
-            background: "var(--color-brand-soft)",
-            opacity: 0.7,
-            transition: prefersReducedMotion()
-              ? "none"
-              : "width 600ms var(--ease-ink)",
-          }}
-        />
-        {/* Stations */}
-        {THREAD_PHASES.map((ph) => {
-          const pctPos = STATION_PCT[ph];
-          const isCurrent = ph === current;
-          const isPast = THREAD_PHASES.indexOf(ph) < currentIdx;
-
-          return (
-            <div
-              key={ph}
-              title={phaseLabels[ph]}
-              style={{
-                position: "absolute",
-                left: `${pctPos}%`,
-                transform: "translateX(-50%)",
-                width: isCurrent ? "8px" : "6px",
-                height: isCurrent ? "8px" : "6px",
-                borderRadius: "999px",
-                background:
-                  isPast || isCurrent
-                    ? "var(--color-brand-soft)"
-                    : "transparent",
-                border:
-                  isPast || isCurrent
-                    ? "none"
-                    : `1px solid var(--color-line-strong)`,
-                transition: prefersReducedMotion()
-                  ? "none"
-                  : "width 300ms var(--ease-out), height 300ms var(--ease-out), background 300ms var(--ease-out)",
-                flexShrink: 0,
-                zIndex: 1,
-                // station labels for the SR label are on the parent
-              }}
-              aria-hidden="true"
-            />
-          );
-        })}
-      </div>
-
-      {/* Current phase label (eyebrow, below the thread) */}
       <span
         className="tt-eyebrow"
         style={{
@@ -346,8 +295,13 @@ function PhaseThread({ current }: { current: Phase }) {
           letterSpacing: "0.1em",
         }}
       >
-        {phaseLabels[current]}
+        {tr("Ora", "Now")} · {phaseLabels[current]}
       </span>
+      {next && (
+        <span style={{ color: "var(--color-faint)", fontSize: "0.7rem", lineHeight: 1.2 }}>
+          {tr("Poi", "Next")} · {phaseLabels[next]}
+        </span>
+      )}
     </div>
   );
 }
@@ -392,10 +346,12 @@ function Saluto({
   totalPositions,
   dominantMotif,
   onClose,
+  onRepeat,
 }: {
   totalPositions: number;
   dominantMotif: string | null;
   onClose: () => void;
+  onRepeat: () => void;
 }) {
   // Click anywhere to reveal everything immediately (skip delays).
   const [revealed, setRevealedState] = useState(prefersReducedMotion());
@@ -500,9 +456,20 @@ function Saluto({
               : "opacity 600ms var(--ease-settle), transform 600ms var(--ease-settle)",
           }}
         >
-          <button onClick={onClose} className="btn btn-primary btn-lg">
-            {tr("Vai e respira", "Go. Rest.")}
-          </button>
+          <p style={{ margin: "0 auto 1rem", color: "var(--color-text-soft)", fontSize: "0.875rem", lineHeight: 1.55, maxWidth: "30rem" }}>
+            {tr(
+              "La sessione di oggi e' salvata. Torna domani dal Tavolo per una nuova selezione, oppure rivedi ora le stesse posizioni senza cambiare il riepilogo.",
+              "Today's session is saved. Return to the Table tomorrow for a new selection, or review the same positions now without changing today's summary.",
+            )}
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "0.75rem" }}>
+            <button onClick={onClose} className="btn btn-primary btn-lg" style={{ minHeight: "44px" }}>
+              {tr("Torna al Tavolo", "Back to the Table")}
+            </button>
+            <button onClick={onRepeat} className="btn btn-ghost btn-lg" style={{ minHeight: "44px" }}>
+              {tr("Rivedi le posizioni", "Review the positions")}
+            </button>
+          </div>
         </div>
       </div>
     </>
@@ -526,15 +493,170 @@ function PhaseIntro({ text }: { text: string }) {
   );
 }
 
+function whyTodayText(why: WhyToday): string {
+  const label = getLang() === "en"
+    ? why.anchorKey.replace(/^(anchor|motif):/, "").replace(/_/g, " ")
+    : why.anchorLabel;
+  switch (why.code) {
+    case "focus_override":
+      return tr(
+        `Partiamo da ${label}: e' la posizione che hai scelto dal Tavolo.`,
+        `We start from ${label}: this is the position you chose from the Table.`,
+      );
+    case "review_due":
+      return tr(
+        `Oggi torniamo su ${label}: la revisione registrata era prevista.`,
+        `Today we return to ${label}: its recorded review was due.`,
+      );
+    case "low_mastery":
+      return tr(
+        `Oggi lavoriamo su ${label}: negli esercizi registrati il segnale di padronanza e' ancora basso.`,
+        `Today we work on ${label}: its recorded exercise mastery signal is still low.`,
+      );
+    case "recent_errors":
+      return tr(
+        `Oggi torniamo su ${label}: negli ultimi tentativi registrati ci sono ${why.observedWrongAttempts} esiti errati. Il conteggio decide il ripasso, non spiega la causa.`,
+        `Today we return to ${label}: the recent recorded attempts include ${why.observedWrongAttempts} wrong outcomes. This count schedules review; it does not explain the cause.`,
+      );
+    case "hint_dependency":
+      return tr(
+        `Oggi torniamo su ${label}: nei tentativi registrati l'aiuto e' stato usato ${why.observedHintUses} volte. E' un conteggio di utilizzo, non una diagnosi.`,
+        `Today we return to ${label}: help was used ${why.observedHintUses} times in the recorded attempts. This is a usage count, not a diagnosis.`,
+      );
+    case "priority_pattern":
+      return tr(
+        `Oggi lavoriamo su ${label}: ha una priorita' relativa alta fra gli errori osservati disponibili.`,
+        `Today we work on ${label}: it has high relative priority among the observed errors available.`,
+      );
+    case "current_support":
+      return tr(
+        `Oggi lavoriamo su ${label}: nel gruppo c'e' supporto Maia al livello attuale per una scelta accettabile osservata.`,
+        `Today we work on ${label}: the group has current-level Maia support for an observed acceptable choice.`,
+      );
+    case "target_relevance":
+      return tr(
+        `Oggi lavoriamo su ${label}: il confronto Maia la rende rilevante nel percorso verso il target.`,
+        `Today we work on ${label}: the Maia comparison makes it relevant on the path to your target.`,
+      );
+    default:
+      return tr(
+        `Oggi lavoriamo su ${label}: e' il gruppo selezionato fra le posizioni disponibili.`,
+        `Today we work on ${label}: it is the selected group among the available positions.`,
+      );
+  }
+}
+
+function WhyTodayPanel({ selection }: { selection: AdaptiveSessionSelection<PositionExample> }) {
+  const phaseNames = {
+    review: tr("Guardo", "I look"),
+    guided: tr("Aiuto", "With help"),
+    solo: tr("Da solo", "On my own"),
+  } as const;
+  const supplementalByAnchor = (["review", "guided", "solo"] as const)
+    .filter((key) => selection.phaseAnchors[key].anchorKey !== selection.anchorKey)
+    .reduce<Array<{ anchorKey: string; anchorLabel: string; phases: string[] }>>((groups, key) => {
+      const anchor = selection.phaseAnchors[key];
+      const existing = groups.find((group) => group.anchorKey === anchor.anchorKey);
+      if (existing) existing.phases.push(phaseNames[key]);
+      else groups.push({ ...anchor, phases: [phaseNames[key]] });
+      return groups;
+    }, []);
+  const reusedPhases = (["review", "guided", "solo"] as const)
+    .filter((key) => selection.phaseNovelty[key] === "reused_in_session")
+    .map((key) => phaseNames[key]);
+  const supplementalDetail = supplementalByAnchor
+    .map((anchor) => `${anchor.anchorLabel} (${anchor.phases.join(", ")})`)
+    .join("; ");
+  const supplementalText = selection.corpusFallback?.code === "secondary_anchor" && supplementalByAnchor.length > 0
+    ? supplementalByAnchor.length === 1
+      ? tr(
+          `Per il tema principale, ${selection.anchorLabel}, ho ${selection.corpusFallback.primaryPositionsAvailable} posizioni disponibili. Aggiungo un richiamo distinto: ${supplementalDetail}.`,
+          `For the main theme, ${selection.anchorLabel}, I have ${selection.corpusFallback.primaryPositionsAvailable} positions available. I add one distinct recall: ${supplementalDetail}.`,
+        )
+      : tr(
+          `Per il tema principale, ${selection.anchorLabel}, ho ${selection.corpusFallback.primaryPositionsAvailable} posizioni disponibili. Le fasi indicate usano richiami aggiuntivi distinti: ${supplementalDetail}.`,
+          `For the main theme, ${selection.anchorLabel}, I have ${selection.corpusFallback.primaryPositionsAvailable} positions available. The listed phases use distinct additional recalls: ${supplementalDetail}.`,
+        )
+    : null;
+  const reuseText = selection.corpusFallback?.code === "position_reuse" || reusedPhases.length > 0
+    ? tr(
+        `In ${reusedPhases.join(", ") || tr("questa sessione", "this session")} una posizione ritorna: e' una ripetizione dichiarata, non una posizione nuova.`,
+        `In ${reusedPhases.join(", ") || tr("questa sessione", "this session")} one position returns: it is an explicit repeat, not a new position.`,
+      )
+    : null;
+  const supportingSignals = [
+    selection.whyToday.currentSupport && selection.whyToday.code !== "current_support"
+      ? tr(
+          "Il gruppo include una scelta accettabile osservata con supporto Maia al livello attuale.",
+          "The group includes an observed acceptable choice with current-level Maia support.",
+        )
+      : null,
+    selection.whyToday.targetRelevant && selection.whyToday.code !== "target_relevance"
+      ? tr(
+          "Il confronto relativo Maia segnala anche rilevanza verso il target.",
+          "The relative Maia comparison also signals relevance toward the target.",
+        )
+      : null,
+  ].filter((line): line is string => line != null);
+
+  return (
+    <div
+      className="sess-nonno"
+      style={{ marginBottom: "1.5rem" }}
+      aria-label={tr("Perche' oggi", "Why today")}
+    >
+      <span className="who">{tr("Perche' oggi", "Why today")}</span>
+      <p>{whyTodayText(selection.whyToday)}</p>
+      {supportingSignals.map((line) => <p key={line}>{line}</p>)}
+      {supplementalText && <p style={{ color: "var(--color-text-soft)" }}>{supplementalText}</p>}
+      {reuseText && <p style={{ color: "var(--color-text-soft)" }}>{reuseText}</p>}
+    </div>
+  );
+}
+
+function PhaseTheme({
+  selection,
+  phase,
+}: {
+  selection: AdaptiveSessionSelection<PositionExample>;
+  phase: "guided" | "solo";
+}) {
+  const anchor = selection.phaseAnchors[phase];
+  const secondary = anchor.anchorKey !== selection.anchorKey;
+  const reused = selection.phaseNovelty[phase] === "reused_in_session";
+  return (
+    <div style={{ marginBottom: "0.75rem" }}>
+      <div className="tt-eyebrow" style={{ color: secondary ? "var(--color-text-soft)" : "var(--color-brand-soft)" }}>
+        {secondary ? tr("Richiamo aggiuntivo", "Additional recall") : tr("Tema principale", "Main theme")} · {anchor.anchorLabel}
+      </div>
+      {reused && (
+        <p
+          className="m-0 mt-1.5 text-xs leading-relaxed text-[color:var(--color-text-soft)]"
+          role="status"
+        >
+          {tr(
+            "Questa posizione ritorna: è un ripasso dichiarato, non un esercizio nuovo.",
+            "This position returns: it is an explicit review, not a new exercise.",
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // NonnoSession — orchestratore principale
 // ---------------------------------------------------------------------------
 
 export function NonnoSession({
-  cadute,
+  selection,
   targetRating,
-  currentRating,
+  timeClass,
   onClose,
+  sessionIdentity,
+  initialPhase = "guardo",
+  onPhaseChange,
+  onCompleted,
   viaMorph = false,
 }: Props) {
   // Reset the once-per-session board rise so the sit-down ritual plays once on
@@ -547,86 +669,227 @@ export function NonnoSession({
     resetBoardSceneRitual();
   }
 
-  const [phase, setPhase] = useState<Phase>("guardo");
-  // The anchor we sat on today, computed at session completion. Used by the
-  // close screen so Nonno names it ("Oggi abbiamo guardato X."). null = unknown.
-  const [dominantMotif, setDominantMotif] = useState<string | null>(null);
-
-  // Escape key exits
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose]);
-
-  if (cadute.length === 0) {
-    return <EmptyState onClose={onClose} />;
+  const [phase, setPhase] = useState<Phase>(initialPhase);
+  const [dominantMotif, setDominantMotif] = useState<string | null>(
+    selection?.anchorLabel ?? null,
+  );
+  const startedTrackedRef = useRef(false);
+  const completedTrackedRef = useRef(false);
+  const attemptRecorderRef = useRef<ReturnType<typeof createEvaluatedAttemptRecorder> | null>(null);
+  const passiveReviewRecorderRef = useRef<ReturnType<typeof createPassiveReviewRecorder> | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  if (!attemptRecorderRef.current) {
+    attemptRecorderRef.current = createEvaluatedAttemptRecorder({
+      recordLocal: recordVerdict,
+      recordCloud: recordTrainingAttempt,
+      reportCloudError: (cause) => {
+        void reportClientError(cause, {
+          component: "NonnoSession.trainingAttempt",
+          context: { operation: "record_training_attempt" },
+        });
+      },
+    });
   }
-
-  const positions = cadute.map((pe, i) => toPositionRow(pe, i));
-
-  const review = positions[0];
-  const guided = positions[1] ?? positions[0];
-  const drill = positions[2] ?? positions[1] ?? positions[0];
-  const playFen = positions[0].fen_before;
-  const playColor: "white" | "black" = positions[0].my_color;
-
-  const patternLabel = guided.motif_label_it ?? guided.motif ?? "Posizione";
-
-  const drillPatternLabel = drill.motif_label_it ?? drill.motif ?? "Posizione";
-
-  function advance() {
-    navigateWithTransition(() => {
-      setPhase((current) => {
-        const idx = PHASE_ORDER.indexOf(current);
-        if (idx < PHASE_ORDER.length - 1) return PHASE_ORDER[idx + 1];
-        return current;
-      });
+  if (!passiveReviewRecorderRef.current) {
+    passiveReviewRecorderRef.current = createPassiveReviewRecorder({
+      recordCloud: recordTrainingAttempt,
+      reportCloudError: (cause) => {
+        void reportClientError(cause, {
+          component: "NonnoSession.passiveReview",
+          context: { operation: "record_passive_review" },
+        });
+      },
     });
   }
 
-  function handlePlayDone(_result: PlayResult) {
-    // Collect the dominant motif/anchor label across the positions reviewed.
-    // Use the most frequent motif_label_it (or motif) among the session positions.
-    // Computed on every completion so the close screen can name it, even on a
-    // second session of the day (when the journal entry is skipped).
-    const motifCounts = new Map<string, number>();
-    for (const pos of positions) {
-      const label = pos.motif_label_it ?? pos.motif ?? null;
-      if (label) motifCounts.set(label, (motifCounts.get(label) ?? 0) + 1);
-    }
-    let motif: string | null = null;
-    let maxCount = 0;
-    for (const [label, cnt] of motifCounts.entries()) {
-      if (cnt > maxCount) {
-        maxCount = cnt;
-        motif = label;
+  useEffect(() => {
+    if (!selection || startedTrackedRef.current) return;
+    startedTrackedRef.current = true;
+    trackEvent("session_started", {
+      event_version: 1,
+      anchor_key: selection.anchorKey,
+      reason_code: selection.whyToday.code,
+      review_positions: selection.distinctPositions,
+      has_secondary_anchor: selection.secondaryAnchor != null,
+      corpus_fallback: selection.corpusFallback?.code ?? null,
+      has_target: targetRating > 0,
+    });
+  }, [selection, targetRating]);
+
+  useEffect(() => {
+    if (!selection || phase !== "guardo" || !sessionIdentity) return;
+    passiveReviewRecorderRef.current?.({
+      sessionIdentity,
+      anchorKey: selection.phaseAnchors.review.anchorKey,
+      primaryAnchorKey: selection.anchorKey,
+      sourceGameId: selection.review.source_game_id ?? null,
+      positionId: stablePositionId(selection.review),
+      fenBefore: selection.review.fen_before,
+      reasonCode: selection.whyToday.code,
+      corpusFallbackCode: selection.corpusFallback?.code ?? null,
+      phaseNovelty: selection.phaseNovelty.review,
+    });
+  }, [phase, selection, sessionIdentity]);
+
+  // Modal keyboard contract: focus the session, keep Tab inside it, route
+  // Escape through the same close path, then restore the prior trigger.
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const focusTimer = window.setTimeout(() => {
+      dialogRef.current?.focus({ preventScroll: true });
+    }, 0);
+
+    function handleKey(event: KeyboardEvent) {
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        closeRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = dialogFocusableElements(dialog);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus({ preventScroll: true });
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (
+        active === first
+        || active === dialog
+        || !(active instanceof Node && dialog.contains(active))
+      )) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (
+        active === last
+        || !(active instanceof Node && dialog.contains(active))
+      )) {
+        event.preventDefault();
+        first.focus();
       }
     }
+
+    document.addEventListener("keydown", handleKey, true);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", handleKey, true);
+      window.setTimeout(() => {
+        const priorStillAvailable = previousFocus
+          && previousFocus !== document.body
+          && previousFocus.isConnected;
+        const target = priorStillAvailable
+          ? previousFocus
+          : document.querySelector<HTMLElement>('[data-session-trigger="true"]');
+        target?.focus({ preventScroll: true });
+      }, 0);
+    };
+  }, []);
+
+  if (!selection) {
+    return <EmptyState onClose={onClose} dialogRef={dialogRef} />;
+  }
+  const selected = selection;
+
+  const review = toPositionRow(selected.review, 0);
+  const guided = toPositionRow(selected.guided, 1);
+  const drill = toPositionRow(selected.solo, 2);
+  const playFen = review.fen_before;
+  const playColor: "white" | "black" = review.my_color;
+  const patternLabel = selected.phaseAnchors.guided.anchorLabel;
+  const drillPatternLabel = selected.phaseAnchors.solo.anchorLabel;
+
+  function advance() {
+    const idx = PHASE_ORDER.indexOf(phase);
+    const next = idx < PHASE_ORDER.length - 1 ? PHASE_ORDER[idx + 1] : phase;
+    navigateWithTransition(() => {
+      setPhase(next);
+    });
+    if (next !== phase) onPhaseChange?.(next);
+  }
+
+  function handlePuzzleVerdict(
+    mode: "guided" | "drill",
+    phaseKey: "guided" | "solo",
+    position: PositionRow,
+    verdict: "perfect" | "ok" | "wrong",
+    context: PositionPuzzleVerdictContext,
+  ): void {
+    attemptRecorderRef.current?.({
+      anchorKey: selected.phaseAnchors[phaseKey].anchorKey,
+      sourceGameId: position.source_game_id ?? null,
+      positionId: position.position_id ?? stablePositionId(position),
+      fenBefore: position.fen_before,
+      mode,
+      verdict,
+      attempts: context.attempts,
+      playedUci: context.playedUci,
+      usedHint: context.usedHint,
+      responseMs: context.responseMs,
+      maiaCurrentAcceptableObservedPolicy:
+        position.maia_mine_acceptable_observed_policy ?? null,
+      maiaTargetAcceptableObservedPolicy:
+        position.maia_target_acceptable_observed_policy ?? null,
+      reasonCode: selected.whyToday.code,
+      primaryAnchorKey: selected.anchorKey,
+      corpusFallbackCode: selected.corpusFallback?.code ?? null,
+      phaseNovelty: selected.phaseNovelty[phaseKey],
+    });
+  }
+
+  function handlePlayDone(result: PlayResult) {
+    if (!completedTrackedRef.current) {
+      completedTrackedRef.current = true;
+      trackEvent("session_completed", {
+        event_version: 1,
+        anchor_key: selected.anchorKey,
+        reason_code: selected.whyToday.code,
+        review_positions: selected.distinctPositions,
+        has_secondary_anchor: selected.secondaryAnchor != null,
+        corpus_fallback: selected.corpusFallback?.code ?? null,
+        reached_practice_game: true,
+      });
+    }
+    const motif = selected.anchorLabel;
     setDominantMotif(motif);
+    onCompleted?.(result);
 
     // Write journal entry only once, only on full completion (not on early exit).
     if (!hasEntryToday("session_done")) {
-      const body = motif
-        ? `Ci siamo seduti su "${motif}". Hai rivisto i momenti, poi hai giocato.`
-        : "Ci siamo seduti, abbiamo rivisto i tuoi momenti e giocato una partita.";
+      const body = `Ci siamo seduti su "${motif}". Hai rivisto i momenti, poi hai giocato.`;
 
       writeEntry({
         kind: "session_done",
         body,
         meta: {
-          positions: positions.length,
-          ...(motif ? { dominant_motif: motif } : {}),
+          positions: selected.distinctPositions,
+          dominant_motif: motif,
+          anchor_key: selected.anchorKey,
+          selection_reason: selected.whyToday.code,
         },
       });
     }
     navigateWithTransition(() => setPhase("saluto"));
   }
 
+  function repeatReview(): void {
+    navigateWithTransition(() => setPhase("guardo"));
+    onPhaseChange?.("guardo");
+  }
+
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       className="fixed inset-0 z-50 overflow-auto"
       style={{ background: "var(--color-bg)" }}
       role="dialog"
@@ -639,6 +902,7 @@ export function NonnoSession({
         {/* Fase 1 — GUARDO */}
         {phase === "guardo" && (
           <div key="phase-guardo" className="settle-in">
+            <WhyTodayPanel selection={selected} />
             <MomentReview
               position={review}
               index={0}
@@ -659,6 +923,7 @@ export function NonnoSession({
                 {tr("Nonno mi aiuta", "Nonno helps me")}
               </span>
             </div>
+            <PhaseTheme selection={selected} phase="guided" />
             {/* Short bridge only: the data-rich line lives inside the puzzle voice */}
             <PhaseIntro
               text={tr(
@@ -672,6 +937,9 @@ export function NonnoSession({
               patternLabel={patternLabel}
               withHint={true}
               introLines={buildAiutoIntroLines(guided)}
+              onVerdict={(verdict, context) => {
+                handlePuzzleVerdict("guided", "guided", guided, verdict, context);
+              }}
               onNext={advance}
             />
           </div>
@@ -686,6 +954,7 @@ export function NonnoSession({
                 {tr("Gioco da solo", "On my own")}
               </span>
             </div>
+            <PhaseTheme selection={selected} phase="solo" />
             <PhaseIntro
               text={tr("Bene. Adesso da solo.", "Good. On your own now.")}
             />
@@ -695,6 +964,9 @@ export function NonnoSession({
               patternLabel={drillPatternLabel}
               withHint={false}
               introLines={buildDaSoloIntroLines(drill)}
+              onVerdict={(verdict, context) => {
+                handlePuzzleVerdict("drill", "solo", drill, verdict, context);
+              }}
               onNext={advance}
             />
           </div>
@@ -710,8 +982,16 @@ export function NonnoSession({
                 style={{ color: "var(--color-gold-soft)" }}
               >
                 {tr(
-                  "Hai visto la posizione due volte. Ora giocala.",
-                  "You saw that position twice. Now play it.",
+                  selected.secondaryAnchor
+                    ? selected.supplementalAnchors.length > 1
+                      ? "Hai lavorato sul tema principale e su richiami aggiuntivi distinti. Ora gioca dalla posizione iniziale della sessione."
+                      : "Hai lavorato sul tema principale e su un richiamo aggiuntivo. Ora gioca dalla posizione iniziale della sessione."
+                    : "Hai lavorato sul tema principale. Ora gioca dalla posizione iniziale della sessione.",
+                  selected.secondaryAnchor
+                    ? selected.supplementalAnchors.length > 1
+                      ? "You worked on the main theme and distinct additional recalls. Now play from the session's opening position."
+                      : "You worked on the main theme and an additional recall. Now play from the session's opening position."
+                    : "You worked on the main theme. Now play from the session's opening position.",
                 )}
               </span>
             </div>
@@ -719,8 +999,7 @@ export function NonnoSession({
               startFen={playFen}
               myColor={playColor}
               maiaLevel={targetRating}
-              currentRating={currentRating ?? undefined}
-              timeClass="rapid"
+              timeClass={timeClass}
               onDone={handlePlayDone}
             />
           </div>
@@ -734,9 +1013,10 @@ export function NonnoSession({
             style={{ position: "relative" }}
           >
             <Saluto
-              totalPositions={positions.length}
+              totalPositions={selected.distinctPositions}
               dominantMotif={dominantMotif}
               onClose={onClose}
+              onRepeat={repeatReview}
             />
           </div>
         )}

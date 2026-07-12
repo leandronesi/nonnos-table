@@ -13,11 +13,10 @@
  *   - toggleTheme() / getCurrentTheme() from theme.ts
  */
 
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useOnboardingRun } from "../pipeline/OnboardingRunContext";
-import { useTavoloActionsRef } from "../context/TavoloActionsContext";
 import { toggleTheme, getCurrentTheme } from "../theme";
 import { navigateWithTransition } from "../lib/motion";
 import { tr } from "../i18n/lang";
@@ -105,8 +104,9 @@ function NonnoMark({ size = 34 }: { size?: number }) {
 
 // ── Theme toggle ───────────────────────────────────────────────────────────────
 
-function ThemeToggleButton({ onToggle }: { onToggle: () => void }) {
+function ThemeToggleButton({ onToggle, touch = false }: { onToggle: () => void; touch?: boolean }) {
   const isDark = getCurrentTheme() === "dark";
+  const size = touch ? "2.75rem" : "2rem";
   return (
     <button
       onClick={onToggle}
@@ -115,8 +115,8 @@ function ThemeToggleButton({ onToggle }: { onToggle: () => void }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        width: "2rem",
-        height: "2rem",
+        width: size,
+        height: size,
         borderRadius: "0.5rem",
         background: "transparent",
         border: "1px solid var(--color-line)",
@@ -165,18 +165,12 @@ function DesktopSidebar({
   username,
   onSignOut,
   onThemeToggle,
-  onRefresh,
-  onReanalyze,
-  reanalyzeConfirming,
   onNavigate,
 }: {
   pathname: string;
   username: string | null;
   onSignOut: () => void;
   onThemeToggle: () => void;
-  onRefresh: (() => void) | null;
-  onReanalyze: (() => void) | null;
-  reanalyzeConfirming: boolean;
   onNavigate: (path: string) => void;
 }) {
   return (
@@ -247,66 +241,38 @@ function DesktopSidebar({
             {username}
           </div>
         )}
-        {/* Quiet action links: Aggiorna / Rianalizza — only shown on Tavolo */}
-        {(onRefresh || onReanalyze) && (
-          <div style={{
-            fontSize: "0.68rem",
-            color: "var(--color-faint)",
-            display: "flex",
-            gap: "0.5rem",
-            flexWrap: "wrap",
-          }}>
-            {onRefresh && (
-              <button
-                onClick={onRefresh}
-                style={{
-                  background: "none",
-                  border: "none",
-                  padding: 0,
-                  cursor: "pointer",
-                  color: "var(--color-faint)",
-                  fontSize: "inherit",
-                  fontFamily: "inherit",
-                  textDecoration: "underline",
-                  textDecorationColor: "color-mix(in srgb, var(--color-faint) 50%, transparent)",
-                  textUnderlineOffset: "2px",
-                  transition: "color 140ms cubic-bezier(0.23,1,0.32,1)",
-                }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--color-muted)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--color-faint)"; }}
-              >
-                {tr("Aggiorna le partite", "Sync your games")}
-              </button>
-            )}
-            {onRefresh && onReanalyze && (
-              <span style={{ color: "var(--color-faint)", userSelect: "none" }}> · </span>
-            )}
-            {onReanalyze && (
-              <button
-                onClick={onReanalyze}
-                style={{
-                  background: "none",
-                  border: "none",
-                  padding: 0,
-                  cursor: "pointer",
-                  color: reanalyzeConfirming ? "var(--color-warn)" : "var(--color-faint)",
-                  fontSize: "inherit",
-                  fontFamily: "inherit",
-                  textDecoration: "underline",
-                  textDecorationColor: "color-mix(in srgb, var(--color-faint) 50%, transparent)",
-                  textUnderlineOffset: "2px",
-                  transition: "color 200ms ease",
-                }}
-                onMouseEnter={(e) => { if (!reanalyzeConfirming) (e.currentTarget as HTMLButtonElement).style.color = "var(--color-muted)"; }}
-                onMouseLeave={(e) => { if (!reanalyzeConfirming) (e.currentTarget as HTMLButtonElement).style.color = "var(--color-faint)"; }}
-              >
-                {reanalyzeConfirming
-                  ? tr("Sicuro? Ricomincio da zero", "Are you sure? This resets everything.")
-                  : tr("Rianalizza da capo", "Reanalyze from scratch.")}
-              </button>
-            )}
-          </div>
-        )}
+        <Link
+          to="/stanza"
+          onClick={(e) => {
+            if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            e.preventDefault();
+            onNavigate("/stanza");
+          }}
+          style={{
+            width: "fit-content",
+            fontSize: "0.7rem",
+            color: "var(--color-muted)",
+            textUnderlineOffset: "3px",
+          }}
+        >
+          {tr("Riapri la Stanza", "Reopen the Room")}
+        </Link>
+        <Link
+          to="/settings"
+          onClick={(e) => {
+            if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            e.preventDefault();
+            onNavigate("/settings");
+          }}
+          style={{
+            width: "fit-content",
+            fontSize: "0.7rem",
+            color: "var(--color-muted)",
+            textUnderlineOffset: "3px",
+          }}
+        >
+          {tr("Impostazioni e privacy", "Settings and privacy")}
+        </Link>
         {/* Row: theme toggle + sign out */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           <LangToggle />
@@ -344,8 +310,8 @@ function MobileTopBar({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "0 1rem",
-        height: "3rem",
+        padding: "0 0.75rem",
+        height: "3.5rem",
         background: "var(--header-bg)",
         backdropFilter: "blur(14px)",
         WebkitBackdropFilter: "blur(14px)",
@@ -353,7 +319,12 @@ function MobileTopBar({
       }}
     >
       {/* Brand left + optional silent-refresh pill */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", minWidth: 0 }}>
+      <Link
+        to="/stanza"
+        aria-label={tr("Riapri la Stanza", "Reopen the Room")}
+        title={tr("Riapri la Stanza", "Reopen the Room")}
+        style={{ display: "flex", alignItems: "center", gap: "0.625rem", minWidth: 0, minHeight: "2.75rem", textDecoration: "none" }}
+      >
         <NonnoMark size={30} />
         <span style={{
           fontFamily: "var(--font-display)",
@@ -365,18 +336,36 @@ function MobileTopBar({
         }}>
           <span style={{ color: "var(--color-gold-soft)" }}>Nonno&apos;s</span> Table
         </span>
-        {silentRefreshing && <SilentRefreshPill />}
-      </div>
+        {silentRefreshing && <SilentRefreshPill compact />}
+      </Link>
       {/* Actions right */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
-        <LangToggle />
-        <ThemeToggleButton onToggle={onThemeToggle} />
+        <Link
+          to="/settings"
+          aria-label={tr("Impostazioni e privacy", "Settings and privacy")}
+          title={tr("Impostazioni e privacy", "Settings and privacy")}
+          style={{
+            display: "grid",
+            placeItems: "center",
+            width: "2.75rem",
+            height: "2.75rem",
+            border: "1px solid var(--color-line)",
+            borderRadius: "0.5rem",
+            color: "var(--color-muted)",
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+            <circle cx="7.5" cy="5" r="2.4" />
+            <path d="M3.2 13c.4-2.4 2-3.7 4.3-3.7s3.9 1.3 4.3 3.7" strokeLinecap="round" />
+          </svg>
+        </Link>
+        <ThemeToggleButton onToggle={onThemeToggle} touch />
         <button
           onClick={onSignOut}
-          className="btn btn-ghost btn-sm"
-          style={{ fontSize: "0.72rem", padding: "0.25rem 0.625rem" }}
+          className="btn btn-ghost min-h-11"
+          style={{ fontSize: "0.75rem", padding: "0.25rem 0.75rem" }}
         >
-          Esci
+          {tr("Esci", "Sign out")}
         </button>
       </div>
     </header>
@@ -451,7 +440,7 @@ function MobileTabBar({ pathname, onNavigate }: { pathname: string; onNavigate: 
 // ── Silent-refresh indicator ───────────────────────────────────────────────────
 // Shown only when silentRefreshing is true. Discrete: a pulsing dot + quiet text.
 
-function SilentRefreshPill() {
+function SilentRefreshPill({ compact = false }: { compact?: boolean }) {
   return (
     <div
       style={{
@@ -480,7 +469,7 @@ function SilentRefreshPill() {
         }}
         aria-hidden="true"
       />
-      {tr("Guardo le ultime partite...", "Still looking at your games.")}
+      {!compact && tr("Guardo le ultime partite...", "Still looking at your games.")}
     </div>
   );
 }
@@ -492,7 +481,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { silentRefreshing } = useOnboardingRun();
-  const tavoloActionsRef = useTavoloActionsRef();
   // Local state to force icon re-render on toggle
   const [_theme, setThemeState] = useState(() => getCurrentTheme());
 
@@ -512,57 +500,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const username = profile?.chess_com_username ?? null;
 
-  // Two-step confirm gate for "Rianalizza da capo" in the sidebar.
-  // Mirrors the same gate in TavoloHome — the sidebar must be equally safe.
-  const [reanalyzeConfirming, setReanalyzeConfirming] = useState(false);
-  const reanalyzeConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  function handleReanalyzeConfirm() {
-    if (!reanalyzeConfirming) {
-      setReanalyzeConfirming(true);
-      reanalyzeConfirmTimerRef.current = setTimeout(() => {
-        setReanalyzeConfirming(false);
-        reanalyzeConfirmTimerRef.current = null;
-      }, 4000);
-    } else {
-      if (reanalyzeConfirmTimerRef.current !== null) {
-        clearTimeout(reanalyzeConfirmTimerRef.current);
-        reanalyzeConfirmTimerRef.current = null;
-      }
-      setReanalyzeConfirming(false);
-      tavoloActionsRef.current?.handleFullReanalyze();
-    }
-  }
-
-  // Only show quiet action links when on the Tavolo and callbacks are registered.
-  const isTavolo = pathname.startsWith("/tavolo");
-  const onRefresh = isTavolo ? (() => { tavoloActionsRef.current?.handleRefresh(); }) : null;
-  const onReanalyze = isTavolo ? handleReanalyzeConfirm : null;
-
-  // Leaving the Tavolo cancels a pending confirm: the "Sicuro?" gate must not
-  // survive navigation (else returning within 4s shows a primed button that
-  // executes on the first click).
-  useEffect(() => {
-    if (isTavolo) return;
-    if (reanalyzeConfirmTimerRef.current !== null) {
-      clearTimeout(reanalyzeConfirmTimerRef.current);
-      reanalyzeConfirmTimerRef.current = null;
-    }
-    setReanalyzeConfirming(false);
-  }, [isTavolo]);
-
-  // Unmount-only safety net: AppShell unmounts when navigating to a surface that
-  // does not wrap in it (e.g. the Stanza at "/"), and the [isTavolo] effect above
-  // early-returns while still on the Tavolo. Always clear the pending timer here
-  // so it never fires setState on a dead component.
-  useEffect(() => {
-    return () => {
-      if (reanalyzeConfirmTimerRef.current !== null) {
-        clearTimeout(reanalyzeConfirmTimerRef.current);
-      }
-    };
-  }, []);
-
   return (
     <>
       {/* ── DESKTOP layout (>= 1024px) — hidden on mobile via CSS ──────── */}
@@ -572,9 +509,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           username={username}
           onSignOut={handleSignOut}
           onThemeToggle={handleThemeToggle}
-          onRefresh={onRefresh}
-          onReanalyze={onReanalyze}
-          reanalyzeConfirming={reanalyzeConfirming}
           onNavigate={handleNavigate}
         />
         {/* Content */}

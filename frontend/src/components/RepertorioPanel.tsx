@@ -182,7 +182,7 @@ function MiniPositionCard({ pos }: { pos: PositionExample }) {
             className="tt-chip warn"
             style={{ fontSize: "0.63rem", padding: "0.15rem 0.45rem" }}
           >
-            {tr("Evitabile", "Avoidable")}
+            {tr("Supporto Maia current", "Current Maia support")}
           </span>
         )}
       </div>
@@ -517,7 +517,7 @@ function AperturaRow({
               marginTop: "0.2rem",
             }}
           >
-            {tr("evitabili", "avoidable")}
+            {tr("supporto current", "current support")}
           </div>
         </div>
 

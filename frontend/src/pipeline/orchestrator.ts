@@ -17,8 +17,8 @@
  * Solo UNA istanza in vita per tab via lock locale.
  */
 
-import { supabase } from "../auth/supabaseClient";
-import type { ProfileRow, IngestJobRow, OnboardingState } from "../auth/db.types";
+import { supabase, STORAGE_BUCKET } from "../auth/supabaseClient";
+import type { ProfileRow, IngestJobRow, OnboardingState, Json } from "../auth/db.types";
 import { runIngest } from "./ingest";
 import { runAnalyze } from "./analyze";
 import type { GameAnalysis } from "./analyze";
@@ -29,7 +29,31 @@ import { appendSnapshot, buildSnapshot, readHistory } from "./history";
 import type { Goal } from "../types";
 import type { HistorySnapshot } from "../types";
 import { getLang } from "../i18n/lang";
-import { FREE_GAME_CAP, FIRST_BATCH_SIZE } from "./config";
+import {
+  FREE_GAME_CAP,
+  FIRST_BATCH_SIZE,
+  goalAnalysisScope,
+  shouldBuildRestCorpus,
+} from "./config";
+import type { AnalyzedTimeClass } from "./config";
+import {
+  buildAnalysisCoverage,
+  canPublishFirstReading,
+  countNewGoalGames,
+  parsePartialAnalysis,
+  requireExactCount,
+  serializePartialAnalysis,
+} from "./analysisRunSemantics";
+import type { AnalysisCoverage } from "./analysisRunSemantics";
+import {
+  acquireOrObserveIngestJob,
+  type IngestJobLease,
+  LeaseOwnershipLostError,
+} from "./jobLease";
+import {
+  observedLifecycleTransition,
+  shouldNotifyObservedBackgroundDone,
+} from "./jobLeaseSemantics";
 
 export interface OrchestratorProgress {
   phase: OnboardingState;
@@ -37,10 +61,19 @@ export interface OrchestratorProgress {
   monthsDone: number;
   gamesTotal: number;
   gamesDone: number;
+  /** JSON di analisi realmente caricati e marcati done; esclude i fallimenti. */
+  gamesAnalyzed: number;
+  /** False mentre gamesTotal e' ancora solo il cap di scansione, true a quota nota. */
+  corpusFinalized?: boolean;
+  /** Identifica il job per deduplicare le metriche terminali al reload. */
+  analysisRunId?: string;
+  /** Presente quando il corpus ha raggiunto uno stato terminale verificabile. */
+  coverage?: AnalysisCoverage;
   message?: string;
 }
 
 let activeRun: Promise<void> | null = null;
+let activeRunToken: object | null = null;
 // Listener di progresso "vivo": aggiornato a OGNI chiamata di
 // runOnboardingOrchestrator. Se l'effect della waiting page rigira (StrictMode,
 // re-mount, bounce Tavolo→home→waiting), il doRun in corso emette SEMPRE verso
@@ -50,39 +83,52 @@ let activeRun: Promise<void> | null = null;
 let currentOnProgress: ((p: OrchestratorProgress) => void) | null = null;
 // Stessa disciplina "listener vivo" per le callback opzionali di lifecycle.
 let currentOnFirstBatchReady: (() => void) | null = null;
-let currentOnBackgroundDone: (() => void) | null = null;
-
-export function resetActiveLock(): void {
-  activeRun = null;
-  currentOnProgress = null;
-  currentOnFirstBatchReady = null;
-  currentOnBackgroundDone = null;
-}
+let currentOnBackgroundDone:
+  | ((coverage: AnalysisCoverage, analysisRunId: string) => void)
+  | null = null;
 
 export function runOnboardingOrchestrator(opts: {
   profile: ProfileRow;
   onProgress?: (p: OrchestratorProgress) => void;
   onFirstBatchReady?: () => void;
-  onBackgroundDone?: () => void;
+  onBackgroundDone?: (coverage: AnalysisCoverage, analysisRunId: string) => void;
+  /** Solo un'azione esplicita dell'utente riapre un job concluso parzialmente. */
+  retryPartial?: boolean;
 }): Promise<void> {
   // Aggiorna SEMPRE i listener vivi, anche se un run è già in corso.
   currentOnProgress = opts.onProgress ?? null;
   currentOnFirstBatchReady = opts.onFirstBatchReady ?? null;
   currentOnBackgroundDone = opts.onBackgroundDone ?? null;
   if (activeRun) return activeRun;
-  activeRun = (async () => {
+  const token = {};
+  const run = (async () => {
     try {
       await doRun(opts);
     } finally {
-      activeRun = null;
+      // Never let an older promise clear a newer run's lock.
+      if (activeRunToken === token) {
+        activeRun = null;
+        activeRunToken = null;
+      }
     }
   })();
-  return activeRun;
+  activeRun = run;
+  activeRunToken = token;
+  return run;
 }
 
 async function setProfileState(userId: string, state: OnboardingState, error?: string) {
-  const patch: Partial<ProfileRow> = { onboarding_state: state };
-  await supabase.from("profiles").update(patch).eq("user_id", userId);
+  const { data: updatedProfile, error: updateError } = await supabase
+    .from("profiles")
+    .update({ onboarding_state: state })
+    .eq("user_id", userId)
+    .select("user_id")
+    .maybeSingle();
+  if (updateError || !updatedProfile) {
+    throw new Error(
+      `profile_state_update_failed:${updateError?.message ?? "missing_row"}`,
+    );
+  }
   if (error) {
     // eslint-disable-next-line no-console
     console.warn("[orchestrator] profile state →", state, error);
@@ -90,70 +136,341 @@ async function setProfileState(userId: string, state: OnboardingState, error?: s
 }
 
 async function currentJob(userId: string): Promise<IngestJobRow | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("ingest_jobs")
     .select("*")
     .eq("user_id", userId)
+    .eq("kind", "main")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (error) throw new Error(`ingest_job_select_failed:${error.message}`);
   return (data as IngestJobRow | null) ?? null;
+}
+
+async function currentSilentJob(userId: string): Promise<IngestJobRow | null> {
+  const { data, error } = await supabase
+    .from("ingest_jobs")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("kind", "silent")
+    .in("status", [
+      "queued",
+      "fetching",
+      "analyzing",
+      "analyzing_first",
+      "coaching_first",
+      "analyzing_rest",
+      "coaching",
+    ])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`silent_ingest_job_select_failed:${error.message}`);
+  return (data as IngestJobRow | null) ?? null;
+}
+
+function emitObservedMainJob(
+  job: IngestJobRow,
+  profileState: OnboardingState,
+  gamesAnalyzed: number,
+): void {
+  const phase: OnboardingState = job.status === "done" && profileState === "ready"
+    ? "ready"
+    : job.status === "queued" || job.status === "fetching"
+      ? "ingesting"
+      : job.status === "coaching" || job.status === "coaching_first"
+        ? "coaching"
+        : job.status === "error"
+          ? "error"
+          : "analyzing";
+  currentOnProgress?.({
+    phase,
+    monthsTotal: job.months_total,
+    monthsDone: job.months_done,
+    gamesTotal: job.games_total,
+    gamesDone: job.games_done,
+    gamesAnalyzed,
+    analysisRunId: job.id,
+    corpusFinalized: job.status === "done",
+    message: phase === "ready"
+      ? undefined
+      : "Un'altra scheda sta completando questa analisi...",
+  });
+}
+
+async function updateJobOrThrow(
+  jobId: string,
+  leaseToken: string,
+  patch: Partial<IngestJobRow>,
+  code: string,
+): Promise<void> {
+  const { data, error } = await supabase.rpc("patch_ingest_job_lease", {
+    p_job_id: jobId,
+    p_lease_token: leaseToken,
+    p_patch: patch as unknown as Json,
+  });
+  if (error) throw new Error(`${code}:${error.message}`);
+  if (data !== true) throw new LeaseOwnershipLostError();
+}
+
+function jobErrorMessage(cause: unknown): string {
+  return String(cause instanceof Error ? cause.message : cause).slice(0, 4_000);
+}
+
+async function drainCorpusPruneBatches(
+  guardLease?: () => Promise<void>,
+): Promise<void> {
+  const { data: batches, error } = await supabase
+    .from("corpus_prune_batches")
+    .select("id,object_paths")
+    .order("created_at", { ascending: true })
+    .limit(20);
+  if (error) throw new Error(`corpus_prune_queue_select_failed:${error.message}`);
+
+  for (const batch of batches ?? []) {
+    for (let offset = 0; offset < batch.object_paths.length; offset += 100) {
+      const paths = batch.object_paths.slice(offset, offset + 100);
+      await guardLease?.();
+      const { error: removeError } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .remove(paths);
+      await guardLease?.();
+      if (removeError) {
+        throw new Error(`corpus_storage_prune_failed:${removeError.message}`);
+      }
+    }
+    await guardLease?.();
+    const { data: deleted, error: deleteError } = await supabase
+      .from("corpus_prune_batches")
+      .delete()
+      .eq("id", batch.id)
+      .select("id")
+      .maybeSingle();
+    await guardLease?.();
+    if (deleteError || !deleted) {
+      throw new Error(
+        `corpus_prune_queue_delete_failed:${deleteError?.message ?? "missing_row"}`,
+      );
+    }
+  }
+}
+
+async function enforceCorpusRetention(
+  goalTimeClass: AnalyzedTimeClass,
+  guardLease?: () => Promise<void>,
+): Promise<void> {
+  await drainCorpusPruneBatches(guardLease);
+  // Each RPC stages/deletes at most 500 old rows. Bound work per foreground run;
+  // any remaining backlog is picked up by the next refresh.
+  for (let batch = 0; batch < 20; batch += 1) {
+    await guardLease?.();
+    const { data: batchId, error } = await supabase.rpc("stage_corpus_prune", {
+      p_goal_time_class: goalTimeClass,
+      p_keep: FREE_GAME_CAP,
+    });
+    await guardLease?.();
+    if (error) throw new Error(`corpus_prune_stage_failed:${error.message}`);
+    if (!batchId) return;
+    await drainCorpusPruneBatches(guardLease);
+  }
+  // eslint-disable-next-line no-console
+  console.warn("[orchestrator] corpus prune backlog deferred to the next run");
 }
 
 async function doRun(opts: {
   profile: ProfileRow;
   onProgress?: (p: OrchestratorProgress) => void;
   onFirstBatchReady?: () => void;
-  onBackgroundDone?: () => void;
+  onBackgroundDone?: (coverage: AnalysisCoverage, analysisRunId: string) => void;
+  retryPartial?: boolean;
 }) {
   const { profile } = opts;
   const userId = profile.user_id;
+  const { timeClass: goalTimeClass } = goalAnalysisScope(profile.goal_time_class);
+
+  try {
+    await drainCorpusPruneBatches();
+  } catch (pruneError) {
+    // Durable queue remains available for the next run.
+    // eslint-disable-next-line no-console
+    console.warn("[orchestrator] deferred corpus storage cleanup:", pruneError);
+  }
 
   let job = await currentJob(userId);
   if (!job) {
-    // Nessun job: ne creo uno.
-    const { data } = await supabase
-      .from("ingest_jobs")
-      .insert({
-        user_id: userId,
-        status: "queued",
-        months_total: 0,
-        months_done: 0,
-        games_total: 0,
-        games_done: 0,
-      })
-      .select("*")
-      .single();
-    job = data as IngestJobRow;
+    // Cross-tab safe: Postgres serializza il check+insert e restituisce sempre
+    // l'unico job principale più recente per l'utente autenticato.
+    const { data: jobId, error: ensureError } = await supabase.rpc(
+      "ensure_analysis_job",
+      {},
+    );
+    if (ensureError || !jobId) {
+      throw new Error(`ingest_job_ensure_failed:${ensureError?.message ?? "missing_job_id"}`);
+    }
+    job = await currentJob(userId);
+    if (!job || job.id !== jobId) throw new Error("ingest_job_ensure_failed:missing_row");
+  }
+
+  let observerSawReady = profile.onboarding_state === "ready";
+  let observedBackgroundWork = false;
+  const acquisition = await acquireOrObserveIngestJob({
+    jobId: job.id,
+    userId,
+    goalTimeClass,
+    expectedKind: "main",
+    allowTerminal: opts.retryPartial === true,
+    onObserved: (observedJob, profileState, gamesAnalyzed) => {
+      emitObservedMainJob(observedJob, profileState, gamesAnalyzed);
+      const lifecycle = observedLifecycleTransition({
+        readySeen: observerSawReady,
+        profileReady: profileState === "ready",
+        status: observedJob.status,
+      });
+      observerSawReady = lifecycle.readySeen;
+      if (lifecycle.firstBatchBecameReady) {
+        currentOnFirstBatchReady?.();
+      }
+      observedBackgroundWork ||= lifecycle.backgroundWork;
+    },
+  });
+  if (acquisition.outcome === "terminal") {
+    const coverage = parsePartialAnalysis(acquisition.job.error)
+      ?? buildAnalysisCoverage(
+        Math.max(acquisition.job.games_total, acquisition.gamesAnalyzed),
+        acquisition.gamesAnalyzed,
+      );
+    currentOnProgress?.({
+      phase: "ready",
+      monthsTotal: acquisition.job.months_total,
+      monthsDone: acquisition.job.months_done,
+      gamesTotal: coverage.selected,
+      gamesDone: coverage.selected,
+      gamesAnalyzed: coverage.succeeded,
+      corpusFinalized: true,
+      analysisRunId: acquisition.job.id,
+      coverage,
+    });
+    if (shouldNotifyObservedBackgroundDone({
+      backgroundWorkSeen: observedBackgroundWork,
+      profileWasReadyAtStart: profile.onboarding_state === "ready",
+      selectedGames: coverage.selected,
+      firstBatchSize: FIRST_BATCH_SIZE,
+    })) {
+      currentOnBackgroundDone?.(coverage, acquisition.job.id);
+    }
+    return;
+  }
+  const lease = acquisition.lease;
+  try {
+    await lease.guard();
+    job = (await currentJob(userId)) ?? job;
+    const { data: ownedProfileState, error: ownedProfileStateError } = await supabase
+      .from("profiles")
+      .select("onboarding_state")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (ownedProfileStateError || !ownedProfileState) {
+      throw new Error(
+        `profile_observe_failed:${ownedProfileStateError?.message ?? "missing_profile"}`,
+      );
+    }
+    const ownedLifecycle = observedLifecycleTransition({
+      readySeen: observerSawReady,
+      profileReady: ownedProfileState.onboarding_state === "ready",
+      status: job.status,
+    });
+    observerSawReady = ownedLifecycle.readySeen;
+    observedBackgroundWork ||= ownedLifecycle.backgroundWork;
+    if (ownedLifecycle.firstBatchBecameReady) {
+      currentOnFirstBatchReady?.();
+    }
+
+  // Le analisi fallite su singole partite sono una conclusione parziale, non
+  // un errore infrastrutturale da ritentare a ogni apertura. I job prodotti
+  // dalla vecchia versione (`background_analysis_incomplete`) vengono
+  // normalizzati a `done` una volta; solo la CTA esplicita li riapre.
+  const persistedPartial = parsePartialAnalysis(job.error);
+  if (
+    profile.onboarding_state === "ready" &&
+    persistedPartial &&
+    (job.status === "done" || job.status === "error")
+  ) {
+    if (opts.retryPartial) {
+      await updateJobOrThrow(
+        job.id,
+        lease.token,
+        {
+          status: "analyzing_rest",
+          error: null,
+          finished_at: null,
+        },
+        "partial_retry_checkpoint_failed",
+      );
+    } else if (job.status === "error") {
+      await updateJobOrThrow(
+        job.id,
+        lease.token,
+        {
+          games_total: persistedPartial.selected,
+          games_done: persistedPartial.succeeded,
+        },
+        "partial_normalize_failed",
+      );
+      await lease.complete("done", serializePartialAnalysis(persistedPartial));
+    }
+    job = (await currentJob(userId)) ?? job;
   }
 
   // Recovery: un job 'error' (es. coach fallito perché l'edge function non era
   // ancora deployata) deve poter ripartire al reload, invece di restare bloccato.
   // Ri-deriviamo lo stage dal progresso reale.
   if (job.status === "error") {
-    const { count: gameCount } = await supabase
+    const { count: rawGameCount, error: gameCountError } = await supabase
       .from("games")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", userId);
-    if ((gameCount ?? 0) === 0) {
-      await supabase
-        .from("ingest_jobs")
-        .update({ status: "queued", error: null })
-        .eq("id", job.id);
+      .eq("user_id", userId)
+      .eq("time_class", goalTimeClass);
+    const gameCount = requireExactCount(
+      rawGameCount,
+      gameCountError,
+      "recovery_game_count_failed",
+    );
+    if (
+      gameCount === 0 ||
+      (profile.onboarding_state !== "ready" && gameCount < FIRST_BATCH_SIZE)
+    ) {
+      await updateJobOrThrow(
+        job.id,
+        lease.token,
+        { status: "queued", error: null, finished_at: null },
+        "recovery_queue_checkpoint_failed",
+      );
     } else {
       // Risaliamo dallo stato di analisi delle partite (come nell'anti-loop guard).
-      const { count: doneCount } = await supabase
+      const { count: rawDoneCount, error: doneCountError } = await supabase
         .from("games")
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId)
+        .eq("time_class", goalTimeClass)
         .eq("analysis_status", "done");
-      const done = doneCount ?? 0;
-      const recoverTo: "analyzing_first" | "analyzing_rest" =
-        done < FIRST_BATCH_SIZE ? "analyzing_first" : "analyzing_rest";
-      await supabase
-        .from("ingest_jobs")
-        .update({ status: recoverTo, error: null })
-        .eq("id", job.id);
+      const done = requireExactCount(
+        rawDoneCount,
+        doneCountError,
+        "recovery_done_count_failed",
+      );
+      const recoverTo: "analyzing_first" | "coaching_first" | "analyzing_rest" =
+        profile.onboarding_state === "ready"
+          ? "analyzing_rest"
+          : done < FIRST_BATCH_SIZE
+            ? "analyzing_first"
+            : "coaching_first";
+      await updateJobOrThrow(
+        job.id,
+        lease.token,
+        { status: recoverTo, error: null, finished_at: null },
+        "recovery_stage_checkpoint_failed",
+      );
     }
     job = (await currentJob(userId)) ?? job;
   }
@@ -175,47 +492,114 @@ async function doRun(opts: {
     // Deriving the correct re-run stage from actual game data.
     // If there are un-analyzed games → derive first vs rest from done count;
     // otherwise → re-aggregate + coach (finale).
-    const { count: pendingCount } = await supabase
+    const { count: rawPendingCount, error: pendingCountError } = await supabase
       .from("games")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
+      .eq("time_class", goalTimeClass)
       .eq("analysis_status", "pending");
-    let recoverTo: "analyzing_first" | "analyzing_rest" | "coaching";
-    if ((pendingCount ?? 0) > 0) {
-      const { count: doneCount } = await supabase
+    const pendingCount = requireExactCount(
+      rawPendingCount,
+      pendingCountError,
+      "resume_pending_count_failed",
+    );
+    let recoverTo: "analyzing_first" | "coaching_first";
+    if (pendingCount > 0) {
+      const { count: rawDoneCount, error: doneCountError } = await supabase
         .from("games")
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId)
+        .eq("time_class", goalTimeClass)
         .eq("analysis_status", "done");
-      recoverTo = (doneCount ?? 0) < FIRST_BATCH_SIZE ? "analyzing_first" : "analyzing_rest";
+      const doneCount = requireExactCount(
+        rawDoneCount,
+        doneCountError,
+        "resume_done_count_failed",
+      );
+      recoverTo = doneCount < FIRST_BATCH_SIZE
+        ? "analyzing_first"
+        : "coaching_first";
     } else {
-      recoverTo = "coaching";
+      // Solo coaching_first rende il profilo ready; il coaching finale assume
+      // invece che l'utente sia gia' entrato nel prodotto.
+      recoverTo = "coaching_first";
     }
-    await supabase
-      .from("ingest_jobs")
-      .update({ status: recoverTo, finished_at: null, error: null })
-      .eq("id", job.id);
+    await updateJobOrThrow(
+      job.id,
+      lease.token,
+      { status: recoverTo, finished_at: null, error: null },
+      "resume_stage_checkpoint_failed",
+    );
     job = (await currentJob(userId)) ?? job;
   }
 
-  const emit = (patch: Partial<OrchestratorProgress> & Pick<OrchestratorProgress, "phase">) =>
+  const { data: persistedAnalysisRows, error: persistedAnalysisRowsError } = await supabase
+    .from("games")
+    .select("analysis_status,analysis_path")
+    .eq("user_id", userId)
+    .eq("time_class", goalTimeClass)
+    .order("played_at", { ascending: false })
+    .limit(FREE_GAME_CAP);
+  if (persistedAnalysisRowsError) {
+    throw new Error(`persisted_analysis_select_failed:${persistedAnalysisRowsError.message}`);
+  }
+  let gamesAnalyzed = (persistedAnalysisRows ?? []).filter(
+    (row) => row.analysis_status === "done" && Boolean(row.analysis_path),
+  ).length;
+
+  const emit = (
+    patch: Partial<OrchestratorProgress> & Pick<OrchestratorProgress, "phase">,
+  ) => {
+    if (patch.gamesAnalyzed !== undefined) gamesAnalyzed = patch.gamesAnalyzed;
     currentOnProgress?.({
       monthsTotal: job?.months_total ?? 0,
       monthsDone: job?.months_done ?? 0,
       gamesTotal: job?.games_total ?? 0,
       gamesDone: job?.games_done ?? 0,
+      gamesAnalyzed,
+      analysisRunId: job?.id,
       ...patch,
     });
+  };
+
+  // Un job parziale gia' concluso e' terminale al reload: mostriamo la
+  // copertura persistita, ma non rilanciamo motori né il popup di fine lavoro.
+  const terminalPartial = parsePartialAnalysis(job.error);
+  if (
+    job.status === "done" &&
+    profile.onboarding_state === "ready" &&
+    terminalPartial
+  ) {
+    emit({
+      phase: "ready",
+      gamesTotal: terminalPartial.selected,
+      gamesDone: terminalPartial.selected,
+      gamesAnalyzed: terminalPartial.succeeded,
+      corpusFinalized: true,
+      coverage: terminalPartial,
+    });
+    return;
+  }
 
   // ---- Step 1: INGEST ----
   if (job.status === "queued" || job.status === "fetching") {
+    await lease.guard();
     await setProfileState(userId, "ingesting");
-    emit({ phase: "ingesting", message: "Scarico le tue partite da Chess.com…" });
+    emit({
+      phase: "ingesting",
+      corpusFinalized: false,
+      message: "Scarico le tue partite da Chess.com…",
+    });
     try {
       await runIngest({
         userId,
         chessComUsername: profile.chess_com_username,
+        goalTimeClass,
+        gameCap: FIRST_BATCH_SIZE,
+        requireAtLeastOne: job.refresh_after == null,
         jobId: job.id,
+        leaseToken: lease.token,
+        guardLease: () => lease.guard(),
         refreshAfter: job.refresh_after ?? undefined,
         onProgress: (p) =>
           emit({
@@ -224,89 +608,131 @@ async function doRun(opts: {
             monthsDone: p.monthsDone,
             gamesTotal: p.gamesTotal,
             gamesDone: p.gamesDone,
+            corpusFinalized: false,
           }),
       });
     } catch (e) {
-      const msg = String(e instanceof Error ? e.message : e);
-      await supabase
-        .from("ingest_jobs")
-        .update({ status: "error", error: msg })
-        .eq("id", job.id);
+      const msg = jobErrorMessage(e);
+      if (e instanceof LeaseOwnershipLostError) throw e;
+      await lease.guard();
       await setProfileState(userId, "error", msg);
+      await lease.complete("error", msg);
       throw e;
     }
-    await supabase.from("ingest_jobs").update({ status: "analyzing_first" }).eq("id", job.id);
+    await updateJobOrThrow(
+      job.id,
+      lease.token,
+      { status: "analyzing_first" },
+      "analyzing_first_checkpoint_failed",
+    );
     job = (await currentJob(userId)) ?? job;
   }
 
-  // ---- Step 2a: ANALYZE FIRST BATCH (20 partite più recenti) ----
+  // ---- Step 2a: ANALYZE FIRST BATCH (FIRST_BATCH_SIZE più recenti) ----
   if (job.status === "analyzing_first" || job.status === "fetching") {
+    await lease.guard();
     await setProfileState(userId, "analyzing");
-    emit({ phase: "analyzing", message: "Analizzo le partite con Stockfish…" });
+    emit({
+      phase: "analyzing",
+      corpusFinalized: true,
+      message: "Analizzo le partite con Stockfish…",
+    });
     try {
-      await runAnalyze({
+      const firstAnalysis = await runAnalyze({
         userId,
         jobId: job.id,
+        leaseToken: lease.token,
+        guardLease: () => lease.guard(),
+        pulseLease: () => lease.pulse(),
+        goalTimeClass,
         range: { offset: 0, limit: FIRST_BATCH_SIZE },
-        onProgress: (done, total) =>
+        onProgress: (progress) =>
           emit({
             phase: "analyzing",
-            gamesTotal: total,
-            gamesDone: done,
+            gamesTotal: progress.total,
+            gamesDone: progress.processed,
+            gamesAnalyzed: progress.succeeded,
+            corpusFinalized: true,
             message: "Analizzo le partite con Stockfish…",
           }),
       });
+      if (!canPublishFirstReading(firstAnalysis.sliceSucceeded)) {
+        throw new Error("no_analyzable_games");
+      }
     } catch (e) {
-      const msg = String(e instanceof Error ? e.message : e);
-      await supabase
-        .from("ingest_jobs")
-        .update({ status: "error", error: msg })
-        .eq("id", job.id);
+      const msg = jobErrorMessage(e);
+      if (e instanceof LeaseOwnershipLostError) throw e;
+      await lease.guard();
       await setProfileState(userId, "error", msg);
+      await lease.complete("error", msg);
       throw e;
     }
-    await supabase.from("ingest_jobs").update({ status: "coaching_first" }).eq("id", job.id);
+    await updateJobOrThrow(
+      job.id,
+      lease.token,
+      { status: "coaching_first" },
+      "coaching_first_checkpoint_failed",
+    );
     job = (await currentJob(userId)) ?? job;
   }
 
-  // ---- Step 2b: AGGREGATE + COACH PARZIALE (sulle prime 20) ----
+  // ---- Step 2b: AGGREGATE + COACH PARZIALE (prima fetta) ----
   if (job.status === "coaching_first") {
+    await lease.guard();
     await setProfileState(userId, "coaching");
-    emit({ phase: "coaching", message: "Confronto col tuo livello (Maia)…" });
+    emit({
+      phase: "coaching",
+      corpusFinalized: true,
+      message: "Confronto col tuo livello (Maia)…",
+    });
     try {
-      await runAggregateAndCoach(userId, profile);
+      await lease.guard();
+      await runAggregateAndCoach(userId, profile, () => lease.guard());
+      await lease.guard();
     } catch (e) {
-      const msg = String(e instanceof Error ? e.message : e);
-      await supabase
-        .from("ingest_jobs")
-        .update({ status: "error", error: msg })
-        .eq("id", job.id);
+      const msg = jobErrorMessage(e);
+      if (e instanceof LeaseOwnershipLostError) throw e;
+      await lease.guard();
       await setProfileState(userId, "error", msg);
+      await lease.complete("error", msg);
       throw e;
     }
 
-    // Il profilo diventa 'ready' QUI (dopo le prime 20): l'utente può entrare
+    // Il profilo diventa 'ready' QUI (dopo la prima fetta): l'utente può entrare
     // al Tavolo mentre il background continua. Da questo momento in poi il
     // background NON toccherà più onboarding_state.
+    await lease.guard();
     await setProfileState(userId, "ready");
     currentOnFirstBatchReady?.();
 
-    // Controlla se esistono partite da analizzare nella seconda fetta.
-    const { count: pendingRestCount } = await supabase
+    // Un errore/pending (o un vecchio done senza path) richiede il secondo lotto.
+    // Se il primo ingest ha riempito il cap 10, dobbiamo inoltre fare un
+    // secondo passaggio per scoprire e indicizzare le eventuali partite 11-100.
+    const { data: recentAnalysisRows, error: retryableError } = await supabase
       .from("games")
-      .select("id", { count: "exact", head: true })
+      .select("analysis_status,analysis_path")
       .eq("user_id", userId)
-      .eq("analysis_status", "pending");
+      .eq("time_class", goalTimeClass)
+      .order("played_at", { ascending: false })
+      .limit(FREE_GAME_CAP);
+    if (retryableError) {
+      throw new Error(`retryable_analysis_select_failed:${retryableError.message}`);
+    }
+    const retryableGames = (recentAnalysisRows ?? []).filter(
+      (row) => row.analysis_status !== "done" || !row.analysis_path,
+    ).length;
 
-    // Quante partite totali ci sono nella quota (serve sapere se la quota supera FIRST_BATCH_SIZE).
-    const { count: quotaCount } = await supabase
-      .from("games")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId);
-
-    const hasSecondBatch = (pendingRestCount ?? 0) > 0 && (quotaCount ?? 0) > FIRST_BATCH_SIZE;
+    const hasSecondBatch = shouldBuildRestCorpus(
+      job.games_total,
+      retryableGames,
+    );
     if (hasSecondBatch) {
-      await supabase.from("ingest_jobs").update({ status: "analyzing_rest" }).eq("id", job.id);
+      await updateJobOrThrow(
+        job.id,
+        lease.token,
+        { status: "analyzing_rest" },
+        "analyzing_rest_checkpoint_failed",
+      );
       job = (await currentJob(userId)) ?? job;
     } else {
       // Quota <= FIRST_BATCH_SIZE o tutte già analizzate: il profilo è già ready,
@@ -315,12 +741,26 @@ async function doRun(opts: {
       try {
         const currentRating = await deriveCurrentRating(userId, profile);
         const targetRating = profile.goal_rating ?? undefined;
-        const aggregates = await computeAggregates(userId, currentRating, targetRating);
+        const aggregates = await computeAggregates(
+          userId,
+          goalTimeClass,
+          currentRating,
+          targetRating,
+          () => lease.guard(),
+        );
         const existingHistory = await readHistory(userId);
         const run_kind: HistorySnapshot["run_kind"] =
-          existingHistory.snapshots.length > 0 ? "reanalyze" : "onboarding";
+          job.refresh_after != null
+            ? "refresh"
+            : existingHistory.snapshots.length > 0
+              ? "reanalyze"
+              : "onboarding";
         // Use immutable start_rating from first snapshot (day-1 baseline).
-        const startRating = deriveStartRating(existingHistory, currentRating);
+        const startRating = deriveStartRating(
+          existingHistory,
+          currentRating,
+          goalTimeClass,
+        );
         const pointsGained = (currentRating ?? 0) - (startRating ?? currentRating ?? 0);
         const goalForSnap: Goal = {
           target: profile.goal_rating,
@@ -328,7 +768,7 @@ async function doRun(opts: {
           deadline: profile.goal_deadline ?? "",
           current_rating: currentRating,
           start_rating: startRating,
-          points_gained_since_start: Math.max(0, pointsGained),
+          points_gained_since_start: pointsGained,
           points_needed: Math.max(0, profile.goal_rating - (currentRating ?? 0)),
           days_left: profile.goal_horizon_weeks * 7,
           days_since_start: 0,
@@ -338,68 +778,148 @@ async function doRun(opts: {
           on_track: false,
         };
         const snap = buildSnapshot(aggregates, goalForSnap, run_kind);
+        await lease.guard();
         await appendSnapshot(userId, snap);
+        await lease.guard();
       } catch (histErr) {
+        if (histErr instanceof LeaseOwnershipLostError) throw histErr;
         // eslint-disable-next-line no-console
         console.warn("[orchestrator] history snapshot fallito (best-effort, ignoro):", histErr);
       }
-      await supabase
-        .from("ingest_jobs")
-        .update({ status: "done", finished_at: new Date().toISOString() })
-        .eq("id", job.id);
-      emit({ phase: "ready" });
+      try {
+        await enforceCorpusRetention(goalTimeClass, () => lease.guard());
+      } catch (pruneError) {
+        if (pruneError instanceof LeaseOwnershipLostError) throw pruneError;
+        // Rows already staged have durable object paths and will be retried.
+        // eslint-disable-next-line no-console
+        console.warn("[orchestrator] corpus retention deferred:", pruneError);
+      }
+      await lease.complete("done", null);
+      emit({ phase: "ready", corpusFinalized: true });
       return; // tutto finito, niente secondo lotto
     }
   }
 
-  // ---- Step 2c: ANALYZE REST (partite 21-100) ----
+  // ---- Step 2c: ANALYZE REST (dopo FIRST_BATCH_SIZE, fino al cap) ----
   // NOTA: NON chiamiamo setProfileState qui. Il profilo è già 'ready' dal
   // coaching_first. Toccarlo di nuovo (→ "analyzing") farebbe rimbalzare
   // HomeGate dall'utente che sta già navigando il Tavolo.
   if (job.status === "analyzing_rest") {
-    emit({ phase: "analyzing", message: "Analizzo le partite con Stockfish…" });
+    emit({
+      phase: "analyzing",
+      corpusFinalized: false,
+      message: "Completo il campione delle tue partite…",
+    });
     try {
-      await runAnalyze({
+      // Secondo ingest idempotente: le prime 10 gia' presenti contano verso il
+      // cap, poi indicizziamo 11-100. Manteniamo analyzing_rest come checkpoint:
+      // se il tab si chiude, il reload ripete questo passaggio in sicurezza.
+      await runIngest({
         userId,
+        chessComUsername: profile.chess_com_username,
+        goalTimeClass,
+        gameCap: FREE_GAME_CAP,
+        markJobFetching: false,
         jobId: job.id,
-        range: { offset: FIRST_BATCH_SIZE, limit: FREE_GAME_CAP - FIRST_BATCH_SIZE },
-        onProgress: (done, total) =>
+        leaseToken: lease.token,
+        guardLease: () => lease.guard(),
+        refreshAfter: job.refresh_after ?? undefined,
+        onProgress: (p) =>
           emit({
             phase: "analyzing",
-            gamesTotal: total,
-            gamesDone: done,
+            monthsTotal: p.monthsTotal,
+            monthsDone: p.monthsDone,
+            gamesTotal: p.gamesTotal,
+            gamesDone: p.gamesDone,
+            corpusFinalized: false,
+            message: "Completo il campione delle tue partite…",
+          }),
+      });
+      job = (await currentJob(userId)) ?? job;
+
+      emit({
+        phase: "analyzing",
+        corpusFinalized: true,
+        message: "Analizzo le partite con Stockfish…",
+      });
+      const backgroundAnalysis = await runAnalyze({
+        userId,
+        jobId: job.id,
+        leaseToken: lease.token,
+        guardLease: () => lease.guard(),
+        pulseLease: () => lease.pulse(),
+        goalTimeClass,
+        // I successi delle prime 10 vengono saltati; gli errori vengono ritentati.
+        range: { offset: 0, limit: FREE_GAME_CAP },
+        onProgress: (progress) =>
+          emit({
+            phase: "analyzing",
+            gamesTotal: progress.total,
+            gamesDone: progress.processed,
+            gamesAnalyzed: progress.succeeded,
+            corpusFinalized: true,
             message: "Analizzo le partite con Stockfish…",
           }),
       });
+      const coverage = buildAnalysisCoverage(
+        backgroundAnalysis.total,
+        backgroundAnalysis.succeeded,
+      );
+      await updateJobOrThrow(
+        job.id,
+        lease.token,
+        {
+          status: "coaching",
+          games_total: coverage.selected,
+          games_done: coverage.succeeded,
+          error: serializePartialAnalysis(coverage),
+        },
+        "analysis_checkpoint_failed",
+      );
+      job = (await currentJob(userId)) ?? job;
     } catch (e) {
-      const msg = String(e instanceof Error ? e.message : e);
-      await supabase
-        .from("ingest_jobs")
-        .update({ status: "error", error: msg })
-        .eq("id", job.id);
-      // BACKGROUND: il profilo e' gia' 'ready', NON riportarlo a 'error'
-      // (sbatterebbe l'utente fuori dal Tavolo). Il job resta 'error': al
-      // prossimo avvio l'error-recovery riprende da analyzing_rest.
+      const msg = jobErrorMessage(e);
+      if (e instanceof LeaseOwnershipLostError) throw e;
+      await lease.complete("error", msg);
+      // BACKGROUND: il profilo e' gia' 'ready', NON riportarlo a 'error'. Qui
+      // arrivano solo guasti del run/checkpoint; i singoli PGN non leggibili
+      // proseguono invece verso un coaching esplicitamente parziale.
       throw e;
     }
-    await supabase.from("ingest_jobs").update({ status: "coaching" }).eq("id", job.id);
-    job = (await currentJob(userId)) ?? job;
   }
 
   // ---- Step 3: AGGREGATE + COACH FINALE (tutte le done, max 100) ----
   // NOTA: NON chiamiamo setProfileState qui. Il profilo è già 'ready' dal
   // coaching_first. Questo step è puro background: aggiorna il coach_brief con
-  // tutte le 100 partite e annuncia la fine via onBackgroundDone.
+  // tutto il corpus disponibile (fino al cap) e annuncia la fine via onBackgroundDone.
   if (job.status === "coaching") {
-    emit({ phase: "coaching", message: "Confronto col tuo livello (Maia)…" });
+    const completionCoverage =
+      parsePartialAnalysis(job.error) ??
+      buildAnalysisCoverage(
+        Math.max(job.games_total, gamesAnalyzed),
+        gamesAnalyzed,
+      );
+    emit({
+      phase: "coaching",
+      corpusFinalized: true,
+      message: "Confronto col tuo livello (Maia)…",
+    });
     try {
-      await runAggregateAndCoach(userId, profile);
+      await lease.guard();
+      await runAggregateAndCoach(userId, profile, () => lease.guard());
+      await lease.guard();
 
       // ---- History snapshot (best-effort, non blocca mai ready) ----
       try {
         const currentRating = await deriveCurrentRating(userId, profile);
         const targetRating = profile.goal_rating ?? undefined;
-        const aggregates = await computeAggregates(userId, currentRating, targetRating);
+        const aggregates = await computeAggregates(
+          userId,
+          goalTimeClass,
+          currentRating,
+          targetRating,
+          () => lease.guard(),
+        );
 
         const existingHistory = await readHistory(userId);
         let run_kind: HistorySnapshot["run_kind"];
@@ -412,7 +932,11 @@ async function doRun(opts: {
         }
 
         // Use immutable start_rating from first snapshot (day-1 baseline).
-        const startRating = deriveStartRating(existingHistory, currentRating);
+        const startRating = deriveStartRating(
+          existingHistory,
+          currentRating,
+          goalTimeClass,
+        );
         const pointsGained = (currentRating ?? 0) - (startRating ?? currentRating ?? 0);
         const goalForSnap: Goal = {
           target: profile.goal_rating,
@@ -420,7 +944,7 @@ async function doRun(opts: {
           deadline: profile.goal_deadline ?? "",
           current_rating: currentRating,
           start_rating: startRating,
-          points_gained_since_start: Math.max(0, pointsGained),
+          points_gained_since_start: pointsGained,
           points_needed: Math.max(0, profile.goal_rating - (currentRating ?? 0)),
           days_left: profile.goal_horizon_weeks * 7,
           days_since_start: 0,
@@ -431,52 +955,96 @@ async function doRun(opts: {
         };
 
         const snap = buildSnapshot(aggregates, goalForSnap, run_kind);
+        await lease.guard();
         await appendSnapshot(userId, snap);
+        await lease.guard();
       } catch (histErr) {
+        if (histErr instanceof LeaseOwnershipLostError) throw histErr;
         // eslint-disable-next-line no-console
         console.warn("[orchestrator] history snapshot fallito (best-effort, ignoro):", histErr);
       }
     } catch (e) {
-      const msg = String(e instanceof Error ? e.message : e);
-      await supabase
-        .from("ingest_jobs")
-        .update({ status: "error", error: msg })
-        .eq("id", job.id);
+      const msg = jobErrorMessage(e);
+      if (e instanceof LeaseOwnershipLostError) throw e;
+      await lease.complete("error", msg);
       // BACKGROUND: il profilo e' gia' 'ready', NON riportarlo a 'error'
       // (sbatterebbe l'utente fuori dal Tavolo). Il job resta 'error': al
       // prossimo avvio l'error-recovery riprende e ritenta il coaching finale.
       throw e;
     }
-    await supabase
-      .from("ingest_jobs")
-      .update({ status: "done", finished_at: new Date().toISOString() })
-      .eq("id", job.id);
-    emit({ phase: "ready" });
-    currentOnBackgroundDone?.();
+    try {
+      await enforceCorpusRetention(goalTimeClass, () => lease.guard());
+    } catch (pruneError) {
+      if (pruneError instanceof LeaseOwnershipLostError) throw pruneError;
+      // Retention cleanup is durable and must not invalidate a valid profile.
+      // eslint-disable-next-line no-console
+      console.warn("[orchestrator] corpus retention deferred:", pruneError);
+    }
+    await updateJobOrThrow(
+      job.id,
+      lease.token,
+      {
+        games_total: completionCoverage.selected,
+        games_done: completionCoverage.succeeded,
+      },
+      "analysis_completion_failed",
+    );
+    await lease.complete("done", serializePartialAnalysis(completionCoverage));
+    emit({
+      phase: "ready",
+      gamesTotal: completionCoverage.selected,
+      gamesDone: completionCoverage.selected,
+      gamesAnalyzed: completionCoverage.succeeded,
+      corpusFinalized: true,
+      coverage: completionCoverage,
+    });
+    currentOnBackgroundDone?.(completionCoverage, job.id);
+  }
+  } finally {
+    try {
+      const released = await lease.release();
+      if (!released) console.warn("[orchestrator] lease already lost before release");
+    } catch (releaseError) {
+      console.warn("[orchestrator] lease release failed:", releaseError);
+    }
   }
 }
 
 /**
  * Blocco aggregate + coach riusabile (gira su tutte le partite 'done' correnti).
- * Chiamato due volte: parziale (su 20) e finale (su 100). NON imposta il profilo
+ * Chiamato due volte: parziale sulla prima fetta e finale sul corpus trovato. NON imposta il profilo
  * 'ready' — quella responsabilità resta al coaching finale nel doRun.
  */
 async function runAggregateAndCoach(
   userId: string,
-  profile: ProfileRow
+  profile: ProfileRow,
+  guardLease: () => Promise<void>,
 ): Promise<void> {
+  const { timeClass: goalTimeClass } = goalAnalysisScope(profile.goal_time_class);
   const currentRating = await deriveCurrentRating(userId, profile);
   const targetRating = profile.goal_rating ?? undefined;
-  const aggregates = await computeAggregates(userId, currentRating, targetRating);
+  const aggregates = await computeAggregates(
+    userId,
+    goalTimeClass,
+    currentRating,
+    targetRating,
+    guardLease,
+  );
 
   // ---- PlayerModelLite (best-effort) ----
   try {
-    const { data: doneGames } = await supabase
+    const { data: doneGames, error: doneGamesError } = await supabase
       .from("games")
       .select("*")
       .eq("user_id", userId)
       .eq("analysis_status", "done")
-      .order("played_at", { ascending: false });
+      .eq("time_class", goalTimeClass)
+      .order("played_at", { ascending: false })
+      .limit(FREE_GAME_CAP);
+
+    if (doneGamesError) {
+      throw new Error(`player_model_games_select_failed:${doneGamesError.message}`);
+    }
 
     const gameRows = doneGames ?? [];
     const analyses: GameAnalysis[] = [];
@@ -494,19 +1062,29 @@ async function runAggregateAndCoach(
     // re-derived start_rating from the oldest game on every run, which could zero or
     // negate points_gained_since_start every time the game window changed.
     const existingHistoryForPm = await readHistory(userId);
-    const startRatingForPm = deriveStartRating(existingHistoryForPm, currentRating);
+    const startRatingForPm = deriveStartRating(
+      existingHistoryForPm,
+      currentRating,
+      goalTimeClass,
+    );
 
     const pmLite = buildPlayerModelLite(gameRows, analyses, profile, startRatingForPm);
+    await guardLease();
     await uploadJson(quadernoPath(userId, "player_model_lite.json"), pmLite);
+    await guardLease();
   } catch (pmErr) {
+    if (pmErr instanceof LeaseOwnershipLostError) throw pmErr;
     // eslint-disable-next-line no-console
     console.warn("[orchestrator] buildPlayerModelLite fallito (best-effort):", pmErr);
   }
 
   // Coach LLM = best-effort.
   try {
+    await guardLease();
     await invokeCoachLlm(userId, profile, aggregates);
+    await guardLease();
   } catch (coachErr) {
+    if (coachErr instanceof LeaseOwnershipLostError) throw coachErr;
     // eslint-disable-next-line no-console
     console.warn("[orchestrator] coach-llm fallito (best-effort, apro il Tavolo lo stesso):", coachErr);
   }
@@ -526,21 +1104,30 @@ async function runAggregateAndCoach(
  * run, which zeroed out the points_gained_since_start counter.
  */
 function deriveStartRating(
-  existingHistory: { snapshots: Array<{ captured_at: string; goal: { current: number | null } }> },
+  existingHistory: {
+    snapshots: Array<{
+      captured_at: string;
+      goal: { current: number | null; time_class: string };
+    }>;
+  },
   currentRating: number | null,
+  goalTimeClass: AnalyzedTimeClass,
 ): number | null {
-  if (existingHistory.snapshots.length === 0) return currentRating;
-  // Oldest snapshot = first ever run.
-  const sorted = [...existingHistory.snapshots].sort((a, b) =>
+  const sameCadence = existingHistory.snapshots.filter(
+    (snapshot) => snapshot.goal.time_class === goalTimeClass,
+  );
+  if (sameCadence.length === 0) return currentRating;
+  // Oldest snapshot della stessa cadenza = baseline immutabile pertinente.
+  const sorted = [...sameCadence].sort((a, b) =>
     a.captured_at.localeCompare(b.captured_at),
   );
   return sorted[0].goal.current ?? currentRating;
 }
 
-/** Deriva il rating corrente dell'utente (goal time class, con fallback). */
+/** Deriva il rating corrente solo dalla goal time class. */
 async function deriveCurrentRating(userId: string, profile: ProfileRow): Promise<number | null> {
-  const goalTc = profile.goal_time_class;
-  const { data: ratingRows } = await supabase
+  const { timeClass: goalTc } = goalAnalysisScope(profile.goal_time_class);
+  const { data: ratingRows, error: ratingError } = await supabase
     .from("games")
     .select("player_rating")
     .eq("user_id", userId)
@@ -549,32 +1136,70 @@ async function deriveCurrentRating(userId: string, profile: ProfileRow): Promise
     .order("played_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (ratingError) throw new Error(`current_rating_select_failed:${ratingError.message}`);
   if (ratingRows?.player_rating != null) return ratingRows.player_rating as number;
-  // Fallback: most recent rating across all time classes.
-  const { data: fallbackRow } = await supabase
-    .from("games")
-    .select("player_rating")
-    .eq("user_id", userId)
-    .not("player_rating", "is", null)
-    .order("played_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return (fallbackRow?.player_rating as number | null | undefined) ?? null;
+  // Nessun fallback cross-cadenza: un rating blitz non deve parametrizzare
+  // posizioni rapid (o viceversa).
+  return null;
 }
 
 /**
  * Restituisce il played_at (ISO string) della partita più recente dell'utente,
  * o null se non ci sono partite. Usato da runRefresh e runSilentRefresh.
  */
-export async function getLatestGamePlayedAt(userId: string): Promise<string | null> {
-  const { data } = await supabase
+export async function getLatestGamePlayedAt(
+  userId: string,
+  goalTimeClass: AnalyzedTimeClass,
+): Promise<string | null> {
+  const { data, error } = await supabase
     .from("games")
     .select("played_at")
     .eq("user_id", userId)
+    .eq("time_class", goalTimeClass)
     .order("played_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (error) throw new Error(`latest_game_select_failed:${error.message}`);
   return (data as { played_at: string } | null)?.played_at ?? null;
+}
+
+async function probeNewChessComGames(
+  chessComUsername: string,
+  goalTimeClass: AnalyzedTimeClass,
+  latestPlayedAt: string | null,
+): Promise<number> {
+  const archivesRes = await fetch(
+    `https://api.chess.com/pub/player/${encodeURIComponent(chessComUsername)}/games/archives`,
+  );
+  if (!archivesRes.ok) throw new Error(`Chess.com archives ${archivesRes.status}`);
+  const archivesData = (await archivesRes.json()) as { archives?: string[] };
+  const recentArchives = (archivesData.archives ?? []).slice().reverse();
+  const cutoff = latestPlayedAt ? new Date(latestPlayedAt).getTime() / 1000 : 0;
+  let successfulArchives = 0;
+  let newGameCount = 0;
+
+  for (const archiveUrl of recentArchives) {
+    const gamesRes = await fetch(archiveUrl);
+    if (!gamesRes.ok) continue;
+    successfulArchives += 1;
+    const gamesData = (await gamesRes.json()) as {
+      games?: Array<{ end_time?: number; time_class?: string }>;
+    };
+    const games = gamesData.games ?? [];
+    newGameCount += countNewGoalGames(
+      games,
+      goalTimeClass,
+      cutoff,
+      FREE_GAME_CAP - newGameCount,
+    );
+    if (newGameCount >= FREE_GAME_CAP) return FREE_GAME_CAP;
+    if (games.some((game) => (game.end_time ?? 0) <= cutoff)) break;
+  }
+
+  if (recentArchives.length > 0 && successfulArchives === 0) {
+    throw new Error("archive_fetch_failed_all");
+  }
+  return newGameCount;
 }
 
 /**
@@ -583,22 +1208,24 @@ export async function getLatestGamePlayedAt(userId: string): Promise<string | nu
  * prende solo le partite nuove (delta da refresh_after), analyze le nuove,
  * aggregate, coach (nuova voce nel Quaderno via append lato edge function).
  */
-export async function runRefresh(profile: ProfileRow): Promise<void> {
-  resetActiveLock();
-  const latest = await getLatestGamePlayedAt(profile.user_id);
-  await supabase.from("ingest_jobs").insert({
-    user_id: profile.user_id,
-    status: "queued",
-    months_total: 0,
-    months_done: 0,
-    games_total: 0,
-    games_done: 0,
-    refresh_after: latest,
+export async function runRefresh(profile: ProfileRow): Promise<boolean> {
+  if (activeRun) throw new Error("analysis_run_already_active");
+  const { timeClass: goalTimeClass } = goalAnalysisScope(profile.goal_time_class);
+  const latest = await getLatestGamePlayedAt(profile.user_id, goalTimeClass);
+  const newGameCount = await probeNewChessComGames(
+    profile.chess_com_username,
+    goalTimeClass,
+    latest,
+  );
+  if (newGameCount === 0) return false;
+  const { data: jobId, error } = await supabase.rpc("start_analysis_refresh", {
+    p_goal_time_class: goalTimeClass,
+    p_refresh_after: latest,
   });
-  await supabase
-    .from("profiles")
-    .update({ onboarding_state: "pending" })
-    .eq("user_id", profile.user_id);
+  if (error || !jobId) {
+    throw new Error(`start_analysis_refresh_failed:${error?.message ?? "missing_job_id"}`);
+  }
+  return true;
 }
 
 /**
@@ -612,35 +1239,22 @@ export async function runRefresh(profile: ProfileRow): Promise<void> {
  * i JSON di analisi con i dati nuovi → aggregate → player_model_lite → coach.
  */
 export async function runFullReanalyze(profile: ProfileRow): Promise<void> {
-  resetActiveLock();
-  const userId = profile.user_id;
-  // 1. Resetta lo stato di analisi di tutte le partite dell'utente.
-  await supabase
-    .from("games")
-    .update({ analysis_status: "pending", analysis_path: null })
-    .eq("user_id", userId);
-  // 2. Nuovo job che parte direttamente da 'analyzing_first' (niente re-download).
-  await supabase.from("ingest_jobs").insert({
-    user_id: userId,
-    status: "analyzing_first",
-    months_total: 0,
-    months_done: 0,
-    games_total: 0,
-    games_done: 0,
+  if (activeRun) throw new Error("analysis_run_already_active");
+  const { timeClass: goalTimeClass } = goalAnalysisScope(profile.goal_time_class);
+  const { data: jobId, error } = await supabase.rpc("start_full_reanalysis", {
+    p_goal_time_class: goalTimeClass,
   });
-  // 3. Profilo in 'analyzing' → HomeGate manda alla waiting page che riprende.
-  await supabase
-    .from("profiles")
-    .update({ onboarding_state: "analyzing" })
-    .eq("user_id", userId);
+  if (error || !jobId) {
+    throw new Error(`start_full_reanalysis_failed:${error?.message ?? "missing_job_id"}`);
+  }
 }
 
 /**
  * Silent background refresh — runs while the user stays on the Tavolo.
  *
  * Contract:
- *   - ADDITIVE: does NOT touch profile.onboarding_state, does NOT create
- *     ingest_jobs rows, does NOT interact with the 20+80 state machine.
+ *   - ADDITIVE: does NOT touch profile.onboarding_state. A transient job is
+ *     created atomically to serialize tabs, without entering the main UI state.
  *   - No-op if activeRun is already in progress (onboarding / Refresh / Reanalyze
  *     just started) — we skip silently so there is no double work.
  *   - No-op if there are no new games on Chess.com since the last analysed game.
@@ -667,6 +1281,7 @@ export async function runSilentRefresh(
 ): Promise<void> {
   const { onProgress, onNewGames, onDone } = callbacks;
   const userId = profile.user_id;
+  const { timeClass: goalTimeClass } = goalAnalysisScope(profile.goal_time_class);
 
   // Guard: do not double-work if the main orchestrator is already running.
   if (activeRun) {
@@ -675,52 +1290,43 @@ export async function runSilentRefresh(
   }
 
   // Step 1: detect new games (same strategy as the old nudge check).
-  const latestPlayedAt = await getLatestGamePlayedAt(userId);
+  const latestPlayedAt = await getLatestGamePlayedAt(userId, goalTimeClass);
 
-  let hasNew = false;
   let newGameCount = 0;
+  let resumableSilentJob: IngestJobRow | null;
   try {
-    const archivesRes = await fetch(
-      `https://api.chess.com/pub/player/${encodeURIComponent(profile.chess_com_username)}/games/archives`,
-    );
-    if (archivesRes.ok) {
-      const archivesData = (await archivesRes.json()) as { archives?: string[] };
-      const archives = archivesData.archives ?? [];
-      if (archives.length > 0) {
-        const lastArchiveUrl = archives[archives.length - 1];
-        const gamesRes = await fetch(lastArchiveUrl);
-        if (gamesRes.ok) {
-          const gamesData = (await gamesRes.json()) as {
-            games?: Array<{ end_time?: number }>;
-          };
-          const games = gamesData.games ?? [];
-          const cutoff = latestPlayedAt ? new Date(latestPlayedAt).getTime() / 1000 : 0;
-          newGameCount = games.filter((g) => (g.end_time ?? 0) > cutoff).length;
-          hasNew = newGameCount > 0;
-        }
+    // Resume first: a partial ingest may already have advanced the latest game
+    // timestamp, so probing from that newer value could hide older delta games.
+    resumableSilentJob = await currentSilentJob(userId);
+    if (!resumableSilentJob) {
+      newGameCount = await probeNewChessComGames(
+        profile.chess_com_username,
+        goalTimeClass,
+        latestPlayedAt,
+      );
+      if (newGameCount === 0) {
+        // Close the query/probe race: another tab may have created a silent job
+        // while this tab was reading Chess.com.
+        resumableSilentJob = await currentSilentJob(userId);
       }
     }
   } catch (e) {
-    // Network failure is not fatal — silent no-op.
+    // Network/DB failure is not fatal for the foreground product.
     // eslint-disable-next-line no-console
-    console.warn("[runSilentRefresh] Chess.com check failed:", e);
+    console.warn("[runSilentRefresh] refresh check failed:", e);
     onDone?.();
     return;
   }
 
-  if (!hasNew) {
+  if (!resumableSilentJob && newGameCount === 0) {
     onDone?.();
     return;
   }
 
-  onNewGames?.(newGameCount);
+  if (newGameCount > 0) onNewGames?.(newGameCount);
 
-  // Step 2: ingest delta only (games newer than latestPlayedAt).
-  // We do NOT create a proper ingest_job row to avoid touching the state machine.
-  // runIngest uses refresh_after to filter what to download.
-  // We create a transient ephemeral job row (status "queued") that will be set
-  // to "done" at the end of this function. The key invariant: profile stays "ready"
-  // throughout — we NEVER call setProfileState or set profile.onboarding_state.
+  // Step 2: ingest delta only. The persisted silent job owns the original
+  // refresh_after cutoff across crashes/takeovers; profile stays "ready".
   //
   // Re-check guard: if activeRun appeared while we were fetching Chess.com, abort.
   if (activeRun) {
@@ -728,95 +1334,155 @@ export async function runSilentRefresh(
     return;
   }
 
-  let ephemeralJobId: string | null = null;
+  let silentLease: IngestJobLease | null = null;
 
   try {
     onProgress?.("Sto guardando le tue ultime partite...");
 
-    // Create a silent ephemeral job row (status 'queued') for runIngest to update.
-    const { data: jobData, error: jobErr } = await supabase
-      .from("ingest_jobs")
-      .insert({
-        user_id: userId,
-        status: "queued",
-        months_total: 0,
-        months_done: 0,
-        games_total: 0,
-        games_done: 0,
-        refresh_after: latestPlayedAt,
-      })
-      .select("*")
-      .single();
-
-    if (jobErr || !jobData) {
-      throw new Error(`[runSilentRefresh] ingest_jobs insert failed: ${jobErr?.message ?? "no data"}`);
+    // The RPC serializes creation/adoption and gives main work priority.
+    const { data: silentJobId, error: jobErr } = await supabase.rpc(
+      "start_silent_refresh",
+      {
+        p_goal_time_class: goalTimeClass,
+        p_refresh_after: latestPlayedAt,
+      },
+    );
+    if (jobErr || !silentJobId) {
+      throw new Error(
+        `[runSilentRefresh] start job failed: ${jobErr?.message ?? "no data"}`,
+      );
     }
-
-    ephemeralJobId = (jobData as { id: string }).id;
+    const acquisition = await acquireOrObserveIngestJob({
+      jobId: silentJobId,
+      userId,
+      goalTimeClass,
+      expectedKind: "silent",
+      onObserved: (observedJob) => {
+        const total = Math.max(observedJob.games_total, newGameCount);
+        if (observedJob.status === "coaching") {
+          onProgress?.("Un'altra scheda sta aggiornando il profilo...");
+        } else if (observedJob.status === "done" || observedJob.status === "error") {
+          onProgress?.("Aggiornamento concluso in un'altra scheda.");
+        } else {
+          onProgress?.(
+            `Un'altra scheda sta elaborando ${observedJob.games_done}/${total} partite...`,
+          );
+        }
+      },
+    });
+    if (acquisition.outcome === "terminal") return;
+    silentLease = acquisition.lease;
+    await silentLease.guard();
+    const { data: persistedSilentJob, error: persistedSilentJobError } = await supabase
+      .from("ingest_jobs")
+      .select("*")
+      .eq("id", silentJobId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    await silentLease.guard();
+    if (persistedSilentJobError || !persistedSilentJob) {
+      throw new Error(
+        `silent_ingest_job_select_failed:${persistedSilentJobError?.message ?? "missing_job"}`,
+      );
+    }
+    if (persistedSilentJob.kind !== "silent") {
+      throw new Error(`ingest_job_kind_mismatch:${persistedSilentJob.kind}`);
+    }
+    const persistedRefreshAfter = persistedSilentJob.refresh_after;
 
     // Ingest delta.
     await runIngest({
       userId,
       chessComUsername: profile.chess_com_username,
-      jobId: ephemeralJobId,
-      refreshAfter: latestPlayedAt ?? undefined,
+      goalTimeClass,
+      gameCap: FREE_GAME_CAP,
+      jobId: silentJobId,
+      leaseToken: silentLease.token,
+      guardLease: () => silentLease!.guard(),
+      refreshAfter: persistedRefreshAfter ?? undefined,
       onProgress: (p) => {
         onProgress?.(`Scarico ${p.gamesDone}/${p.gamesTotal} partite...`);
       },
     });
 
-    // Guard again: if main orchestrator started during ingest, abort cleanly.
-    if (activeRun) {
-      // Mark ephemeral job done so it does not confuse future orchestrator runs.
-      await supabase
-        .from("ingest_jobs")
-        .update({ status: "done", finished_at: new Date().toISOString() })
-        .eq("id", ephemeralJobId);
-      onDone?.();
-      return;
-    }
-
     // Step 3: analyze new games only (those still 'pending' after ingest).
+    await updateJobOrThrow(
+      silentJobId,
+      silentLease.token,
+      { status: "analyzing" },
+      "silent_analysis_checkpoint_failed",
+    );
     onProgress?.("Analizzo con Stockfish...");
     await runAnalyze({
       userId,
-      jobId: ephemeralJobId,
+      jobId: silentJobId,
+      leaseToken: silentLease.token,
+      guardLease: () => silentLease!.guard(),
+      pulseLease: () => silentLease!.pulse(),
+      goalTimeClass,
       // No range: analyze whatever is pending (only the newly ingested games).
-      onProgress: (done, total) => {
-        onProgress?.(`Analizzo ${done}/${total} partite...`);
+      onProgress: (progress) => {
+        onProgress?.(
+          `Analizzo ${progress.processed}/${progress.total} partite (${progress.succeeded} riuscite)...`,
+        );
       },
     });
 
     // Step 4: re-aggregate + player_model_lite + coach (full, on all done games).
+    await updateJobOrThrow(
+      silentJobId,
+      silentLease.token,
+      { status: "coaching" },
+      "silent_coaching_checkpoint_failed",
+    );
     onProgress?.("Aggiorno il profilo...");
-    await runAggregateAndCoach(userId, profile);
+    await silentLease.guard();
+    await runAggregateAndCoach(userId, profile, () => silentLease!.guard());
+    await silentLease.guard();
 
-    // Mark ephemeral job done.
-    const { error: doneErr } = await supabase
-      .from("ingest_jobs")
-      .update({ status: "done", finished_at: new Date().toISOString() })
-      .eq("id", ephemeralJobId);
-    if (doneErr) {
+    try {
+      await silentLease.guard();
+      await enforceCorpusRetention(goalTimeClass, () => silentLease!.guard());
+      await silentLease.guard();
+    } catch (pruneError) {
+      if (pruneError instanceof LeaseOwnershipLostError) throw pruneError;
+      // Queue survives the tab and will be drained by a later run.
       // eslint-disable-next-line no-console
-      console.warn("[runSilentRefresh] failed to mark job done:", doneErr.message);
+      console.warn("[runSilentRefresh] corpus retention deferred:", pruneError);
     }
+
+    await silentLease.complete("done", null);
   } catch (e) {
     // eslint-disable-next-line no-console
     console.warn("[runSilentRefresh] error during background refresh:", e);
-    // Best-effort: mark ephemeral job error so it does not block future runs.
-    if (ephemeralJobId) {
-      await supabase
-        .from("ingest_jobs")
-        .update({ status: "error", error: String(e instanceof Error ? e.message : e) })
-        .eq("id", ephemeralJobId)
-        .then(({ error: markErr }) => {
-          if (markErr) {
-            // eslint-disable-next-line no-console
-            console.warn("[runSilentRefresh] failed to mark job error:", markErr.message);
-          }
-        });
+    // Keep infrastructure failures resumable with the original refresh_after.
+    // A token-losing worker must not overwrite the takeover worker.
+    if (silentLease && !(e instanceof LeaseOwnershipLostError)) {
+      try {
+        await updateJobOrThrow(
+          silentLease.jobId,
+          silentLease.token,
+          { error: jobErrorMessage(e) },
+          "silent_error_checkpoint_failed",
+        );
+      } catch (checkpointError) {
+        // eslint-disable-next-line no-console
+        console.warn("[runSilentRefresh] failed to checkpoint job error:", checkpointError);
+      }
     }
   } finally {
+    if (silentLease) {
+      try {
+        const released = await silentLease.release();
+        if (!released) {
+          // eslint-disable-next-line no-console
+          console.warn("[runSilentRefresh] lease already lost before release");
+        }
+      } catch (releaseError) {
+        // eslint-disable-next-line no-console
+        console.warn("[runSilentRefresh] lease release failed:", releaseError);
+      }
+    }
     onDone?.();
   }
 }

@@ -14,7 +14,6 @@
 
 import React from "react";
 import type { HistorySnapshot, Milestone } from "../types";
-import { materialForGap } from "../pipeline/history";
 import { useInkDraw } from "../lib/motion";
 
 // ── Italian month names (same as Quaderno.tsx / TavoloHome.tsx) ───────────────
@@ -73,12 +72,12 @@ function milestoneText(m: Milestone): string | null {
       // label_it is '"Label": in miglioramento (X% meno frequente)' — extract the anchor name
       const match = m.label_it.match(/^"([^"]+)"/);
       const label = match ? match[1] : m.label_it;
-      return `${label}: ci cadi piu' di rado. Si vede il lavoro.`;
+      return `${label}: nel campione osservato e' meno frequente.`;
     }
     case "anchor_domata": {
       const match = m.label_it.match(/^"([^"]+)"/);
       const label = match ? match[1] : m.label_it;
-      return `${label} e' fuori dai tuoi primi tre problemi. Domata.`;
+      return `${label}: nel campione osservato non e' piu' fra i primi tre gruppi.`;
     }
     default:
       return null;
@@ -270,7 +269,6 @@ export function Viaggio({ snapshots, milestones, goal }: ViaggioProps) {
 
   const sorted = [...snapshots].sort((a, b) => a.captured_at.localeCompare(b.captured_at));
   const firstSnap = sorted[0];
-  const lastSnap  = sorted[sorted.length - 1];
 
   // ── Build node list ────────────────────────────────────────────────────────
 
@@ -287,15 +285,8 @@ export function Viaggio({ snapshots, milestones, goal }: ViaggioProps) {
   // a. PARTENZA
   {
     const rating = firstSnap.goal.current;
-    const mw = firstSnap.maia_weighted;
-    const hasPct = mw.mine_pct != null && mw.target_pct != null;
-    const gap = hasPct ? (mw.target_pct! - mw.mine_pct!) : null;
-    const material = gap != null ? materialForGap(gap) : null;
-
     let text: string;
-    if (rating != null && material != null) {
-      text = `Ci siamo seduti la prima volta. Eri ${rating}. Ti avrei dato ${material.label} di vantaggio.`;
-    } else if (rating != null) {
+    if (rating != null) {
       text = `Ci siamo seduti la prima volta. Eri ${rating}.`;
     } else {
       text = "Ci siamo seduti la prima volta.";
@@ -344,11 +335,11 @@ export function Viaggio({ snapshots, milestones, goal }: ViaggioProps) {
         const text =
           m.type === "anchor_improved"
             ? peers.length === 1
-              ? `${labels[0]}: ci cadi piu' di rado. Si vede il lavoro.`
-              : `${joinIt(labels)}: ci cadi piu' di rado. Si vede il lavoro.`
+              ? `${labels[0]}: nel campione osservato e' meno frequente.`
+              : `${joinIt(labels)}: nel campione osservato sono meno frequenti.`
             : peers.length === 1
-              ? `${labels[0]} e' fuori dai tuoi primi tre problemi. Domata.`
-              : `${joinIt(labels)} sono fuori dai tuoi primi tre problemi. Domate.`;
+              ? `${labels[0]}: nel campione osservato non e' piu' fra i primi tre gruppi.`
+              : `${joinIt(labels)}: nel campione osservato non sono piu' fra i primi tre gruppi.`;
         nodes.push({
           key: `ms-${m.type}-${day}-${labels.join("|")}`,
           date: dateIt(m.achieved_at!),
@@ -373,18 +364,8 @@ export function Viaggio({ snapshots, milestones, goal }: ViaggioProps) {
   // c. OGGI
   {
     const rating = goal.current;
-    const mw = lastSnap.maia_weighted;
-    const hasPct = mw.mine_pct != null && mw.target_pct != null;
-    const gap = hasPct ? (mw.target_pct! - mw.mine_pct!) : null;
-    const material = gap != null ? materialForGap(gap) : null;
-
     let text: string;
-    if (rating != null && material != null) {
-      text = `Oggi sei ${rating}. Ti darei ${material.label}.`;
-    } else if (rating != null && hasPct) {
-      // has pct data but gap is null → quasi alla pari
-      text = `Oggi sei ${rating}. Giochiamo quasi alla pari.`;
-    } else if (rating != null) {
+    if (rating != null) {
       text = `Oggi sei ${rating}.`;
     } else {
       text = "Siamo qui.";

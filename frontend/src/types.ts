@@ -156,10 +156,19 @@ export interface HistorySnapshot {
   maia_weighted: {
     errors_scored: number;
     avoidable: number;
+    target_relevant?: number;
+    trainable?: number;
+    /** @deprecated Raw policy aliases, not calibrated percentages. */
     mine_pct: number | null;
     target_pct: number | null;
     gap_pct: number | null;
     avoidable_share: number | null;
+    avoidable_at_current_share?: number | null;
+    mine_acceptable_observed_policy_pct?: number | null;
+    target_acceptable_observed_policy_pct?: number | null;
+    target_relevant_share?: number | null;
+    trainable_share?: number | null;
+    policy_semantics?: "raw_policy_mass_not_calibrated_frequency";
   };
   anchors: Array<{
     key: string;
@@ -167,7 +176,12 @@ export interface HistorySnapshot {
     count: number;
     mine_pct: number | null;
     target_pct: number | null;
-    rating_upside: number;
+    mine_acceptable_observed_policy_pct?: number | null;
+    target_acceptable_observed_policy_pct?: number | null;
+    /** @deprecated Sempre null nei nuovi snapshot: nessuna stima Elo validata. */
+    rating_upside: number | null;
+    /** Priorita' relativa dello score pesato fra ancore (0..1). */
+    relative_priority?: number | null;
   }>;
   /**
    * Compact transfer metrics at this snapshot (§7.3 BUILD.md).
@@ -461,15 +475,23 @@ export interface TacticalBreakdown {
 // Posizione di interesse (turning point o drill)
 export interface PositionRow {
   game_id: string;
+  /** Chess.com UUID reale; assente nei vecchi snapshot. */
+  source_game_id?: string | null;
+  /** `${source_game_id}:${ply}`, stabile al riordino. */
+  position_id?: string | null;
   ply: number;
   move_number: number;
   san: string;
   best_san_sf: string | null;
   best_san_maia_mine: string | null;
   best_san_maia_target: string | null;
-  cp_before: number;
-  cp_after: number;
+  cp_before: number | null;
+  cp_after: number | null;
   cp_loss: number;
+  state_before?: string | null;
+  error_type?: string | null;
+  error_signals?: string[] | null;
+  legacy_error_type?: string | null;
   phase: Phase;
   fen_before: string;
   motif: string | null;
@@ -484,20 +506,41 @@ export interface PositionRow {
   pv_san_sf: string | null;
   avoidable_at_my_level?: number;
   unavoidable_at_target?: number;
-  /** Probabilita` che Maia@mio livello giochi la mossa Stockfish-best in [0,1] */
+  /** Legacy: massa policy sulla sola best Stockfish; non e' una frequenza umana. */
   p_mine_plays_best_sf?: number | null;
-  /** Probabilita` che Maia@target giochi la mossa Stockfish-best in [0,1] */
+  /** Legacy: massa policy target sulla sola best Stockfish. */
   p_target_plays_best_sf?: number | null;
-  /** Top-policy del mio livello (quanto "ovvia" è la posizione per me) */
+  /** Legacy/context only: massimo della policy legale, non difficolta'. */
   p_maia_mine_top?: number | null;
-  /** Top-policy del target (quanto "ovvia" è per chi voglio diventare) */
+  /** Legacy/context only: massimo della policy target. */
   p_maia_target_top?: number | null;
-  /** 1 - p_maia_target_top — quanto è ambigua la posizione anche per il target */
+  /** Euristica relativa, mai da tradurre in frequenza o difficolta' umana. */
   move_difficulty?: number | null;
-  /** Differenza p_target_plays_best - p_mine_plays_best in [0,1]. Vero "drill money". */
+  /** Lift target-current sulla massa delle mosse accettabili osservate. */
   drill_value?: number | null;
   /** 3=money / 2=avoidable / 1=blunder critico raw / 0=skip */
   priority_score?: number;
+  /** Contratto Maia esplicito: masse raw, non frequenze calibrate. */
+  maia_status?: "scored" | "not_requested" | "not_scored" | "skipped" | "unavailable" | null;
+  maia_reason_code?: string | null;
+  maia_policy_semantics?: "raw_policy_mass_not_calibrated_frequency";
+  maia_domain_status?: "cross_domain" | "out_of_training_domain" | null;
+  maia_domain_reason?: string | null;
+  maia_mine_played_policy?: number | null;
+  maia_target_played_policy?: number | null;
+  maia_mine_acceptable_observed_policy?: number | null;
+  maia_target_acceptable_observed_policy?: number | null;
+  maia_target_acceptable_observed_difficulty?: number | null;
+  acceptable_observed_uci?: string[] | null;
+  acceptable_set_multipv?: number | null;
+  acceptable_moves_complete?: boolean | null;
+  stockfish_choice_gap?: number | null;
+  /** Supporto raw Maia al livello attuale; non e' una probabilita' calibrata. */
+  avoidable_at_current?: boolean | null;
+  /** Allenabile nel percorso verso il target, non necessariamente oggi. */
+  target_relevant?: boolean | null;
+  trainable?: boolean | null;
+  training_priority_weight?: number | null;
   /** Tactical pattern detection (sprint 3 v2). Una posizione può averne più di uno. */
   motif_hanging_piece?: number;
   motif_fork?: number;
@@ -518,7 +561,7 @@ export interface PositionRow {
   spent_seconds?: number | null;
   /** 3-5 mosse SAN PRECEDENTI per contesto pre-blunder (cronologico). */
   prev_moves?: string[] | null;
-  /** Alternative "di attesa" Stockfish-validate (cp_loss < 50, non forzanti) quando la mossa giusta è troppo difficile (p_maia_mine_top < 0.20). */
+  /** Alternative "di attesa" validate da Stockfish (cp_loss < 50, non forzanti). */
   waiting_moves?: { san: string; cp_loss: number }[] | null;
 }
 

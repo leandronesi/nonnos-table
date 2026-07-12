@@ -10,6 +10,8 @@
  *   4. coda vuota → recap finale, clearQueue()
  */
 
+import { scopedStorage } from "../auth/userStorage";
+
 const STORAGE_KEY = "mygotham_drill_queue";
 
 export interface DrillQueue {
@@ -23,7 +25,7 @@ export interface DrillQueue {
 
 export function loadQueue(): DrillQueue | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = scopedStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as DrillQueue;
     if (!parsed.keys || parsed.keys.length === 0) return null;
@@ -35,7 +37,7 @@ export function loadQueue(): DrillQueue | null {
 
 export function saveQueue(q: DrillQueue) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(q));
+    scopedStorage.setItem(STORAGE_KEY, JSON.stringify(q));
   } catch { /* ignore */ }
 }
 
@@ -71,7 +73,7 @@ export function advanceQueue(currentKey: string): { next: string | null; complet
 
 export function clearQueue() {
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    scopedStorage.removeItem(STORAGE_KEY);
   } catch { /* ignore */ }
 }
 

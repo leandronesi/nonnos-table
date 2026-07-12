@@ -12,6 +12,7 @@
 
 import { todayUTC } from "./store";
 import { writeEntry, bodyForDrillRun, hasEntryToday, bodyForFirstDrill } from "./journal";
+import { scopedStorage } from "../auth/userStorage";
 
 const STORAGE_KEY = "mygotham_drill_log";
 const SCHEMA = 1;
@@ -42,11 +43,11 @@ export interface DrillLog {
 
 function loadRaw(): DrillLog {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = scopedStorage.getItem(STORAGE_KEY);
     if (!raw) return { schema: SCHEMA, runs: [] };
     const parsed = JSON.parse(raw) as DrillLog;
     if ((parsed.schema ?? 0) < SCHEMA) {
-      localStorage.removeItem(STORAGE_KEY);
+      scopedStorage.removeItem(STORAGE_KEY);
       return { schema: SCHEMA, runs: [] };
     }
     return parsed;
@@ -57,7 +58,7 @@ function loadRaw(): DrillLog {
 
 function saveRaw(log: DrillLog) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(log));
+    scopedStorage.setItem(STORAGE_KEY, JSON.stringify(log));
   } catch { /* full / disabled localStorage → silent */ }
 }
 

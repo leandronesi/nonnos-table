@@ -15,7 +15,7 @@ import type { SpentBucket } from "../types";
 import { NonnoExplain } from "./NonnoExplain";
 import { tr } from "../i18n/lang";
 
-/** % errori evitabili per fascia di tempo, da aggregates.maia_weighted.spent_vs_avoidable. */
+/** Errori Maia-scored con supporto della policy al livello attuale, per fascia. */
 export interface AvoidableByTime {
   key: string;
   errors: number;
@@ -23,11 +23,11 @@ export interface AvoidableByTime {
 }
 
 /**
- * "Sbagli perche' muovi in fretta?" — il grafico originale: per fascia di tempo
+ * Associazione tra tempo speso ed errori: per fascia di tempo
  * SPESO sulla mossa, le barre = % mosse-errore, la linea = ACPL (precisione).
- * SOTTO ogni cluster: la % di errori EVITABILI al tuo livello (Maia), quando
- * disponibile. Cosi' il tempo e' letto INSIEME alla difficolta':
- * tanti evitabili sulle mosse veloci = corri su posizioni che potevi risolvere.
+ * SOTTO ogni cluster: la quota di posizioni-errore con avoidable_at_current=true,
+ * quando disponibile. Il grafico descrive un'associazione: difficolta',
+ * fase e tempo rimasto possono influenzare sia i secondi sia la qualita'.
  */
 export function SpeedVsErrorsChart({
   data,
@@ -43,18 +43,21 @@ export function SpeedVsErrorsChart({
 
   const rows = data.map((b) => {
     const av = avoidMap.get(b.key);
-    const avoidPct = av && av.errors > 0 ? Math.round((av.avoidable / av.errors) * 100) : null;
+    const supportPct = av && av.errors > 0 ? Math.round((av.avoidable / av.errors) * 100) : null;
     return {
       bucket: b.bucket,
       key: b.key,
+      positions: b.positions,
+      errors: b.errors,
       error_pct: Math.round((b.error_rate ?? 0) * 100),
       acpl: Math.round(b.avg_cp_loss ?? 0),
-      avoidPct,
-      avoidCount: av ? `${av.avoidable}/${av.errors}` : null,
+      supportPct,
+      supportedErrors: av?.avoidable ?? null,
+      scoredErrors: av?.errors ?? null,
     };
   });
 
-  const hasAvoidable = rows.some((r) => r.avoidPct != null);
+  const hasCurrentSupport = rows.some((r) => r.supportPct != null);
 
   function barColor(errPct: number): string {
     if (errPct >= 35) return "#fb923c"; // arancio
@@ -65,27 +68,31 @@ export function SpeedVsErrorsChart({
   return (
     <div className="surface surface-padded">
       <div className="label-eyebrow" style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-        Velocità della mossa
+        {tr("Velocita' della mossa", "Move speed")}
         <NonnoExplain
           title={tr("Velocita' e errori", "Speed and errors")}
           lines={[
             tr(
-              "Qui vedi quanto sbagli in base al tempo che ci metti sulla singola mossa. Barre alte sulle mosse veloci: stai correndo su posizioni che potevi risolvere.",
-              "Here you see how much you err depending on the time you spend on each move. Tall bars on fast moves: you are rushing through positions you could have worked out.",
+              "Qui confronti tempo speso ed errori osservati. Barre alte sulle mosse veloci indicano piu' errori in quella fascia, ma non provano che la fretta li abbia causati.",
+              "This compares time spent with observed errors. Tall bars on fast moves mean more errors in that band, but do not prove that rushing caused them.",
             ),
             tr(
-              "Rallenta su quelle che contano. La linea mostra l'errore medio per mossa: piu' alta, piu' stai sbagliando.",
-              "Slow down on the ones that matter. The line shows the average error per move: the higher it goes, the more you are going wrong.",
+              "Difficolta' della posizione, fase e tempo rimasto possono cambiare insieme sia i secondi sia la qualita'. Usa il grafico per scegliere cosa rivedere.",
+              "Position difficulty, phase, and time remaining can affect both seconds and quality. Use the chart to choose what to review.",
             ),
           ]}
         />
       </div>
-      <h3 className="section-title mt-1">Sbagli perché muovi in fretta?</h3>
+      <h3 className="section-title mt-1">{tr("Come cambiano gli errori col tempo speso?", "How do errors vary with time spent?")}</h3>
       <p className="section-sub mb-4">
-        Tempo speso sulla singola mossa (non il tempo rimasto sull'orologio). La linea sale quando la mossa e' peggiore.{hasAvoidable ? " Sotto ogni fascia: quanti di quegli errori erano alla tua portata." : ""}
+        {tr(
+          "Tempo speso sulla singola mossa, non tempo rimasto. La linea sale quando la perdita media aumenta. E' un'associazione osservata, non una causa.",
+          "Time spent on each move, not time remaining. The line rises as average loss increases. This is an observed association, not a cause.",
+        )}
+        {hasCurrentSupport ? tr(" Sotto ogni fascia: quota di posizioni-errore Maia-scored con supporto al livello attuale.", " Below each band: share of Maia-scored error positions with current-level support.") : ""}
       </p>
 
-      <div className="h-[260px]" role="img" aria-label="Grafico velocità mossa vs errori">
+      <div className="h-[260px]" role="img" aria-label={tr("Grafico tempo speso ed errori", "Time spent and errors chart")}>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={rows} margin={{ top: 24, right: 12, left: 0, bottom: 0 }}>
             <CartesianGrid stroke="var(--color-line)" strokeDasharray="3 3" vertical={false} />
@@ -114,22 +121,7 @@ export function SpeedVsErrorsChart({
             />
             <Tooltip
               cursor={{ fill: "rgba(255,255,255,0.03)" }}
-              formatter={(value: number, name: string) => {
-                if (name === "error_pct") return [`${value}%`, tr("Errori", "Errors")];
-                if (name === "acpl") return [value, tr("Errore medio per mossa", "Average error per move")];
-                return [value, name];
-              }}
-              labelFormatter={(label: string) => `${tr("Tempo", "Time")}: ${label}`}
-              contentStyle={{
-                background: "var(--color-surface-2)",
-                border: "1px solid var(--color-line)",
-                borderRadius: "6px",
-                fontFamily: "var(--font-mono)",
-                fontSize: "0.75rem",
-                color: "var(--color-text)",
-              }}
-              itemStyle={{ color: "var(--color-text)" }}
-              labelStyle={{ color: "var(--color-muted)" }}
+              content={<SpeedTooltip />}
             />
             <Legend
               verticalAlign="bottom"
@@ -173,42 +165,78 @@ export function SpeedVsErrorsChart({
         </ResponsiveContainer>
       </div>
 
-      {/* SOTTO ogni cluster: % errori evitabili (Maia). Allineato alle barre. */}
-      {hasAvoidable && (
-        <div className="flex mt-1" style={{ paddingLeft: 36, paddingRight: 40 }}>
+      {/* Quota di posizioni-errore con supporto Maia attuale. */}
+      {hasCurrentSupport && (
+        <div className="flex mt-1 overflow-x-auto pb-1" style={{ paddingLeft: 36, paddingRight: 40 }}>
           {rows.map((r) => (
-            <div key={r.key} className="flex-1 text-center min-w-0">
+            <div key={r.key} className="flex-1 text-center min-w-[5.25rem]">
               <div
                 className="font-mono font-bold tabular-nums"
                 style={{
                   fontSize: "1rem",
                   lineHeight: 1,
                   color:
-                    r.avoidPct == null
+                    r.supportPct == null
                       ? "var(--color-faint)"
-                      : r.avoidPct >= 50
+                      : r.supportPct >= 50
                       ? "var(--color-danger)"
                       : "var(--color-text-soft)",
                 }}
               >
-                {r.avoidPct != null ? `${r.avoidPct}%` : "—"}
+                {r.supportPct != null ? `${r.supportPct}%` : "—"}
               </div>
               <div
                 className="font-mono"
                 style={{ fontSize: "0.55rem", letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--color-muted)", marginTop: "0.15rem" }}
               >
-                evitabili{r.avoidCount ? ` ${r.avoidCount}` : ""}
+                {tr("supporto attuale", "current support")}
+                {r.supportedErrors != null && r.scoredErrors != null
+                  ? ` ${r.supportedErrors}/${r.scoredErrors}`
+                  : ""}
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {hasAvoidable && (
+      {hasCurrentSupport && (
         <div className="mt-3 text-[11px] leading-relaxed" style={{ color: "var(--color-muted)" }}>
-          Evitabili = mosse che un giocatore al tuo livello trovava. Tante evitabili sulle mosse
-          veloci: stai correndo su posizioni che potevi risolvere. Poche sulle mosse lente: erano
-          difficili davvero, non colpa tua.
+          {tr(
+            "Supporto attuale = posizioni-errore Maia-scored con avoidable_at_current. E' una classificazione relativa della policy del modello, non probabilita' o facilita'. La distribuzione per velocita' non dimostra una causa.",
+            "Current support = Maia-scored error positions with avoidable_at_current. It is a relative model-policy classification, not probability or ease. Its distribution by speed does not show causation.",
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface SpeedTooltipRow {
+  bucket: string;
+  positions: number;
+  errors: number;
+  error_pct: number;
+  acpl: number;
+  supportPct: number | null;
+  supportedErrors: number | null;
+  scoredErrors: number | null;
+}
+
+function SpeedTooltip({ active, payload }: { active?: boolean; payload?: { payload: SpeedTooltipRow }[] }) {
+  if (!active || !payload || payload.length === 0) return null;
+  const row = payload[0].payload;
+  return (
+    <div className="rounded-lg border border-[color:var(--color-line-strong)] bg-[color:var(--color-surface-2)] px-3 py-2.5 min-w-[220px] text-xs">
+      <div className="font-mono uppercase tracking-widest text-[color:var(--color-muted)] mb-1.5">
+        {tr("Tempo speso", "Time spent")}: {row.bucket}
+      </div>
+      <div className="flex justify-between gap-4"><span>{tr("Mosse osservate", "Observed moves")}</span><b>{row.positions}</b></div>
+      <div className="flex justify-between gap-4"><span>{tr("Errori osservati", "Observed errors")}</span><b>{row.errors} ({row.error_pct}%)</b></div>
+      <div className="flex justify-between gap-4"><span>{tr("Perdita media", "Average loss")}</span><b>{row.acpl}</b></div>
+      {row.supportedErrors != null && row.scoredErrors != null && (
+        <div className="flex justify-between gap-4 mt-1 pt-1 border-t border-[color:var(--color-line)]">
+          <span>{tr("Supporto Maia attuale", "Current Maia support")}</span>
+          <b>{row.supportedErrors}/{row.scoredErrors} ({row.supportPct}%)</b>
         </div>
       )}
     </div>

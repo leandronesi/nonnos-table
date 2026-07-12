@@ -6,7 +6,7 @@ import { GLOSS } from "../glossary";
 
 const ENTRIES: { term: string; key: keyof typeof GLOSS }[] = [
   { term: "ACPL", key: "acpl" },
-  { term: "Performance rating", key: "performance_rating" },
+  { term: "Medie mobili del rating", key: "performance_rating" },
   { term: "Blunder", key: "blunder" },
   { term: "Errore (mistake)", key: "mistake" },
   { term: "Imprecisione", key: "inaccuracy" },

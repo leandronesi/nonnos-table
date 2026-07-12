@@ -6,13 +6,13 @@ export const GLOSS = {
     "ACPL - Average Centipawn Loss. La media di quanto vantaggio lasci per strada a ogni tua mossa, misurata in centesimi di pedone. " +
     "0 = mossa pulita, circa 50 = imprecisione, circa 100 = errore, 250+ = pezzo lasciato o posizione compromessa.",
   maia_agreement:
-    "MAIA misura quanto la tua scelta somiglia a quella di un giocatore umano di una certa fascia Elo. Se MAIA target vede la mossa e tu no, quella posizione entra nel piano di training.",
+    "Confronto MAIA - confronta, sulla stessa posizione, la massa policy grezza assegnata alle scelte osservate al livello attuale e al target. E' un indice relativo del modello, non una percentuale di giocatori o una probabilita' calibrata.",
   critical_position:
-    "Posizione critica - una posizione ancora giocabile in cui una decisione cambia davvero l'esito della partita. Qui vale allenare il calcolo, non le mosse automatiche.",
+    "Posizione critica - una posizione contendibile fuori dal tratto iniziale, selezionata per la revisione. L'etichetta descrive il filtro usato: non dimostra che una singola decisione abbia cambiato l'esito.",
   avoidable_error:
-    "Errore evitabile - una mossa che alla tua forza si poteva vedere: pezzo in presa, difensore sparito, tattica semplice o finale da chiudere.",
+    "Alla portata attuale - segnale euristico MAIA su una scelta che Stockfish considera accettabile e che il modello rende compatibile col livello attuale. E' una priorita' di allenamento, non la certezza che fosse facile.",
   unavoidable_error:
-    "Errore non prioritario - posizione difficile anche per il target. Resta tracciata, ma viene dopo i regali che puoi smettere subito.",
+    "Errore non prioritario - manca il segnale specifico per allenarlo al livello attuale. Resta tracciato, ma questo non significa che fosse impossibile o difficile anche per il target.",
   conversion_rate:
     "Conversione - quando arrivi a vantaggio decisivo, quante volte porti a casa il punto. E' tecnica di chiusura: cambi, re attivo, nessun contropiede.",
   save_rate:
@@ -20,9 +20,9 @@ export const GLOSS = {
   turning_point:
     "Bivio - una delle posizioni che hanno spostato davvero la partita. La rigiocata serve per cambiare abitudine, non solo per vedere la soluzione.",
   tilt:
-    "Tilt - calo di qualita' dopo un colpo subito o un errore. Il rimedio e' sempre scacchistico: pausa, minacce, catture, pezzi indifesi.",
+    "Mossa successiva all'errore - confronto osservato tra la qualita' della prima mossa dopo un errore e la baseline delle altre mosse. Un divario non dimostra tilt, uno stato emotivo o un rapporto di causa-effetto.",
   performance_rating:
-    "Performance Rating - stima della forza mostrata nelle ultime partite, pesata sugli avversari affrontati. Serve a capire se il rating ti sta seguendo o inseguendo.",
+    "Andamento rating - il grafico mostra il rating ufficiale registrato nelle partite e le sue medie mobili a 5 e 20 partite. Le medie rendono la serie piu' leggibile: non sono un performance rating e non prevedono il rating futuro.",
   blunder:
     "Blunder - errore grave: materiale lasciato, matto permesso o posizione vinta trasformata in persa.",
   mistake:
@@ -49,7 +49,7 @@ export const GLOSS = {
   phase_endgame:
     "Finale: pochi pezzi, re attivo, pedoni passati e tecnica.",
   goal_target:
-    "Target Elo - il livello MAIA da raggiungere con posizioni scelte dai tuoi errori reali.",
+    "Target Elo - l'obiettivo che scegli per orientare il confronto relativo MAIA e le posizioni di allenamento. Non e' una promessa di rating.",
 };
 
 // Helper per convertire centipawn in linguaggio umano: "-2.50 circa un cavallo".

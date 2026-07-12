@@ -15,17 +15,17 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { useOnboardingRun } from "../../pipeline/OnboardingRunContext";
-import { useTavoloActionsRef } from "../../context/TavoloActionsContext";
 import { downloadJson, quadernoPath } from "../../auth/storage";
 import { runRefresh, runFullReanalyze } from "../../pipeline/orchestrator";
 import type { Aggregates } from "../../pipeline/aggregate";
 import type { PlayerModelLite } from "../../pipeline/playerModelLite";
-import { goalProgress, anchorTrendsFromHistory, materialForGap } from "../../pipeline/history";
+import { goalProgress, anchorTrendsFromHistory } from "../../pipeline/history";
 import { setCachedAggregates } from "../../pipeline/aggregatesCache";
 import type { TimeClass } from "../../auth/db.types";
 import type { HistorySnapshot, HistoryFile, AnchorTrail, GoalProgress, Goal } from "../../types";
 import { readEntries } from "../../session/journal";
 import { tr } from "../../i18n/lang";
+import { scopedStorage } from "../../auth/userStorage";
 
 // ── djb2 hash — same as TavoloHome ───────────────────────────────────────────
 
@@ -86,42 +86,6 @@ function useLiveElo(
   }, [chessComUsername, goalTimeClass]);
 
   return liveRating;
-}
-
-// ── Handicap story ────────────────────────────────────────────────────────────
-
-function buildHandicapLine(snapshots: HistorySnapshot[]): string | null {
-  if (snapshots.length < 2) return null;
-  const sorted = [...snapshots].sort((a, b) => a.captured_at.localeCompare(b.captured_at));
-  const first = sorted[0];
-  const last = sorted[sorted.length - 1];
-
-  const firstMw = first.maia_weighted;
-  const lastMw = last.maia_weighted;
-  if (firstMw.mine_pct == null || firstMw.target_pct == null) return null;
-  if (lastMw.mine_pct == null || lastMw.target_pct == null) return null;
-
-  const firstGap = firstMw.target_pct - firstMw.mine_pct;
-  const initialMaterial = materialForGap(firstGap);
-  if (!initialMaterial) return null;
-
-  const lastGap = lastMw.target_pct - lastMw.mine_pct;
-  const currentMaterial = materialForGap(lastGap);
-
-  const initialStep = initialMaterial.step;
-  const currentStep = currentMaterial?.step ?? 0;
-  if (currentStep >= initialStep) return null;
-
-  if (currentMaterial != null) {
-    return tr(
-      `Quando ci siamo seduti la prima volta ti avrei dato ${initialMaterial.label} di vantaggio. Oggi ti darei ${currentMaterial.label}.`,
-      `The first time we sat down I would have given you ${initialMaterial.label}. Today I would give you ${currentMaterial.label}.`,
-    );
-  }
-  return tr(
-    `Quando ci siamo seduti la prima volta ti avrei dato ${initialMaterial.label} di vantaggio. Oggi giochiamo quasi alla pari.`,
-    `The first time we sat down I would have given you ${initialMaterial.label}. Today we play almost even.`,
-  );
 }
 
 // ── Memoria visibile ──────────────────────────────────────────────────────────
@@ -185,6 +149,8 @@ export interface TavoloData {
   // Action states
   refreshing: boolean;
   reanalyzing: boolean;
+  refreshError: string | null;
+  refreshNotice: string | null;
 
   // Derived: memoria visibile (reads localStorage synchronously)
   memoriaVisibile: string | null;
@@ -203,9 +169,8 @@ export interface TavoloData {
   // Derived: goal progress
   onTrack: boolean;
   goalProgressData: GoalProgress | null;
-
-  // Derived: handicap story
-  handicapLine: string | null;
+  /** Ritmo mostrabile solo con >=14 giorni e >=10 partite dopo l'onboarding. */
+  goalTrendReady: boolean;
 
   // Derived: anchor trails for micro-sparklines
   anchorTrails: AnchorTrail[];
@@ -213,7 +178,6 @@ export interface TavoloData {
   // Letter freshness
   letterIdentity: string | null;
   letterSeenBefore: boolean;
-  letterOpenedThisVisit: boolean;
 
   // Incremental counter that forces data reload after background pipeline
   dataVersion: number;
@@ -235,14 +199,12 @@ export function useTavoloData(): TavoloData {
   const { user, profile, refreshProfile } = useAuth();
   const nav = useNavigate();
   const { dataVersion } = useOnboardingRun();
-  const tavoloActionsRef = useTavoloActionsRef();
 
   const [pmLite, setPmLite] = useState<PlayerModelLite | null>(null);
   const [aggregates, setAggregates] = useState<Aggregates | null>(null);
   const [llmVoice, setLlmVoice] = useState<string | null | undefined>(undefined);
   const [llmGeneratedAt, setLlmGeneratedAt] = useState<string | undefined>(undefined);
   const [letterSeenBefore, setLetterSeenBefore] = useState(false);
-  const [letterOpenedThisVisit, setLetterOpenedThisVisit] = useState(false);
   const [historySnapshots, setHistorySnapshots] = useState<HistorySnapshot[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -251,6 +213,8 @@ export function useTavoloData(): TavoloData {
   const [loadedVersion, setLoadedVersion] = useState(-1);
   const [refreshing, setRefreshing] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [refreshNotice, setRefreshNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -279,12 +243,20 @@ export function useTavoloData(): TavoloData {
         setLlmGeneratedAt(brief?.generated_at ?? undefined);
         if (voice && voice.trim().length > 0) {
           const identity = brief?.generated_at ?? djb2(voice.trim());
-          const seen = localStorage.getItem("nonno_letter_seen");
+          const seen = scopedStorage.getItem("nonno_letter_seen");
           setLetterSeenBefore(seen === identity);
         }
         setHistorySnapshots(history?.snapshots ?? null);
-      } catch (e) {
-        if (!cancelled) setError(String(e instanceof Error ? e.message : e));
+      } catch {
+        if (!cancelled) {
+          // Do not surface provider/storage internals as product copy.
+          // eslint-disable-next-line no-console
+          console.warn("[tavolo] data_load_failed");
+          setError(tr(
+            "Non riesco a leggere i dati del Tavolo. Controlla la connessione e riprova.",
+            "I cannot load the Table data. Check your connection and try again.",
+          ));
+        }
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -299,11 +271,26 @@ export function useTavoloData(): TavoloData {
 
   async function runRefreshHandler() {
     if (!profile) return;
+    setRefreshError(null);
+    setRefreshNotice(null);
     setRefreshing(true);
     try {
-      await runRefresh(profile);
+      const started = await runRefresh(profile);
+      if (!started) {
+        const timeClass = profile.goal_time_class;
+        setRefreshNotice(tr(
+          `Non ci sono nuove partite ${timeClass}. Il Tavolo è già aggiornato.`,
+          `There are no new ${timeClass} games. The Table is already up to date.`,
+        ));
+        return;
+      }
       await refreshProfile();
       nav("/onboarding/waiting", { replace: true });
+    } catch {
+      setRefreshError(tr(
+        "L'aggiornamento si è interrotto. I dati già pronti restano disponibili: puoi riprovare.",
+        "The update stopped. Your existing data remains available; you can try again.",
+      ));
     } finally {
       setRefreshing(false);
     }
@@ -311,28 +298,22 @@ export function useTavoloData(): TavoloData {
 
   async function runFullReanalyzeHandler() {
     if (!profile) return;
+    setRefreshError(null);
+    setRefreshNotice(null);
     setReanalyzing(true);
     try {
       await runFullReanalyze(profile);
       await refreshProfile();
       nav("/onboarding/waiting", { replace: true });
+    } catch {
+      setRefreshError(tr(
+        "La rianalisi si è interrotta. I dati precedenti restano disponibili.",
+        "Reanalysis stopped. Your previous data remains available.",
+      ));
     } finally {
       setReanalyzing(false);
     }
   }
-
-  // Register the action callbacks in the shared context so AppShell sidebar can call them.
-  // We write to the mutable ref every render (safe, avoids stale closures).
-  tavoloActionsRef.current = {
-    handleRefresh: () => void runRefreshHandler(),
-    handleFullReanalyze: () => void runFullReanalyzeHandler(),
-  };
-  // Clear on unmount so the sidebar never holds stale closures from a dead mount.
-  useEffect(() => {
-    return () => {
-      tavoloActionsRef.current = null;
-    };
-  }, [tavoloActionsRef]);
 
   // Live ELO from Chess.com (display-only, falls back to stored value).
   const liveElo = useLiveElo(profile?.chess_com_username, profile?.goal_time_class);
@@ -342,21 +323,56 @@ export function useTavoloData(): TavoloData {
   const goal = pmLite?.identity?.goal;
   const storedRating = goal?.current_rating ?? pmLite?.current_rating ?? null;
   const currentRating = liveElo ?? storedRating;
-  const liveGoal = goal ? { ...goal, current_rating: currentRating } : undefined;
   const targetRating = profile?.goal_rating ?? goal?.target ?? 0;
   const startRating = goal?.start_rating ?? currentRating ?? 0;
-  const onTrack = goal?.on_track ?? false;
+  // If Chess.com has a fresher rating, recompute every dependent field from
+  // that same value. Never pair a live rating with stale pace/projection data.
+  const liveGoal = goal ? (() => {
+    const signedGain = currentRating != null && goal.start_rating != null
+      ? currentRating - goal.start_rating
+      : 0;
+    const pointsNeeded = currentRating != null
+      ? Math.max(0, goal.target - currentRating)
+      : goal.target;
+    const ratePerDay = currentRating != null && goal.start_rating != null && goal.days_since_start > 0
+      ? signedGain / goal.days_since_start
+      : null;
+    const rateNeeded = goal.days_left > 0 ? pointsNeeded / goal.days_left : null;
+    const projection = currentRating != null && ratePerDay != null
+      ? Math.round(currentRating + ratePerDay * goal.days_left)
+      : null;
+    return {
+      ...goal,
+      current_rating: currentRating,
+      points_gained_since_start: signedGain,
+      points_needed: pointsNeeded,
+      rate_per_day_so_far: ratePerDay,
+      rate_per_day_needed: rateNeeded,
+      projection_at_deadline: projection,
+      on_track: projection != null && projection >= goal.target,
+    };
+  })() : undefined;
+  const onTrack = liveGoal?.on_track ?? false;
   const deadline = goal?.deadline ?? "";
 
   const goalProgressData = liveGoal ? goalProgress(liveGoal) : null;
-
-  const handicapLine = historySnapshots ? buildHandicapLine(historySnapshots) : null;
+  const planStartedMs = pmLite?.identity.plan_started_at
+    ? Date.parse(pmLite.identity.plan_started_at)
+    : Number.NaN;
+  const gamesAfterOnboarding = Number.isFinite(planStartedMs) && goal?.time_class
+    // plan_started_at is date-only: start on the following UTC day so games
+    // from before onboarding on that same date are never counted as post-plan.
+    ? (pmLite?.rating_curve[goal.time_class] ?? [])
+        .filter((point) => point.epoch >= planStartedMs + 86_400_000).length
+    : 0;
+  const goalTrendReady = (liveGoal?.days_since_start ?? 0) >= 14
+    && gamesAfterOnboarding >= 10;
 
   const anchorTrails: AnchorTrail[] = historySnapshots && historySnapshots.length >= 2
     ? anchorTrendsFromHistory({ schema_version: 1, snapshots: historySnapshots } as HistoryFile)
     : [];
 
-  // Reads localStorage synchronously — stable across renders.
+  // Reads user-scoped browser state synchronously — stable across renders.
   const memoriaVisibile = buildMemoria();
 
   const hasVoice = llmVoice != null && llmVoice.trim().length > 0;
@@ -366,8 +382,7 @@ export function useTavoloData(): TavoloData {
 
   function markLetterSeen() {
     if (letterIdentity) {
-      localStorage.setItem("nonno_letter_seen", letterIdentity);
-      setLetterOpenedThisVisit(true);
+      scopedStorage.setItem("nonno_letter_seen", letterIdentity);
     }
   }
 
@@ -385,6 +400,8 @@ export function useTavoloData(): TavoloData {
     error,
     refreshing,
     reanalyzing,
+    refreshError,
+    refreshNotice,
     memoriaVisibile,
     liveElo,
     liveGoal,
@@ -394,11 +411,10 @@ export function useTavoloData(): TavoloData {
     deadline,
     onTrack,
     goalProgressData,
-    handicapLine,
+    goalTrendReady,
     anchorTrails,
     letterIdentity,
     letterSeenBefore,
-    letterOpenedThisVisit,
     dataVersion,
     reloading,
     markLetterSeen,
