@@ -40,6 +40,12 @@ interface PhaseResult {
 // Soglie cp_loss per la valutazione (spec §6.6)
 const CP_PERFECT_THRESHOLD = 30;   // praticamente la mossa migliore
 const CP_GOOD_THRESHOLD    = 50;   // abbastanza buona
+/**
+ * Quanto resta a schermo una mossa indovinata prima di passare oltre.
+ * Un battito: il tempo di vedere la casa illuminarsi e leggere due parole.
+ * Non di piu', perche' quando l'hai presa non c'e' niente da studiare.
+ */
+const PERFECT_ADVANCE_MS = 1500;
 
 /** Returns Nonno's perfect-verdict lines in the current language. Called at runtime. */
 function getPerfectLines(): string[] {
@@ -334,6 +340,10 @@ function InteractivePuzzle({
   const [cpLoss, setCpLoss] = useState<number | null>(null);
   const [playedSan, setPlayedSan] = useState<string | null>(null);
   const [attempts, setAttempts] = useState(0);
+  /** Avanzamento: assegnata sotto, quando phaseResult esiste. */
+  const advanceRef = useRef<() => void>(() => {});
+  /** Chiusa dopo il primo avanzamento, riaperta a ogni nuova posizione. */
+  const advancedRef = useRef(false);
 
   const baseFen = pos.fen_before;
   const orientation = pos.color === "black" ? "black" : "white";
@@ -349,6 +359,9 @@ function InteractivePuzzle({
     setCpLoss(null);
     setPlayedSan(null);
     setAttempts(0);
+    // Il componente non si rimonta fra una posizione e l'altra: senza questo
+    // reset la guardia "avanza una volta sola" resterebbe chiusa per sempre.
+    advancedRef.current = false;
   }, [puzzleKey]);
 
   const onDrop = useCallback(async (from: string, to: string): Promise<boolean> => {
@@ -485,6 +498,32 @@ function InteractivePuzzle({
     cpLoss,
     playedSan,
   };
+
+  // Se becchi la mossa, si va avanti da soli.
+  //
+  // L'Avanti vive in fondo al blocco del verdetto (frase, "Hai giocato",
+  // "Mossa giusta"), quindi su mobile sta sotto la piega SEMPRE: dovevi
+  // scendere a confermare una cosa che il prodotto aveva gia' capito.
+  // Quando la mossa e' giusta li' sotto non c'e' niente da leggere.
+  //
+  // Su "good" e "wrong" restiamo fermi apposta: li' sotto c'e' la mossa
+  // migliore, ed e' l'unico momento in cui si impara qualcosa.
+  //
+  // Via ref perche' phaseResult e onNext cambiano identita' a ogni render:
+  // in dipendenza dell'effetto rifarebbero ripartire il timer all'infinito.
+  // Una volta sola: il bottone resta come scorciatoia per chi non vuole
+  // aspettare il battito, e passa di qui per non far avanzare due volte.
+  advanceRef.current = () => {
+    if (advancedRef.current) return;
+    advancedRef.current = true;
+    onNext(phaseResult);
+  };
+
+  useEffect(() => {
+    if (verdict !== "perfect") return;
+    const t = setTimeout(() => advanceRef.current(), PERFECT_ADVANCE_MS);
+    return () => clearTimeout(t);
+  }, [verdict]);
 
   return (
     <div key={puzzleKey} className="phase-enter">
@@ -631,7 +670,7 @@ function InteractivePuzzle({
                   </div>
                 )}
               </div>
-              <button onClick={() => onNext(phaseResult)} className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }}>
+              <button onClick={() => advanceRef.current()} className="btn btn-primary" style={{ width: "100%", justifyContent: "center" }}>
                 {tr("Avanti", "Next")}
               </button>
             </div>
