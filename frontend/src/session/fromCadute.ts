@@ -162,9 +162,13 @@ export function toPositionRow(pe: PositionExample, _index: number): PositionRow 
     maia_target_acceptable_observed_difficulty:
       pe.maia_target_acceptable_observed_difficulty ?? null,
 
-    // Contesto pre-blunder — non disponibile
+    // Contesto pre-errore. prev_moves arriva dalla pipeline (null sulle analisi
+    // vecchie, che non avevano il campo); MomentReview lo disegna sotto
+    // "Prima di qui" e resta muto quando manca.
     spent_seconds: pe.spent_seconds ?? null,
-    prev_moves: null,
+    prev_moves: pe.prev_moves ?? null,
+    // waiting_moves resta null qui: MomentReview lo calcola on-demand con
+    // Stockfish quando la mossa giusta era fuori portata. Vedi waitingMove.ts.
     waiting_moves: null,
   };
 }

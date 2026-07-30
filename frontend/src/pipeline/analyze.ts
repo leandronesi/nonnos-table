@@ -48,6 +48,8 @@ const TH_MIST = 100;
 const TH_BLUN = 250;
 const OPENING_UNTIL_MOVE = 12;
 const ENDGAME_MATERIAL_THRESHOLD = 24; // come backend/config.yaml
+/** Quante mosse precedenti conservare come contesto pre-errore (entrambi i colori). */
+const PREV_MOVES_CONTEXT = 4;
 
 async function updateGameRequired(
   gameId: string,
@@ -136,6 +138,14 @@ export interface AnalyzedMove {
   last_opp_from: string | null;
   last_opp_to: string | null;
   last_opp_san: string | null;
+  /**
+   * Le mosse SAN che hanno portato qui, in ordine cronologico ed entrambi i
+   * colori: il "film invece della fotografia" del §7. Popolato SOLO sulle mosse
+   * che possono diventare esempi (blunder/mistake), per non gonfiare i JSON di
+   * analisi con contesto che nessuno leggera'.
+   * Assente nelle analisi precedenti a questo campo.
+   */
+  prevMoves?: string[];
   // ── Campi derivati (A3) ─────────────────────────────────────────────────────
   /** Stato della posizione PRIMA della mossa dal pov del player. */
   stateBefore: StateBefore;
@@ -766,6 +776,13 @@ export async function analyzeGame(
       last_opp_from: oppBeforeThis?.from ?? null,
       last_opp_to: oppBeforeThis?.to ?? null,
       last_opp_san: oppBeforeThis?.san ?? null,
+      // Contesto pre-errore: le 4 mosse precedenti, entrambi i colori, in
+      // ordine cronologico. Solo per blunder/mistake: sono le sole che possono
+      // arrivare alla Sessione, e sono le sole dove il contesto serve.
+      prevMoves:
+        category === "blunder" || category === "mistake"
+          ? sanList.slice(Math.max(0, i - PREV_MOVES_CONTEXT), i)
+          : undefined,
       stateBefore,
       timeState,
       errorType: errClass?.primary_category ?? null,

@@ -119,6 +119,12 @@ export interface PositionExample {
   clock_remaining?: number | null;
   /** Secondi spesi dal player su questa mossa (da PGN [%clk]). null se assente. */
   spent_seconds?: number | null;
+  /**
+   * Le mosse SAN che hanno portato qui, cronologiche, entrambi i colori.
+   * E' il "film invece della fotografia" del §7: la Sessione lo disegna sotto
+   * "Prima di qui". Assente nelle analisi precedenti a questo campo.
+   */
+  prev_moves?: string[] | null;
   /** URL Chess.com della partita (es. "https://www.chess.com/game/live/12345"). null se assente. */
   game_url?: string | null;
   // ── Campi Maia (popolati solo se engine disponibile) ──────────────────────
@@ -943,6 +949,7 @@ export async function computeAggregates(
           time_state: mv.timeState ?? null,
           clock_remaining: mv.clockRemaining ?? null,
           spent_seconds: mv.spentSeconds ?? null,
+          prev_moves: mv.prevMoves ?? null,
           game_url: ga.game_url ?? null,
           // Maia fields: null until enriched below.
           p_mine_plays_best_sf: null,
