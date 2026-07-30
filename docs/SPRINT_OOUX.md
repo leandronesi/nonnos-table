@@ -44,7 +44,7 @@ LIVE nel browser oggi (verificato in `frontend/src/pipeline/`):
   `move_difficulty`, `drill_value`, `priority_score`, `avoidable`. **Graceful**: se Maia non gira, restano null -> fallback Stockfish, MAI numeri Maia finti.
 - **Ancora** (7 tipi: careless, hung_piece, rushed, conversion, zeitnot, missed_tactic, hard_calc):
   `category`, `count`, `share_of_errors`, `games_with`, `avg_cp_loss`, `rating_upside`, `weighted_score`,
-  `exemplars` (top-3 Momenti), `trend_now` (finestra 28/28gg).
+  `exemplars` (top-3 Momenti), `trend_now` (ultime N partite vs le N precedenti).
 - **Obiettivo**: goal (target/deadline/current/on_track/projection), goalProgress.
 - **Apertura/Repertorio** (eco+colore): games, win_rate, avg_acpl, errors, avoidable, recognized.
 - **Partita**, **Lettura** (coach_brief.json via Edge Function), **SessioneSvolta** (journal localStorage),

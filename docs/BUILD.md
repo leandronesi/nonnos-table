@@ -69,9 +69,11 @@ zero-worker (tutto browser-side, persistenza su Storage).
 Vincolo onesto: oggi teniamo solo le posizioni di ERRORE (cadute). Quindi la "percentuale di volte che
 trovi la mossa" (stile pitch 19% -> 34%) NON e' calcolabile subito (servirebbe censire anche le
 occorrenze NON-errore del pattern: estensione di `analyze`, rimandata e annotata). Il trend immediato
-disponibile e' la **FREQUENZA dell'errore** dell'ancora, normalizzata per partite, in due finestre sulla
-**data della partita**: `recent` (<= 28 gg dall'ultima partita) vs `prior` (29..56). Piu' raro = stai
-migliorando. Espone su `Anchor`:
+disponibile e' la **FREQUENZA dell'errore** dell'ancora, normalizzata per partite, in due finestre contate
+**a partite**: `recent` (le tue ultime `TREND_WINDOW_GAMES`) vs `prior` (le `TREND_WINDOW_GAMES` prima di
+quelle). Piu' raro = stai migliorando. Si contano partite e non giorni perche' a calendario chi gioca 40
+partite in un mese e 3 nel mese prima confronterebbe 40 contro 3, e chi si ferma un mese non avrebbe
+nessun trend. Espone su `Anchor`:
 ```ts
 trend_now?: {
   recent_per_game: number | null;   // occorrenze ancora / partite, finestra recente
@@ -127,7 +129,7 @@ come eventi. (Se un domani servisse query cross-utente, si valutera' una tabella
 
 ### SLICE 1 — Fondazione temporale (NESSUNA UI; sicura, additiva)
 - `types.ts`: aggiungi `Anchor.trend_now`, `HistorySnapshot`, `HistoryFile`, `Milestone`, `GoalProgress`.
-- `aggregate.ts`: calcola `trend_now` per ancora (finestre 28/28 gg su data partita, con confidence).
+- `aggregate.ts`: calcola `trend_now` per ancora (ultime N partite vs le N precedenti, con confidence).
 - `pipeline/history.ts` (nuovo): `readHistory` / `appendSnapshot` (dedup week) / `anchorTrendsFromHistory`
   / `computeMilestones` / `goalProgress`. Funzioni pure + I/O Storage isolato.
 - `orchestrator.ts`: dopo aggregate+playerModel, **append snapshot best-effort** (try/catch, mai blocca).

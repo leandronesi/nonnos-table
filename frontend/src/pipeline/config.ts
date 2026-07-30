@@ -26,6 +26,22 @@ export const REFRESH_AFTER_DAYS = 7;
 export const CADUTE_LIMIT = 40;
 
 /**
+ * Ampiezza delle due finestre del trend: le ultime N partite contro le N
+ * precedenti.
+ *
+ * Si contano PARTITE, non giorni. Il calendario misura la cosa sbagliata: chi
+ * gioca 40 partite in un mese e 3 nel mese prima si vedrebbe confrontare 40
+ * contro 3, e chi si ferma un mese non avrebbe nessun trend. A partite le due
+ * finestre sono sempre confrontabili, esistono appena hai 2N partite
+ * analizzate, e coincidono con la frase che il giocatore si dice da solo:
+ * "come sto andando nelle ultime".
+ *
+ * 10 e' il compromesso: abbastanza per non seguire il rumore di una serataccia,
+ * abbastanza poco perche' "ultimamente" voglia ancora dire ultimamente.
+ */
+export const TREND_WINDOW_GAMES = 10;
+
+/**
  * Cap di posizioni-errore da passare a Maia (le peggiori per cp_loss).
  * Alzato a 400 (2026-05-29) per un campione piu' rappresentativo degli errori
  * nelle metriche pesate per difficolta'. Il motore ONNX single-thread regge

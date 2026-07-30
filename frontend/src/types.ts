@@ -109,14 +109,18 @@ export interface AnchorTrail {
 /**
  * Trend finestrato immediato per un'ancora (§2.1 BUILD.md).
  *
- * Frequenza errore normalizzata per partite in due finestre da 28 gg sulla
- * data della partita. Piu' raro = stai migliorando.
+ * Frequenza errore normalizzata per partite: le tue ultime N partite contro le
+ * N precedenti (TREND_WINDOW_GAMES). Piu' raro = stai migliorando.
  * null sull'intero oggetto se dati insufficienti.
+ *
+ * Si contano partite e non giorni: a calendario, chi gioca tanto in un mese e
+ * poco in quello prima confronterebbe campioni di dimensioni diverse, e chi si
+ * ferma non avrebbe nessun trend.
  */
 export interface AnchorTrendNow {
-  /** Occorrenze ancora / partite distinte, finestra recente (<= 28 gg). */
+  /** Occorrenze ancora / partite, finestra recente (le ultime N partite). */
   recent_per_game: number | null;
-  /** Occorrenze ancora / partite distinte, finestra precedente (29..56 gg). */
+  /** Occorrenze ancora / partite, finestra precedente (le N prima di quelle). */
   prior_per_game: number | null;
   /** Occorrenze (errori) nella finestra recente. */
   recent_n: number;

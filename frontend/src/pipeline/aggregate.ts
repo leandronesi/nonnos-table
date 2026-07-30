@@ -32,7 +32,7 @@ import type {
   MaiaReasonCode,
 } from "./maia/policySemantics";
 import type { ErrorEvidence, ErrorSignal } from "./errorSemantics";
-import { FREE_GAME_CAP, MAX_COACH_EXAMPLES, CADUTE_LIMIT, CADUTE_MAIA_CAP } from "./config";
+import { FREE_GAME_CAP, MAX_COACH_EXAMPLES, CADUTE_LIMIT, CADUTE_MAIA_CAP, TREND_WINDOW_GAMES } from "./config";
 import type { AnalyzedTimeClass } from "./config";
 import type { AnchorTrendNow, TransferAggregates, TransferMotifStat, TransferMotifType, MotifOccurrence } from "../types";
 
@@ -275,8 +275,8 @@ export interface Anchor {
   exemplars: PositionExample[];
   /**
    * Trend finestrato immediato (§2.1 BUILD.md).
-   * Frequenza errore normalizzata su finestre 28/28 gg sulla data della partita.
-   * null se dati insufficienti.
+   * Frequenza errore normalizzata sulle ultime TREND_WINDOW_GAMES partite
+   * contro le TREND_WINDOW_GAMES precedenti. null se dati insufficienti.
    */
   trend_now?: AnchorTrendNow | null;
 }
@@ -795,9 +795,10 @@ export async function computeAggregates(
   const repertoireAcc: Map<string, RepertoireAccEntry> = new Map();
 
   let analyzedCount = 0;
-  // All played_at timestamps of games that passed the filter (for trend denominators).
-  // This includes games with zero errors — required for an honest errors-per-game rate.
-  const allAnalyzedPlayedAt: string[] = [];
+  // Every game that passed the filter, with its key, for the trend windows.
+  // Includes games with zero errors: required for an honest errors-per-game rate,
+  // and required to rank games by recency without the error pool skewing the order.
+  const allAnalyzedGames: { key: string; playedAt: number }[] = [];
 
   for (const g of games ?? []) {
     if (!g.analysis_path) continue;
@@ -809,8 +810,11 @@ export async function computeAggregates(
     if (ga.time_class && ga.time_class !== goalTimeClass) continue;
 
     analyzedCount++;
-    // Track played_at of every filtered game — used as denominator in trend_now.
-    if (ga.played_at) allAnalyzedPlayedAt.push(ga.played_at);
+    // Track every filtered game — ranked by recency to build the trend windows.
+    if (ga.played_at) {
+      const t = Date.parse(ga.played_at);
+      if (!isNaN(t)) allAnalyzedGames.push({ key: ga.chess_com_uuid, playedAt: t });
+    }
 
     // Collect motif occurrences for transfer metrics (§7.3). Old analysis files
     // will have motif_occurrences === undefined — silently skip them.
@@ -1395,25 +1399,28 @@ export async function computeAggregates(
   anchors.sort((a, b) => b.weighted_score - a.weighted_score);
 
   // ── trend_now per Anchor (§2.1 BUILD.md) ─────────────────────────────────
-  // Two 28-day windows relative to the most recent game date in the candidate
-  // pool. "recent" = [lastDate - 27d .. lastDate]; "prior" = [lastDate - 55d .. lastDate - 28d].
-  // We use played_at (the game timestamp on each PositionExample).
+  // Le tue ultime N partite contro le N precedenti.
+  //
+  // Prima erano due finestre di 28 giorni, e il calendario e' la cosa sbagliata
+  // da misurare: chi gioca 40 partite in un mese e 3 nel mese prima confrontava
+  // 40 contro 3, e chi si ferma un mese non aveva nessun trend. Contate a
+  // partite, le due finestre sono sempre confrontabili, esistono dal giorno in
+  // cui hai 2N partite analizzate, e sono la cosa che il giocatore si racconta
+  // da solo: "come sto andando ultimamente".
   {
-    // Find the most recent game date across all candidates.
-    let maxDateMs = 0;
-    for (const c of exampleCandidates) {
-      if (c.played_at) {
-        const t = Date.parse(c.played_at);
-        if (!isNaN(t) && t > maxDateMs) maxDateMs = t;
-      }
-    }
+    // Piu' recenti prima. A parita' di istante l'ordine e' stabile ma
+    // arbitrario: irrilevante, cadono comunque nella stessa finestra.
+    const rankedGames = [...allAnalyzedGames].sort((a, b) => b.playedAt - a.playedAt);
+    const recentKeys = new Set(
+      rankedGames.slice(0, TREND_WINDOW_GAMES).map((g) => g.key),
+    );
+    const priorKeys = new Set(
+      rankedGames
+        .slice(TREND_WINDOW_GAMES, TREND_WINDOW_GAMES * 2)
+        .map((g) => g.key),
+    );
 
-    if (maxDateMs > 0) {
-      const MS_PER_DAY = 86_400_000;
-      const recentEnd = maxDateMs;
-      const recentStart = maxDateMs - 27 * MS_PER_DAY;   // [maxDate-27d .. maxDate]
-      const priorEnd   = maxDateMs - 28 * MS_PER_DAY;    // [maxDate-55d .. maxDate-28d]
-      const priorStart = maxDateMs - 55 * MS_PER_DAY;
+    if (recentKeys.size > 0) {
 
       // Per each anchor type, collect recent/prior error counts and distinct game keys.
       const trendAcc: Map<string, {
@@ -1426,9 +1433,6 @@ export async function computeAggregates(
         const et = c.error_type;
         if (!et || et === "in_lost_position") continue;
         if (!WEAKNESS_META[et]) continue; // not a tracked anchor type
-        if (!c.played_at) continue;
-        const t = Date.parse(c.played_at);
-        if (isNaN(t)) continue;
 
         if (!trendAcc.has(et)) {
           trendAcc.set(et, {
@@ -1445,26 +1449,20 @@ export async function computeAggregates(
           ta.target_pct_n++;
         }
 
-        if (t >= recentStart && t <= recentEnd) {
+        if (recentKeys.has(c.gameKey)) {
           ta.recent_n++;
           ta.recent_games.add(c.gameKey);
-        } else if (t >= priorStart && t <= priorEnd) {
+        } else if (priorKeys.has(c.gameKey)) {
           ta.prior_n++;
           ta.prior_games.add(c.gameKey);
         }
       }
 
-      // Denominator: ALL analyzed games (including zero-error games) in each window.
-      // We use allAnalyzedPlayedAt collected above — this gives an honest
-      // errors-per-game rate, not inflated by counting only games with errors.
-      let recentGamesCount = 0;
-      let priorGamesCount = 0;
-      for (const playedAt of allAnalyzedPlayedAt) {
-        const t = Date.parse(playedAt);
-        if (isNaN(t)) continue;
-        if (t >= recentStart && t <= recentEnd) recentGamesCount++;
-        else if (t >= priorStart && t <= priorEnd) priorGamesCount++;
-      }
+      // Denominatore: TUTTE le partite della finestra, comprese quelle senza
+      // errori. E' la dimensione della finestra per costruzione, quindi sempre
+      // TREND_WINDOW_GAMES salvo all'inizio, quando le partite non bastano.
+      const recentGamesCount = recentKeys.size;
+      const priorGamesCount = priorKeys.size;
 
       // Attach trend_now to each anchor.
       for (const anchor of anchors) {
@@ -1495,7 +1493,10 @@ export async function computeAggregates(
           else if (delta > threshold) direction = "worsening";
         }
 
-        // Confidence: based on min(recent_n, prior_n) and n. games per window.
+        // Confidence: occorrenze nella finestra piu' povera, e quanto le due
+        // finestre sono piene. Con le finestre a partite minGames vale
+        // TREND_WINDOW_GAMES appena hai 2N partite; sotto quella soglia dice
+        // esattamente quanto siamo all'inizio, che e' l'informazione giusta.
         const minN = Math.min(ta.recent_n, ta.prior_n);
         const minGames = Math.min(recent_games, prior_games);
         let confidence: AnchorTrendNow["confidence"];
