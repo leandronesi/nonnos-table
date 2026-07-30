@@ -20,6 +20,7 @@ import { useBoardFit } from "../components/useBoardFit";
 import { useStockfish } from "../engine/useStockfish";
 import { tr, getLang } from "../i18n/lang";
 import { buildMoveReason } from "./moveReason";
+import { buildLevelCompare } from "./levelCompare";
 
 // ---------------------------------------------------------------------------
 // Waiting-move validation stays Stockfish-based; Maia only selects context.
@@ -633,6 +634,23 @@ export function MomentReview({
                   }}
                 >
                   {displayText}
+                </p>
+              );
+            })()}
+
+            {/* Firma #2 in voce: "piu' naturale al target" (PRODUCT.md §0.6).
+                Sta SOPRA gli indici: Nonno parla, i numeri restano dettaglio. */}
+            {(() => {
+              const levelLine = buildLevelCompare({
+                pMineAcceptable: position.maia_mine_acceptable_observed_policy,
+                pTargetAcceptable: position.maia_target_acceptable_observed_policy,
+                targetRating: maiaLevel,
+                maiaStatus: position.maia_status,
+              });
+              if (!levelLine) return null;
+              return (
+                <p className="tt-nonno" style={{ marginTop: "14px" }}>
+                  {levelLine}
                 </p>
               );
             })()}

@@ -153,7 +153,9 @@ come eventi. (Se un domani servisse query cross-utente, si valutera' una tabella
 ### SLICE 4 — Sessione: mossa di attesa + rifinitura
 - `waiting_moves` (alternative Stockfish-validate, cp_loss<50, non forzanti) quando la mossa giusta e'
   troppo difficile (`p_maia_mine_top < 0.20`): calcolo in analyze/aggregate + uso in MomentReview/WarmupGuidato.
-- Esponi `drill_value` esplicito in MomentReview ("questa la trova il 67%, tu il 34%").
+- Esponi il confronto col livello in MomentReview nella forma «piu' naturale al target»
+  (`levelCompare.ts`). ~~"questa la trova il 67%, tu il 34%"~~ e' VIETATA da PRODUCT.md §0.6
+  (2026-07-11): la policy Maia e' un indice relativo, non una frequenza sui giocatori.
 - **Acceptance**: build verde; quando la mossa e' troppo difficile, Nonno propone la mossa di attesa.
 
 ### Dopo le fette: giro di polish UI/UX congiunto (impeccable) + redeploy coach-llm.
