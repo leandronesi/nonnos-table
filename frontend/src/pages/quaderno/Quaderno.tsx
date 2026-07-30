@@ -753,13 +753,25 @@ function TabEvoluzione({
   const maiaverdictLine = (() => {
     const mw = aggregates?.maia_weighted;
     const coverage = aggregates?.maia_coverage;
-    if (mw == null) return null;
-    if (coverage?.status === "disabled" || coverage?.status === "unavailable") {
+    // Coverage is read BEFORE maia_weighted on purpose. maia_weighted is null by
+    // construction whenever nothing was scored, which is exactly the "disabled"
+    // and "unavailable" cases. Testing it first made this message unreachable in
+    // the only two situations it was written for.
+    if (coverage?.status === "disabled") {
       return tr(
-        "Maia non ha copertura sufficiente per confrontare livello attuale e obiettivo in questa analisi.",
-        "Maia does not have enough coverage to compare your current and target levels in this analysis.",
+        "Per confrontarti col tuo livello mi serve il tuo rating. Senza quello questa parte resta chiusa, il resto del quaderno regge.",
+        "To compare you against your own level I need your rating. Without it this part stays closed; the rest of the notebook holds.",
       );
     }
+    if (coverage?.status === "unavailable") {
+      return tr(
+        "Il confronto col tuo livello stavolta non l'ho potuto fare: il modello non ha risposto. Il resto di quello che leggi qui sotto vale lo stesso.",
+        "This time I could not run the comparison against your own level: the model did not answer. Everything else below still holds.",
+      );
+    }
+    // "no_data" (nothing to compare) and legacy analyses without coverage stay
+    // silent: there is no failure to report.
+    if (mw == null) return null;
     const mine = Math.round(mw.mine_acceptable_observed_policy_pct);
     const target = Math.round(mw.target_acceptable_observed_policy_pct);
     const targetLabel = evoluzioneTargetRating != null && evoluzioneTargetRating > 0
@@ -1237,6 +1249,25 @@ function TabProfilo({
     );
   })();
 
+  // The whole Maia layer is missing: say so once, rather than letting the
+  // section disappear as if it had never been part of the notebook.
+  const maiaMissingLine = (() => {
+    const status = aggregates?.maia_coverage?.status;
+    if (status === "disabled") {
+      return tr(
+        "Qui sotto manca il confronto col tuo livello: senza il tuo rating non posso farlo.",
+        "The comparison against your own level is missing below: without your rating I cannot make it.",
+      );
+    }
+    if (status === "unavailable") {
+      return tr(
+        "Qui sotto manca il confronto col tuo livello: stavolta il modello non ha risposto.",
+        "The comparison against your own level is missing below: the model did not answer this time.",
+      );
+    }
+    return null;
+  })();
+
   return (
     <div>
       {/* Nonno voice */}
@@ -1282,13 +1313,17 @@ function TabProfilo({
       )}
 
       {/* Gap Maia — GameArcChart (moved from Tavolo) */}
-      {aggregates?.maia_weighted != null && (
+      {aggregates?.maia_weighted != null ? (
         <Reveal delay={120} className="mb-8">
           <GameArcChart
             maiaWeighted={aggregates.maia_weighted}
           />
         </Reveal>
-      )}
+      ) : maiaMissingLine != null ? (
+        <Reveal delay={120} className="mb-8">
+          <p className="tt-nonno">{maiaMissingLine}</p>
+        </Reveal>
+      ) : null}
 
       {/* Qualita' della prima mossa successiva a un errore: osservazionale. */}
       {tilt != null && (
