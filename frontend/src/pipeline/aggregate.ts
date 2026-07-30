@@ -1494,7 +1494,12 @@ export async function computeAggregates(
     }
   }
 
-  // TODO: waiting_moves — "posizioni di attesa" quando p_maia_mine_top < 0.20. (M3)
+  // waiting_moves is deliberately NOT precomputed here. It needs a Stockfish
+  // pass per candidate move, and only the handful of positions that reach the
+  // Sessione are ever reviewed, so precomputing it for every error candidate
+  // would spend the browser's engine budget on moves nobody will see. It is
+  // computed on demand in MomentReview, gated by shouldOfferWaitingMove()
+  // (p_maia_mine_top < 0.20) with a graceful timeout. See session/waitingMove.ts.
   // TODO: strutture pedonali — cluster per natura posizionale. (M3)
 
   // ── Transfer aggregates (§7.3 BUILD.md) ──────────────────────────────────────

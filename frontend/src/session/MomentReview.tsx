@@ -21,6 +21,7 @@ import { useStockfish } from "../engine/useStockfish";
 import { tr, getLang } from "../i18n/lang";
 import { buildMoveReason } from "./moveReason";
 import { buildLevelCompare } from "./levelCompare";
+import { shouldOfferWaitingMove, orderWaitingCandidates } from "./waitingMove";
 
 // ---------------------------------------------------------------------------
 // Waiting-move validation stays Stockfish-based; Maia only selects context.
@@ -115,10 +116,12 @@ async function computeWaitingMoves(
     return true;
   });
 
-  // Ordina per tipo: prima mosse di re, poi arrocchi, poi mosse di pedone che non catturano
-  // (euristico: le mosse di attesa sono spesso "mosse normalizzanti")
+  // Prima le mosse "normalizzanti" (arrocco, re, spinta tranquilla): valutiamo
+  // solo i primi 6, quindi l'ordine decide COSA viene valutato. Prima questo
+  // ordinamento era descritto in un commento ma non implementato, e si
+  // valutavano i primi 6 in ordine di scacchiera.
   const scored: WaitingMove[] = [];
-  const toEval = candidates.slice(0, 6); // max 6 per non appesantire
+  const toEval = orderWaitingCandidates(candidates).slice(0, 6);
 
   for (const mv of toEval) {
     try {
@@ -401,8 +404,15 @@ export function MomentReview({
   >(null);
   const waitingAttemptedRef = useRef(false);
 
-  const shouldComputeWaitingMove =
-    position.target_relevant === true && position.avoidable_at_current !== true;
+  // Condizione canonica (BUILD.md §SLICE 4): la mossa giusta e' troppo
+  // difficile per il livello attuale. La versione precedente usava
+  // `target_relevant && avoidable_at_current !== true`, che non e' la stessa
+  // cosa: `!== true` include null, quindi la mossa d'attesa compariva anche
+  // quando il dato semplicemente mancava.
+  const shouldComputeWaitingMove = shouldOfferWaitingMove({
+    pMaiaMineTop: position.p_maia_mine_top,
+    maiaStatus: position.maia_status,
+  });
 
   useEffect(() => {
     // Calcolo waiting moves solo se:
