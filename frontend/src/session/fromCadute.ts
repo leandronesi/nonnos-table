@@ -18,6 +18,7 @@
 
 import type { PlayerModel, PositionRow, Identity, Goal, Kpi, Decisions, PhaseStat, ColorStat, Tilt, WeeklyFocus, Diagnosis } from "../types";
 import type { PositionExample } from "../pipeline/aggregate";
+import { trainabilityScore } from "../pipeline/aggregate";
 import type { ProfileRow } from "../auth/db.types";
 import { uciToSan } from "../pages/quaderno/boardArrows";
 
@@ -183,8 +184,11 @@ export function buildMiniPlayerModel(
   cadute: PositionExample[],
   profile: ProfileRow,
 ): PlayerModel {
-  // Ordina per cp_loss desc (peggiori prima → più impatto nella sessione)
-  const sorted = [...cadute].sort((a, b) => b.cp_loss - a.cp_loss);
+  // Ordina per allenabilita' desc, lo stesso peso con cui la pipeline ha gia'
+  // classificato le cadute. Prima qui si riordinava per cp_loss grezzo, il che
+  // buttava via il ranking appena calcolato a monte e riportava in testa gli
+  // errori piu' rumorosi invece di quelli su cui si puo' lavorare.
+  const sorted = [...cadute].sort((a, b) => trainabilityScore(b) - trainabilityScore(a));
   const drills = sorted.map((pe, i) => toPositionRow(pe, i));
 
   // Goal: prende i valori canonici dal profilo

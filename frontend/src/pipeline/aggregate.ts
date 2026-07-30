@@ -595,6 +595,34 @@ async function enrichWithMaia(
   return result;
 }
 
+/**
+ * Quanto vale lavorare su questo errore, non quanto era rumoroso.
+ *
+ * cp_loss da solo misura il DANNO. Ordinare per cp_loss puro fa parlare Nonno
+ * degli errori piu' fragorosi, che spesso sono anche i meno allenabili: la
+ * cannonata in posizione gia' persa, o la mossa che a questo livello non era
+ * trovabile. Il peso corregge in due tempi:
+ *
+ *   blame_weight              quanto quell'errore e' davvero tuo
+ *   training_priority_weight  quanto e' allenabile, dal ranking Maia
+ *
+ * Senza Maia (training_priority_weight null) resta il solo impatto: le
+ * posizioni senza dato partecipano comunque, non spariscono dalla selezione.
+ *
+ * Esportata perche' e' la definizione operativa di "allenabile" del prodotto:
+ * se cambia questa, cambia di cosa parla Nonno.
+ */
+export function trainabilityScore(c: {
+  cp_loss: number;
+  blame_weight?: number | null;
+  training_priority_weight?: number | null;
+}): number {
+  const impact = (c.blame_weight ?? 1.0) * c.cp_loss;
+  return c.training_priority_weight != null
+    ? c.training_priority_weight * impact
+    : impact;
+}
+
 // ── Transfer aggregates (§7.3 BUILD.md) ──────────────────────────────────────
 
 /**
@@ -1223,8 +1251,11 @@ export async function computeAggregates(
     },
   };
 
-  // Esempi finali: i peggiori per cp_loss, max 2 per partita (varieta').
-  exampleCandidates.sort((a, b) => b.cp_loss - a.cp_loss);
+  // Esempi finali: i piu' ALLENABILI, max 2 per partita (varieta').
+  // Sono gli esempi che arrivano alla voce di Nonno. Prima erano ordinati per
+  // cp_loss grezzo, cioe' per rumore: Nonno parlava delle cannonate invece che
+  // delle cose su cui si puo' lavorare. Stesso peso gia' usato per le cadute.
+  exampleCandidates.sort((a, b) => trainabilityScore(b) - trainabilityScore(a));
   const perGame: Record<string, number> = {};
   const examples: PositionExample[] = [];
   for (const c of exampleCandidates) {
@@ -1241,17 +1272,9 @@ export async function computeAggregates(
   // the top of the gallery, while positions without Maia data still participate.
   // priority_score 0 positions are NOT excluded here — they stay in the gallery
   // so the player sees their worst moments; Maia weighting naturally deprioritises them.
-  const caduteByTrainability = [...exampleCandidates].sort((a, b) => {
-    const impactA = (a.blame_weight ?? 1.0) * a.cp_loss;
-    const impactB = (b.blame_weight ?? 1.0) * b.cp_loss;
-    const scoreA = a.training_priority_weight != null
-      ? a.training_priority_weight * impactA
-      : impactA;
-    const scoreB = b.training_priority_weight != null
-      ? b.training_priority_weight * impactB
-      : impactB;
-    return scoreB - scoreA;
-  });
+  const caduteByTrainability = [...exampleCandidates].sort(
+    (a, b) => trainabilityScore(b) - trainabilityScore(a),
+  );
   const perGameCadute: Record<string, number> = {};
   const cadute: PositionExample[] = [];
   for (const c of caduteByTrainability) {
