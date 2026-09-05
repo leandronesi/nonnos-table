@@ -89,10 +89,18 @@ function TimingDetail({ pattern }: { pattern: TimingStratum }) {
   </details>;
 }
 
-export function TimingPatterns({ report }: { report: TimingReport | undefined }) {
+export function TimingPatterns({ report, compact = false }: { report: TimingReport | undefined; compact?: boolean }) {
+  const [expanded, setExpanded] = useState(!compact);
   return <section id="cronometro" className="pattern-section" aria-labelledby="timing-title">
     <div className="pattern-section-heading"><div><p className="pattern-kicker">{tr("Il tuo uso del tempo", "Your use of time")}</p>
       <h2 id="timing-title">{tr("Il cronometro fa parte della scelta.", "The clock is part of the choice.")}</h2></div></div>
+    {compact && report && <>
+      <p>{tr("Quando avevi tempo, quando eri sotto pressione: guarda le tue decisioni nei due casi.", "When you had time and when you were under pressure: explore your decisions in both situations.")}</p>
+      <button type="button" aria-expanded={expanded} aria-controls="timing-evidence" onClick={() => setExpanded(!expanded)}>
+        {expanded ? tr("Chiudi i dettagli del cronometro", "Close clock details") : tr("Esplora il tuo uso del tempo", "Explore your use of time")}
+      </button>
+    </>}
+    <div id="timing-evidence" hidden={Boolean(report) && !expanded}>
     {!report ? <p>{tr("Questa lettura non contiene ancora l'analisi del cronometro. Aggiorna le partite per ricostruirla dai dati disponibili.", "This report does not contain clock analysis yet. Refresh your games to rebuild it from available data.")}</p> : <>
       <p className="pattern-muted">{tr("Tempo ricostruito su", "Timing reconstructed for")} {report.measuredMoves} / {report.moves} {tr("mosse", "moves")}.
         {" "}{tr("Le mosse iniziali, le risposte obbligate riconosciute e le posizioni già nettamente decise sono escluse dai pattern temporali.", "Early opening moves, recognized forced replies and already clearly decided positions are excluded from timing patterns.")}</p>
@@ -110,5 +118,6 @@ export function TimingPatterns({ report }: { report: TimingReport | undefined })
           </p>)}</div>
       </details>}
     </>}
+    </div>
   </section>;
 }

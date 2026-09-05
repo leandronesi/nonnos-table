@@ -242,3 +242,16 @@ dati reali. Le anteprime sintetiche non sostituiscono questa verifica.
   Non inventa orari per le vecchie analisi e non richiede migrazioni SQL.
 - Build e 178 test di logica passati; verificata a 360 px anche la spiegazione
   delle partite escluse e dell'insufficienza del campione.
+
+## Riduzione delle scelte ripetute nella home
+
+- Il tema prioritario collega direttamente ai suoi esercizi tramite l'identita
+  del pattern; le prove conservano la stessa identita. Non si torna al catalogo
+  per riselezionare il tema appena proposto.
+- Il cronometro resta una sezione della home. I conteggi, i contesti e le
+  scacchiere si aprono su richiesta; il messaggio sui dati mancanti resta visibile.
+- Rimossa la seconda proposta generica di allenamento a fondo pagina.
+- Sei test browser passati: 360/390/430/1280 px, identita del tema nei due
+  collegamenti, apertura delle prove temporali, cambio partita, tema visivo,
+  dati mancanti e continuita del dettaglio. Ispezionata anche la home renderizzata
+  a 390 px. Queste prove non chiudono la verifica integrata dell'intero GOAL.

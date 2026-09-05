@@ -11,6 +11,15 @@ for (const width of [360, 390, 430, 1280]) {
     await expect(page.getByRole("navigation", { name: "Navigazione principale" })).toHaveCount(1);
     await expect(page.getByRole("link", { name: "Allenamento", exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const practice = page.getByRole("link", { name: "Prova sulle tue posizioni", exact: true });
+    const evidence = page.getByRole("link", { name: "Perché questo tema?", exact: true });
+    const practiceUrl = new URL((await practice.getAttribute("href"))!, page.url());
+    const evidenceUrl = new URL((await evidence.getAttribute("href"))!, page.url());
+    expect(practiceUrl.pathname).toBe("/sessione");
+    expect(practiceUrl.searchParams.get("pattern")).toBeTruthy();
+    expect(practiceUrl.searchParams.get("pattern")).toBe(evidenceUrl.searchParams.get("pattern"));
+    await expect(page.locator("#timing-evidence")).toBeHidden();
+    await page.getByRole("button", { name: "Esplora il tuo uso del tempo" }).click();
     await expect(page.locator(".pattern-detail summary").first()).toContainText("mediogioco");
     await page.locator(".pattern-detail summary").first().click();
     await expect(page.getByRole("heading", { name: "Prima della tua decisione" }).first()).toBeVisible();

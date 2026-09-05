@@ -29,6 +29,8 @@ export function PatternHomeView({ data, run }: { data: PatternHomeData; run: Pat
   const comparison = report?.personal_patterns;
   const comparisonIsOlder = comparison && ((data.currentRating !== null && comparison.currentRating !== data.currentRating) || comparison.targetRating !== data.targetRating);
   const priority = patterns?.find((p) => p.evidence === "recurring");
+  const practiceHref = priority && priority.examples.length + priority.successfulExamples.length > 0
+    ? `/sessione?pattern=${encodeURIComponent(priority.id)}` : "/sessione";
 
   return <div className="pattern-coach">
     <header className="pattern-page-heading">
@@ -70,14 +72,15 @@ export function PatternHomeView({ data, run }: { data: PatternHomeData; run: Pat
           ? tr(`Nel contesto osservato, ${timingPriority.fastWithTime.errors} errori compaiono in ${timingPriority.fastWithTime.opportunities} decisioni veloci con tempo disponibile, su ${timingPriority.fastWithTime.games} partite. Guardiamone alcune insieme.`, `In the observed context, ${timingPriority.fastWithTime.errors} errors appear in ${timingPriority.fastWithTime.opportunities} quick decisions with time available, across ${timingPriority.fastWithTime.games} games. Let's examine a few.`)
           : first?.meaning_it ?? tr("Ogni lettura parte dalle occasioni concrete. Con poche partite, le prime indicazioni restano provvisorie.", "Every report starts from actual opportunities. With few games, early findings remain provisional.")}</p>
         <div className="pattern-actions">
-          {priority ? <Link className="pattern-primary" to={`/quaderno?pattern=${encodeURIComponent(priority.id)}`}>{tr("Guarda le decisioni", "Explore these decisions")}</Link>
+          {priority && <Link className="pattern-primary" to={practiceHref}>{tr("Prova sulle tue posizioni", "Try your own positions")}</Link>}
+          {priority ? <Link to={`/quaderno?pattern=${encodeURIComponent(priority.id)}`}>{tr("Perché questo tema?", "Why this theme?")}</Link>
             : timingPriority ? <a className="pattern-primary" href="#cronometro">{tr("Guarda le decisioni", "Explore these decisions")}</a>
             : first ? <Link className="pattern-primary" to="/quaderno#percorso">{tr("Esplora le prove", "Explore the evidence")}</Link> : null}
-          <Link to="/sessione">{tr("Vai all'allenamento", "Go to training")} <span aria-hidden="true">→</span></Link>
+          {!priority && <Link to="/sessione">{tr("Vai all'allenamento", "Go to training")} <span aria-hidden="true">→</span></Link>}
         </div>
       </section>
 
-      <TimingPatterns report={report.timing} />
+      <TimingPatterns report={report.timing} compact />
 
       <section className="pattern-section" aria-labelledby="recurrences-title">
         <div className="pattern-section-heading"><div><p className="pattern-kicker">{tr("Situazioni ricorrenti", "Recurring situations")}</p>
@@ -97,10 +100,6 @@ export function PatternHomeView({ data, run }: { data: PatternHomeData; run: Pat
         </article>)}</div>
         <p className="pattern-muted">{tr("Queste categorie descrivono gli errori rilevati. I valori Maia sono segnali del modello, non percentuali di giocatori né punti Elo guadagnabili.", "These categories describe detected errors. Maia values are model signals, not player percentages or potential Elo gains.")}</p>
         </>}
-      </section>
-      <section className="pattern-section pattern-next"><h2>{tr("Porta una cosa nella prossima partita.", "Take one idea into your next game.")}</h2>
-        <p>{tr("Scegli un aspetto su cui lavorare, allenalo e torna a guardare come lo affronti nelle partite nuove. Il quaderno conserva le prove; il cronometro racconta anche come hai deciso.", "Choose one aspect to work on, practice it, then see how you handle it in new games. The notebook holds the evidence; the clock also tells how you decided.")}</p>
-        <Link className="pattern-primary" to="/sessione">{tr("Allenati sulle tue posizioni", "Practice your positions")}</Link>
       </section>
     </>}
     {!data.loading && !report && <section className="pattern-section"><h2>{tr("La tua lettura deve ancora arrivare.", "Your report is not ready yet.")}</h2>
