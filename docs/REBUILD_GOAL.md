@@ -268,3 +268,16 @@ dati reali. Le anteprime sintetiche non sostituiscono questa verifica.
 - Revisione del percorso mobile: il contesto del cronometro originale
   nell'esercizio appare sotto la scacchiera. Portarlo prima della scacchiera
   resta un intervento da realizzare e verificare dopo questa esecuzione.
+
+## Cronometro prima della scelta
+
+- Il contesto della posizione precede ora la scacchiera nell'allenamento:
+  lato al tratto, ultima mossa avversaria quando nota e riserva prima della mossa.
+  Il cronometro dell'esercizio resta distinto dal tempo della partita originale.
+- Due test browser passano, inclusa la posizione del contesto sopra la scacchiera,
+  pausa/ripresa, Stockfish, salvataggio ritentato e progressi. Ispezione visiva a
+  360 px: riserva e scacchiera leggibili insieme.
+- La prima esecuzione integrata si e fermata nel verificatore: richiedeva un
+  tema ricorrente gia dopo dieci partite. Non e una precondizione garantita.
+  Ora verifica il report iniziale di dieci partite e l'accesso all'allenamento;
+  gli errori conservano anche una schermata. Il ciclo completo resta non provato.

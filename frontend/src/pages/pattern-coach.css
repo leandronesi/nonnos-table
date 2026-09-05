@@ -70,3 +70,8 @@
   .pattern-focus { margin-bottom: 36px; }
   .pattern-data-bar { align-items: flex-start; }
 }
+
+.practice-position-context { border: 1px solid var(--color-line-strong); border-radius: 12px; padding: 12px 16px; margin-bottom: 12px; background: var(--color-surface-2); }
+.practice-position-context p { margin: 0 0 6px; }
+.practice-position-context p:last-child { margin-bottom: 0; }
+.practice-position-context strong { font-variant-numeric: tabular-nums; }

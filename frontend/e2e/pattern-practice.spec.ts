@@ -8,6 +8,14 @@ test("mobile practice pauses, survives reload, uses Stockfish and retries a lost
   await page.clock.runFor(4000);
   await expect(page.locator(".practice-toolbar")).toContainText("0 s");
   await page.getByRole("button", { name: "Osserva la posizione" }).click();
+  const clock = page.locator(".practice-position-context");
+  await expect(clock).toContainText("Muove il Bianco");
+  await expect(clock).toContainText("6:00");
+  const beforeBoard = await clock.evaluate(el => {
+    const board = el.nextElementSibling;
+    return Boolean(board && el.getBoundingClientRect().bottom <= board.getBoundingClientRect().top);
+  });
+  expect(beforeBoard).toBe(true);
   await page.clock.runFor(2000);
   await page.getByRole("button", { name: "Pausa", exact: true }).click();
   const paused = await page.locator(".practice-toolbar").innerText();

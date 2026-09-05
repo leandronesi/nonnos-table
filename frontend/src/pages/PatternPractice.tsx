@@ -196,7 +196,13 @@ export function PatternPracticeView({ pattern, persistence, saveAttempt, evaluat
           <p className="pattern-muted">{tr("Il tempo parte quando apri la posizione e si ferma se cambi scheda o metti in pausa. Non devi aspettare un numero prefissato di secondi.", "Time starts when you open the position and stops when you switch tabs or pause. There is no fixed number of seconds you must wait.")}</p>
           <button type="button" className="pattern-primary" disabled={evaluating} onClick={() => update({ ...stateRef.current, phase: "choosing" })}>{tr("Osserva la posizione", "View position")}</button>
         </section> : <div className="practice-layout">
-          <div className="pattern-board"><BoardView fen={state.phase === "feedback" ? showReply && reply ? reply.fen : result.resultingFen : position.fen} size={520} orientation={position.color}
+          <div className="pattern-board">
+            {state.phase === "choosing" && <div className="practice-position-context">
+              <p className="pattern-kicker">{position.color === "white" ? tr("Muove il Bianco", "White to move") : tr("Muove il Nero", "Black to move")}</p>
+              {position.lastOpponentSan && <p>{tr("L'avversario ha appena giocato", "Your opponent just played")} <strong>{position.lastOpponentSan}</strong>.</p>}
+              {position.timing.clockBeforeSeconds !== null && <p>{tr("In partita avevi", "In the game you had")} <strong>{Math.floor(position.timing.clockBeforeSeconds / 60)}:{String(Math.floor(position.timing.clockBeforeSeconds % 60)).padStart(2, "0")}</strong> {tr("a disposizione.", "available.")}</p>}
+            </div>}
+            <BoardView fen={state.phase === "feedback" ? showReply && reply ? reply.fen : result.resultingFen : position.fen} size={520} orientation={position.color}
             draggable={state.phase === "choosing"} onPieceDrop={(from, to) => chooseMove(from, to)}
             highlights={selectedSquare ? [{ square: selectedSquare, color: "#c28b40" }] : []}
             onSquareClick={state.phase === "choosing" ? (square) => {
@@ -204,9 +210,6 @@ export function PatternPracticeView({ pattern, persistence, saveAttempt, evaluat
             } : undefined} /></div>
           <div className="practice-decision">
             {state.phase === "choosing" ? <>
-              <p className="pattern-kicker">{position.color === "white" ? tr("Muove il Bianco", "White to move") : tr("Muove il Nero", "Black to move")}</p>
-              {position.lastOpponentSan && <p>{tr("L'avversario ha appena giocato", "Your opponent just played")} <strong>{position.lastOpponentSan}</strong>.</p>}
-              {position.timing.clockBeforeSeconds !== null && <p>{tr("In partita avevi", "In the game you had")} <strong>{Math.floor(position.timing.clockBeforeSeconds / 60)}:{String(Math.floor(position.timing.clockBeforeSeconds % 60)).padStart(2, "0")}</strong> {tr("a disposizione.", "available.")}</p>}
               <fieldset className="practice-preparation"><legend>{tr("Come affronti questa scelta?", "How will you approach this choice?")}</legend>
                 <button type="button" aria-pressed={state.preparation === "check"} onClick={() => update({ ...stateRef.current, preparation: "check" })}>{tr("Mi fermo a controllare", "I will stop and check")}</button>
                 <button type="button" aria-pressed={state.preparation === "ready"} onClick={() => update({ ...stateRef.current, preparation: "ready" })}>{tr("Ho già una candidata", "I have a candidate")}</button>

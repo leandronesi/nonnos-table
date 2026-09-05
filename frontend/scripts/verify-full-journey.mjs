@@ -16,7 +16,7 @@ const admin=createClient(`https://${ref}.supabase.co`,key,{auth:{persistSession:
 const checked = ({data,error}) => { if(error)throw new Error(error.message);return data; };
 
 const email=`pattern-validation-${randomUUID()}@example.invalid`, password=randomBytes(30).toString("base64url");
-let owner,browser;
+let owner,browser,page;
 const manifest=".local-validation/full-journey-owner.json";
 const summary={startedAt:new Date().toISOString(),milestones:[],completed:false};
 async function mark(event,detail={}){summary.milestones.push({at:new Date().toISOString(),event,...detail});await writeFile('.local-validation/full-journey-summary.json',JSON.stringify(summary,null,2));console.log(event,JSON.stringify(detail));}
@@ -27,7 +27,7 @@ try {
  await writeFile(manifest,JSON.stringify({id:owner,purpose:'pattern-validation'}));
  checked(await admin.from('profiles').insert({user_id:owner,chess_com_username:'erik',goal_rating:2100,goal_horizon_weeks:26,goal_time_class:'blitz',weekly_minutes:120,onboarding_state:'pending'}));
  browser=await chromium.launch({channel:process.platform==='win32'?'chrome':undefined});
- const page=await browser.newPage({viewport:{width:390,height:844},locale:'it-IT'});
+ page=await browser.newPage({viewport:{width:390,height:844},locale:'it-IT'});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://127.0.0.1:5173/login');
  await page.getByLabel('Email',{exact:true}).fill(email);
@@ -45,7 +45,8 @@ try {
   if(job?.status==='error')throw new Error(`Pipeline stopped: ${job.error}`);
   if(!firstReady && (await page.getByRole('heading',{name:'Conosci il tuo gioco.',exact:true}).count())){
    firstReady=true;assert.notEqual(job?.status,'done');
-   await page.getByRole('link',{name:'Prova sulle tue posizioni',exact:true}).waitFor({timeout:30000});
+   await page.getByText('10 partite nella lettura',{exact:true}).waitFor({timeout:30000});
+   await page.getByRole('link',{name:'Allenamento',exact:true}).waitFor();
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
    await page.screenshot({path:'.local-validation/full-journey-first-reading.png',fullPage:true});
    await mark('First reading usable while remaining games run',{analysed:count,job:job.status});
@@ -72,6 +73,10 @@ try {
  await page.reload();await page.getByText('Risultati salvati nel tuo account.',{exact:true}).waitFor({timeout:30000});
  summary.completed=true;await mark('PASS full import, first reading, background completion, Maia, contextual exercise and saved reload',{games:100,maia:report.personal_patterns.sampled});
  }
+} catch(error) {
+ await page?.screenshot({path:'.local-validation/full-journey-failure.png',fullPage:true}).catch(()=>{});
+ summary.failure=String(error.message);await mark('FAIL',{message:summary.failure});
+ throw error;
 } finally {
  await browser?.close();
  if(owner){
