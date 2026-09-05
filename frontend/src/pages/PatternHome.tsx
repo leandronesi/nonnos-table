@@ -85,7 +85,8 @@ export function PatternHomeView({ data, run }: { data: PatternHomeData; run: Pat
         <div className="pattern-list">{anchors.map((anchor) => <article key={anchor.type}>
           <p className="pattern-kicker">{anchor.games_with} {tr("partite", "games")} · {anchor.count} {tr("errori osservati", "observed errors")}</p>
           <h3>{anchor.label_it}</h3><p>{anchor.action_it}</p>
-          {anchor.mine_acceptable_observed_policy_pct !== null && anchor.target_acceptable_observed_policy_pct !== null && <p className="pattern-muted">
+          {typeof anchor.mine_acceptable_observed_policy_pct === "number" && Number.isFinite(anchor.mine_acceptable_observed_policy_pct)
+            && typeof anchor.target_acceptable_observed_policy_pct === "number" && Number.isFinite(anchor.target_acceptable_observed_policy_pct) && <p className="pattern-muted">
             {tr("Sulle alternative valide esaminate, sostegno Maia", "Maia support for the examined valid alternatives")}: {anchor.mine_acceptable_observed_policy_pct.toFixed(0)} → {anchor.target_acceptable_observed_policy_pct.toFixed(0)} / 100.
             {" "}{tr("Livello attuale → obiettivo; confronto del modello sugli errori selezionati.", "Current level → goal; model comparison on selected errors.")}
           </p>}

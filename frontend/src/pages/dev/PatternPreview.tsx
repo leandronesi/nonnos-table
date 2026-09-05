@@ -75,8 +75,10 @@ export default function PatternPreview() {
   />;
   const empty = params.has("empty");
   const missing = params.has("missing");
+  const legacy = { ...aggregates, personal_patterns: undefined, timing: undefined,
+    anchors: [{ type: "fork", label_it: "Doppi attacchi", action_it: "Controlla i bersagli", meaning_it: "Un tema ricorrente", count: 8, games_with: 4, mine_pct: 42, target_pct: 55 }] } as unknown as Aggregates;
   const data: PatternHomeData = {
-    aggregates: empty ? null : missing ? { ...aggregates, timing: undefined } : aggregates,
+    aggregates: empty ? null : params.has("legacy") ? legacy : missing ? { ...aggregates, timing: undefined } : aggregates,
     loading: false, refreshing: false, reanalyzing: false,
     error: null, refreshError: null, refreshNotice: null,
     currentRating: params.has("new-rating") ? 1250 : 1200, targetRating: 1400, liveGoal: undefined,
