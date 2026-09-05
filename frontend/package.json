@@ -11,11 +11,15 @@
     "test": "npm run test:foundation && npm run test:analytics",
     "test:foundation": "node --test scripts/foundations.test.mjs",
     "test:analytics": "vitest run --config vitest.config.ts",
+    "test:mobile": "playwright test",
     "preflight:production": "node scripts/verify-production-env.mjs",
     "preflight:maia": "node scripts/verify-maia-model.mjs",
     "prebuild": "node scripts/assert-no-personal-public-data.mjs",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "setup:maia": "node scripts/setup-maia-model.mjs",
+    "test:database": "node scripts/verify-learning-database.mjs",
+    "preflight:remote": "node scripts/verify-remote-schema.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
@@ -33,6 +37,8 @@
     "three": "^0.184.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

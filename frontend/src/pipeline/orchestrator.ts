@@ -23,6 +23,7 @@ import { runIngest } from "./ingest";
 import { runAnalyze } from "./analyze";
 import type { GameAnalysis } from "./analyze";
 import { computeAggregates } from "./aggregate";
+import { syncPatternTransfers } from "../patternLearningStore";
 import { downloadJson, uploadJson, analysisPath, quadernoPath } from "../auth/storage";
 import { buildPlayerModelLite } from "./playerModelLite";
 import { appendSnapshot, buildSnapshot, readHistory } from "./history";
@@ -1031,6 +1032,17 @@ async function runAggregateAndCoach(
     guardLease,
   );
 
+  // Reconnect trained patterns to genuinely new source-game opportunities.
+  // Failure remains retryable on the next aggregation; the raw ledger still
+  // lets the progress page reconstruct the observed comparison immediately.
+  try {
+    await guardLease();
+    await syncPatternTransfers(userId, aggregates.personal_patterns?.observations ?? [], guardLease);
+  } catch (learningError) {
+    if (learningError instanceof LeaseOwnershipLostError) throw learningError;
+    console.warn("[orchestrator] pattern transfer persistence deferred");
+  }
+
   // ---- PlayerModelLite (best-effort) ----
   try {
     const { data: doneGames, error: doneGamesError } = await supabase
@@ -1208,7 +1220,7 @@ async function probeNewChessComGames(
  * prende solo le partite nuove (delta da refresh_after), analyze le nuove,
  * aggregate, coach (nuova voce nel Quaderno via append lato edge function).
  */
-export async function runRefresh(profile: ProfileRow): Promise<boolean> {
+export async function runRefresh(profile: ProfileRow, options: { rebuildExisting?: boolean } = {}): Promise<boolean> {
   if (activeRun) throw new Error("analysis_run_already_active");
   const { timeClass: goalTimeClass } = goalAnalysisScope(profile.goal_time_class);
   const latest = await getLatestGamePlayedAt(profile.user_id, goalTimeClass);
@@ -1217,7 +1229,7 @@ export async function runRefresh(profile: ProfileRow): Promise<boolean> {
     goalTimeClass,
     latest,
   );
-  if (newGameCount === 0) return false;
+  if (newGameCount === 0 && !options.rebuildExisting) return false;
   const { data: jobId, error } = await supabase.rpc("start_analysis_refresh", {
     p_goal_time_class: goalTimeClass,
     p_refresh_after: latest,

@@ -18,10 +18,9 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { supabase } from "../../auth/supabaseClient";
 import type { GoalTimeClass, ProfileRow } from "../../auth/db.types";
-import { downloadJson, quadernoPath } from "../../auth/storage";
 import { useOnboardingRun } from "../../pipeline/OnboardingRunContext";
 import { isAnalyzedTimeClass } from "../../pipeline/config";
-import { IncontroScene, type CoachLlmBrief } from "./IncontroScene";
+import { AnalysisPreparation } from "./AnalysisPreparation";
 import { tr } from "../../i18n/lang";
 
 function LegacyGoalRecovery({
@@ -101,12 +100,7 @@ export function OnboardingWaiting() {
     refreshProfile,
     signOut,
   } = useAuth();
-  const { progress, error, firstBatchReady } = useOnboardingRun();
-
-  // undefined = non ancora in stato ready
-  // null = brief fallito o non trovato (mostra fallback)
-  // CoachLlmBrief = brief caricato
-  const [readyBrief, setReadyBrief] = useState<CoachLlmBrief | null | undefined>(undefined);
+  const { progress, error, firstBatchReady, retryBackground } = useOnboardingRun();
 
   // Redirect: utente di ritorno già onboardato (profilo ready, ma firstBatchReady
   // è false perché non ha appena completato l'onboarding in questa sessione).
@@ -120,22 +114,6 @@ export function OnboardingWaiting() {
       nav("/", { replace: true });
     }
   }, [profile, firstBatchReady, nav]);
-
-  // Quando firstBatchReady diventa true: carica il coach_brief e mostralo.
-  useEffect(() => {
-    if (!firstBatchReady || !profile?.user_id) return;
-    let cancelled = false;
-    downloadJson<CoachLlmBrief>(quadernoPath(profile.user_id, "coach_brief.json"))
-      .then((brief) => {
-        if (!cancelled) setReadyBrief(brief);
-      })
-      .catch(() => {
-        if (!cancelled) setReadyBrief(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [firstBatchReady, profile?.user_id]);
 
   if (!profile || (profileError && profile.onboarding_state !== "ready")) {
     if (!profile && !profileLoading && !profileError) {
@@ -209,16 +187,14 @@ export function OnboardingWaiting() {
   }
 
   return (
-    <IncontroScene
+    <AnalysisPreparation
       progress={progress}
-      readyBrief={readyBrief}
       error={error}
+      ready={firstBatchReady && profile.onboarding_state === "ready"}
+      username={profile.chess_com_username || ""}
       onEnter={() => nav("/", { replace: true })}
+      onRetry={retryBackground}
       onExit={() => void signOut()}
-      targetRating={profile.goal_rating > 0 ? profile.goal_rating : undefined}
-      username={profile.chess_com_username || undefined}
-      tcLabel={profile.goal_time_class || undefined}
-      // currentRating is not stored in ProfileRow — falls back to no-data phrase
     />
   );
 }

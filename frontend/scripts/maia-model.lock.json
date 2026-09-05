@@ -1,0 +1,8 @@
+{
+  "source": "https://raw.githubusercontent.com/CSSLab/maia-platform-frontend/a6e52f5c811ee18863cb2f0e81f2433a5b9905de/public/maia3/maia3_simplified.onnx",
+  "repository": "https://github.com/CSSLab/maia-platform-frontend",
+  "commit": "a6e52f5c811ee18863cb2f0e81f2433a5b9905de",
+  "gitBlob": "f8a21282b2a8e8a44257fba20d4b40f9b9678c38",
+  "bytes": 45683686,
+  "sha256": "405bf76c15727dad8728b352c06a8f3c1b80fb2760e8d666b32485c63d75b856"
+}

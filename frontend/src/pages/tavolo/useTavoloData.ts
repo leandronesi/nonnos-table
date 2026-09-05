@@ -26,6 +26,8 @@ import type { HistorySnapshot, HistoryFile, AnchorTrail, GoalProgress, Goal } fr
 import { readEntries } from "../../session/journal";
 import { tr } from "../../i18n/lang";
 import { scopedStorage } from "../../auth/userStorage";
+import { PATTERN_VERSION } from "../../pipeline/personalPatterns";
+import { TIMING_VERSION } from "../../pipeline/decisionTiming";
 
 // ── djb2 hash — same as TavoloHome ───────────────────────────────────────────
 
@@ -275,7 +277,11 @@ export function useTavoloData(): TavoloData {
     setRefreshNotice(null);
     setRefreshing(true);
     try {
-      const started = await runRefresh(profile);
+      const started = await runRefresh(profile, {
+        rebuildExisting: aggregates?.personal_patterns?.version !== PATTERN_VERSION
+          || !aggregates?.personal_patterns?.observations
+          || aggregates?.timing?.version !== TIMING_VERSION,
+      });
       if (!started) {
         const timeClass = profile.goal_time_class;
         setRefreshNotice(tr(

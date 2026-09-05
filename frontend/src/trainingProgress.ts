@@ -10,6 +10,9 @@ import type {
 } from "./auth/db.types";
 
 export type TrainingAttemptInput = {
+  /** Stable client UUID lets a saved exercise be retried without adding a second attempt. */
+  clientAttemptId?: string;
+  expectedUserId?: string;
   anchorKey: string;
   sourceGameId?: string | null;
   positionId?: string | null;
@@ -67,7 +70,9 @@ function isAnchorMasteryRow(value: unknown): value is AnchorMasteryRow {
 
 export async function recordTrainingAttempt(input: TrainingAttemptInput): Promise<TrainingAttemptRow> {
   const userId = await requireUserId();
+  if (input.expectedUserId && input.expectedUserId !== userId) throw new Error("Training account changed");
   const { data, error } = await supabase.from("training_attempts").insert({
+    ...(input.clientAttemptId ? { id: input.clientAttemptId } : {}),
     user_id: userId,
     anchor_key: input.anchorKey.slice(0, 160),
     source_game_id: input.sourceGameId?.slice(0, 160) ?? null,
@@ -85,18 +90,28 @@ export async function recordTrainingAttempt(input: TrainingAttemptInput): Promis
     // The DB trigger replaces this client value with its own trusted timestamp.
     occurred_at: new Date().toISOString(),
   }).select("*").single();
+  if (error?.code === "23505" && input.clientAttemptId) {
+    const { data: existing, error: readError } = await supabase.from("training_attempts")
+      .select("*").eq("id", input.clientAttemptId).eq("user_id", userId).single();
+    if (readError) throw readError;
+    if (existing.anchor_key !== input.anchorKey || existing.position_id !== (input.positionId ?? null)
+      || existing.move_uci !== (input.playedUci ?? null)) throw new Error("Training attempt identity mismatch");
+    return existing;
+  }
   if (error) throw error;
   return data;
 }
 
 export async function recordAnchorTransfer(input: {
+  expectedUserId?: string;
   anchorKey: string;
   observationKey: string;
   success: boolean;
   sourceGameId?: string | null;
   positionId?: string | null;
 }): Promise<AnchorMasteryRow> {
-  await requireUserId();
+  const userId = await requireUserId();
+  if (input.expectedUserId && input.expectedUserId !== userId) throw new Error("Training account changed");
   const { data, error } = await supabase.rpc("record_anchor_transfer", {
     p_anchor_key: input.anchorKey.slice(0, 160),
     p_observation_key: input.observationKey.slice(0, 240),

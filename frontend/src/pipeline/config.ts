@@ -42,10 +42,9 @@ export const CADUTE_LIMIT = 40;
 export const TREND_WINDOW_GAMES = 10;
 
 /**
- * Cap di posizioni-errore da passare a Maia (le peggiori per cp_loss).
- * Alzato a 400 (2026-05-29) per un campione piu' rappresentativo degli errori
- * nelle metriche pesate per difficolta'. Il motore ONNX single-thread regge
- * grazie ai chunk da 24; la latenza aggiuntiva e' accettabile lato browser.
+ * Shared Maia budget across pattern opportunities, including successful choices.
+ * Sample is balanced across patterns/games without sorting by error magnitude.
+ * Legacy constant name retained for readers of error-specific coverage.
  */
 export const CADUTE_MAIA_CAP = 400;
 

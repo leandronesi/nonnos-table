@@ -38,6 +38,7 @@ import {
   isCriticalPosition,
 } from "./analysisSemantics";
 import { extractMoves } from "./pgnExtract";
+import { parseClockControl } from "./decisionTiming";
 import { classifyErrorSemantics } from "./errorSemantics";
 import type { ErrorEvidence, ErrorSignal } from "./errorSemantics";
 import { LeaseOwnershipLostError } from "./jobLease";
@@ -122,6 +123,12 @@ export interface AnalyzedMove {
   spentSeconds: number | null;
   /** Clock rimasto (secondi) DOPO questa mossa del player, da [%clk] PGN. null se assente. */
   clockRemaining: number | null;
+  /** Clock at the start of this decision, before thinking or increment. */
+  clockBeforeSeconds?: number | null;
+  /** Used to exclude forced moves from decision-speed patterns. */
+  legalMoveCount?: number;
+  /** Opportunity motif detected regardless of the player's move quality. */
+  opportunityMotif?: TransferMotifType;
   /** Motif tattico rilevato (v1 conservativo). null se non sicuro o mossa ok. */
   motif: string | null;
   /**
@@ -192,6 +199,8 @@ export interface GameAnalysis {
    * null per partite daily/correspondence o senza TimeControl header.
    */
   time_control_base_seconds: number | null;
+  /** Absent in legacy analyses; never interpret absence as zero increment. */
+  time_control_increment_seconds?: number | null;
   /**
    * Pattern-occurrence records for EVERY critical player position (§7.2 BUILD.md).
    *
@@ -504,18 +513,7 @@ function classifyOccurrenceMotif(
  * increment = bonus aggiunto al clock del giocatore DOPO che ha mosso.
  * Necessario per calcolare correttamente il tempo speso (vedi spentSeconds).
  */
-function parseTimeControl(tc: string | null | undefined): { base: number; increment: number } | null {
-  if (!tc || tc === "-" || tc === "?") return null;
-  // Daily/correspondence: contiene "/"
-  if (tc.includes("/")) return null;
-  // "180+2" o "600+0" o "600"
-  const m = tc.match(/^(\d+)(?:\+(\d+))?$/);
-  if (!m) return null;
-  return {
-    base: parseInt(m[1], 10),
-    increment: m[2] != null ? parseInt(m[2], 10) : 0,
-  };
-}
+const parseTimeControl = parseClockControl;
 
 /**
  * Calcola stateBefore a partire dallo scoreBeforeCp.
@@ -583,6 +581,19 @@ export async function analyzeGame(
     console.warn("[analyze] PGN mancante per", game.chess_com_uuid);
     return null;
   }
+  return analyzePgn(game, pgn, engine, onMoveProgress, pulseLease);
+}
+
+/** Shared analysis core: the storage adapter above and offline corpus checks
+ * run the same chess, timing and opportunity extraction. */
+export async function analyzePgn(
+  game: GameRow,
+  pgn: string,
+  engine: StockfishEngine,
+  onMoveProgress?: (movesDone: number, movesTotal: number) => void,
+  pulseLease?: () => Promise<void>,
+): Promise<GameAnalysis | null> {
+  await pulseLease?.();
   const { sanList, headers, clocks } = extractMoves(pgn);
   if (sanList.length === 0) return null;
 
@@ -636,6 +647,7 @@ export async function analyzeGame(
     const fenBefore = chess.fen();
     const sideToMove = fenBefore.split(" ")[1] as "w" | "b";
     const isPlayerMove = sideToMove === playerSide;
+    const legalMoveCount = isPlayerMove ? chess.moves().length : 0;
 
     let mv: { from: string; to: string; san: string; lan: string } | null = null;
     try {
@@ -751,6 +763,7 @@ export async function analyzeGame(
       clockRemaining,
       timeControlBaseSeconds,
     });
+    const opportunityMotif = classifyOccurrenceMotif(fenBefore, evalBefore.bestMoveUci, playerColor);
 
     analyzed.push({
       ply: i + 1,
@@ -770,6 +783,9 @@ export async function analyzeGame(
       isCritical,
       spentSeconds,
       clockRemaining,
+      clockBeforeSeconds: i >= 2 ? (clocks[i - 2] ?? null) : timeControlBaseSeconds,
+      legalMoveCount,
+      opportunityMotif,
       motif,
       moveDifficulty: stockfishChoiceGap,
       stockfishChoiceGap,
@@ -779,10 +795,7 @@ export async function analyzeGame(
       // Contesto pre-errore: le 4 mosse precedenti, entrambi i colori, in
       // ordine cronologico. Solo per blunder/mistake: sono le sole che possono
       // arrivare alla Sessione, e sono le sole dove il contesto serve.
-      prevMoves:
-        category === "blunder" || category === "mistake"
-          ? sanList.slice(Math.max(0, i - PREV_MOVES_CONTEXT), i)
-          : undefined,
+      prevMoves: sanList.slice(Math.max(0, i - PREV_MOVES_CONTEXT), i),
       stateBefore,
       timeState,
       errorType: errClass?.primary_category ?? null,
@@ -801,9 +814,8 @@ export async function analyzeGame(
     // Classify the motif of the BEST MOVE (not the played move) heuristically.
     // Register for ALL analyzed positions (not only errors).
     {
-      const occMotif = classifyOccurrenceMotif(fenBefore, evalBefore.bestMoveUci, playerColor);
       motifOccurrences.push({
-        motif: occMotif,
+        motif: opportunityMotif,
         handled: cpLoss < HANDLED_CP_THRESHOLD,
         played_at: game.played_at,
         phase,
@@ -838,6 +850,7 @@ export async function analyzeGame(
     game_url: gameUrl,
     opening: openingTag,
     time_control_base_seconds: timeControlBaseSeconds,
+    time_control_increment_seconds: parsedTc?.increment ?? null,
     by_phase: {
       opening: {
         moves: byPhase.opening.moves,

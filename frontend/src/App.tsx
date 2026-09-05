@@ -2,7 +2,7 @@ import { Suspense, lazy, Fragment } from "react";
 import { tr, LangProvider, useLang } from "./i18n/lang";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
-import { OnboardingRunProvider, useOnboardingRun } from "./pipeline/OnboardingRunContext";
+import { OnboardingRunProvider } from "./pipeline/OnboardingRunContext";
 import { Signup } from "./pages/auth/Signup";
 import { Login } from "./pages/auth/Login";
 import { VerifyEmail } from "./pages/auth/VerifyEmail";
@@ -10,17 +10,18 @@ import { ForgotPassword } from "./pages/auth/ForgotPassword";
 import { UpdatePassword } from "./pages/auth/UpdatePassword";
 import { Onboarding } from "./pages/auth/Onboarding";
 import { OnboardingWaiting } from "./pages/auth/OnboardingWaiting";
-import { TavoloHome } from "./pages/TavoloHome";
+import { PatternHome } from "./pages/PatternHome";
+import { PatternProgress } from "./pages/PatternProgress";
+const PatternPreview = import.meta.env.DEV ? lazy(() => import("./pages/dev/PatternPreview")) : null;
 import { Landing } from "./pages/Landing";
-import { Quaderno } from "./pages/quaderno/Quaderno";
-import { Sessione } from "./pages/Sessione";
+import { PatternLibrary } from "./pages/PatternLibrary";
+import { PatternPractice } from "./pages/PatternPractice";
 import { MaiaTest } from "./pages/MaiaTest";
 import { AppShell } from "./components/AppShell";
 import { PRODUCT_NAME } from "./coaching";
 import { IncontroPreview } from "./pages/dev/IncontroPreview";
 import { TeachTest } from "./pages/dev/TeachTest";
 import { SecondaBattutaPopup } from "./components/SecondaBattutaPopup";
-import { hasSeenStanzaIntro } from "./pages/stanza/visit";
 import { Settings } from "./pages/settings/Settings";
 import { Privacy } from "./pages/Privacy";
 import { isAnalyzedTimeClass } from "./pipeline/config";
@@ -64,9 +65,8 @@ function FullScreenLoader({ label }: { label: string }) {
 /** Smista in base a sessione + stato profile.
  *  La Stanza e' un'introduzione una-tantum; chi ritorna atterra sul Tavolo. */
 function HomeGate() {
-  const { loading, user, profile, profileError } = useAuth();
-  const { firstBatchReady } = useOnboardingRun();
-  if (loading) return <FullScreenLoader label={tr("Carico la sessione…", "One moment.")} />;
+  const { loading, user, profile, profileLoading, profileError } = useAuth();
+  if (loading || (!profile && profileLoading)) return <FullScreenLoader label={tr("Carico la sessione…", "One moment.")} />;
   if (!user) return <Landing />;
   if (!profile && profileError) return <Navigate to="/onboarding/waiting" replace />;
   if (!profile) return <Navigate to="/onboarding" replace />;
@@ -76,17 +76,7 @@ function HomeGate() {
   if (profile.onboarding_state !== "ready") {
     return <Navigate to="/onboarding/waiting" replace />;
   }
-  // `firstBatchReady` is true only for the just-completed onboarding in this
-  // app session. Existing users (including those predating this key) bypass
-  // the cinematic room; it always remains available at /stanza.
-  if (hasSeenStanzaIntro() || !firstBatchReady) {
-    return <Navigate to="/tavolo" replace />;
-  }
-  return (
-    <Suspense fallback={<div className="stanza-shell"><div className="stanza-attesa">{tr("La Stanza", "The Room")}</div></div>}>
-      <StanzaHome />
-    </Suspense>
-  );
+  return <Navigate to="/tavolo" replace />;
 }
 
 /** Wrapper per route che richiedono utente loggato (qualsiasi stato profile). */
@@ -99,8 +89,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 /** Core product routes require a supported, completed analytical profile. */
 function RequireReadyProfile({ children }: { children: React.ReactNode }) {
-  const { loading, user, profile, profileError } = useAuth();
-  if (loading) return <FullScreenLoader label={tr("Carico la sessione…", "One moment.")} />;
+  const { loading, user, profile, profileLoading, profileError } = useAuth();
+  if (loading || (!profile && profileLoading)) return <FullScreenLoader label={tr("Carico la sessione…", "One moment.")} />;
   if (!user) return <Navigate to="/login" replace />;
   if (!profile && profileError) return <Navigate to="/onboarding/waiting" replace />;
   if (!profile) return <Navigate to="/onboarding" replace />;
@@ -163,19 +153,21 @@ export function App() {
           <Route path="/" element={<HomeGate />} />
 
           {/* Il Tavolo — la superficie operativa, raggiunta dalla Stanza */}
-          <Route path="/tavolo" element={<RequireReadyProfile><AppShell><TavoloHome /></AppShell></RequireReadyProfile>} />
+          <Route path="/tavolo" element={<RequireReadyProfile><AppShell><PatternHome /></AppShell></RequireReadyProfile>} />
+          {PatternPreview && <Route path="/dev/patterns" element={<Suspense fallback={<div>Caricamento…</div>}><PatternPreview /></Suspense>} />}
 
           {/* Account, privacy, export/delete and first-party feedback. */}
           <Route path="/settings" element={<RequireAuth><AppShell><Settings /></AppShell></RequireAuth>} />
 
           {/* Quaderno — hub a tab + deep-link via hash */}
-          <Route path="/quaderno" element={<RequireReadyProfile><AppShell><Quaderno /></AppShell></RequireReadyProfile>} />
+          <Route path="/quaderno" element={<RequireReadyProfile><AppShell><PatternLibrary /></AppShell></RequireReadyProfile>} />
           {/* Legacy routes redirect into Quaderno tabs */}
           <Route path="/freni"  element={<Navigate to="/quaderno#percorso" replace />} />
           <Route path="/cadute" element={<Navigate to="/quaderno#cadute"     replace />} />
 
           {/* Sessione di coaching */}
-          <Route path="/sessione" element={<RequireReadyProfile><AppShell><Sessione /></AppShell></RequireReadyProfile>} />
+          <Route path="/sessione" element={<RequireReadyProfile><AppShell><PatternPractice /></AppShell></RequireReadyProfile>} />
+          <Route path="/progressi" element={<RequireReadyProfile><AppShell><PatternProgress /></AppShell></RequireReadyProfile>} />
 
           {/* La Stanza resta riapribile esplicitamente dopo l'introduzione. */}
           <Route

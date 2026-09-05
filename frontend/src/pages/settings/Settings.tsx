@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import "./settings.css";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   deleteAccount,
@@ -26,8 +27,8 @@ import {
 
 function Section({ title, children, id }: { title: string; children: React.ReactNode; id?: string }) {
   return (
-    <section id={id} style={{ borderTop: "1px solid var(--color-line)", padding: "1.5rem 0", scrollMarginTop: "5rem" }}>
-      <h2 style={{ fontSize: "1rem", margin: "0 0 0.75rem" }}>{title}</h2>
+    <section id={id} className="settings-section">
+      <h2>{title}</h2>
       {children}
     </section>
   );
@@ -64,14 +65,20 @@ export function Settings() {
   const email = user?.email ?? "";
 
   return (
-    <div style={{ maxWidth: "44rem", margin: "0 auto", padding: "2rem 0 4rem" }}>
+    <div className="settings-page">
       <p className="label-eyebrow" style={{ color: "var(--color-brand-soft)" }}>{tr("Il tuo account", "Your account")}</p>
-      <h1 style={{ margin: "0.25rem 0 0.5rem", fontSize: "clamp(1.75rem, 5vw, 2.5rem)" }}>
-        {tr("Impostazioni", "Settings")}
+      <h1>
+        {tr("Il tuo profilo", "Your profile")}
       </h1>
       <p style={{ color: "var(--color-muted)", marginBottom: "1.5rem" }}>{email}</p>
 
       {status ? <div role="status" style={{ marginBottom: "1rem", color: "var(--color-brand-soft)" }}>{status}</div> : null}
+
+      <Section id="obiettivo" title={tr("Il livello di riferimento", "Your reference level")}>
+        <div className="settings-goal"><strong>{profile?.goal_rating ?? "?"}</strong><span>{profile?.goal_time_class ?? ""}</span></div>
+        <p>{tr("? il livello scelto per confrontare le decisioni con Maia. I pattern nascono dalle tue partite; il confronto aiuta a orientare l?allenamento.", "This is the level you chose for comparing decisions with Maia. Patterns come from your games; the comparison helps guide practice.")}</p>
+        <dl className="settings-facts"><div><dt>{tr("Impegno scelto", "Chosen commitment")}</dt><dd>{profile?.weekly_minutes ?? "?"} min/{tr("settimana", "week")}</dd></div><div><dt>{tr("Orizzonte personale", "Personal horizon")}</dt><dd>{profile?.goal_horizon_weeks ?? "?"} {tr("settimane", "weeks")}</dd></div></dl>
+      </Section>
 
       <Section title={tr("Profilo analizzato", "Analysed profile")}>
         <p style={{ margin: 0, color: "var(--color-text-soft)", lineHeight: 1.6 }}>
@@ -186,6 +193,7 @@ export function Settings() {
         </p>
         <input
           type="email"
+          aria-label={tr("Email per confermare l?eliminazione", "Email to confirm deletion")}
           value={deleteConfirmation}
           onChange={(event) => setDeleteConfirmation(event.target.value)}
           placeholder={email}

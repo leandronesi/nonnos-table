@@ -15,22 +15,25 @@ export function Login() {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
-    });
-    setSubmitting(false);
-    if (error) {
-      setError(
-        error.message === "Invalid login credentials"
-          ? tr("Email o password non corrette.", "Email or password is incorrect.")
-          : error.message
-      );
-      return;
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      if (error) {
+        setError(
+          error.message === "Invalid login credentials"
+            ? tr("Email o password non corrette.", "Email or password is incorrect.")
+            : error.message
+        );
+        return;
+      }
+      nav("/");
+    } catch {
+      setError(tr("Accesso non riuscito. Controlla la connessione e riprova.", "Sign-in failed. Check your connection and try again."));
+    } finally {
+      setSubmitting(false);
     }
-    // AuthContext rileva il cambio sessione e le route guard portano
-    // dove serve (onboarding o /coach).
-    nav("/");
   }
 
   return (

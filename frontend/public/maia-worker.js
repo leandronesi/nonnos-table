@@ -136,10 +136,16 @@ self.onmessage = async (e) => {
         modelVersion = msg.modelVersion
         postMessage({ type: 'status', status: 'loading' })
 
-        const buffer = await getCachedModel(modelUrl, modelVersion)
+        const buffer = await getCachedModel(modelUrl, modelVersion).catch(() => null)
         if (buffer) {
-          await initSession(buffer)
-          postMessage({ type: 'status', status: 'ready' })
+          try {
+            await initSession(buffer)
+            postMessage({ type: 'status', status: 'ready' })
+          } catch {
+            // A previous interrupted/invalid download must not poison every
+            // subsequent visit. Fetch and validate a fresh model instead.
+            postMessage({ type: 'status', status: 'no-cache' })
+          }
         } else {
           postMessage({ type: 'status', status: 'no-cache' })
         }
@@ -151,6 +157,9 @@ self.onmessage = async (e) => {
         postMessage({ type: 'progress', progress: 0 })
         const response = await fetch(modelUrl)
         if (!response.ok) throw new Error('Failed to fetch model: ' + response.status)
+        if ((response.headers.get('Content-Type') || '').includes('text/html')) {
+          throw new Error('Maia model unavailable: the configured endpoint returned HTML')
+        }
 
         let buffer
 
@@ -188,8 +197,10 @@ self.onmessage = async (e) => {
           buffer = new Uint8Array(await response.arrayBuffer())
         }
 
-        await storeModel(modelUrl, modelVersion, buffer.buffer)
         await initSession(buffer.buffer)
+        // Caching is optional; inference must work even when browser storage
+        // is unavailable or full. Never cache a model that failed to load.
+        try { await storeModel(modelUrl, modelVersion, buffer.buffer) } catch { /* optional cache */ }
         postMessage({ type: 'progress', progress: 100 })
         postMessage({ type: 'status', status: 'ready' })
         break

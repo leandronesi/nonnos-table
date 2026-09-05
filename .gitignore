@@ -90,3 +90,9 @@ data/_live_coach_cache/
 /docs/il-tavolo-che-sogno.html
 /docs/lezione-2.html
 /docs/ooux-nonno-table-lesson.html
+
+# Browser verification artifacts (local synthetic previews).
+/frontend/test-results/
+/frontend/playwright-report/
+frontend/public/maia3/*.onnx
+frontend/.local-validation/

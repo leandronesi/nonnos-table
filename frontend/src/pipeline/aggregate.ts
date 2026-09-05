@@ -14,6 +14,8 @@
 import { supabase } from "../auth/supabaseClient";
 import { downloadJson, uploadJson, analysisPath, quadernoPath } from "../auth/storage";
 import type { GameAnalysis } from "./analyze";
+import { buildTimingReport, parseClockControl, type TimingGame, type TimingReport } from "./decisionTiming";
+import { collectPatternOpportunities, selectPatternSample, buildPersonalPatternReport, type PatternSourceGame, type PatternPolicy, type PersonalPatternReport } from "./personalPatterns";
 import { getMaiaEngine } from "./maia/maiaEngine";
 import {
   MAIA_POLICY_SEMANTICS,
@@ -324,6 +326,9 @@ export interface RepertoireRow {
 }
 
 export interface Aggregates {
+  personal_patterns?: PersonalPatternReport;
+  /** Decision-speed evidence includes successful choices and exact time controls. */
+  timing?: TimingReport;
   generated_at: string;
   /** Scope effettivo della lettura; assente solo nei vecchi snapshot. */
   analysis_scope?: {
@@ -511,6 +516,7 @@ async function enrichWithMaia(
     time_class: string;
     phase: string;
     ply: number;
+    opponent_rating?: number | null;
   }>,
   currentRating: number,
   targetRating: number,
@@ -528,14 +534,14 @@ async function enrichWithMaia(
     const eloOppos: number[] = [];
     for (let i = 0; i < positions.length; i++) {
       const fen = positions[i].fen_before;
-      // mine: eloSelf = eloOppo = currentRating
+      // Hold the opponent fixed: only the player's level changes in this comparison.
+      const opponentRating = positions[i].opponent_rating ?? currentRating;
       fens.push(fen);
       eloSelfs.push(currentRating);
-      eloOppos.push(currentRating);
-      // target: eloSelf = eloOppo = targetRating
+      eloOppos.push(opponentRating);
       fens.push(fen);
       eloSelfs.push(targetRating);
-      eloOppos.push(targetRating);
+      eloOppos.push(opponentRating);
     }
 
     // Process in chunks to avoid huge single ONNX batch.
@@ -735,7 +741,7 @@ export async function computeAggregates(
   // allo stesso corpus. Il cap viene applicato DOPO l'eq sulla goal_time_class.
   const { data: games, error: gamesError } = await supabase
     .from("games")
-    .select("id,chess_com_uuid,time_class,color,result,analysis_path,analysis_status")
+    .select("id,chess_com_uuid,time_class,time_control,opponent_rating,color,result,analysis_path,analysis_status")
     .eq("user_id", userId)
     .eq("analysis_status", "done")
     .eq("time_class", goalTimeClass)
@@ -799,6 +805,8 @@ export async function computeAggregates(
   // Includes games with zero errors: required for an honest errors-per-game rate,
   // and required to rank games by recency without the error pool skewing the order.
   const allAnalyzedGames: { key: string; playedAt: number }[] = [];
+  const timingGames: TimingGame[] = [];
+  const patternSources: PatternSourceGame[] = [];
 
   for (const g of games ?? []) {
     if (!g.analysis_path) continue;
@@ -810,6 +818,24 @@ export async function computeAggregates(
     if (ga.time_class && ga.time_class !== goalTimeClass) continue;
 
     analyzedCount++;
+    // Recover old analysis increments from the persisted source control, never from a guessed zero.
+    const sourceControl = parseClockControl(g.time_control);
+    timingGames.push({
+      gameId: ga.chess_com_uuid,
+      playedAt: ga.played_at,
+      timeClass: ga.time_class,
+      baseSeconds: ga.time_control_base_seconds ?? sourceControl?.base ?? null,
+      incrementSeconds: ga.time_control_increment_seconds !== undefined
+        ? ga.time_control_increment_seconds : sourceControl?.increment ?? null,
+      moves: ga.moves,
+    });
+    patternSources.push({
+      analysis: ga,
+      baseSeconds: ga.time_control_base_seconds ?? sourceControl?.base ?? null,
+      incrementSeconds: ga.time_control_increment_seconds !== undefined
+        ? ga.time_control_increment_seconds : sourceControl?.increment ?? null,
+      opponentRating: g.opponent_rating,
+    });
     // Track every filtered game — ranked by recency to build the trend windows.
     if (ga.played_at) {
       const t = Date.parse(ga.played_at);
@@ -989,37 +1015,40 @@ export async function computeAggregates(
   }
 
   // ── Maia enrichment ─────────────────────────────────────────────────────────
-  // Cap to worst CADUTE_MAIA_CAP by cp_loss, then enrich, then write back.
+  // One shared, outcome-independent sample serves patterns and legacy error readers.
+  const opportunities = collectPatternOpportunities(patternSources);
+  const patternPolicies = new Map<string, PatternPolicy>();
   const maiaEnabled = currentRating != null && currentRating > 0;
   for (const candidate of exampleCandidates) {
     candidate.maia_status = maiaEnabled ? "not_scored" : "not_requested";
     candidate.maia_reason_code = maiaEnabled ? "outside_scoring_cap" : "rating_missing";
   }
-  if (maiaEnabled && exampleCandidates.length > 0) {
-    // Sort by cp_loss desc to find the worst positions.
-    const sorted = [...exampleCandidates]
-      .map((c, idx) => ({ idx, cp_loss: c.cp_loss }))
-      .sort((a, b) => b.cp_loss - a.cp_loss)
-      .slice(0, CADUTE_MAIA_CAP);
-
-    const positionsForMaia = sorted.map((s) => ({
-      fen_before: exampleCandidates[s.idx].fen_before,
-      played_uci: exampleCandidates[s.idx].played_uci,
-      best_uci: exampleCandidates[s.idx].best_uci,
-      acceptable_observed_uci: exampleCandidates[s.idx].acceptable_observed_uci ?? [],
-      clock_remaining: exampleCandidates[s.idx].clock_remaining ?? null,
-      time_class: exampleCandidates[s.idx].time_class ?? "unknown",
-      phase: exampleCandidates[s.idx].phase,
-      ply: exampleCandidates[s.idx].ply,
+  if (maiaEnabled && opportunities.length > 0) {
+    const sample = selectPatternSample(opportunities, CADUTE_MAIA_CAP);
+    const positionsForMaia = sample.map((position) => ({
+      fen_before: position.fen,
+      played_uci: position.playedUci,
+      best_uci: position.bestUci,
+      acceptable_observed_uci: position.acceptableUcis,
+      clock_remaining: position.clockRemaining,
+      time_class: position.timeClass,
+      phase: position.phase,
+      ply: position.ply,
+      opponent_rating: position.opponentRating,
     }));
 
     // enrichWithMaia never throws: returns empty map on failure.
     const maiaMap = await enrichWithMaia(positionsForMaia, currentRating, targetRating);
 
     // Write Maia fields back to the original candidates.
-    for (let j = 0; j < sorted.length; j++) {
+    const errorsById = new Map(exampleCandidates.map((c) => [c.position_id, c]));
+    for (let j = 0; j < sample.length; j++) {
       const fields = maiaMap.get(j);
-      const candidate = exampleCandidates[sorted[j].idx];
+      patternPolicies.set(sample[j].id, fields?.status === "scored"
+        ? { status: "scored", metrics: fields }
+        : { status: fields?.status === "skipped" ? "skipped" : "unavailable" });
+      const candidate = errorsById.get(sample[j].id);
+      if (!candidate) continue;
       if (!fields) {
         candidate.maia_status = "unavailable";
         candidate.maia_reason_code = "model_unavailable";
@@ -1539,6 +1568,8 @@ export async function computeAggregates(
   const transfer = computeTransferAggregates(allMotifOccurrences);
 
   const out: Aggregates = {
+    personal_patterns: buildPersonalPatternReport(opportunities, patternPolicies, currentRating ?? null, targetRating),
+    timing: buildTimingReport(timingGames),
     generated_at: new Date().toISOString(),
     analysis_scope: {
       time_class: goalTimeClass,
