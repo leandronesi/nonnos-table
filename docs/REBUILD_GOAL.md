@@ -255,3 +255,16 @@ dati reali. Le anteprime sintetiche non sostituiscono questa verifica.
   collegamenti, apertura delle prove temporali, cambio partita, tema visivo,
   dati mancanti e continuita del dettaglio. Ispezionata anche la home renderizzata
   a 390 px. Queste prove non chiudono la verifica integrata dell'intero GOAL.
+
+## Verifica integrata in corso
+
+- Aggiunto `frontend/scripts/verify-full-journey.mjs`: account temporaneo isolato,
+  corpus inizialmente vuoto, importazione reale, prima lettura accessibile prima
+  del completamento, continuazione fino a 100 partite, aggregazione Maia,
+  esercizio del tema consigliato, persistenza e ricaricamento.
+- Il risultato e registrato in `.local-validation/full-journey-summary.json`.
+  La presenza dello script non costituisce un esito positivo: occorre leggere
+  `completed` e i checkpoint prodotti dall'esecuzione.
+- Revisione del percorso mobile: il contesto del cronometro originale
+  nell'esercizio appare sotto la scacchiera. Portarlo prima della scacchiera
+  resta un intervento da realizzare e verificare dopo questa esecuzione.
