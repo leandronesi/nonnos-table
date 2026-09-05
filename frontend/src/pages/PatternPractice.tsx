@@ -11,7 +11,7 @@ import { createPatternPractice, gradePracticeMove, practiceAttemptInput, readPat
 import { recordTrainingAttempt, type TrainingAttemptInput } from "../trainingProgress";
 import { tr } from "../i18n/lang";
 import { patternTitle } from "./PatternLibrary";
-import { uciToSan } from "./quaderno/boardArrows";
+import { MovePlayback } from "../components/MovePlayback";
 import "./pattern-coach.css";
 
 export interface PracticePersistence {
@@ -36,21 +36,15 @@ export function PatternPracticeView({ pattern, persistence, saveAttempt, evaluat
   const [draft, setDraft] = useState("");
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [promotion, setPromotion] = useState("q");
-  const [showReply, setShowReply] = useState(false);
   const [evaluating, setEvaluating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState(false);
   const [storageError, setStorageError] = useState(false);
   const position = state.positions[state.index];
   const result = state.results[state.index];
-  let reply: { fen: string; san: string } | null = null;
-  if (result?.replyUci) {
-    try {
-      const response = new Chess(result.resultingFen);
-      const uci = result.replyUci;
-      const move = response.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
-      if (move) reply = { fen: response.fen(), san: move.san };
-    } catch { /* A terminal position has no reply to show. */ }
+  let draftFen = position?.fen;
+  if (position && draft) {
+    try { const preview = new Chess(position.fen); preview.move(draft); draftFen = preview.fen(); } catch { /* Incomplete keyboard entry. */ }
   }
   const catalog = PATTERN_CATALOG[pattern.kind];
 
@@ -154,6 +148,7 @@ export function PatternPracticeView({ pattern, persistence, saveAttempt, evaluat
         attemptId: crypto.randomUUID(), positionId: position.id, playedUci: move.lan,
         playedSan: move.san, resultingFen: board.fen(), bestUci: before.bestMoveUci,
         replyUci: after.bestMoveUci,
+        bestLine: before.pvUci?.trim().split(/\s+/).slice(0, 2),
         ...grading, responseMs: decision.elapsedMs, preparation: decision.preparation!,
         usedHint: decision.usedHint, savedAt: null,
       };
@@ -169,7 +164,7 @@ export function PatternPracticeView({ pattern, persistence, saveAttempt, evaluat
     const current = stateRef.current;
     update(current.index + 1 >= current.positions.length ? { ...current, phase: "complete" }
       : { ...current, index: current.index + 1, phase: "ready", elapsedMs: 0, preparation: null, usedHint: false });
-    setDraft(""); setSelectedSquare(null); setError(null); setShowReply(false);
+    setDraft(""); setSelectedSquare(null); setError(null);
   }
 
   const pending = state.results.filter((r) => !r.savedAt);
@@ -199,28 +194,41 @@ export function PatternPracticeView({ pattern, persistence, saveAttempt, evaluat
           <div className="pattern-board">
             {state.phase === "choosing" && <div className="practice-position-context">
               <p className="pattern-kicker">{position.color === "white" ? tr("Muove il Bianco", "White to move") : tr("Muove il Nero", "Black to move")}</p>
-              {position.lastOpponentSan && <p>{tr("L'avversario ha appena giocato", "Your opponent just played")} <strong>{position.lastOpponentSan}</strong>.</p>}
               {position.timing.clockBeforeSeconds !== null && <p>{tr("In partita avevi", "In the game you had")} <strong>{Math.floor(position.timing.clockBeforeSeconds / 60)}:{String(Math.floor(position.timing.clockBeforeSeconds % 60)).padStart(2, "0")}</strong> {tr("a disposizione.", "available.")}</p>}
             </div>}
-            <BoardView fen={state.phase === "feedback" ? showReply && reply ? reply.fen : result.resultingFen : position.fen} size={520} orientation={position.color}
+            {state.phase === "feedback" ? <MovePlayback key={result.attemptId} fen={position.fen} orientation={position.color} initialPly={1}
+              lines={[{ label: tr("La tua mossa", "Your move"), moves: [result.playedUci, result.replyUci] },
+                ...(result.bestUci ? [{ label: tr("Alternativa del motore", "Engine alternative"), moves: result.bestLine?.[0] === result.bestUci ? result.bestLine : [result.bestUci] }] : [])]} /> :
+            <BoardView fen={draftFen ?? position.fen} animate resetKey={position.id} size={520} orientation={position.color}
             draggable={state.phase === "choosing"} onPieceDrop={(from, to) => chooseMove(from, to)}
             highlights={selectedSquare ? [{ square: selectedSquare, color: "#c28b40" }] : []}
             onSquareClick={state.phase === "choosing" ? (square) => {
               if (!selectedSquare || !chooseMove(selectedSquare, square)) setSelectedSquare(square);
-            } : undefined} /></div>
+            } : undefined} />}</div>
           <div className="practice-decision">
             {state.phase === "choosing" ? <>
               <fieldset className="practice-preparation"><legend>{tr("Come affronti questa scelta?", "How will you approach this choice?")}</legend>
                 <button type="button" aria-pressed={state.preparation === "check"} onClick={() => update({ ...stateRef.current, preparation: "check" })}>{tr("Mi fermo a controllare", "I will stop and check")}</button>
                 <button type="button" aria-pressed={state.preparation === "ready"} onClick={() => update({ ...stateRef.current, preparation: "ready" })}>{tr("Ho già una candidata", "I have a candidate")}</button>
               </fieldset>
-              <p>{tr("Tocca il pezzo e la casa di arrivo, oppure scrivi la mossa.", "Tap the piece and destination square, or type the move.")}</p>
+              <p>{tr("Tocca il pezzo e la casa di arrivo. Conferma quando hai scelto.", "Tap the piece and destination square. Confirm when you have chosen.")}</p>
               <form onSubmit={(event) => { event.preventDefault(); void submitMove(); }}>
-                <label htmlFor="practice-move">{tr("La tua mossa (notazione SAN)", "Your move (SAN notation)")}</label>
-                <input id="practice-move" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Nf3" autoComplete="off" autoCapitalize="off" spellCheck={false} />
-                {new Chess(position.fen).moves({ verbose: true }).some((m) => m.promotion) && <label>{tr("Promozione", "Promotion")}<select value={promotion} onChange={(e) => setPromotion(e.target.value)}>
+                <details><summary>{tr("Usa la tastiera", "Use the keyboard")}</summary><label htmlFor="practice-move">{tr("La tua mossa (notazione SAN)", "Your move (SAN notation)")}</label>
+                <input id="practice-move" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Nf3" autoComplete="off" autoCapitalize="off" spellCheck={false} /></details>
+                {new Chess(position.fen).moves({ verbose: true }).some((m) => m.promotion) && <label>{tr("Promozione", "Promotion")}<select value={promotion} onChange={(e) => {
+                    const next = e.target.value; setPromotion(next);
+                    try {
+                      const candidate = new Chess(position.fen).move(draft);
+                      if (candidate?.promotion) {
+                        const board = new Chess(position.fen);
+                        const changed = board.move({ from: candidate.from, to: candidate.to, promotion: next });
+                        if (changed) setDraft(changed.san);
+                      }
+                    } catch { /* Promotion can also be chosen before moving. */ }
+                  }}>
                   <option value="q">{tr("Donna", "Queen")}</option><option value="r">{tr("Torre", "Rook")}</option><option value="b">{tr("Alfiere", "Bishop")}</option><option value="n">{tr("Cavallo", "Knight")}</option>
                 </select></label>}
+                {draft && <button type="button" onClick={() => { setDraft(""); setSelectedSquare(null); }}>{tr("Cambia mossa", "Change move")}</button>}
                 <button type="submit" className="pattern-primary" disabled={!draft.trim()}>{tr("Conferma la scelta", "Confirm choice")}</button>
               </form>
               <div className="pattern-actions"><button type="button" onClick={() => { flushClock.current(); update({ ...stateRef.current, phase: "ready" }); }}>{tr("Pausa", "Pause")}</button>
@@ -229,14 +237,11 @@ export function PatternPracticeView({ pattern, persistence, saveAttempt, evaluat
             </> : <>
               <p className="pattern-kicker">{tr("La tua decisione", "Your decision")}</p>
               <h2>{result.verdict === "perfect" ? tr("Una scelta solida.", "A sound choice.") : result.verdict === "ok" ? tr("Una scelta giocabile.", "A playable choice.") : tr("C'è qualcosa da rivedere.", "There is something to review.")}</h2>
-              <p><strong>{result.playedSan}</strong> · {Math.round(result.responseMs / 1000)} s</p>
+              <p>{tr("Tempo impiegato", "Time spent")} · {Math.round(result.responseMs / 1000)} s</p>
               {position.timing.spentSeconds !== null && <p>{tr("Nella partita originale avevi deciso in", "In the original game you decided in")} {position.timing.spentSeconds} s.</p>}
               <p>{result.verdict === "wrong"
                 ? tr("La risposta perde qualità secondo il motore. Riguarda cosa lascia a disposizione dell'avversario.", "The reply loses quality according to the engine. Revisit what it allows your opponent.")
                 : tr("La scelta mantiene la posizione. Se l'hai riconosciuta rapidamente, la velocità non è un difetto.", "The choice preserves the position. If you recognized it quickly, speed is not a fault.")}</p>
-              <p>{tr("Alternativa del motore", "Engine alternative")}: <strong>{uciToSan(position.fen, result.bestUci)}</strong></p>
-              {reply && <><button type="button" aria-pressed={showReply} onClick={() => setShowReply(!showReply)}>{showReply ? tr("Torna alla tua mossa", "Back to your move") : tr("Guarda una risposta avversaria", "See an opponent reply")}</button>
-                {showReply && <p>{tr("Una risposta da considerare", "A reply to consider")}: <strong>{reply.san}</strong>.</p>}</>}
               <p className="pattern-muted">{tr("Conta come usi il tempo per decidere, non solo quanti secondi passano. Una durata diversa non dimostra da sola un miglioramento.", "How you use time matters, not just how many seconds pass. A different duration alone does not prove improvement.")}</p>
               <button type="button" className="pattern-primary" onClick={nextPosition}>{state.index + 1 < state.positions.length ? tr("Prossima posizione", "Next position") : tr("Concludi la sessione", "Finish session")}</button>
             </>}

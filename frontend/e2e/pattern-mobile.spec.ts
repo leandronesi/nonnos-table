@@ -60,10 +60,14 @@ test("pattern detail shows successful evidence and supports touch-sized controls
   await expect(page.getByRole("heading", { name: "Le prove, sulle tue scacchiere" })).toBeVisible();
   await page.getByRole("button", { name: /Scelte riuscite/ }).click();
   await page.getByRole("button", { name: "Partita 2", exact: true }).click();
-  await page.getByRole("button", { name: "Mostra un'alternativa" }).click();
-  await expect(page.getByText("alternativa suggerita dal motore")).toBeVisible();
+  await page.getByRole("button", { name: "Alternativa del motore" }).click();
+  const initial = await page.locator('.move-playback').getAttribute('data-position');
+  await page.getByRole("button", { name: "Mossa successiva" }).click();
+  await expect(page.locator('.move-playback')).not.toHaveAttribute('data-position', initial!);
+  await page.getByRole("button", { name: "Mossa precedente" }).click();
+  await expect(page.locator('.move-playback')).toHaveAttribute('data-position', initial!);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  const control = await page.getByRole("button", { name: "Nascondi l'alternativa" }).boundingBox();
+  const control = await page.getByRole("button", { name: "Mossa successiva" }).boundingBox();
   expect(control!.height).toBeGreaterThanOrEqual(44);
   await page.setViewportSize({ width: 1280, height: 900 });
   await expect(page.getByRole("button", { name: "Partita 2", exact: true })).toHaveAttribute("aria-pressed", "true");

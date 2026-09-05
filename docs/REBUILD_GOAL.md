@@ -281,3 +281,18 @@ dati reali. Le anteprime sintetiche non sostituiscono questa verifica.
   tema ricorrente gia dopo dieci partite. Non e una precondizione garantita.
   Ora verifica il report iniziale di dieci partite e l'accesso all'allenamento;
   gli errori conservano anche una schermata. Il ciclo completo resta non provato.
+
+## Mosse da seguire sulla scacchiera
+
+- Le prove dei pattern e del cronometro riproducono la mossa giocata e
+  l'alternativa del motore sulla scacchiera, con avanti/indietro e animazione.
+- Il tocco o trascinamento nell'esercizio sposta il pezzo prima della conferma.
+  La notazione resta un input da tastiera facoltativo, chiuso inizialmente.
+- Il feedback permette di seguire mossa e risposta avversaria, oppure la linea
+  del motore quando disponibile. Le continuazioni mancanti non sono inventate.
+- Otto test browser passati sulle viste e sull'interazione touch; controllo
+  dedicato di avanti/indietro, cambio variante e frecce della tastiera passato.
+  Quattro test verificano arrocco, promozione, en passant e interruzione di linee
+  illegali/incomplete. La riproduzione rispetta la preferenza di movimento ridotto.
+- L'esecuzione integrata iniziata prima di questa modifica continua separatamente;
+  il suo risultato non dimostra da solo il nuovo comportamento della scacchiera.

@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { BoardView } from "./BoardView";
+import { MovePlayback } from "./MovePlayback";
 import { tr } from "../i18n/lang";
-import { uciToSan } from "../pages/quaderno/boardArrows";
 import type { TimingExample, TimingReport, TimingStratum } from "../pipeline/decisionTiming";
 
 function clock(seconds: number): string {
@@ -22,8 +21,10 @@ function PositionEvidence({ positions }: { positions: TimingExample[] }) {
       </button>)}
     </div>
     <div className="pattern-evidence-layout">
-      <div className="pattern-board"><BoardView fen={position.fenBefore} size={440}
-        orientation={position.fenBefore.split(" ")[1] === "b" ? "black" : "white"} /></div>
+      <div className="pattern-board"><MovePlayback key={position.positionId} fen={position.fenBefore}
+        orientation={position.fenBefore.split(" ")[1] === "b" ? "black" : "white"}
+        lines={[{ label: tr("La tua mossa", "Your move"), moves: [position.playedUci] },
+          ...(position.bestMoveUci ? [{ label: tr("Alternativa del motore", "Engine alternative"), moves: [position.bestMoveUci] }] : [])]} /></div>
       <div>
         <p className="pattern-kicker">{Number.isFinite(date.getTime()) ? date.toLocaleDateString() : tr("Data non disponibile", "Date unavailable")}
           {" · "}{tr("Mossa", "Move")} {Math.ceil(position.ply / 2)}</p>
@@ -32,10 +33,6 @@ function PositionEvidence({ positions }: { positions: TimingExample[] }) {
           <div><dt>{tr("Tempo a disposizione", "Time available")}</dt><dd>{clock(position.clockBeforeSeconds)}</dd></div>
           <div><dt>{tr("Tempo impiegato", "Time spent")}</dt><dd>{position.spentSeconds.toLocaleString()} s</dd></div>
         </dl>
-        <p>{tr("Hai giocato", "You played")} <strong>{position.playedSan}</strong>.</p>
-        {position.cpLoss >= 100 && position.bestMoveUci && <p>
-          {tr("Un'alternativa da esaminare", "An alternative to examine")}: <strong>{uciToSan(position.fenBefore, position.bestMoveUci)}</strong>.
-        </p>}
         <p className="pattern-muted">{position.cpLoss < 50
           ? tr("Qui la decisione rapida ha mantenuto la qualità della posizione secondo il motore.", "Here the quick decision preserved the position's quality according to the engine.")
           : tr("Qui velocità ed errore compaiono insieme. Questo non dimostra che pensare più a lungo avrebbe evitato l'errore.", "Speed and an error occur together here. This does not prove that thinking longer would have prevented the error.")}</p>

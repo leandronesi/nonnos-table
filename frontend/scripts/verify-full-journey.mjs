@@ -66,8 +66,10 @@ try {
  const pattern=report.personal_patterns.patterns.find(p=>p.id===patternId);assert.ok(pattern);
  await practice.click();await page.getByRole('button',{name:'Osserva la posizione',exact:true}).click();
  await page.getByRole('button',{name:'Mi fermo a controllare',exact:true}).click();
- const san=await page.evaluate(async pattern=>{const {createPatternPractice}=await import('/src/session/patternPractice.ts');return createPatternPractice(pattern).positions[0].playedSan;},pattern);
- await page.getByLabel('La tua mossa (notazione SAN)').fill(san);await page.getByRole('button',{name:'Conferma la scelta',exact:true}).click();
+ const uci=await page.evaluate(async pattern=>{const {createPatternPractice}=await import('/src/session/patternPractice.ts');return createPatternPractice(pattern).positions[0].playedUci;},pattern);
+ await page.locator(`[data-square="${uci.slice(0,2)}"]`).click();
+ await page.locator(`[data-square="${uci.slice(2,4)}"]`).click();
+ if(uci[4])await page.getByLabel("Promozione",{exact:true}).selectOption(uci[4]);await page.getByRole('button',{name:'Conferma la scelta',exact:true}).click();
  await page.getByText('Risultati salvati nel tuo account.',{exact:true}).waitFor({timeout:60000});
  const attempts=checked(await admin.from('training_attempts').select('anchor_key').eq('user_id',owner));assert.equal(attempts.length,1);assert.equal(attempts[0].anchor_key,patternId);
  await page.reload();await page.getByText('Risultati salvati nel tuo account.',{exact:true}).waitFor({timeout:30000});

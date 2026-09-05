@@ -11,6 +11,7 @@ export interface PracticeResult {
   resultingFen: string;
   bestUci: string | null;
   replyUci?: string | null;
+  bestLine?: string[];
   cpLoss: number;
   verdict: "perfect" | "ok" | "wrong";
   responseMs: number;

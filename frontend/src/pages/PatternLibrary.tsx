@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useTavoloData } from "./tavolo/useTavoloData";
-import { BoardView } from "../components/BoardView";
+import { MovePlayback } from "../components/MovePlayback";
 import { PATTERN_CATALOG, type PatternOpportunity, type PersonalPattern, type PersonalPatternReport } from "../pipeline/personalPatterns";
 import { tr } from "../i18n/lang";
-import { uciToSan } from "./quaderno/boardArrows";
 import "./pattern-coach.css";
 
 export function patternTitle(pattern: PersonalPattern): string {
@@ -31,22 +30,17 @@ export function PatternCards({ patterns }: { patterns: PersonalPattern[] }) {
 }
 
 export function PatternPosition({ position }: { position: PatternOpportunity }) {
-  const [showAlternative, setShowAlternative] = useState(false);
   const best = position.bestUci;
   return <div className="pattern-evidence-layout">
-    <div className="pattern-board"><BoardView fen={position.fen} orientation={position.color} size={480}
-      arrows={showAlternative && best ? [{ from: best.slice(0, 2), to: best.slice(2, 4), color: "#c28b40" }] : []} /></div>
+    <div className="pattern-board"><MovePlayback key={position.id} fen={position.fen} orientation={position.color}
+      lines={[{ label: tr("La tua mossa", "Your move"), moves: [position.playedUci] },
+        ...(best ? [{ label: tr("Alternativa del motore", "Engine alternative"), moves: [best] }] : [])]} /></div>
     <div><p className="pattern-kicker">{new Date(position.playedAt).toLocaleDateString()} · {tr("Mossa", "Move")} {Math.ceil(position.ply / 2)}</p>
-      <h3>{tr("La posizione prima della scelta", "The position before choosing")}</h3>
-      <p>{tr("In partita hai giocato", "In the game you played")} <strong>{position.playedSan}</strong>.</p>
+      <h3>{tr("Il contesto in partita", "The context in the game")}</h3>
       {position.timing.status === "available" ? <dl className="pattern-numbers">
         <div><dt>{tr("Tempo disponibile", "Time available")}</dt><dd>{Math.floor(position.timing.clockBeforeSeconds! / 60)}:{String(Math.floor(position.timing.clockBeforeSeconds! % 60)).padStart(2, "0")}</dd></div>
         <div><dt>{tr("Tempo impiegato", "Time spent")}</dt><dd>{position.timing.spentSeconds} s</dd></div>
       </dl> : <p className="pattern-muted">{tr("Il cronometro di questa decisione non è ricostruibile dai dati disponibili.", "This decision's clock cannot be reconstructed from available data.")}</p>}
-      {best && <button type="button" aria-pressed={showAlternative} onClick={() => setShowAlternative(!showAlternative)}>
-        {showAlternative ? tr("Nascondi l'alternativa", "Hide alternative") : tr("Mostra un'alternativa", "Show an alternative")}
-      </button>}
-      {showAlternative && <p className="pattern-alternative"><strong>{uciToSan(position.fen, best)}</strong> · {tr("alternativa suggerita dal motore", "engine-suggested alternative")}</p>}
     </div>
   </div>;
 }

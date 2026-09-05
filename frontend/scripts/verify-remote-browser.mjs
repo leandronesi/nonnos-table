@@ -74,12 +74,14 @@ try {
  await page.goto(`http://127.0.0.1:5173/sessione?pattern=${encodeURIComponent(chosen.id)}`);
  await page.getByRole("button",{name:"Osserva la posizione",exact:true}).click();
  await page.getByRole("button",{name:"Mi fermo a controllare",exact:true}).click();
- const san=await page.evaluate(async pattern=>{
+ const uci=await page.evaluate(async pattern=>{
   const {createPatternPractice}=await import("/src/session/patternPractice.ts");
   const position=createPatternPractice(pattern).positions[0];
-  return position.playedSan;
+  return position.playedUci;
  },chosen);
- await page.getByLabel("La tua mossa (notazione SAN)").fill(san);
+ await page.locator(`[data-square="${uci.slice(0,2)}"]`).click();
+ await page.locator(`[data-square="${uci.slice(2,4)}"]`).click();
+ if(uci[4])await page.getByLabel("Promozione",{exact:true}).selectOption(uci[4]);
  await page.getByRole("button",{name:"Conferma la scelta",exact:true}).click();
  await page.getByText("Risultati salvati nel tuo account.",{exact:true}).waitFor({timeout:45_000});
  const attempts=checked(await admin.from("training_attempts").select("id,anchor_key,response_ms,created_at").eq("user_id",owner));

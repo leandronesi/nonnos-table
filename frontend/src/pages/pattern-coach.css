@@ -75,3 +75,7 @@
 .practice-position-context p { margin: 0 0 6px; }
 .practice-position-context p:last-child { margin-bottom: 0; }
 .practice-position-context strong { font-variant-numeric: tabular-nums; }
+
+.playback-controls { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; }
+.playback-controls button { min-width: 52px; font-size: 1.4rem; }
+.move-playback { min-width: 0; scroll-margin-top: 90px; }
