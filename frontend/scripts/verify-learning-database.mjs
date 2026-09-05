@@ -39,4 +39,24 @@ try {
  assert.equal((await db.query("select * from public.training_attempts")).rows.length,0);
  assert.equal((await db.query("select * from public.anchor_transfer_observations")).rows.length,0);
  console.log("PASS: server timestamps, idempotent attempts/transfers, projections and cross-account isolation.");
+ await db.exec("reset role");
+ await db.query(`insert into profiles(user_id,chess_com_username,goal_rating,goal_horizon_weeks,goal_time_class,weekly_minutes,onboarding_state)
+ values($1,'fixture-one',1600,26,'blitz',120,'ready'),($2,'fixture-two',1600,26,'blitz',120,'ready')`,[owner,other]);
+ await db.query(`insert into ingest_jobs(user_id,status,created_at) values
+ ($1,'analyzing_rest','2020-01-01'),($1,'done','2021-01-01'),
+ ($2,'analyzing_rest','2020-01-01'),($2,'done','2021-01-01'),($2,'queued','2022-01-01')`,[owner,other]);
+ await db.query(`update ingest_jobs set lease_token=gen_random_uuid(),lease_expires_at=now()+interval '1 hour'
+ where user_id=$1 and status='analyzing_rest'`,[other]);
+ await db.exec("set role authenticated");
+ await db.query("select set_config('request.jwt.claim.sub',$1,false)",[owner]);
+ await assert.rejects(db.query("select start_analysis_refresh('blitz',null)"),/analysis_run_in_progress/);
+ await db.exec("reset role");
+ await db.exec(await readFile(new URL("../../supabase/migrations/0014_retire_superseded_legacy_runs.sql",import.meta.url),"utf8"));
+ const retired=await db.query("select status,error from ingest_jobs where user_id=$1 and created_at='2020-01-01'",[owner]);
+ assert.deepEqual(retired.rows,[{status:"error",error:"superseded_by_completed_run"}]);
+ const preserved=await db.query("select status from ingest_jobs where user_id=$1 order by created_at",[other]);
+ assert.deepEqual(preserved.rows.map(r=>r.status),["analyzing_rest","done","queued"]);
+ await db.exec("set role authenticated");
+ assert.ok((await db.query("select start_analysis_refresh('blitz',null) as job")).rows[0].job);
+ console.log("PASS: legacy refresh blocker reproduced and repaired; live leases and current paused runs preserved.");
 } finally { await db.close(); }
