@@ -1,3 +1,5 @@
+import { AnalysisActivityStatus } from "../components/AnalysisActivityStatus";
+import type { OrchestratorProgress } from "../pipeline/orchestrator";
 import { Link } from "react-router-dom";
 import { useTavoloData, type TavoloData } from "./tavolo/useTavoloData";
 import { useOnboardingRun } from "../pipeline/OnboardingRunContext";
@@ -15,7 +17,7 @@ export function PatternHome() {
 }
 
 export type PatternHomeData = Pick<TavoloData, "aggregates" | "refreshing" | "reanalyzing" | "loading" | "error" | "refreshError" | "refreshNotice" | "currentRating" | "targetRating" | "liveGoal" | "runRefreshHandler">;
-export type PatternHomeRun = Pick<ReturnType<typeof useOnboardingRun>, "backgroundRunning" | "silentRefreshing" | "backgroundError" | "backgroundCoverage" | "retryBackground">;
+export type PatternHomeRun = Pick<ReturnType<typeof useOnboardingRun>, "backgroundRunning" | "silentRefreshing" | "backgroundError" | "backgroundCoverage" | "retryBackground"> & { progress?: OrchestratorProgress | null };
 
 export function PatternHomeView({ data, run }: { data: PatternHomeData; run: PatternHomeRun }) {
   const report = data.aggregates;
@@ -51,6 +53,7 @@ export function PatternHomeView({ data, run }: { data: PatternHomeData; run: Pat
       {" "}{tr("Il livello di partenza viene dalle partite analizzate e può differire dal rating aggiornato su Chess.com.", "The starting level comes from the analyzed games and may differ from your updated Chess.com rating.")}
       {comparison.targetRating !== data.targetRating && <> {tr("Aggiorna le partite per usare il nuovo obiettivo nel confronto.", "Refresh your games to use your new goal in the comparison.")}</>}
     </p>}
+    {busy && <AnalysisActivityStatus progress={run.progress} />}
     {data.loading && <p role="status">{tr("Sto preparando la tua lettura.", "Preparing your report.")}</p>}
     {(data.error || data.refreshError) && <p role="alert">{data.error || data.refreshError}</p>}
     {data.refreshNotice && <p role="status">{data.refreshNotice}</p>}

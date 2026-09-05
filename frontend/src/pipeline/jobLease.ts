@@ -1,3 +1,4 @@
+import { FREE_GAME_CAP } from "./config";
 import { supabase } from "../auth/supabaseClient";
 import type {
   IngestJobKind,
@@ -127,6 +128,7 @@ async function readObservedState(
   job: IngestJobRow;
   profileState: OnboardingState;
   gamesAnalyzed: number;
+  gamesTotal: number;
 }> {
   const [jobResult, profileResult, analyzedResult] = await Promise.all([
     bounded(
@@ -139,11 +141,11 @@ async function readObservedState(
     ),
     bounded(
       supabase.from("games")
-        .select("id", { count: "exact", head: true })
+        .select("analysis_status,analysis_path")
         .eq("user_id", userId)
         .eq("time_class", goalTimeClass)
-        .eq("analysis_status", "done")
-        .not("analysis_path", "is", null),
+        .order("played_at", { ascending: false })
+        .limit(FREE_GAME_CAP),
       "analysis_success_observe_failed",
     ),
   ]);
@@ -153,7 +155,7 @@ async function readObservedState(
   if (profileResult.error || !profileResult.data) {
     throw new Error(`profile_observe_failed:${profileResult.error?.message ?? "missing_profile"}`);
   }
-  if (analyzedResult.error || analyzedResult.count == null) {
+  if (analyzedResult.error || analyzedResult.data == null) {
     throw new Error(
       `analysis_success_observe_failed:${analyzedResult.error?.message ?? "missing_count"}`,
     );
@@ -161,7 +163,8 @@ async function readObservedState(
   return {
     job: jobResult.data as IngestJobRow,
     profileState: profileResult.data.onboarding_state,
-    gamesAnalyzed: analyzedResult.count,
+    gamesAnalyzed: analyzedResult.data.filter(row => row.analysis_status === "done" && row.analysis_path).length,
+    gamesTotal: analyzedResult.data.length,
   };
 }
 
@@ -330,6 +333,7 @@ export async function acquireOrObserveIngestJob(input: {
     job: IngestJobRow,
     profileState: OnboardingState,
     gamesAnalyzed: number,
+    gamesTotal: number,
   ) => void;
   signal?: AbortSignal;
   now?: () => number;
@@ -390,7 +394,7 @@ export async function acquireOrObserveIngestJob(input: {
     if (observed.job.kind !== input.expectedKind) {
       throw new Error(`ingest_job_kind_mismatch:${observed.job.kind}`);
     }
-    input.onObserved?.(observed.job, observed.profileState, observed.gamesAnalyzed);
+    input.onObserved?.(observed.job, observed.profileState, observed.gamesAnalyzed, observed.gamesTotal);
     const activity = observedWorkFingerprint({
       status: observed.job.status,
       monthsDone: observed.job.months_done,

@@ -285,7 +285,8 @@ test("browser pipeline jobs use auth-scoped crash-safe DB leases", async () => {
   assert.match(lease, /claim_ingest_job_lease/);
   assert.match(lease, /releaseClaimToken\(claimRow\.job_id, claimRow\.lease_token\)/);
   assert.match(lease, /expectedKind: IngestJobKind/);
-  assert.match(lease, /\.eq\("analysis_status", "done"\)[\s\S]*\.not\("analysis_path", "is", null\)/);
+  assert.match(lease, /\.order\("played_at", \{ ascending: false \}\)[\s\S]*\.limit\(FREE_GAME_CAP\)/);
+  assert.match(lease, /filter\(row => row.analysis_status === "done" && row.analysis_path\)/);
   assert.match(orchestrator, /expectedKind: "main"/);
   assert.match(orchestrator, /expectedKind: "silent"/);
   assert.ok(

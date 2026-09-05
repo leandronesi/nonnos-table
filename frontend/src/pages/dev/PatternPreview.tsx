@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AnalysisPreparation } from "../auth/AnalysisPreparation";
 import { PatternHomeView, type PatternHomeData, type PatternHomeRun } from "../PatternHome";
 import { buildTimingReport, assessDecisionTiming, type TimingGame } from "../../pipeline/decisionTiming";
@@ -65,14 +66,15 @@ const aggregates: Aggregates = {
 };
 
 export default function PatternPreview() {
+  const [compared, setCompared] = useState(36);
   const params = new URLSearchParams(window.location.search);
-  if (params.has("preparation")) return <AnalysisPreparation
-    progress={{ phase: "analyzing", monthsTotal: 2, monthsDone: 2, gamesTotal: 24, gamesDone: 6, gamesAnalyzed: 5, corpusFinalized: true }}
+  if (params.has("preparation")) return <><AnalysisPreparation
+    progress={{ activity: params.has("maia") ? { stage: "maia", completed: compared, total: 200 } : undefined, phase: params.has("maia") ? "coaching" : "analyzing", monthsTotal: 2, monthsDone: 2, gamesTotal: 24, gamesDone: 6, gamesAnalyzed: 5, corpusFinalized: true }}
     error={params.has("error") ? "Esempio sintetico: connessione interrotta." : null}
     ready={params.has("ready")} username="ANTEPRIMA SINTETICA"
     onEnter={() => { window.location.href = window.location.pathname; }}
     onRetry={() => { window.location.search = "?preparation"; }} onExit={() => { window.location.href = "/login"; }}
-  />;
+  />{params.has("maia") && <button onClick={() => setCompared(n => n + 12)}>Simula 12 confronti completati</button>}</>;
   const empty = params.has("empty");
   const missing = params.has("missing");
   const legacy = { ...aggregates, personal_patterns: undefined, timing: undefined,

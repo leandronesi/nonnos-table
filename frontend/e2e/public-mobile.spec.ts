@@ -1,4 +1,4 @@
-﻿import { test, expect } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 
 test("public mobile flow explains clock context and opens signup", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
@@ -58,8 +58,9 @@ test("onboarding uses the selected category rating and recovers a failed save", 
 test("preparation exposes successful counts, recovery and access to first reading", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto("/dev/patterns?preparation");
-  await expect(page.getByRole("progressbar", { name: "Prima lettura" })).toHaveAttribute("value", "5");
-  await expect(page.getByText("Prima lettura: 5 di 10 analisi riuscite.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("progressbar", { name: "Partite analizzate" })).toHaveAttribute("value", "5");
+  await expect(page.getByRole("progressbar", { name: "Partite analizzate" })).toHaveAttribute("max", "24");
+  await expect(page.getByText("5 / 24 partite analizzate e salvate", { exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.goto("/dev/patterns?preparation&error");
   await expect(page.getByRole("alert")).toContainText("connessione interrotta");
@@ -70,3 +71,27 @@ test("preparation exposes successful counts, recovery and access to first readin
   await page.getByRole("button", { name: "Apri il tuo gioco", exact: true }).click();
   await expect(page).toHaveURL(/\/dev\/patterns$/);
 });
+
+ test("Maia preparation shows measured positions and elapsed silence without invented progress", async ({page})=>{
+  await page.clock.install();
+  await page.setViewportSize({width:390,height:844});
+  await page.goto("/dev/patterns?preparation&maia");
+  await expect(page.getByText("36 / 200 posizioni confrontate",{exact:true})).toBeVisible();
+  await expect(page.getByRole("progressbar")).toHaveAttribute("value","36");
+  await page.clock.fastForward(31000);
+  await expect(page.getByText(/Non sono arrivati nuovi avanzamenti/)).toBeVisible();
+  await expect(page.getByRole("progressbar")).toHaveAttribute("value","36");
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ });
+
+ test("Maia estimate follows completed work and disappears when work stops", async ({ page }) => {
+  await page.clock.install();
+  await page.goto("/dev/patterns?preparation&maia");
+  await page.clock.fastForward(10000);
+  await page.getByRole("button", { name: "Simula 12 confronti completati" }).click();
+  await expect(page.getByText("48 / 200 posizioni confrontate", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Tempo stimato per questa fase/)).toBeVisible();
+  await page.clock.fastForward(31000);
+  await expect(page.getByText(/Tempo stimato per questa fase/)).toHaveCount(0);
+  await expect(page.getByRole("progressbar")).toHaveAttribute("value", "48");
+ });

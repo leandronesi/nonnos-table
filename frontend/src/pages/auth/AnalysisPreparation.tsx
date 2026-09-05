@@ -1,6 +1,7 @@
-﻿import { AuthShell } from "./AuthShell";
+import { AnalysisActivityStatus } from "../../components/AnalysisActivityStatus";
+import { AuthShell } from "./AuthShell";
 import type { OrchestratorProgress } from "../../pipeline/orchestrator";
-import { FIRST_BATCH_SIZE, FREE_GAME_CAP } from "../../pipeline/config";
+import { FREE_GAME_CAP } from "../../pipeline/config";
 import { tr } from "../../i18n/lang";
 
 export function AnalysisPreparation({ progress, error, ready, username, onEnter, onRetry, onExit }: {
@@ -16,7 +17,6 @@ export function AnalysisPreparation({ progress, error, ready, username, onEnter,
   const failed = Boolean(error) || phase === "error";
   const selected = progress?.corpusFinalized ? progress.gamesTotal : null;
   const analyzed = progress?.gamesAnalyzed ?? 0;
-  const firstTarget = selected == null ? FIRST_BATCH_SIZE : Math.min(FIRST_BATCH_SIZE, selected);
   const steps = [tr("Raccogliamo le partite", "Collecting games"), tr("Osserviamo le decisioni", "Examining decisions"), tr("Colleghiamo i pattern", "Connecting patterns")];
   const active = ready ? 3 : phase === "coaching" ? 2 : phase === "analyzing" ? 1 : 0;
   return <AuthShell eyebrow={tr("LE TUE PARTITE, INSIEME", "YOUR GAMES, TOGETHER")}
@@ -27,12 +27,10 @@ export function AnalysisPreparation({ progress, error, ready, username, onEnter,
       <div><strong>{analyzed}</strong><span>{tr("partite analizzate", "games analysed")}</span></div>
       <div><strong>{selected ?? "—"}</strong><span>{selected == null ? tr("corpus in raccolta", "collecting the corpus") : tr("partite selezionate", "games selected")}</span></div>
     </section>
-    {!ready && !failed && <div role="status" className="preparation-status">
-      {phase === "analyzing" && firstTarget > 0 ? <><progress max={firstTarget} value={Math.min(analyzed, firstTarget)} aria-label={tr("Prima lettura", "First reading")} /><p>{tr(`Prima lettura: ${Math.min(analyzed, firstTarget)} di ${firstTarget} analisi riuscite.`, `First reading: ${Math.min(analyzed, firstTarget)} of ${firstTarget} successful analyses.`)}</p></> : <p>{phase === "coaching" ? tr("Le posizioni vengono collegate per cercare abitudini ricorrenti.", "Connecting positions to find recurring habits.") : tr("Controlliamo le partite disponibili della cadenza scelta.", "Checking available games from the chosen time control.")}</p>}
-    </div>}
+    {!ready && !failed && <AnalysisActivityStatus progress={progress} />}
     {failed && <div role="alert" className="preparation-error"><p>{error || tr("L’analisi si è interrotta. Puoi riprovare dal punto salvato.", "Analysis stopped. You can retry from the saved point.")}</p><button type="button" className="btn btn-primary" onClick={onRetry}>{tr("Riprendi l’analisi", "Resume analysis")}</button></div>}
     {ready && <><p className="onboarding-note">{tr("Puoi già esplorare gli esempi. Con poche partite, alcuni pattern potrebbero non avere ancora abbastanza prove.", "You can explore the examples now. With few games, some patterns may still need more evidence.")}</p><button type="button" className="btn btn-primary w-full" onClick={onEnter}>{tr("Apri il tuo gioco", "Open your game")}</button></>}
-    <div className="preparation-note"><h2>{tr("Il browser sta lavorando", "Your browser does the work")}</h2><p>{tr(`L’analisi può richiedere diversi minuti. Tieni questa pagina aperta per farla avanzare. Dopo la prima lettura continuiamo fino a ${FREE_GAME_CAP} partite; se chiudi la scheda, alla riapertura riprendiamo dal punto salvato.`, `Analysis can take several minutes. Keep this page open to make progress. After the first reading, we continue to up to ${FREE_GAME_CAP} games; if you close the tab, we resume from the saved point when you return.`)}</p></div>
+    <div className="preparation-note"><h2>{tr("Come prosegue l'analisi", "How analysis continues")}</h2><p>{tr(`L’analisi può richiedere diversi minuti. Tieni questa pagina aperta per farla avanzare. Dopo la prima lettura continuiamo fino a ${FREE_GAME_CAP} partite; se chiudi la scheda, alla riapertura riprendiamo dal punto salvato.`, `Analysis can take several minutes. Keep this page open to make progress. After the first reading, we continue to up to ${FREE_GAME_CAP} games; if you close the tab, we resume from the saved point when you return.`)}</p></div>
     <button type="button" className="btn btn-ghost w-full" onClick={onExit}>{tr("Esci dall’account", "Sign out")}</button>
   </AuthShell>;
 }

@@ -22,7 +22,7 @@ import type { ProfileRow, IngestJobRow, OnboardingState, Json } from "../auth/db
 import { runIngest } from "./ingest";
 import { runAnalyze } from "./analyze";
 import type { GameAnalysis } from "./analyze";
-import { computeAggregates } from "./aggregate";
+import { computeAggregates, type AnalysisActivity } from "./aggregate";
 import { syncPatternTransfers } from "../patternLearningStore";
 import { downloadJson, uploadJson, analysisPath, quadernoPath } from "../auth/storage";
 import { buildPlayerModelLite } from "./playerModelLite";
@@ -57,6 +57,8 @@ import {
 } from "./jobLeaseSemantics";
 
 export interface OrchestratorProgress {
+  activity?: AnalysisActivity;
+  observing?: boolean;
   phase: OnboardingState;
   monthsTotal: number;
   monthsDone: number;
@@ -175,6 +177,7 @@ function emitObservedMainJob(
   job: IngestJobRow,
   profileState: OnboardingState,
   gamesAnalyzed: number,
+  gamesTotal: number,
 ): void {
   const phase: OnboardingState = job.status === "done" && profileState === "ready"
     ? "ready"
@@ -189,11 +192,12 @@ function emitObservedMainJob(
     phase,
     monthsTotal: job.months_total,
     monthsDone: job.months_done,
-    gamesTotal: job.games_total,
+    gamesTotal,
     gamesDone: job.games_done,
     gamesAnalyzed,
+    observing: phase !== "ready",
     analysisRunId: job.id,
-    corpusFinalized: job.status === "done",
+    corpusFinalized: !["queued", "fetching"].includes(job.status),
     message: phase === "ready"
       ? undefined
       : "Un'altra scheda sta completando questa analisi...",
@@ -321,8 +325,8 @@ async function doRun(opts: {
     goalTimeClass,
     expectedKind: "main",
     allowTerminal: opts.retryPartial === true,
-    onObserved: (observedJob, profileState, gamesAnalyzed) => {
-      emitObservedMainJob(observedJob, profileState, gamesAnalyzed);
+    onObserved: (observedJob, profileState, gamesAnalyzed, gamesTotal) => {
+      emitObservedMainJob(observedJob, profileState, gamesAnalyzed, gamesTotal);
       const lifecycle = observedLifecycleTransition({
         readySeen: observerSawReady,
         profileReady: profileState === "ready",
@@ -688,7 +692,7 @@ async function doRun(opts: {
     });
     try {
       await lease.guard();
-      await runAggregateAndCoach(userId, profile, () => lease.guard());
+      await runAggregateAndCoach(userId, profile, () => lease.guard(), activity => emit({ phase: "coaching", corpusFinalized: true, activity }));
       await lease.guard();
     } catch (e) {
       const msg = jobErrorMessage(e);
@@ -748,6 +752,7 @@ async function doRun(opts: {
           currentRating,
           targetRating,
           () => lease.guard(),
+          activity => emit({ phase: "coaching", corpusFinalized: true, activity }),
         );
         const existingHistory = await readHistory(userId);
         const run_kind: HistorySnapshot["run_kind"] =
@@ -907,7 +912,7 @@ async function doRun(opts: {
     });
     try {
       await lease.guard();
-      await runAggregateAndCoach(userId, profile, () => lease.guard());
+      await runAggregateAndCoach(userId, profile, () => lease.guard(), activity => emit({ phase: "coaching", corpusFinalized: true, activity }));
       await lease.guard();
 
       // ---- History snapshot (best-effort, non blocca mai ready) ----
@@ -920,6 +925,7 @@ async function doRun(opts: {
           currentRating,
           targetRating,
           () => lease.guard(),
+          activity => emit({ phase: "coaching", corpusFinalized: true, activity }),
         );
 
         const existingHistory = await readHistory(userId);
@@ -1020,6 +1026,7 @@ async function runAggregateAndCoach(
   userId: string,
   profile: ProfileRow,
   guardLease: () => Promise<void>,
+  onActivity?: (activity: AnalysisActivity) => void,
 ): Promise<void> {
   const { timeClass: goalTimeClass } = goalAnalysisScope(profile.goal_time_class);
   const currentRating = await deriveCurrentRating(userId, profile);
@@ -1030,6 +1037,7 @@ async function runAggregateAndCoach(
     currentRating,
     targetRating,
     guardLease,
+    onActivity,
   );
 
   // Reconnect trained patterns to genuinely new source-game opportunities.
@@ -1043,6 +1051,7 @@ async function runAggregateAndCoach(
     console.warn("[orchestrator] pattern transfer persistence deferred");
   }
 
+  onActivity?.({ stage: "profile" });
   // ---- PlayerModelLite (best-effort) ----
   try {
     const { data: doneGames, error: doneGamesError } = await supabase
@@ -1090,6 +1099,7 @@ async function runAggregateAndCoach(
     console.warn("[orchestrator] buildPlayerModelLite fallito (best-effort):", pmErr);
   }
 
+  onActivity?.({ stage: "coach" });
   // Coach LLM = best-effort.
   try {
     await guardLease();

@@ -506,6 +506,12 @@ type MaiaFields =
  * Runs Maia on a list of error positions and returns MaiaFields per index.
  * Returns null map on any failure — callers must handle gracefully.
  */
+export interface AnalysisActivity {
+  stage: "reading" | "loading_maia" | "maia" | "saving" | "profile" | "coach" | "stockfish";
+  completed?: number;
+  total?: number;
+}
+
 async function enrichWithMaia(
   positions: Array<{
     fen_before: string;
@@ -520,12 +526,15 @@ async function enrichWithMaia(
   }>,
   currentRating: number,
   targetRating: number,
+  onActivity?: (activity: AnalysisActivity) => void,
 ): Promise<Map<number, MaiaFields>> {
   const result: Map<number, MaiaFields> = new Map();
 
   try {
     const engine = getMaiaEngine();
+    onActivity?.({ stage: "loading_maia" });
     await engine.waitReady();
+    onActivity?.({ stage: "maia", completed: 0, total: positions.length });
 
     // Build two evaluations per position: [mine, target] interleaved.
     // Index in combined batch: i*2 = mine, i*2+1 = target.
@@ -556,6 +565,7 @@ async function enrichWithMaia(
       const chunkOppos = eloOppos.slice(start, end);
       const chunkResults = await engine.batchEvaluate(chunkFens, chunkSelfs, chunkOppos);
       allResults.push(...chunkResults);
+      onActivity?.({ stage: "maia", completed: Math.floor(allResults.length / 2), total: positions.length });
     }
 
     // Pair up mine/target for each position.
@@ -736,7 +746,9 @@ export async function computeAggregates(
   currentRating: number | null = null,
   targetRating: number = (currentRating ?? 1200) + 200,
   guardWrite?: () => Promise<void>,
+  onActivity?: (activity: AnalysisActivity) => void,
 ): Promise<Aggregates> {
+  onActivity?.({ stage: "reading", completed: 0 });
   // Una sola cadenza per lettura: rating, Maia e gestione tempo devono riferirsi
   // allo stesso corpus. Il cap viene applicato DOPO l'eq sulla goal_time_class.
   const { data: games, error: gamesError } = await supabase
@@ -818,6 +830,7 @@ export async function computeAggregates(
     if (ga.time_class && ga.time_class !== goalTimeClass) continue;
 
     analyzedCount++;
+    onActivity?.({ stage: "reading", completed: analyzedCount, total: games?.length ?? 0 });
     // Recover old analysis increments from the persisted source control, never from a guessed zero.
     const sourceControl = parseClockControl(g.time_control);
     timingGames.push({
@@ -1038,7 +1051,7 @@ export async function computeAggregates(
     }));
 
     // enrichWithMaia never throws: returns empty map on failure.
-    const maiaMap = await enrichWithMaia(positionsForMaia, currentRating, targetRating);
+    const maiaMap = await enrichWithMaia(positionsForMaia, currentRating, targetRating, onActivity);
 
     // Write Maia fields back to the original candidates.
     const errorsById = new Map(exampleCandidates.map((c) => [c.position_id, c]));
@@ -1596,6 +1609,7 @@ export async function computeAggregates(
   };
 
   await guardWrite?.();
+  onActivity?.({ stage: "saving" });
   await uploadJson(quadernoPath(userId, "aggregates.json"), out);
   await guardWrite?.();
   return out;
