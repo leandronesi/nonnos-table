@@ -73,3 +73,10 @@ test("pattern detail shows successful evidence and supports touch-sized controls
   await expect(page.getByRole("button", { name: "Partita 2", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("main")).toHaveCount(1);
 });
+
+test("completion stays in the report without a blocking dialog", async ({page}) => {
+ await page.goto('/dev/patterns?completed');
+ await expect(page.getByRole('status')).toContainText('La lettura aggiornata');
+ await expect(page.getByRole('dialog')).toHaveCount(0);
+ await expect(page.getByRole('link',{name:'Prova sulle tue posizioni',exact:true})).toBeVisible();
+});

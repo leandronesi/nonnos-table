@@ -17,7 +17,7 @@ export function PatternHome() {
 }
 
 export type PatternHomeData = Pick<TavoloData, "aggregates" | "refreshing" | "reanalyzing" | "loading" | "error" | "refreshError" | "refreshNotice" | "currentRating" | "targetRating" | "liveGoal" | "runRefreshHandler">;
-export type PatternHomeRun = Pick<ReturnType<typeof useOnboardingRun>, "backgroundRunning" | "silentRefreshing" | "backgroundError" | "backgroundCoverage" | "retryBackground"> & { progress?: OrchestratorProgress | null };
+export type PatternHomeRun = Pick<ReturnType<typeof useOnboardingRun>, "backgroundRunning" | "silentRefreshing" | "backgroundError" | "backgroundCoverage" | "retryBackground"> & { progress?: OrchestratorProgress | null; backgroundDone?: boolean };
 
 export function PatternHomeView({ data, run }: { data: PatternHomeData; run: PatternHomeRun }) {
   const report = data.aggregates;
@@ -56,6 +56,7 @@ export function PatternHomeView({ data, run }: { data: PatternHomeData; run: Pat
       {comparison.targetRating !== data.targetRating && <> {tr("Aggiorna le partite per usare il nuovo obiettivo nel confronto.", "Refresh your games to use your new goal in the comparison.")}</>}
     </p>}
     {busy && <AnalysisActivityStatus progress={run.progress} />}
+    {run.backgroundDone && !busy && report && <p role="status">{tr("La lettura aggiornata delle tue partite \u00e8 pronta.", "Your updated game report is ready.")}</p>}
     {data.loading && <p role="status">{tr("Sto preparando la tua lettura.", "Preparing your report.")}</p>}
     {(data.error || data.refreshError) && <p role="alert">{data.error || data.refreshError}</p>}
     {data.refreshNotice && <p role="status">{data.refreshNotice}</p>}

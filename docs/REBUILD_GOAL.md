@@ -296,3 +296,15 @@ dati reali. Le anteprime sintetiche non sostituiscono questa verifica.
   illegali/incomplete. La riproduzione rispetta la preferenza di movimento ridotto.
 - L'esecuzione integrata iniziata prima di questa modifica continua separatamente;
   il suo risultato non dimostra da solo il nuovo comportamento della scacchiera.
+
+## Interruzione rilevata nel ciclo completo
+
+- Il secondo run ha completato importazione, analisi delle 100 partite e Maia,
+  ma il popup globale di fine analisi copriva l'esercizio appena aperto.
+  L'errore e la schermata sono conservati negli artefatti locali del verificatore.
+- Rimosso il popup globale: la conferma di fine elaborazione compare nella home,
+  senza spostare il focus o coprire l'allenamento.
+- Il dettaglio del pattern presenta prima le scacchiere e mantiene i conteggi
+  e il confronto Maia in un approfondimento espandibile successivo.
+- Il ciclo completo fino al salvataggio dell'esercizio va rieseguito; il
+  completamento del backend da solo non prova la giocabilita del percorso.

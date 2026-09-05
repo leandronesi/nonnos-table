@@ -57,22 +57,8 @@ export function PersonalPatternDetail({ pattern, report }: { pattern: PersonalPa
       <h1>{patternTitle(pattern)}</h1><p>{tr(catalog.action, catalog.actionEn)}</p></div></header>
     <p className="pattern-kicker">{scopeLabel(pattern.scope)}</p>
     <Link className="pattern-primary" to={`/sessione?pattern=${encodeURIComponent(pattern.id)}`}>{tr("Allenati su questo pattern", "Practice this pattern")}</Link>
-    <dl className="pattern-numbers">
-      <div><dt>{tr("Occasioni osservate", "Observed opportunities")}</dt><dd>{pattern.opportunities}</dd></div>
-      <div><dt>{tr("Partite diverse", "Distinct games")}</dt><dd>{pattern.games}</dd></div>
-      <div><dt>{pattern.kind === "time_reserve" ? tr("Errori decidendo in fretta", "Errors deciding quickly") : tr("Errori nel pattern", "Pattern errors")}</dt><dd>{pattern.errors}</dd></div>
-      <div><dt>{tr("Scelte che hanno mantenuto la posizione", "Choices preserving the position")}</dt><dd>{pattern.handled}</dd></div>
-    </dl>
+    <p className="pattern-muted">{pattern.opportunities} {tr("occasioni osservate in", "opportunities across")} {pattern.games} {tr("partite", "games")}.</p>
     {pattern.evidence === "insufficient" && <p className="pattern-muted">{tr("Questa è una prima osservazione. Non ci sono ancora abbastanza occasioni in partite diverse per assegnarle una priorità.", "This is an early observation. There are not enough opportunities across different games to assign a priority yet.")}</p>}
-    <section className="pattern-section"><h2>{tr("I livelli usati in questa lettura", "The levels used in this report")}</h2>
-      <p>{report.currentRating ?? "—"} → {report.targetRating}</p>
-      {pattern.maia.currentSupport !== null && pattern.maia.targetSupport !== null ? <>
-        <dl className="pattern-numbers"><div><dt>{tr("Sostegno Maia al livello attuale", "Maia support at your current level")}</dt><dd>{Math.round(pattern.maia.currentSupport * 100)} / 100</dd></div>
-          <div><dt>{tr("Sostegno Maia al livello obiettivo", "Maia support at your goal level")}</dt><dd>{Math.round(pattern.maia.targetSupport * 100)} / 100</dd></div></dl>
-        <p className="pattern-muted">{tr("Sostegno del modello alle alternative valide esaminate, sulle stesse posizioni e tenendo fisso il livello dell'avversario. Non è la percentuale di persone che risolverebbero il problema.", "Model support for the examined valid alternatives, on the same positions and keeping the opponent level fixed. This is not the percentage of people who would solve the problem.")}</p>
-      </> : <p>{tr("Il confronto di livello non ha ancora copertura sufficiente. Le prove delle tue partite restano disponibili.", "The level comparison does not yet have enough coverage. Your game evidence remains available.")}</p>}
-      <p className="pattern-muted">Maia: {pattern.maia.scored} / {pattern.maia.eligible} {tr("occasioni valutate. Il campione comprende scelte riuscite ed errori; i rating della piattaforma non sono automaticamente equivalenti a quelli del modello.", "opportunities evaluated. The sample includes successful choices and errors; platform ratings are not automatically equivalent to the model's ratings.")}</p>
-    </section>
     <section className="pattern-section"><h2>{tr("Le prove, sulle tue scacchiere", "The evidence, on your boards")}</h2>
       <div className="pattern-choice-row">
         <button type="button" aria-pressed={tab === "errors"} onClick={() => { setTab("errors"); setSelected(0); }}>{tr("Errori", "Errors")} ({pattern.examples.length})</button>
@@ -82,6 +68,26 @@ export function PersonalPatternDetail({ pattern, report }: { pattern: PersonalPa
       {position ? <PatternPosition key={position.id} position={position} /> : <p>{tr("Nessun esempio di questo tipo nel campione.", "No example of this type in the sample.")}</p>}
       <p className="pattern-muted">{tr("Gli esempi provengono da partite diverse. I temi tattici sono riconosciuti dalla geometria e dalle alternative del motore: la classificazione può essere incompleta.", "Examples come from different games. Tactical themes are recognized from geometry and engine alternatives: classification can be incomplete.")}</p>
     </section>
+    <details className="pattern-detail">
+      <summary><strong>{tr("Approfondisci il confronto di livello", "Explore the level comparison")} {report.currentRating ?? "-"} → {report.targetRating}</strong><span aria-hidden="true">+</span></summary>
+      <div className="pattern-detail-body">
+    <dl className="pattern-numbers">
+      <div><dt>{tr("Occasioni osservate", "Observed opportunities")}</dt><dd>{pattern.opportunities}</dd></div>
+      <div><dt>{tr("Partite diverse", "Distinct games")}</dt><dd>{pattern.games}</dd></div>
+      <div><dt>{pattern.kind === "time_reserve" ? tr("Errori decidendo in fretta", "Errors deciding quickly") : tr("Errori nel pattern", "Pattern errors")}</dt><dd>{pattern.errors}</dd></div>
+      <div><dt>{tr("Scelte che hanno mantenuto la posizione", "Choices preserving the position")}</dt><dd>{pattern.handled}</dd></div>
+    </dl>
+    <section className="pattern-section"><h2>{tr("I livelli usati in questa lettura", "The levels used in this report")}</h2>
+      <p>{report.currentRating ?? "—"} → {report.targetRating}</p>
+      {pattern.maia.currentSupport !== null && pattern.maia.targetSupport !== null ? <>
+        <dl className="pattern-numbers"><div><dt>{tr("Sostegno Maia al livello attuale", "Maia support at your current level")}</dt><dd>{Math.round(pattern.maia.currentSupport * 100)} / 100</dd></div>
+          <div><dt>{tr("Sostegno Maia al livello obiettivo", "Maia support at your goal level")}</dt><dd>{Math.round(pattern.maia.targetSupport * 100)} / 100</dd></div></dl>
+        <p className="pattern-muted">{tr("Sostegno del modello alle alternative valide esaminate, sulle stesse posizioni e tenendo fisso il livello dell'avversario. Non è la percentuale di persone che risolverebbero il problema.", "Model support for the examined valid alternatives, on the same positions and keeping the opponent level fixed. This is not the percentage of people who would solve the problem.")}</p>
+      </> : <p>{tr("Il confronto di livello non ha ancora copertura sufficiente. Le prove delle tue partite restano disponibili.", "The level comparison does not yet have enough coverage. Your game evidence remains available.")}</p>}
+      <p className="pattern-muted">Maia: {pattern.maia.scored} / {pattern.maia.eligible} {tr("occasioni valutate. Il campione comprende scelte riuscite ed errori; i rating della piattaforma non sono automaticamente equivalenti a quelli del modello.", "opportunities evaluated. The sample includes successful choices and errors; platform ratings are not automatically equivalent to the model's ratings.")}</p>
+    </section>
+      </div>
+    </details>
   </>;
 }
 

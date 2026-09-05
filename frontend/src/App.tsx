@@ -21,7 +21,6 @@ import { AppShell } from "./components/AppShell";
 import { PRODUCT_NAME } from "./coaching";
 import { IncontroPreview } from "./pages/dev/IncontroPreview";
 import { TeachTest } from "./pages/dev/TeachTest";
-import { SecondaBattutaPopup } from "./components/SecondaBattutaPopup";
 import { Settings } from "./pages/settings/Settings";
 import { Privacy } from "./pages/Privacy";
 import { isAnalyzedTimeClass } from "./pipeline/config";
@@ -120,8 +119,6 @@ export function App() {
         <div className="room-grain" aria-hidden="true" />
         {/* Remount the visual tree on language change (providers above stay mounted) */}
         <VisualRemountBoundary>
-        {/* Popup globale: seconda battuta di Nonno al completamento del background */}
-        <SecondaBattutaPopup />
         <Routes>
           {/* Pubbliche */}
           <Route path="/login" element={<Login />} />

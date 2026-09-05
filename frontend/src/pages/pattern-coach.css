@@ -79,3 +79,5 @@
 .playback-controls { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 12px; }
 .playback-controls button { min-width: 52px; font-size: 1.4rem; }
 .move-playback { min-width: 0; scroll-margin-top: 90px; }
+
+.practice-decision details summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }

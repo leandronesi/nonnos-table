@@ -87,7 +87,7 @@ export default function PatternPreview() {
     runRefreshHandler: async () => {},
   };
   const run: PatternHomeRun = {
-    backgroundRunning: false, silentRefreshing: false, backgroundError: null,
+    backgroundDone: params.has("completed"), backgroundRunning: false, silentRefreshing: false, backgroundError: null,
     backgroundCoverage: null, retryBackground: () => {},
   };
   return <CoachShell username="Giocatore demo" onSignOut={async () => {}}>

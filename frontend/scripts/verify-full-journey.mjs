@@ -60,6 +60,7 @@ try {
  assert.equal(games.length,100);assert.ok(games.every(g=>g.analysis_status==='done'&&g.analysis_path&&g.time_class==='blitz'));
  const stored=checked(await admin.storage.from('user-data').download(`${owner}/quaderno/aggregates.json`));
  const report=JSON.parse(await stored.text());assert.equal(report.games_analyzed,100);assert.ok(report.personal_patterns.sampled>0);
+ await mark('Full corpus saved with Maia',{games:100,maia:report.personal_patterns.sampled});
  await page.reload();await page.getByText('100 partite nella lettura',{exact:true}).waitFor({timeout:30000});
  const practice=page.getByRole('link',{name:'Prova sulle tue posizioni',exact:true});
  const href=await practice.getAttribute('href');const patternId=new URL(href,page.url()).searchParams.get('pattern');
