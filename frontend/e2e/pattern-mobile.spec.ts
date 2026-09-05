@@ -11,6 +11,7 @@ for (const width of [360, 390, 430, 1280]) {
     await expect(page.getByRole("navigation", { name: "Navigazione principale" })).toHaveCount(1);
     await expect(page.getByRole("link", { name: "Allenamento", exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await expect(page.locator(".pattern-detail summary").first()).toContainText("mediogioco");
     await page.locator(".pattern-detail summary").first().click();
     await expect(page.getByRole("heading", { name: "Prima della tua decisione" }).first()).toBeVisible();
     await expect(page.getByText("6:00", { exact: true }).first()).toBeVisible();
@@ -35,6 +36,10 @@ test("missing timing and empty reports remain actionable", async ({ page }) => {
   await page.goto("/dev/patterns?missing");
   await expect(page.getByText(/Questa lettura non contiene ancora/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Aggiorna le partite" })).toBeEnabled();
+  await page.goto("/dev/patterns?new-rating");
+  await expect(page.getByRole("link", { name: "Il tuo obiettivo" })).toContainText("1250");
+  await expect(page.getByRole("status")).toContainText("Il confronto Maia di questa lettura usa 1200 → 1400");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.goto("/dev/patterns?empty");
   await expect(page.getByRole("heading", { name: "La tua lettura deve ancora arrivare." })).toBeVisible();
   await expect(page.getByRole("button", { name: "Aggiorna le partite" })).toBeEnabled();

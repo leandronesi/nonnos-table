@@ -280,6 +280,7 @@ export function useTavoloData(): TavoloData {
       const started = await runRefresh(profile, {
         rebuildExisting: aggregates?.personal_patterns?.version !== PATTERN_VERSION
           || !aggregates?.personal_patterns?.observations
+          || aggregates?.personal_patterns?.targetRating !== targetRating
           || aggregates?.timing?.version !== TIMING_VERSION,
       });
       if (!started) {

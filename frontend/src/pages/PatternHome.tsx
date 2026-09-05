@@ -24,6 +24,8 @@ export function PatternHomeView({ data, run }: { data: PatternHomeData; run: Pat
   const anchors = (report?.anchors ?? []).filter((a) => a.games_with >= 3);
   const first = anchors[0];
   const patterns = report?.personal_patterns?.patterns;
+  const comparison = report?.personal_patterns;
+  const comparisonIsOlder = comparison && ((data.currentRating !== null && comparison.currentRating !== data.currentRating) || comparison.targetRating !== data.targetRating);
   const priority = patterns?.find((p) => p.evidence === "recurring");
 
   return <div className="pattern-coach">
@@ -44,6 +46,11 @@ export function PatternHomeView({ data, run }: { data: PatternHomeData; run: Pat
         {busy ? tr("Aggiornamento in corso…", "Updating…") : tr("Aggiorna le partite", "Refresh games")}
       </button>
     </div>
+    {comparisonIsOlder && <p className="pattern-muted" role="status">
+      {tr("Il confronto Maia di questa lettura usa", "This report's Maia comparison uses")} {comparison.currentRating ?? "—"} → {comparison.targetRating}.
+      {" "}{tr("Il livello di partenza viene dalle partite analizzate e può differire dal rating aggiornato su Chess.com.", "The starting level comes from the analyzed games and may differ from your updated Chess.com rating.")}
+      {comparison.targetRating !== data.targetRating && <> {tr("Aggiorna le partite per usare il nuovo obiettivo nel confronto.", "Refresh your games to use your new goal in the comparison.")}</>}
+    </p>}
     {data.loading && <p role="status">{tr("Sto preparando la tua lettura.", "Preparing your report.")}</p>}
     {(data.error || data.refreshError) && <p role="alert">{data.error || data.refreshError}</p>}
     {data.refreshNotice && <p role="status">{data.refreshNotice}</p>}

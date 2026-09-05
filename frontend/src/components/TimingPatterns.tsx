@@ -49,7 +49,7 @@ function TimingDetail({ pattern }: { pattern: TimingStratum }) {
   const comparison = pattern.consideredWithTime;
   return <details className="pattern-detail">
     <summary>
-      <span><span className="pattern-kicker">{pattern.baseSeconds / 60}+{pattern.incrementSeconds} · {pattern.timeClass}</span>
+      <span><span className="pattern-kicker">{pattern.baseSeconds / 60}+{pattern.incrementSeconds} · {pattern.timeClass} · {pattern.phase === "opening" ? tr("apertura", "opening") : pattern.phase === "endgame" ? tr("finale", "endgame") : tr("mediogioco", "middlegame")}</span>
         <strong>{pattern.context === "narrow_choice"
           ? tr("Scelte strette, risposte veloci", "Narrow choices, quick replies")
           : tr("Decisioni veloci con tempo disponibile", "Quick decisions with time available")}</strong>

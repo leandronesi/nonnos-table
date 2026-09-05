@@ -79,7 +79,7 @@ export default function PatternPreview() {
     aggregates: empty ? null : missing ? { ...aggregates, timing: undefined } : aggregates,
     loading: false, refreshing: false, reanalyzing: false,
     error: null, refreshError: null, refreshNotice: null,
-    currentRating: 1200, targetRating: 1400, liveGoal: undefined,
+    currentRating: params.has("new-rating") ? 1250 : 1200, targetRating: 1400, liveGoal: undefined,
     runRefreshHandler: async () => {},
   };
   const run: PatternHomeRun = {

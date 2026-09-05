@@ -70,7 +70,7 @@ export function PersonalPatternDetail({ pattern, report }: { pattern: PersonalPa
       <div><dt>{tr("Scelte che hanno mantenuto la posizione", "Choices preserving the position")}</dt><dd>{pattern.handled}</dd></div>
     </dl>
     {pattern.evidence === "insufficient" && <p className="pattern-muted">{tr("Questa è una prima osservazione. Non ci sono ancora abbastanza occasioni in partite diverse per assegnarle una priorità.", "This is an early observation. There are not enough opportunities across different games to assign a priority yet.")}</p>}
-    <section className="pattern-section"><h2>{tr("Il livello a cui stai lavorando", "The level you are working towards")}</h2>
+    <section className="pattern-section"><h2>{tr("I livelli usati in questa lettura", "The levels used in this report")}</h2>
       <p>{report.currentRating ?? "—"} → {report.targetRating}</p>
       {pattern.maia.currentSupport !== null && pattern.maia.targetSupport !== null ? <>
         <dl className="pattern-numbers"><div><dt>{tr("Sostegno Maia al livello attuale", "Maia support at your current level")}</dt><dd>{Math.round(pattern.maia.currentSupport * 100)} / 100</dd></div>

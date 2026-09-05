@@ -214,3 +214,17 @@ dati reali. Le anteprime sintetiche non sostituiscono questa verifica.
   dimostra ancora l'intera importazione iniziale da Chess.com.
 - Per il deploy configurati modello Maia con versione e hash verificabili e
   origine pubblica. Il workflow richiede avvio manuale dopo il push su main.
+
+## Verifica dell'importazione live e chiarezza della lettura
+
+- `verify-live-ingest.mjs` ha importato dal browser dieci blitz correnti di un
+  profilo pubblico Chess.com, con sessione autenticata, lease PostgreSQL e
+  scrittura privata Supabase. Riletti tutti i dieci PGN; un secondo passaggio
+  conserva le stesse identita senza duplicati. Account e file temporanei rimossi.
+- La prova copre l'importatore reale, separatamente dalle verifiche di analisi,
+  aggregazione e allenamento. Il ciclo completo iniziale con continuazione in
+  background resta da verificare come singola esecuzione.
+- La fase della partita e ora visibile nelle righe chiuse del cronometro.
+  Un rating live diverso non viene presentato come il rating usato dal confronto
+  Maia gia calcolato; un nuovo obiettivo forza il ricalcolo anche senza nuove
+  partite. Build e controlli browser della lettura passati.
