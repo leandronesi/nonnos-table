@@ -4,10 +4,24 @@ import { buildPatternLearning, type LearningAttempt, type PatternObservation } f
 const patternId = "time_reserve:rapid:600:0:middlegame";
 const attempt: LearningAttempt = { id: "a", anchor_key: patternId, source_game_id: "training-source", position_id: "training-source:21", mode: "drill", verdict: "wrong", correct: false, used_hint: false, response_ms: 3000, created_at: "2026-08-15T12:00:00Z" };
 function observation(game: string, date: string, patch: Partial<PatternObservation> = {}): PatternObservation {
-  return { id: `${game}:21`, gameId: game, playedAt: date, patternIds: [patternId], cpLoss: 150, fast: true, ...patch };
+  return { id: `${game}:21`, gameId: game, playedAt: date, startedAt: new Date(Date.parse(date) - 60_000).toISOString(), patternIds: [patternId], cpLoss: 150, fast: true, ...patch };
 }
 
 describe("practice to later-game transfer", () => {
+  it("excludes overlapping games and unknown or invalid starts from later evidence", () => {
+    const end = "2026-08-15T12:05:00Z";
+    const cases = [
+      observation("overlap", end, { startedAt: "2026-08-15T11:59:00Z" }),
+      observation("equal", end, { startedAt: attempt.created_at }),
+      observation("unknown", end, { startedAt: null }),
+      observation("legacy", end, { startedAt: undefined }),
+      observation("invalid", end, { startedAt: "2026-08-15T12:06:00Z" }),
+      observation("after", end),
+    ];
+    const report = buildPatternLearning(cases, [attempt]);
+    expect(report.patterns[0]).toMatchObject({ excludedChronologyGames: 5, subsequent: { games: 1, opportunities: 1 } });
+    expect(report.transfers.map(row => row.sourceGameId)).toEqual(["after"]);
+  });
   it("requires evaluated practice, excludes source games and respects chronology", () => {
     const before = observation("before", "2026-08-14T00:00:00Z");
     const exact = observation("exact", attempt.created_at);

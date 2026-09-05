@@ -17,6 +17,7 @@
  */
 
 import { Chess } from "chess.js";
+import { gameStartedAt } from "./gameChronology";
 import { supabase } from "../auth/supabaseClient";
 import { downloadText, uploadJson } from "../auth/storage";
 import { analysisPath } from "../auth/storage";
@@ -175,6 +176,7 @@ export interface AnalyzedMove {
 }
 
 export interface GameAnalysis {
+  started_at?: string | null;
   game_id: string;
   chess_com_uuid: string;
   played_at: string;
@@ -835,6 +837,7 @@ export async function analyzePgn(
   }
 
   const summary: GameAnalysis = {
+    started_at: gameStartedAt(headers, game.played_at),
     game_id: game.id,
     chess_com_uuid: game.chess_com_uuid,
     played_at: game.played_at,

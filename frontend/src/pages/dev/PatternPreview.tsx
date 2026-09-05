@@ -26,7 +26,7 @@ const games: TimingGame[] = Array.from({ length: 24 }, (_, i) => ({
 
 const zeroPhase = { moves: 0, blunders: 0, mistakes: 0, inaccuracies: 0, blunder_pct: 0, mistake_pct: 0, inaccuracy_pct: 0, avg_cp_loss: 0 };
 const opportunities: PatternOpportunity[] = games.flatMap((game) => game.moves.map((move) => ({
-  id: `${game.gameId}:${move.ply}`, gameId: game.gameId, playedAt: game.playedAt,
+  id: `${game.gameId}:${move.ply}`, gameId: game.gameId, playedAt: game.playedAt, startedAt: new Date(Date.parse(game.playedAt) - 600_000).toISOString(),
   kinds: ["narrow_choice", "time_reserve"], scope: "rapid:600:0:middlegame",
   timeClass: "rapid", baseSeconds: 600, incrementSeconds: 0, opponentRating: 1250,
   phase: "middlegame", ply: move.ply, fen: move.fenBefore, color: "white",
@@ -89,7 +89,7 @@ export default function PatternPreview() {
   return <CoachShell username="Giocatore demo" onSignOut={async () => {}}>
     <p role="note" style={{ padding: 12, textAlign: "center" }}>Anteprima di sviluppo · dati sintetici, non una diagnosi reale</p>
     {params.has("practice") ? <PatternPracticeView pattern={personalPatterns.patterns[0]} persistence={previewPersistence} saveAttempt={previewSaveAttempt} />
-      : params.has("progress") ? <div className="pattern-coach"><PatternProgressView patterns={buildPatternLearning(personalPatterns.observations ?? [], [previewAttempt]).patterns} coverageKnown /></div>
+      : params.has("progress") ? <div className="pattern-coach"><PatternProgressView patterns={buildPatternLearning((personalPatterns.observations ?? []).map(o => params.has("missing-start") ? { ...o, startedAt: null } : o), [previewAttempt]).patterns} coverageKnown /></div>
       : params.has("detail") ? <div className="pattern-coach"><PersonalPatternDetail pattern={personalPatterns.patterns[0]} report={personalPatterns} /></div>
       : <PatternHomeView data={data} run={run} />}</CoachShell>;
 }

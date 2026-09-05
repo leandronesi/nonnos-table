@@ -5,7 +5,7 @@ import type { GameAnalysis } from "../src/pipeline/analyze";
 function source(index: number, cpLoss = 0): PatternSourceGame {
   // Fields not consumed by opportunity extraction are intentionally omitted here.
   const analysis = {
-    chess_com_uuid: `g${index}`, played_at: "2026-09-01T12:00:00Z", color: "white", time_class: "rapid",
+    chess_com_uuid: `g${index}`, played_at: "2026-09-01T12:00:00Z", started_at: "2026-09-01T11:50:00Z", color: "white", time_class: "rapid",
     moves: Array.from({ length: 12 }, (_, i) => ({
       ply: 17 + i * 2, fenBefore: "8/8/8/8/8/8/4K3/7k w - - 0 13",
       san: "Kd3", uci: "e2d3", bestMoveUci: "e2e3", acceptableObservedMoveUcis: ["e2e3"],
@@ -23,6 +23,7 @@ describe("personal patterns from all opportunities", () => {
     expect(opportunities).toHaveLength(24);
     expect(opportunities[0]).toMatchObject({ id: "g1:17", cpLoss: 0, kinds: ["fork", "narrow_choice", "time_reserve"], opponentRating: 1300 });
     const report = buildPersonalPatternReport(opportunities, new Map(), 1200, 1400);
+    expect(report.observations?.[0]).toMatchObject({ id: "g1:17", startedAt: "2026-09-01T11:50:00Z", playedAt: "2026-09-01T12:00:00Z" });
     expect(report.patterns.find((p) => p.kind === "fork")).toMatchObject({ opportunities: 24, errors: 12, handled: 12, games: 2, evidence: "insufficient", priority: 0 });
   });
 

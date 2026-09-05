@@ -15,7 +15,7 @@ export function PatternProgressView({ patterns, coverageKnown }: { patterns: Pat
     <p>{tr("Qui distinguiamo ciò che riesci a fare in allenamento da quello che succede quando torni a giocare.", "Here we separate what you do in practice from what happens when you return to playing.")}</p>
     {!coverageKnown && <p role="status">{tr("La lettura attuale non contiene ancora le opportunità necessarie per confrontare le partite. Aggiornala dal quaderno.", "The current report does not yet contain the opportunities needed to compare games. Refresh it from the notebook.")}</p>}
     {!patterns.length && <section className="pattern-focus"><h2>{tr("Il percorso comincia da una scelta.", "Progress starts with a choice.")}</h2>
-      <p>{tr("Completa un primo esercizio su un tuo pattern. Poi potremo osservare le nuove occasioni nelle partite concluse dopo quell'allenamento.", "Complete a first exercise on one of your patterns. Then we can observe new opportunities in games completed after that practice.")}</p>
+      <p>{tr("Completa un primo esercizio su un tuo pattern. Poi potremo osservare le nuove occasioni nelle partite iniziate dopo quell'allenamento.", "Complete a first exercise on one of your patterns. Then we can observe new opportunities in games started after that practice.")}</p>
       <Link className="pattern-primary" to="/sessione">{tr("Scegli un allenamento", "Choose a practice")}</Link></section>}
     {patterns.map((pattern) => {
       const catalog = PATTERN_CATALOG[pattern.patternId.split(":")[0] as PatternKind];
@@ -36,6 +36,7 @@ export function PatternProgressView({ patterns, coverageKnown }: { patterns: Pat
           <p>{tr("occasioni senza errori rilevanti", "opportunities without substantial errors")}</p>
           <p className="pattern-muted">{after.games} {tr("partite diverse, escludendo quelle usate per allenarti", "different games, excluding those used for practice")}</p>
         </div></div>
+        {pattern.excludedChronologyGames > 0 && <p className="pattern-muted" role="status">{pattern.excludedChronologyGames} {tr("partite escluse dal confronto successivo: sono iniziate prima dell'allenamento oppure l'orario di inizio manca o non è valido.", "games excluded from the later comparison: they started before practice, or their start time is missing or invalid.")}</p>}
         <h3>{tr("Prima e dopo, sulle occasioni osservate", "Before and after, on observed opportunities")}</h3>
         <dl className="pattern-numbers"><div><dt>{tr("Errori prima dell'allenamento", "Errors before practice")}</dt><dd>{before.errors} / {before.opportunities}</dd></div>
           <div><dt>{tr("Errori dopo l'allenamento", "Errors after practice")}</dt><dd>{after.errors} / {after.opportunities}</dd></div></dl>

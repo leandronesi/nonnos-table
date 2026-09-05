@@ -1,5 +1,6 @@
 /** Longitudinal observations are independent of exercise success. */
 export interface PatternObservation {
+  startedAt?: string | null;
   id: string;
   gameId: string;
   playedAt: string;
@@ -32,6 +33,7 @@ export interface LearningWindow {
 }
 
 export interface PatternLearning {
+  excludedChronologyGames: number;
   patternId: string;
   firstPracticedAt: string;
   practiceAttempts: number;
@@ -88,11 +90,17 @@ export function buildPatternLearning(observations: PatternObservation[], attempt
     const relevant = distinct.filter((o) => o.patternIds.includes(patternId));
     const before = relevant.filter((o) => Date.parse(o.playedAt) < firstMs);
     // Never count a position's training source as evidence of transfer.
-    const after = relevant.filter((o) => Date.parse(o.playedAt) > firstMs && !trainingSources.has(o.gameId));
+    const endedLater = relevant.filter((o) => Date.parse(o.playedAt) > firstMs && !trainingSources.has(o.gameId));
+    const after = endedLater.filter((o) => {
+      const started = Date.parse(o.startedAt ?? "");
+      return Number.isFinite(started) && started > firstMs && started <= Date.parse(o.playedAt);
+    });
+    const included = new Set(after.map((o) => o.id));
     const baseline = windowOf(before);
     const subsequent = windowOf(after);
     patterns.push({
       patternId, firstPracticedAt: first.created_at,
+      excludedChronologyGames: new Set(endedLater.filter((o) => !included.has(o.id)).map((o) => o.gameId)).size,
       practiceAttempts: practice.length,
       practiceSuccesses: practice.filter((a) => a.correct === true).length,
       practiceWithHint: practice.filter((a) => a.used_hint).length,

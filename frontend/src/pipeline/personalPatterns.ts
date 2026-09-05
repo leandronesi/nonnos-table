@@ -3,7 +3,7 @@ import { assessDecisionTiming, type DecisionTiming } from "./decisionTiming";
 import type { MaiaPolicyMetrics } from "./maia/policySemantics";
 import type { PatternObservation } from "./patternLearning";
 
-export const PATTERN_VERSION = 1;
+export const PATTERN_VERSION = 2;
 export type PatternKind = "fork" | "back_rank" | "hanging_piece" | "narrow_choice" | "time_reserve" | "time_pressure" | "keep_advantage";
 
 export const PATTERN_CATALOG: Record<PatternKind, { title: string; titleEn: string; action: string; actionEn: string }> = {
@@ -24,6 +24,7 @@ export interface PatternSourceGame {
 }
 
 export interface PatternOpportunity {
+  startedAt?: string | null;
   id: string;
   gameId: string;
   playedAt: string;
@@ -76,7 +77,7 @@ export function collectPatternOpportunities(sources: PatternSourceGame[]): Patte
       if (timing.eligible && timing.reserve === "pressure") kinds.push("time_pressure");
       if (!kinds.length) continue;
       opportunities.push({
-        id, gameId: game.chess_com_uuid, playedAt: game.played_at, kinds,
+        id, gameId: game.chess_com_uuid, playedAt: game.played_at, startedAt: game.started_at ?? null, kinds,
         scope: `${game.time_class}:${baseSeconds ?? "unknown"}:${incrementSeconds ?? "unknown"}:${move.phase}`,
         timeClass: game.time_class, baseSeconds, incrementSeconds, opponentRating,
         phase: move.phase, ply: move.ply, fen: move.fenBefore, color: game.color,
@@ -229,7 +230,7 @@ export function buildPersonalPatternReport(
   return {
     version: PATTERN_VERSION, currentRating, targetRating,
     observations: opportunities.map((o) => ({
-      id: o.id, gameId: o.gameId, playedAt: o.playedAt,
+      id: o.id, gameId: o.gameId, playedAt: o.playedAt, startedAt: o.startedAt ?? null,
       patternIds: o.kinds.map((kind) => `${kind}:${o.scope}`), cpLoss: o.cpLoss,
       fast: o.timing.status === "available" ? o.timing.pace === "fast" : null,
     })),

@@ -41,4 +41,8 @@ test("progress separates exercises from game opportunities on a phone", async ({
   await expect(page.getByRole("heading", { name: "Nelle partite successive" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: "test-results/progress-360.png", fullPage: true });
+  await page.goto("/dev/patterns?progress&missing-start");
+  await expect(page.getByRole("status")).toContainText("14 partite escluse dal confronto successivo");
+  await expect(page.getByText(/Zero occasioni non significa zero errori/)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

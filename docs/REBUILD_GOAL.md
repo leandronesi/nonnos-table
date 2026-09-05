@@ -228,3 +228,17 @@ dati reali. Le anteprime sintetiche non sostituiscono questa verifica.
   Un rating live diverso non viene presentato come il rating usato dal confronto
   Maia gia calcolato; un nuovo obiettivo forza il ricalcolo anche senza nuove
   partite. Build e controlli browser della lettura passati.
+
+## Ordine temporale di allenamento e partite
+
+- Le nuove analisi conservano l'inizio UTC dichiarato nel PGN, verificato contro
+  l'orario di fine. Date impossibili o mancanti restano sconosciute.
+- La finestra successiva richiede partite iniziate dopo il primo esercizio;
+  quelle gia in corso non diventano prove di apprendimento. Gli orari mancanti
+  nelle analisi precedenti escludono la partita dal confronto successivo e sono
+  riportati nella pagina progressi. Il baseline usa ancora le partite concluse
+  prima dell'esercizio.
+- Report pattern v2: il normale aggiornamento rigenera gli aggregati precedenti.
+  Non inventa orari per le vecchie analisi e non richiede migrazioni SQL.
+- Build e 178 test di logica passati; verificata a 360 px anche la spiegazione
+  delle partite escluse e dell'insufficienza del campione.
